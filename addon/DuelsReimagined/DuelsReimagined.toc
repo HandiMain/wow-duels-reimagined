@@ -1,0 +1,5 @@
+## Interface: 120105, 16001
+## Title: Duels Reimagined
+## Notes: A dueling companion for World of Warcraft.
+## Author: Handi
+## Category: PvP
