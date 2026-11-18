@@ -1,0 +1,16 @@
+# Local operating-system files
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Temporary editor and backup files
+*~
+*.swp
+*.swo
+*.tmp
+*.bak
+
+# Local World of Warcraft test data
+/WTF/
+/Cache/
+/Logs/
