@@ -3,3 +3,4 @@
 ## Notes: A dueling companion for World of Warcraft.
 ## Author: Handi
 ## Category: PvP
+## IconTexture: Interface\AddOns\DuelsReimagined\Media\Icons\DuelsReimagined-AddonIcon.blp
