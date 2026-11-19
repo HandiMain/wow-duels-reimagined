@@ -224,3 +224,55 @@ Past experiments included duel history, personal statistics, rankings, player pr
 - The demo labels v0.1.2, v0.1.1, v0.1.0 are EXAMPLES ONLY and do not reflect the installed addon version. No TOC version change, tag, release, or main-branch modification.
 - Latest-only mark-read keeps older version browsing from clearing a newer update. Read reminder remains in centralized Options; feature rows only react if their Search target exists.
 - Status: IMPLEMENTED/UNTESTED IN-GAME until screenshots and manual checks confirm the custom art, label font/line fit, menu resizing, scroll, older version selection, action link, theme/animation, reload persistence, and client compatibility.
+
+## Deferred Polestar inspiration backlog — November 19, 2026
+
+**Decision: IDEA / DEFERRED — NOT BUILD AUTHORIZED.** Save all 30 ideas from the Polestar-vs-Duels Options and settings audit, but implement **none yet**. The addon is still missing core dueling/gameplay features. These are reference IDs, **not priorities, approvals, promises, or a development roadmap**. Do not infer build permission from this documentation.
+
+Before implementing an item in the future, first re-audit the current Duels code to avoid duplicating an existing feature, inspect the relevant Polestar source and other approved references, design the behavior and UI, request separate approval and perform appropriate in-game tests. Polestar patterns are references, not automatic requirements. The audit was made against the UI-only Duels foundation and Polestar 0.4.1.1.
+
+### Current-interface improvement ideas
+1. **Lock the interface:** Prevent accidental moving and resizing; optionally lock the floating widget separately.
+2. **Undo changes and resets:** Let a player reverse a recent reset or reversible settings change; reuse existing Settings ownership.
+3. **Interactive live previews:** Show a small real-looking example of the relevant interface setting, never simulated as actual gameplay evidence.
+4. **Minimap right-click quick menu:** Quick access to Duels, Patch Notes, Lock and Options; preferences stay in the central Options area.
+5. **Smarter search:** Typo forgiveness, matched-word highlighting and easier browsing of long results; do not reimplement the existing search registry and result navigation.
+6. **Combat fade or hide:** Get the full menu out of the way during combat while respecting Blizzard restrictions and future match-critical widgets.
+7. **Background opacity:** Control the dark panel backgrounds separately from Peek, retaining readable text and the gold frame.
+8. **Hover-to-highlight:** Briefly identify the actual widget controlled by a setting when hovering over its Options row.
+9. **Exact slider input:** Type a numeric value with existing minimum, maximum, step and SavedVariables validation.
+10. **Open Duels keybind:** A configurable shortcut that leaves Blizzard chat and combat bindings intact.
+11. **Blizzard AddOns settings entry:** Simple entry opening Duels' own Options, no duplicate settings system.
+12. **Copyable bug report summary:** Read-only client/addon diagnostic text with sensitive details excluded.
+13. **Snap to screen edges:** Optional guides when moving a window or widget.
+14. **High-contrast text protection:** Keep text readable after custom/EllesmereUI color changes.
+15. **Separate heading and description text sizes:** More typography control without scaling all text together.
+16. **Text shadow options:** Readability alternative to our existing text outline choices.
+17. **Animation speed:** Slow/Normal/Fast with existing Reduce Motion respected, not a new animation engine.
+18. **Back to Top:** A contextual shortcut on long scrollable pages.
+19. **Custom accent selection:** Restrained interactive highlights while keeping Duels' recognizable gold framing.
+20. **Modified-settings indicators:** Clearly show which sections differ from defaults; optional contextual Reset Section.
+
+### More substantial ideas for later
+
+21. **Appearance presets:** Cohesive visual configurations, not a sprawling skin marketplace.
+22. **Personal UI profiles:** Named account/character layout presets with optional export; never mix with real dueling records.
+23. **Unlock/arrange mode:** Outline movable widgets, grid/snap and Undo when Duels has multiple movable match elements.
+24. **Shared notification system:** Consistent position, timing, animation and sound for future *verified* duel events.
+25. **First-time onboarding:** Guided introduction when core features are finished enough to explain.
+26. **What's New after real updates:** Show a one-time release summary through existing Patch Notes; demo notes must not be presented as releases.
+27. **New-version detection:** Only with reliable release metadata and tested peer communication; no invented version proof.
+28. **Gamepad navigation:** Focus and input support without interfering with WoW binds.
+29. **Localization:** Translation-friendly text and adaptable layouts when multiple languages are maintained.
+30. **Optional performance diagnostics:** On-demand own-addon analysis for future gameplay/networking, no permanent profiling.
+
+### Explicitly deprioritized / avoid
+
+- No Polestar questing, leveling, map or travel systems: unrelated to Duels.
+- No dozens of redundant visual sliders, full skin marketplace or complicated wizard during the current foundation stage.
+- No multi-widget arrangement editor without multiple real Duels widgets.
+- No speculative rank, sync, peer-update or matchmaking claims before WoW API verification and real tests.
+
+### Revisit gate
+
+Prioritize the missing core dueling and player-facing functionality first. Keep the currently approved Patch Notes design and demo content untouched until real release notes are available. When core features mature, revisit these ideas one by one only if they solve observed player problems. **No code, TOC, UI settings, tests, releases or main-branch changes are authorized by this backlog.**
