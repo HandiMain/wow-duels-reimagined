@@ -160,6 +160,11 @@ function Style.Action(parent, caption, variant)
     if ns.Widgets and ns.Widgets.PressFeedback then
         ns.Widgets.PressFeedback(button, hover)
     end
+    -- Generic shared actions inherit hover help; callers may override details.
+    if ns.Tooltips then
+        ns.Tooltips.Bind(button, { title = caption,
+            detail = "Click to activate this action." })
+    end
     return button
 end
 
