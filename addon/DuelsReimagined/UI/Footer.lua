@@ -106,7 +106,9 @@ heading:SetPoint("TOP", logo, "BOTTOM", 0, -10)
 heading:SetJustifyH("CENTER")
 local message = Style.Text(dialog, "COMING SOON", 14, C.gold)
 message:SetPoint("TOP", heading, "BOTTOM", 0, -7)
+message:SetWidth(380)
 message:SetJustifyH("CENTER")
+message:SetWordWrap(true)
 
 -- One existing popup owner now supports a safe, selectable GitHub URL.
 -- The WoW client cannot open browsers or set the OS clipboard directly.
