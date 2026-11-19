@@ -1,0 +1,76 @@
+name: Community credits
+
+# Source of truth: closed verified bug reports, merged PRs, and curated names.
+# Issue/PR/schedule triggers are effective after this workflow is approved on
+# the default branch. It always updates develop, never main.
+on:
+  push:
+    branches: [develop]
+    paths:
+      - community/credits.json
+      - tools/community/**
+      - addon/DuelsReimagined/DuelsReimagined.toc
+      - addon/DuelsReimagined/Community/**
+      - addon/DuelsReimagined/UI/Community.lua
+      - addon/DuelsReimagined/UI/Navigation.lua
+      - addon/DuelsReimagined/UI/Footer.lua
+      - addon/DuelsReimagined/UI/Window.lua
+      - addon/DuelsReimagined/Media/Concept/CommunityFactionMarks.png
+      - .github/workflows/community-credits.yml
+  issues:
+    types: [closed, reopened, labeled, unlabeled]
+  pull_request:
+    types: [closed]
+  schedule:
+    - cron: '17 5 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  issues: read
+  pull-requests: read
+
+concurrency:
+  group: duels-community-credits
+  cancel-in-progress: false
+
+jobs:
+  generate:
+    if: >-
+      github.repository == 'HandiMain/wow-duels-reimagined' &&
+      (github.event_name != 'pull_request' || github.event.pull_request.merged == true)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: develop
+          persist-credentials: true
+          fetch-depth: 1
+
+      - name: Parse every addon Lua file (syntax only)
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y lua5.1
+          find addon/DuelsReimagined -name '*.lua' -type f -print0 | xargs -0 -r -n 1 luac5.1 -p
+
+      - name: Check generator and UI contracts without network
+        run: python3 -m unittest discover -s tools/community -p 'test_*.py' -v
+
+      - name: Refresh verified credits from GitHub
+        env:
+          GITHUB_REPOSITORY: HandiMain/wow-duels-reimagined
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python3 tools/community/generate_credits.py
+
+      - name: Commit changed credits only to develop
+        run: |
+          if git diff --quiet -- addon/DuelsReimagined/Community/Credits.lua; then
+            echo 'No new verified credits.'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -- addon/DuelsReimagined/Community/Credits.lua
+          git commit -m 'Refresh verified community credits'
+          git push origin HEAD:develop
