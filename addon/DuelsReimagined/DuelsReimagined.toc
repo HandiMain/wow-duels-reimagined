@@ -4,3 +4,8 @@
 ## Author: Handi
 ## Category: PvP
 ## IconTexture: Interface\AddOns\DuelsReimagined\Media\Icons\DuelsReimagined-AddonIcon.blp
+
+UI\Style.lua
+UI\Window.lua
+UI\Navigation.lua
+Core\Commands.lua
