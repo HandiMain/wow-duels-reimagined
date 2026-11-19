@@ -9,6 +9,8 @@
 
 Core\Settings.lua
 UI\Style.lua
+UI\Motion.lua
+UI\Chrome.lua
 UI\Theme.lua
 UI\Window.lua
 UI\Navigation.lua

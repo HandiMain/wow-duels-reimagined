@@ -13,6 +13,7 @@ panel:SetPoint("TOPLEFT", Window.content, "TOPLEFT", 46, -143)
 panel:SetPoint("BOTTOMRIGHT", Window.content, "BOTTOMRIGHT", -46, 38)
 Style.Fill(panel, C.nav)
 Style.Border(panel, C.goldDim)
+ns.Chrome.Panel(panel)
 panel:Hide()
 
 local heading = Style.Text(panel, "Appearance", 20, C.pale)
@@ -32,6 +33,7 @@ local function MakeSwitch(label, detail, key, y)
     button:SetHeight(61)
 
     local plate = Style.Fill(button, C.body)
+    local highlight = ns.Chrome.Texture(button, "Selection", 0, "BACKGROUND")
     local outline = button:CreateTexture(nil, "BORDER")
     outline:SetColorTexture(unpack(C.goldDim))
     outline:SetPoint("BOTTOMLEFT", button, "BOTTOMLEFT", 0, 0)
@@ -59,10 +61,10 @@ local function MakeSwitch(label, detail, key, y)
         Settings.Set(key, not Settings.Get(key))
     end)
     button:SetScript("OnEnter", function()
-        if Theme.IsAvailable() then plate:SetColorTexture(unpack(C.hover)) end
+        if Theme.IsAvailable() then ns.Motion.Fade(highlight, 0.30, 0.16) end
     end)
     button:SetScript("OnLeave", function()
-        plate:SetColorTexture(unpack(C.body))
+        ns.Motion.Fade(highlight, 0, 0.19)
     end)
 
     entries[#entries + 1] = { button = button, label = name, state = state, key = key }
@@ -95,4 +97,5 @@ function Options.Show(visible)
     if visible then Options.Refresh() end
 end
 
-Options.Refresh()
+-- Apply any saved appearance choice after all UI regions have been created.
+ns.Theme.Refresh()
