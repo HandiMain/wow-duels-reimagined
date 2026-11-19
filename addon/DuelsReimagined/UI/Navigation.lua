@@ -14,7 +14,10 @@ local sections = {
         { key = "community", label = "Community", title = "Community", subtitle = "The people behind the duels.", emptyTitle = "Nothing to show yet", emptyDetail = "Community features will arrive later." },
     } },
     { key = "options", label = "Options", icon = "Options", pages = {
-        { key = "options", label = "Appearance", title = "Appearance", subtitle = "Make the interface your own.", emptyTitle = "Options coming later", emptyDetail = "We'll design the controls together." },
+        { key = "options", label = "Appearance", title = "Appearance",
+          subtitle = "Make the interface your own." },
+        { key = "interface", label = "Interface", title = "Interface",
+          subtitle = "Control how the window behaves while you play." },
     } },
 }
 
@@ -33,6 +36,7 @@ end
 
 local function Select(sectionIndex, pageIndex, noMotion)
     currentSection, currentPage = sectionIndex, pageIndex
+    if ns.Header and ns.Header.CloseSearch then ns.Header.CloseSearch(true) end
     local section, page = sections[sectionIndex], sections[sectionIndex].pages[pageIndex]
     sectionTitle:SetText(string.upper(section.label))
 
@@ -136,5 +140,30 @@ ns.Navigation = {
     RefreshSelection = function()
         if currentSection and currentPage then Select(currentSection, currentPage, true) end
     end,
+    SelectKey = function(sectionKey, pageKey)
+        for sectionIndex, section in ipairs(sections) do
+            if section.key == sectionKey then
+                for pageIndex, page in ipairs(section.pages) do
+                    if page.key == pageKey then
+                        Select(sectionIndex, pageIndex)
+                        return true
+                    end
+                end
+            end
+        end
+        return false
+    end,
 }
+
+-- Every visible page registers itself, so new pages join search automatically.
+for sectionIndex, section in ipairs(sections) do
+    for pageIndex, page in ipairs(section.pages) do
+        local si, pi = sectionIndex, pageIndex
+        ns.Search.Register("page:" .. section.key .. ":" .. page.key,
+            page.label, section.label,
+            (page.title or "") .. " " .. (page.subtitle or ""),
+            function() Select(si, pi) end)
+    end
+end
+
 Select(1, 1, true)

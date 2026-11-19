@@ -13,6 +13,7 @@ end
 local boolDefaults = {
     matchColors = false,
     matchFont = false,
+    autoPeekMoving = false,
 }
 
 local function CleanScale(value)
@@ -43,5 +44,12 @@ function Settings.Set(key, value)
     if boolDefaults[key] == nil or type(value) ~= "boolean" then return end
     if db[key] == value then return end
     db[key] = value
-    if ns.Theme then ns.Theme.Refresh() end
+    if key == "autoPeekMoving" then
+        if ns.Header and ns.Header.RefreshAutoPeek then
+            ns.Header.RefreshAutoPeek()
+        end
+        if ns.Options and ns.Options.Refresh then ns.Options.Refresh() end
+    elseif ns.Theme then
+        ns.Theme.Refresh()
+    end
 end

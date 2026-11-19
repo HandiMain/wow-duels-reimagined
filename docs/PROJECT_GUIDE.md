@@ -6,11 +6,11 @@ This document is for work in progress. It records the agreed direction and preve
 
 - **Phase:** Approved visual concept; window-shell build authorized
 - **Addon source:** UI prototype on `develop`; no released gameplay system
-- **Build authorization:** Main window shell and visual revisions authorized
-- **Live game verification:** Earlier prototype screenshots tested in Retail; the concept-derived PNG reconstruction is IMPLEMENTED/UNTESTED
+- **Build authorization:** Main window shell, compact layout, and header Fold/Peek/Search controls explicitly authorized
+- **Live game verification:** Current window shell and layout shown in Retail screenshots; new header controls and automatic movement Peek remain IMPLEMENTED/UNTESTED
 - **Target clients:** World of Warcraft Forever and Retail; PNG rendering requires in-game verification on each client
 
-The user-approved 1672 × 941 **Hall concept image** is the visual reference, not a loose inspiration. Reproduce its actual icon artwork, depth, metallic treatment, decorative dividers, shaded panels and button finishes as independent reusable assets. The original art is reconstructed under `addon/DuelsReimagined/Media/Concept/`; do not use one whole-window wallpaper or bake text and hit regions into images. Respect later explicit revisions: the top-right close X and footer branding are omitted; the real Close button stays in the footer. Keep shared navigation, themes, saved settings, animations, input handling and optional EllesmereUI compatibility intact.
+The user-approved 1672 × 941 **Hall concept image** is the visual reference, not a loose inspiration. Reproduce its actual icon artwork, depth, metallic treatment, decorative dividers, shaded panels and button finishes as independent reusable assets. The original art is reconstructed under `addon/DuelsReimagined/Media/Concept/`; do not use one whole-window wallpaper or bake text and hit regions into images. Respect later explicit revisions: the top-right X was restored as a functional Close control (the footer Close remains), while footer branding is omitted. Keep shared navigation, themes, saved settings, animations, input handling and optional EllesmereUI compatibility intact.
 
 ## Branches
 
@@ -59,6 +59,17 @@ Past experiments included duel history, personal statistics, rankings, player pr
 - Automated checks and mock tests do not prove WoW gameplay.
 - Report what changed, why, test evidence, required in-game checks, and remaining uncertainty.
 - Prefer focused changes with checks for nearby behavior and regressions.
+
+
+## Header controls — approved November 19, 2026
+
+- Compact scale slider applies window scaling only after releasing the drag.
+- Close is available from either the top-right X or footer; Escape should retain Blizzard's standard behavior.
+- **Peek:** holding the eye temporarily fades the window and releasing restores it; **Fold:** collapses to the header while preserving the selected page and restores on demand.
+- **Automatic Peek while moving** is a saved, default-off switch under **Options → Interface**, separate from **Appearance**. It uses client movement start/stop events only while the window is visible and the preference is enabled. Do not infer secret gameplay data or poll permanently.
+- Search includes registered visible pages, options rows and applicable header actions, not unbuilt feature ideas. Adding a page or setting must register it through the shared search owner.
+- Keep search EditBox focus isolated from Blizzard chat. Search Escape clears search first, while the regular window Escape closes it. The UI must recover from /reload, hide, fold, scale changes and combat transitions without leaving transient state behind.
+- Current status: **IMPLEMENTED / UNTESTED IN-GAME** for these new controls. Test in both Retail and Forever, including moving/standing, typing Enter/Escape, opening/closing, changing scale and EllesmereUI appearance matching.
 
 ## Decisions — November 18, 2026
 

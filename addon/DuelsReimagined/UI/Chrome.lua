@@ -116,6 +116,7 @@ function Chrome.Shell(frame, header, footer, rail, nav)
             tex:SetPoint("CENTER", host, anchor)
         end
     end
+    return seams
 end
 
 -- Options already owns its background and single inner-panel outline.
