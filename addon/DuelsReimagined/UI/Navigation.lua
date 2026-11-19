@@ -99,7 +99,7 @@ end
 
 for index, section in ipairs(sections) do
     local button = CreateFrame("Button", nil, Window.rail)
-    button:SetSize(86, 68)
+    button:SetSize(section.primary and 94 or 86, section.primary and 74 or 68)
     if section.key == "options" then
         button:SetPoint("BOTTOM", Window.rail, "BOTTOM", 0, 11)
     elseif section.key == "community" then

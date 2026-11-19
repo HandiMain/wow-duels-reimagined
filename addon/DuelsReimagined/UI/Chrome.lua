@@ -76,7 +76,7 @@ end
 function Chrome.PrimaryRail(parent)
     local tex = parent:CreateTexture(nil, "ARTWORK")
     tex:SetTexture(art .. "NavPrimary.png")
-    tex:SetSize(92, 82)
+    tex:SetSize(100, 90)
     tex:SetPoint("CENTER", parent, "CENTER")
     return Chrome.Sharp(tex)
 end
