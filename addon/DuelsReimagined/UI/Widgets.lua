@@ -76,16 +76,11 @@ end
 local function ToggleEnter(row)
     if row.available then
         Motion.Fade(row.hover, 0.22, 0.14)
-    elseif row.unavailableReason and GameTooltip then
-        GameTooltip:SetOwner(row, "ANCHOR_RIGHT")
-        GameTooltip:SetText(row.unavailableReason, 1, 0.81, 0.52, 1, true)
-        GameTooltip:Show()
     end
 end
 
 local function ToggleLeave(row)
     Motion.Fade(row.hover, 0, 0.18)
-    if GameTooltip and GameTooltip:IsOwned(row) then GameTooltip:Hide() end
 end
 
 function Widgets.ToggleRow(parent, label, description, onToggle, onReset)
@@ -138,17 +133,12 @@ function Widgets.ToggleRow(parent, label, description, onToggle, onReset)
     reset:Hide()
     reset:SetScript("OnClick", function()
         if row.onReset and row.available then row.onReset() end
-        if GameTooltip then GameTooltip:Hide() end
     end)
-    reset:SetScript("OnEnter", function(self)
-        if not GameTooltip then return end
-        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-        GameTooltip:SetText("Reset to default", 1, 0.84, 0.57)
-        GameTooltip:Show()
-    end)
-    reset:SetScript("OnLeave", function(self)
-        if GameTooltip and GameTooltip:IsOwned(self) then GameTooltip:Hide() end
-    end)
+    ns.Tooltips.Bind(reset, {
+        title = "Reset " .. label,
+        detail = "Restore the default value for this setting.",
+        anchor = "RIGHT",
+    })
 
     for name, fn in pairs(methods) do row[name] = fn end
     row:SetScript("OnClick", function(self)
@@ -157,6 +147,14 @@ function Widgets.ToggleRow(parent, label, description, onToggle, onReset)
     row:SetScript("OnEnter", ToggleEnter)
     row:SetScript("OnLeave", ToggleLeave)
     Widgets.PressFeedback(row, row.hover)
+    ns.Tooltips.Bind(row, function()
+        return {
+            title = label,
+            detail = row.available and description or
+                (row.unavailableReason or description),
+            anchor = "RIGHT",
+        }
+    end)
     row:RefreshColors()
     row:SetModified(false)
     return row
@@ -197,17 +195,12 @@ function Widgets.AttachModified(row, anchor, onReset)
     Chrome.Sharp(tex)
     reset:SetScript("OnClick", function()
         if row.available and onReset then onReset() end
-        if GameTooltip then GameTooltip:Hide() end
     end)
-    reset:SetScript("OnEnter", function(self)
-        if not GameTooltip then return end
-        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-        GameTooltip:SetText("Reset to default", 1, 0.84, 0.57)
-        GameTooltip:Show()
-    end)
-    reset:SetScript("OnLeave", function(self)
-        if GameTooltip and GameTooltip:IsOwned(self) then GameTooltip:Hide() end
-    end)
+    ns.Tooltips.Bind(reset, {
+        title = "Reset " .. (row.name:GetText() or "setting"),
+        detail = "Restore the default value for this setting.",
+        anchor = "RIGHT",
+    })
     reset:Hide()
     row.modDot, row.resetButton, row.resetIcon = dot, reset, tex
     function row:SetModified(changed)
@@ -276,6 +269,12 @@ function Widgets.ChoiceRow(parent, caption, detail, onChoose, onReset, above)
         Motion.Fade(hover, 0, Motion.Duration("quick"))
     end)
     Widgets.PressFeedback(control, hover)
+    ns.Tooltips.Bind(control, function()
+        return { title = caption,
+            detail = row.available and detail or
+                (row.disabledReason or detail),
+            anchor = "LEFT" }
+    end)
     -- Escape should dismiss the picker before the main Duels window.
     choiceCounter = choiceCounter + 1
     local popupName = "DuelsReimaginedChoicePopup" .. choiceCounter
@@ -329,6 +328,13 @@ function Widgets.ChoiceRow(parent, caption, detail, onChoose, onReset, above)
             if option and onChoose then onChoose(option.key) end
         end)
         Widgets.PressFeedback(b, glow)
+        ns.Tooltips.Bind(b, function()
+            local choice = (row.choices or {})[offset + i]
+            if not choice then return end
+            return { title = choice.label,
+                detail = "Choose this value for " .. caption .. ".",
+                anchor = "LEFT" }
+        end)
         b:EnableMouseWheel(true)
         b:SetScript("OnMouseWheel", function(_, delta)
             local handler = popup:GetScript("OnMouseWheel")
@@ -401,15 +407,18 @@ function Widgets.ChoiceRow(parent, caption, detail, onChoose, onReset, above)
         if not self.available and popup:IsShown() then Widgets.CloseChoices() end
     end
     row:EnableMouse(true)
+    -- The parent receives hover events when a disabled dropdown cannot.
     row:SetScript("OnEnter", function(self)
-        if self.available or not self.disabledReason or not GameTooltip then return end
-        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-        GameTooltip:SetText(self.disabledReason, 1, 0.81, 0.52, 1, true)
-        GameTooltip:Show()
+        if not self.available then
+            ns.Tooltips.Show(self, {
+                title = caption,
+                detail = self.disabledReason or detail,
+                anchor = "RIGHT",
+            })
+        end
     end)
-    row:SetScript("OnLeave", function(self)
-        if GameTooltip and GameTooltip:IsOwned(self) then GameTooltip:Hide() end
-    end)
+    row:SetScript("OnLeave", function(self) ns.Tooltips.Hide(self) end)
+    row:HookScript("OnHide", function(self) ns.Tooltips.Hide(self, true) end)
     row.control = control
     row.popup = popup
     return row
@@ -488,6 +497,13 @@ function Widgets.SliderRow(parent, caption, detail, minVal, maxVal, step, onComm
         slider:SetEnabled(self.available)
         self:SetAlpha(self.available and 1 or 0.6)
     end
+    ns.Tooltips.Bind(slider, function()
+        return { title = caption,
+            detail = (detail or "") .. " Current: " ..
+                math.floor((slider:GetValue() or 1) * 100 + 0.5) ..
+                "%. Drag or use the mouse wheel to adjust.",
+            anchor = "LEFT" }
+    end)
     row.slider = slider
     row.fill = filled
     function row:RefreshColors()
@@ -572,6 +588,11 @@ function Widgets.ScrollBar(parent, metrics, setOffset)
     bar:SetScript("OnLeave", function(self)
         if not dragging then thumb:SetWidth(4) end
     end)
+    ns.Tooltips.Bind(bar, {
+        title = "Scroll",
+        detail = "Drag to scroll this list, or use the mouse wheel.",
+        anchor = "LEFT",
+    })
     bar:Hide()
     return bar
 end
