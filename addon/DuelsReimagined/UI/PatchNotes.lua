@@ -3,258 +3,301 @@ local Style, Chrome, Widgets = ns.Style, ns.Chrome, ns.Widgets
 local Motion, Search, Settings = ns.Motion, ns.Search, ns.Settings
 local C, Window = Style.color, ns.Window
 
--- Demo presentation content only. None of these entries claim that gameplay
--- features shipped, or that this test build is a public release.
--- Replace with reviewed, factual notes before publishing.
-local releases = {
-    {
-        id = "demo-2026-11-19-patch-notes",
-        title = "Test Build — Latest Update",
-        date = "Nov 19, 2026",
-        entries = {
-            { heading = "New: Patch Notes page",
-              body = "A dedicated place to browse updates and discover related settings.",
-              icon = "Interface\\Icons\\INV_Misc_Note_01" },
-            { heading = "Improved: Minimap button",
-              body = "Demo entry for widget size, transparency and AddOn Compartment controls.",
-              icon = "Interface\\Icons\\INV_Misc_Gear_01",
-              target = "setting:iconMode" },
-            { heading = "Interface: Navigation and search",
-              body = "Demo entry showing how interface changes and fixes can be presented.",
-              icon = "Interface\\Icons\\Ability_Warrior_OffensiveStance" },
-        },
-    },
-    {
-        id = "demo-2026-11-18-visual-foundation",
-        title = "Visual Foundation — Preview",
-        date = "Nov 18, 2026",
-        entries = {
-            { heading = "The Hall takes shape",
-              body = "A sample look at the gold-trimmed interface and empty duel history.",
-              icon = "Interface\\Icons\\INV_Sword_04" },
-            { heading = "A cleaner community view",
-              body = "A sample summary of the Duels community presentation.",
-              icon = "Interface\\Icons\\INV_Misc_GroupLooking" },
-        },
-    },
-}
-
+-- Presentation only: no version bump, no release, no gameplay claims.
+-- Navigation and this page consume the same author-reviewed data table.
+local releases = ns.PatchNotesData or {}
+local byKey = {}
+for index, release in ipairs(releases) do
+    byKey[release.key] = { index = index, data = release }
+end
 local PatchNotes = {}
 ns.PatchNotes = PatchNotes
 
+local art = "Interface\\AddOns\\DuelsReimagined\\Media\\Concept\\"
+local atlas = art .. "PatchNotesAtlas.tga"
 local root = CreateFrame("Frame", nil, Window.content)
 root:SetAllPoints(Window.content)
 root:Hide()
 
-local heading = Style.Text(root, "Patch Notes", 30, C.pale, true)
-heading:SetPoint("TOP", root, "TOP", 0, -25)
-local rule = Chrome.Divider(root, 354, 16)
-rule:SetPoint("TOP", heading, "BOTTOM", 0, -5)
+local heading = Style.Text(root, "Patch Notes", 29, C.pale, true)
+heading:SetPoint("TOP", root, "TOP", 0, -24)
+local titleRule = Chrome.Divider(root, 345, 16)
+titleRule:SetPoint("TOP", heading, "BOTTOM", 0, -6)
 local subtitle = Style.Text(root, "What's new in Duels Reimagined", 14, C.muted)
-subtitle:SetPoint("TOP", rule, "BOTTOM", 0, -7)
+subtitle:SetPoint("TOP", titleRule, "BOTTOM", 0, -7)
+local hint = Style.Text(root,
+    "Select a highlighted entry to jump directly to its setting.", 12, C.muted)
+hint:SetPoint("TOP", subtitle, "BOTTOM", 0, -17)
+hint:SetJustifyH("CENTER")
 
 local scroll = CreateFrame("ScrollFrame", nil, root)
-scroll:SetPoint("TOPLEFT", root, "TOPLEFT", 30, -143)
-scroll:SetPoint("BOTTOMRIGHT", root, "BOTTOMRIGHT", -30, 25)
+scroll:SetPoint("TOPLEFT", root, "TOPLEFT", 30, -153)
+scroll:SetPoint("BOTTOMRIGHT", root, "BOTTOMRIGHT", -30, 22)
 scroll:EnableMouseWheel(true)
-
-local latest = CreateFrame("Frame", nil, scroll)
-local history = CreateFrame("Frame", nil, scroll)
-latest:SetSize(760, 575)
-history:SetSize(760, 680)
-scroll:SetScrollChild(latest)
-history:Hide()
-
+local canvas = CreateFrame("Frame", nil, scroll)
+canvas:SetSize(760, 635)
+scroll:SetScrollChild(canvas)
 local bar = Widgets.ScrollBar(scroll, function()
-    local child = scroll:GetScrollChild()
-    return scroll:GetHeight(), child and child:GetHeight() or 0,
-        scroll:GetVerticalScroll()
-end, function(position)
-    scroll:SetVerticalScroll(position)
-end)
+    return scroll:GetHeight(), canvas:GetHeight(), scroll:GetVerticalScroll()
+end, function(offset) scroll:SetVerticalScroll(offset) end)
 
 local function Clamp()
-    local child = scroll:GetScrollChild()
-    if not child then return end
-    local limit = math.max(0, child:GetHeight() - scroll:GetHeight())
+    local limit = math.max(0, canvas:GetHeight() - scroll:GetHeight())
     scroll:SetVerticalScroll(math.max(0,
         math.min(limit, scroll:GetVerticalScroll())))
     bar:Refresh()
 end
-
-local function ResizeCanvas()
-    local width = math.max(240, scroll:GetWidth() - 15)
-    latest:SetWidth(width)
-    history:SetWidth(width)
+local function Fit()
+    canvas:SetWidth(math.max(1, scroll:GetWidth() - 16))
     if scroll.UpdateScrollChildRect then scroll:UpdateScrollChildRect() end
     Clamp()
 end
-
-scroll:SetScript("OnSizeChanged", ResizeCanvas)
+scroll:SetScript("OnSizeChanged", Fit)
 scroll:SetScript("OnVerticalScroll", function() bar:Refresh() end)
 scroll:SetScript("OnMouseWheel", function(self, delta)
-    local child = self:GetScrollChild()
-    if not child then return end
-    local limit = math.max(0, child:GetHeight() - self:GetHeight())
-    self:SetVerticalScroll(math.max(0, math.min(limit,
-        self:GetVerticalScroll() - delta * 46)))
+    local limit = math.max(0, canvas:GetHeight() - self:GetHeight())
+    self:SetVerticalScroll(math.max(0,
+        math.min(limit, self:GetVerticalScroll() - delta * 46)))
     bar:Refresh()
 end)
-scroll:HookScript("OnShow", ResizeCanvas)
+scroll:HookScript("OnShow", Fit)
 
-local function Card(parent, top, height, color)
-    local card = CreateFrame("Frame", nil, parent)
-    card:SetPoint("TOPLEFT", parent, "TOPLEFT", 0, -top)
-    card:SetPoint("TOPRIGHT", parent, "TOPRIGHT", -18, -top)
-    card:SetHeight(height)
-    Style.Fill(card, color or C.nav)
-    Style.Border(card, C.goldDim, 1)
-    return card
+local function TileIcon(parent, symbol, size)
+    local tex = parent:CreateTexture(nil, "ARTWORK")
+    tex:SetSize(size, size)
+    tex:SetTexture(atlas)
+    tex:SetPoint("CENTER", parent, "CENTER")
+    local coords = {
+        scroll = { 0, 0.5, 0, 0.5 },
+        parchment = { 0.5, 1, 0, 0.5 },
+        gear = { 0, 0.5, 0.5, 1 },
+        swords = { 0.5, 1, 0.5, 1 },
+    }
+    function tex:SetSymbol(value)
+        self:SetTexCoord(unpack(coords[value] or coords.scroll))
+    end
+    tex:SetSymbol(symbol)
+    return tex
 end
 
-local function Banner(parent, release, top)
-    local card = Card(parent, top, 112, C.selected)
-    local wash = Style.Fill(card, C.red, "BORDER")
-    wash:SetAlpha(0.12)
-    local mark = card:CreateTexture(nil, "ARTWORK")
-    mark:SetTexture("Interface\\AddOns\\DuelsReimagined\\Media\\Concept\\Watermark.png")
-    mark:SetSize(104, 96)
-    mark:SetPoint("LEFT", card, "LEFT", 15, 0)
-    mark:SetAlpha(0.34)
-    local separator = Style.Rule(card, "TOPLEFT", card,
-        "TOPLEFT", 1, 75, C.goldDim)
-    separator:ClearAllPoints()
-    separator:SetPoint("LEFT", card, "LEFT", 129, 0)
-    local caption = Style.Text(card, release.title, 22, C.pale, true)
-    caption:SetPoint("TOPLEFT", card, "TOPLEFT", 153, -17)
-    caption:SetPoint("RIGHT", card, "RIGHT", -15, 0)
-    local tag = Style.Text(card, "DEMO NOTES", 12, C.gold, true)
-    tag:SetPoint("TOPLEFT", caption, "BOTTOMLEFT", 0, -12)
-    local date = Style.Text(card, release.date .. "  •  Fictional preview", 12, C.muted)
-    date:SetPoint("LEFT", tag, "RIGHT", 15, 0)
-    return card
+-- Hero art is its own authored texture. Text is a real font string to preserve
+-- scaling, font matching, search safety and accessibility.
+local banner = CreateFrame("Frame", nil, canvas)
+banner:SetPoint("TOPLEFT", canvas, "TOPLEFT", 0, -3)
+banner:SetPoint("TOPRIGHT", canvas, "TOPRIGHT", -18, -3)
+banner:SetHeight(155)
+Style.Fill(banner, C.nav)
+local heroArt = banner:CreateTexture(nil, "BACKGROUND", nil, 1)
+heroArt:SetTexture(art .. "PatchNotesHero.tga")
+heroArt:SetAllPoints(banner)
+local heroDim = Style.Fill(banner, C.window, "ARTWORK")
+heroDim:SetPoint("TOPLEFT", banner, "TOPLEFT", 120, -35)
+heroDim:SetPoint("BOTTOMRIGHT", banner, "BOTTOMRIGHT", -120, 24)
+heroDim:SetAlpha(0.22)
+Style.Border(banner, C.goldDim, 1)
+local cornerPath = art .. "Frame\\"
+for _, item in ipairs({
+    { "TOPLEFT", "CornerTL.png", 0, 0 },
+    { "TOPRIGHT", "CornerTR.png", 0, 0 },
+    { "BOTTOMLEFT", "CornerBL.png", 0, 0 },
+    { "BOTTOMRIGHT", "CornerBR.png", 0, 0 },
+}) do
+    local ornament = banner:CreateTexture(nil, "ARTWORK")
+    ornament:SetTexture(cornerPath .. item[2])
+    ornament:SetSize(39, 39)
+    ornament:SetPoint(item[1], banner, item[1], item[3], item[4])
+    ornament:SetAlpha(0.82)
 end
 
-local function OpenSetting(id)
-    local item = Search.entries[id]
-    if item then Search.Open(item) end
+local bannerTitle = Style.Text(banner, "", 25, C.pale, true)
+bannerTitle:SetPoint("TOPLEFT", banner, "TOPLEFT", 113, -48)
+bannerTitle:SetPoint("TOPRIGHT", banner, "TOPRIGHT", -113, -48)
+bannerTitle:SetHeight(40)
+bannerTitle:SetJustifyH("CENTER")
+bannerTitle:SetWordWrap(true)
+local bannerVersion = Style.Text(banner, "", 14, C.gold, true)
+bannerVersion:SetPoint("TOP", bannerTitle, "BOTTOM", 0, -8)
+bannerVersion:SetJustifyH("CENTER")
+local bannerDate = Style.Text(banner, "", 12, C.muted)
+bannerDate:SetPoint("TOP", bannerVersion, "BOTTOM", 0, -6)
+bannerDate:SetJustifyH("CENTER")
+
+local changesTitle = Style.Text(canvas, "WHAT CHANGED", 13, C.gold, true)
+changesTitle:SetPoint("TOPLEFT", canvas, "TOPLEFT", 5, -178)
+local changesRule = Style.Rule(canvas, "TOPLEFT", canvas, "TOPLEFT",
+    1, 1, C.goldDim)
+changesRule:ClearAllPoints()
+changesRule:SetPoint("LEFT", changesTitle, "RIGHT", 17, 0)
+changesRule:SetPoint("RIGHT", canvas, "RIGHT", -27, 0)
+
+local rows = {}
+local maxEntries = 0
+for _, release in ipairs(releases) do
+    maxEntries = math.max(maxEntries, #release.entries)
 end
 
-local function UpdateRow(parent, entry, top)
-    local linked = entry.target and Search.entries[entry.target] ~= nil
-    local row = CreateFrame(linked and "Button" or "Frame", nil, parent)
-    row:SetPoint("TOPLEFT", parent, "TOPLEFT", 0, -top)
-    row:SetPoint("TOPRIGHT", parent, "TOPRIGHT", -18, -top)
-    row:SetHeight(88)
+local function NewRow(index)
+    local row = CreateFrame("Button", nil, canvas)
+    row:SetPoint("TOPLEFT", canvas, "TOPLEFT", 0, -202 - (index - 1) * 104)
+    row:SetPoint("TOPRIGHT", canvas, "TOPRIGHT", -18, -202 - (index - 1) * 104)
+    row:SetHeight(92)
     Style.Fill(row, C.nav)
     Style.Border(row, C.goldDim, 1)
-    local glow = Style.Fill(row, C.goldDim, "ARTWORK")
-    glow:SetAlpha(0)
+    local accent = Style.Fill(row, C.red, "ARTWORK")
+    accent:ClearAllPoints()
+    accent:SetPoint("TOPLEFT", row, "TOPLEFT", 3, -5)
+    accent:SetPoint("BOTTOMLEFT", row, "BOTTOMLEFT", 3, 5)
+    accent:SetWidth(3)
+    local hover = Style.Fill(row, C.goldDim, "ARTWORK")
+    hover:SetAlpha(0)
+    hover:ClearAllPoints()
+    hover:SetPoint("TOPLEFT", row, "TOPLEFT", 5, -4)
+    hover:SetPoint("BOTTOMRIGHT", row, "BOTTOMRIGHT", -5, 4)
 
-    local icon = row:CreateTexture(nil, "ARTWORK")
-    icon:SetTexture(entry.icon or "Interface\\Icons\\INV_Misc_Note_01")
-    icon:SetSize(33, 33)
-    icon:SetPoint("TOPLEFT", row, "TOPLEFT", 20, -24)
-    icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+    local tile = CreateFrame("Frame", nil, row)
+    tile:SetSize(65, 65)
+    tile:SetPoint("LEFT", row, "LEFT", 17, 0)
+    Style.Fill(tile, C.window)
+    Style.Border(tile, C.goldDim, 1)
+    local artIcon = TileIcon(tile, "scroll", 64)
+    local category = Style.Text(row, "", 11, C.gold, true)
+    category:SetPoint("TOPLEFT", row, "TOPLEFT", 97, -10)
+    local title = Style.Text(row, "", 17, C.pale, true)
+    title:SetPoint("TOPLEFT", category, "BOTTOMLEFT", 0, -2)
+    title:SetPoint("TOPRIGHT", row, "TOPRIGHT", -133, -25)
+    title:SetHeight(24)
+    title:SetWordWrap(false)
+    local description = Style.Text(row, "", 12, C.muted)
+    description:SetPoint("TOPLEFT", row, "TOPLEFT", 97, -56)
+    description:SetPoint("BOTTOMRIGHT", row, "BOTTOMRIGHT", -135, 8)
+    description:SetJustifyH("LEFT")
+    description:SetJustifyV("TOP")
+    description:SetWordWrap(true)
+    local action = Style.Text(row, "View setting  >", 13, C.gold, true)
+    action:SetPoint("RIGHT", row, "RIGHT", -16, 0)
+    action:SetJustifyH("RIGHT")
 
-    local title = Style.Text(row, entry.heading, 18, C.pale)
-    title:SetPoint("TOPLEFT", row, "TOPLEFT", 83, -15)
-    title:SetPoint("RIGHT", row, "RIGHT", linked and -133 or -16, 0)
+    row:RegisterForClicks("LeftButtonUp")
+    row:SetScript("OnClick", function(self)
+        if not self.target then return end
+        local item = Search.entries[self.target]
+        if item then Search.Open(item) end
+    end)
+    row:SetScript("OnEnter", function(self)
+        if self.target then Motion.Fade(hover, 0.16, 0.12) end
+    end)
+    row:SetScript("OnLeave", function() Motion.Fade(hover, 0, 0.17) end)
+    Widgets.PressFeedback(row, hover)
+    ns.Tooltips.Bind(row, function()
+        return row.target and {
+            title = "View related setting",
+            detail = "Jump to this option and briefly highlight it.",
+        }
+    end)
+    return { frame = row, art = artIcon, category = category,
+        title = title, description = description, action = action,
+        hover = hover }
+end
+for i = 1, maxEntries do rows[i] = NewRow(i) end
 
-    local detail = Style.Text(row, entry.body, 13, C.muted)
-    detail:SetPoint("TOPLEFT", row, "TOPLEFT", 83, -43)
-    detail:SetPoint("BOTTOMRIGHT", row, "BOTTOMRIGHT",
-        linked and -133 or -16, 7)
-    detail:SetJustifyH("LEFT")
-    detail:SetJustifyV("TOP")
-    detail:SetWordWrap(true)
-
-    if linked then
-        row:RegisterForClicks("LeftButtonUp")
-        local link = Style.Text(row, "View setting  >", 13, C.gold, true)
-        link:SetPoint("RIGHT", row, "RIGHT", -19, 0)
-        row:SetScript("OnClick", function() OpenSetting(entry.target) end)
-        row:SetScript("OnEnter", function() Motion.Fade(glow, 0.16, 0.12) end)
-        row:SetScript("OnLeave", function() Motion.Fade(glow, 0, 0.17) end)
-        Widgets.PressFeedback(row, glow)
-        ns.Tooltips.Bind(row, { title = "View related setting",
-            detail = "Open the matching option and briefly highlight it." })
+local olderTitle = Style.Text(canvas, "OLDER UPDATES", 15, C.gold, true)
+olderTitle:SetJustifyH("CENTER")
+local olderButton = Style.Action(canvas, "View previous version")
+olderButton:SetSize(230, 34)
+olderButton:SetScript("OnClick", function()
+    if PatchNotes.nextRelease and ns.Navigation then
+        ns.Navigation.SelectKey("patchnotes", PatchNotes.nextRelease.key)
     end
-    return row
-end
-
-local function Label(parent, text, top)
-    local title = Style.Text(parent, text, 15, C.muted, true)
-    title:SetPoint("TOP", parent, "TOP", 0, -top)
-    return title
-end
-
-Banner(latest, releases[1], 4)
-for index, entry in ipairs(releases[1].entries) do
-    UpdateRow(latest, entry, 135 + (index - 1) * 101)
-end
-Label(latest, "OLDER UPDATES", 475)
-local older = Style.Action(latest, "Browse previous updates")
-older:SetSize(230, 34)
-older:SetPoint("TOP", latest, "TOP", 0, -507)
-older:SetScript("OnClick", function()
-    if ns.Navigation then ns.Navigation.SelectKey("patchnotes", "history") end
 end)
-ns.Tooltips.Bind(older, { title = "Previous Updates",
-    detail = "Browse older demo changelog entries." })
-Label(latest, "Preview content only — not an actual release history.", 554)
-
-Banner(history, releases[2], 4)
-for index, entry in ipairs(releases[2].entries) do
-    UpdateRow(history, entry, 134 + (index - 1) * 101)
-end
-Label(history, "All entries here are fictional examples for layout testing.", 376)
-local back = Style.Action(history, "Back to latest update")
-back:SetSize(225, 34)
-back:SetPoint("TOP", history, "TOP", 0, -412)
-back:SetScript("OnClick", function()
-    if ns.Navigation then ns.Navigation.SelectKey("patchnotes", "latest") end
+ns.Tooltips.Bind(olderButton, function()
+    return PatchNotes.nextRelease and {
+        title = "Previous version",
+        detail = "Open the demo notes for " .. PatchNotes.nextRelease.version .. ".",
+    }
 end)
-ns.Tooltips.Bind(back, { title = "Latest Update",
-    detail = "Return to the newest demo notes." })
-history:SetHeight(495)
+local endOfHistory = Style.Text(canvas, "END OF DEMO HISTORY", 13, C.muted)
+endOfHistory:SetJustifyH("CENTER")
+local legal = Style.Text(canvas,
+    "Demo content only — not an actual changelog or released addon version.",
+    12, C.muted)
+legal:SetJustifyH("CENTER")
+
+local function RepositionFooter(count)
+    local y = 202 + count * 104 + 13
+    olderTitle:ClearAllPoints()
+    olderTitle:SetPoint("TOP", canvas, "TOP", 0, -y)
+    olderButton:ClearAllPoints()
+    olderButton:SetPoint("TOP", canvas, "TOP", 0, -(y + 32))
+    endOfHistory:ClearAllPoints()
+    endOfHistory:SetPoint("TOP", canvas, "TOP", 0, -(y + 39))
+    legal:ClearAllPoints()
+    legal:SetPoint("TOP", canvas, "TOP", 0, -(y + 82))
+    canvas:SetHeight(y + 127)
+    Clamp()
+end
+
+local function Populate(release, index)
+    bannerTitle:SetText(release.title or release.version)
+    bannerVersion:SetText((release.version or "") .. "    •    DEMO NOTES")
+    bannerDate:SetText((release.date or "") .. "    •    Fictional test update")
+    subtitle:SetText(release.summary or "What's new in Duels Reimagined")
+    for i, row in ipairs(rows) do
+        local entry = release.entries[i]
+        row.frame:SetShown(entry ~= nil)
+        if entry then
+            row.art:SetSymbol(entry.symbol)
+            row.category:SetText(entry.category or "UPDATE")
+            row.title:SetText(entry.title or "")
+            row.description:SetText(entry.description or "")
+            -- Only real, registered destinations are actionable; empty rows
+            -- cannot glow or masquerade as a link.
+            local linked = entry.target and Search.entries[entry.target] ~= nil
+            row.frame.target = linked and entry.target or nil
+            row.frame:EnableMouse(linked == true)
+            row.action:SetShown(linked == true)
+            row.title:ClearAllPoints()
+            row.title:SetPoint("TOPLEFT", row.category, "BOTTOMLEFT", 0, -2)
+            row.title:SetPoint("TOPRIGHT", row.frame, "TOPRIGHT",
+                linked and -133 or -20, -25)
+            row.description:ClearAllPoints()
+            row.description:SetPoint("TOPLEFT", row.frame, "TOPLEFT", 97, -56)
+            row.description:SetPoint("BOTTOMRIGHT", row.frame, "BOTTOMRIGHT",
+                linked and -133 or -20, 8)
+            Motion.Stop(row.hover, 0)
+        end
+    end
+    PatchNotes.nextRelease = releases[index + 1]
+    olderTitle:SetShown(PatchNotes.nextRelease ~= nil)
+    olderButton:SetShown(PatchNotes.nextRelease ~= nil)
+    endOfHistory:SetShown(PatchNotes.nextRelease == nil)
+    RepositionFooter(#release.entries)
+end
 
 function PatchNotes.RefreshReminder()
-    local unread = Settings.Get("patchNotesReminder") and
-        Settings.GetPatchNotesSeenId() ~= releases[1].id
+    local latest = releases[1]
+    local unread = latest and Settings.Get("patchNotesReminder") and
+        Settings.GetPatchNotesSeenId() ~= latest.id or false
     if ns.Navigation and ns.Navigation.SetPatchUnread then
         ns.Navigation.SetPatchUnread(unread)
     end
 end
 
 function PatchNotes.Show(pageKey)
-    local active = pageKey == "latest" or pageKey == "history"
-    root:SetShown(active)
-    if not active then return end
-
-    local canvas = pageKey == "history" and history or latest
-    heading:SetText(pageKey == "history" and "Previous Updates" or "Patch Notes")
-    subtitle:SetText(pageKey == "history" and
-        "A look back at earlier demo notes" or "What's new in Duels Reimagined")
-    latest:SetShown(canvas == latest)
-    history:SetShown(canvas == history)
-    scroll:SetScrollChild(canvas)
+    local item = byKey[pageKey]
+    root:SetShown(item ~= nil)
+    if not item then return end
+    heading:SetText("Patch Notes")
+    Populate(item.data, item.index)
     scroll:SetVerticalScroll(0)
-    ResizeCanvas()
-
-    if pageKey == "latest" then
-        Settings.MarkPatchNotesSeen(releases[1].id)
+    Fit()
+    -- Visiting an older version must not silently mark a newer one read.
+    if item.index == 1 then
+        Settings.MarkPatchNotesSeen(item.data.id)
     end
     PatchNotes.RefreshReminder()
-    Motion.Stop(canvas, 0.63)
-    Motion.Fade(canvas, 1, 0.23)
+    Motion.Stop(canvas, 0.68)
+    Motion.Fade(canvas, 1, Motion.Duration("gentle"))
 end
 
-root:HookScript("OnHide", function()
-    Motion.Stop(latest, 1)
-    Motion.Stop(history, 1)
-end)
-
--- Discover the page through the existing Navigation search registration;
--- release prose is intentionally not indexed as searchable settings.
+root:HookScript("OnHide", function() Motion.Stop(canvas, 1) end)
 PatchNotes.RefreshReminder()

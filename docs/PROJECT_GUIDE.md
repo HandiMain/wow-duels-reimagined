@@ -214,3 +214,13 @@ Past experiments included duel history, personal statistics, rankings, player pr
 - Unread state uses a stable content ID rather than test-build version metadata; saved once account-wide through Core/Settings.lua. Patch reminder is a toggle under Options → Interface, not a preference hidden inside the Patch Notes page.
 - Shared Motion/Widgets/Search/Navigation/Settings own behaviors. Native dot alpha animation runs only while shown, and respects Reduce Motion. Patch prose is excluded from the settings search registry.
 - Validation status: IMPLEMENTED/UNTESTED. In-game check both clients: sidebar placement, latest/history scroll/resizing, active/hover feedback, reminder after first view and /reload, disabled reminder, reduced motion, View setting link/scroll highlight, Escape/chat focus, fold/peek, scale, optional theme/font integration.
+
+
+## Patch Notes visual revision and version navigation — authorized November 19, 2026
+
+- Approved player screenshot and upgraded design: fixed the Patch Notes rail text with a matching, stacked PATCH / NOTES label and replaced the generic WoW scroll with a locally authored Duels gold-scroll atlas icon.
+- Added original TGA media art: PatchNotesAtlas (scroll, parchment, cog, crossed blades) and PatchNotesHero (dark engraved banner with Alliance/Horde colors). Real text remains UI text rather than baked into the banner.
+- PatchNotesData.lua owns the ordered, stable release IDs and demo version labels. Navigation auto-creates a searchable sidebar subpage per version; PatchNotes.lua renders the selected version without a second animation, scroll, search or settings owner. New versions require a new reviewed data record, not a new nav implementation.
+- The demo labels v0.1.2, v0.1.1, v0.1.0 are EXAMPLES ONLY and do not reflect the installed addon version. No TOC version change, tag, release, or main-branch modification.
+- Latest-only mark-read keeps older version browsing from clearing a newer update. Read reminder remains in centralized Options; feature rows only react if their Search target exists.
+- Status: IMPLEMENTED/UNTESTED IN-GAME until screenshots and manual checks confirm the custom art, label font/line fit, menu resizing, scroll, older version selection, action link, theme/animation, reload persistence, and client compatibility.

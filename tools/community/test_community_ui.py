@@ -36,7 +36,7 @@ class CommunityUITests(unittest.TestCase):
     def test_main_shell_keeps_hall_and_options_separate(self):
         window = content("UI/Window.lua")
         self.assertIn('local isCommunity = page.community == true', window)
-        self.assertIn('watermark:SetShown(not isOptions and not isCommunity)', window)
+        self.assertIn('watermark:SetShown(not isCustomPage)', window)
         self.assertIn("ns.Community.Show(isCommunity and page.key or nil)", window)
         self.assertIn('ns.Options.Show(isOptions and page.key or nil)', window)
 

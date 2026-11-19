@@ -22,12 +22,7 @@ local sections = {
         { key = "special-thanks", label = "Special Thanks", community = true,
           title = "Special Thanks", subtitle = "People we appreciate." },
     } },
-    { key = "patchnotes", label = "Patch Notes", icon = "PatchNotes", pages = {
-        { key = "latest", label = "Latest Update", patchNotes = true,
-          title = "Patch Notes", subtitle = "What's new in Duels Reimagined." },
-        { key = "history", label = "Previous Updates", patchNotes = true,
-          title = "Previous Updates", subtitle = "Browse older test notes." },
-    } },
+    { key = "patchnotes", label = "Patch Notes", icon = "PatchNotes", pages = {} },
     { key = "options", label = "Options", icon = "Options", pages = {
         { key = "options", label = "Appearance", title = "Appearance",
           subtitle = "Make the interface your own." },
@@ -35,6 +30,22 @@ local sections = {
           subtitle = "Control how the window behaves while you play." },
     } },
 }
+
+-- The version list is authored once in PatchNotesData.lua. Adding a version
+-- creates a searchable sidebar subcategory without editing this module.
+for _, section in ipairs(sections) do
+    if section.key == "patchnotes" then
+        for index, release in ipairs(ns.PatchNotesData or {}) do
+            section.pages[#section.pages + 1] = {
+                key = release.key,
+                label = release.version .. " — " .. release.navTitle,
+                patchNotes = true, title = release.title,
+                subtitle = "DEMO: " .. release.summary,
+                newest = index == 1,
+            }
+        end
+    end
+end
 
 local railButtons, subButtons = {}, {}
 local patchDot, patchPulse
@@ -117,7 +128,8 @@ for index, section in ipairs(sections) do
     bar:SetPoint("TOPLEFT", button, "TOPLEFT", 0, 3)
     bar:SetPoint("BOTTOMLEFT", button, "BOTTOMLEFT", 0, -3)
     bar:SetWidth(3)
-    local icon = Chrome.Icon(button, section.icon)
+    local icon = section.key == "patchnotes" and
+        button:CreateTexture(nil, "ARTWORK") or Chrome.Icon(button, section.icon)
     -- Each 128px square asset has the same transparent margin; none is stretched.
     icon:SetSize(39, 39)
     icon:SetPoint("TOP", button, "TOP", 0, -3)
@@ -125,13 +137,20 @@ for index, section in ipairs(sections) do
     label:SetPoint("TOP", icon, "BOTTOM", 0, -2)
     label:SetJustifyH("CENTER")
     if section.key == "patchnotes" then
-        -- The shared concept atlas has no scroll icon yet. Use a native
-        -- parchment icon rather than introducing an unlicensed asset.
-        icon:SetTexture("Interface\\Icons\\INV_Scroll_03")
-        icon:SetTexCoord(0.09, 0.91, 0.09, 0.91)
-        icon:SetSize(31, 31)
+        -- Matching original Duels artwork, not a generic Blizzard item icon.
+        -- The upper-left atlas quadrant is the authored gold scroll crest.
+        icon:SetTexture("Interface\\AddOns\\DuelsReimagined\\Media\\Concept\\PatchNotesAtlas.tga")
+        icon:SetTexCoord(0, 0.5, 0, 0.5)
+        icon:SetSize(37, 37)
         icon:ClearAllPoints()
-        icon:SetPoint("TOP", button, "TOP", 0, -8)
+        icon:SetPoint("TOP", button, "TOP", 0, -1)
+        -- Use the SAME shared text style as Hall, Community and Options.
+        -- Stacking the words avoids WoW shrinking a long one-line label.
+        label:SetText("PATCH\nNOTES")
+        label:SetWidth(82)
+        label:SetHeight(25)
+        label:SetWordWrap(false)
+        label:SetJustifyV("TOP")
         patchDot = CreateFrame("Frame", nil, button)
         patchDot:SetSize(9, 9)
         patchDot:SetPoint("TOPRIGHT", button, "TOPRIGHT", -10, -4)

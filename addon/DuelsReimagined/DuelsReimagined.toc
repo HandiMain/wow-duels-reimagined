@@ -18,6 +18,7 @@ UI\Theme.lua
 UI\Window.lua
 UI\Search.lua
 UI\Header.lua
+UI\PatchNotesData.lua
 UI\Navigation.lua
 Community\Credits.lua
 UI\Community.lua
