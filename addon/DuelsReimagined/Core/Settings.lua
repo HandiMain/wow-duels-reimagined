@@ -14,6 +14,7 @@ local boolDefaults = {
     matchColors = false,
     matchFont = false,
     autoPeekMoving = true,
+    reduceMotion = false,
 }
 
 -- Future settings must opt in to reload tracking; none currently need it.
@@ -33,6 +34,9 @@ end
 
 function Settings.GetDefault(key)
     if key == "menuScale" then return 1 end
+    if key == "fontChoice" then return "default" end
+    if key == "fontScale" then return 1 end
+    if key == "fontOutline" then return "default" end
     if IsMatchPreference(key) then return EllesmereReady() end
     return boolDefaults[key]
 end
@@ -124,6 +128,21 @@ function Settings.Get(key)
     if key == "menuScale" then
         return Settings.NormalizeScale(db and db.menuScale)
     end
+    if key == "fontScale" then
+        local value = db and db.fontScale
+        if type(value) ~= "number" or value ~= value then return 1 end
+        return math.max(0.9, math.min(1.15, math.floor(value * 20 + 0.5) / 20))
+    end
+    if key == "fontChoice" then
+        local value = db and db.fontChoice
+        if type(value) ~= "string" or #value > 128 or value == "" then return "default" end
+        return value
+    end
+    if key == "fontOutline" then
+        local value = db and db.fontOutline
+        if value == "none" or value == "outline" or value == "thick" then return value end
+        return "default"
+    end
     if boolDefaults[key] == nil then return nil end
     -- When the integration is unavailable, the EFFECTIVE setting is OFF.
     -- Preserve any saved ON override for when EllesmereUI is enabled again.
@@ -144,6 +163,26 @@ function Settings.Set(key, value)
         end
         if ns.Window and ns.Window.RefreshScaleMarker then ns.Window.RefreshScaleMarker() end
         if ns.Footer and ns.Footer.Refresh then ns.Footer.Refresh() end
+        return
+    end
+    -- Typography shares this settings owner and persists immediately.
+    if key == "fontChoice" or key == "fontScale" or key == "fontOutline" then
+        local nextValue
+        if key == "fontChoice" then
+            if type(value) ~= "string" or #value > 128 or value == "" then return end
+            nextValue = value
+        elseif key == "fontScale" then
+            if type(value) ~= "number" or value ~= value then return end
+            nextValue = math.max(0.9, math.min(1.15, math.floor(value * 20 + 0.5) / 20))
+        else
+            if value ~= "default" and value ~= "none" and
+                value ~= "outline" and value ~= "thick" then return end
+            nextValue = value
+        end
+        local db = WriteDB()
+        if Settings.Get(key) == nextValue then return end
+        db[key] = nextValue
+        if ns.Theme and ns.Theme.Refresh then ns.Theme.Refresh() end
         return
     end
     if boolDefaults[key] == nil or type(value) ~= "boolean" then return end
@@ -181,6 +220,10 @@ loader:SetScript("OnEvent", function(self, _, loadedName)
         end
     end
     db.menuScale = Settings.NormalizeScale(db.menuScale)
+    -- Normalize through the same getters, keeping existing SavedVariables.
+    db.fontChoice = Settings.Get("fontChoice")
+    db.fontScale = Settings.Get("fontScale")
+    db.fontOutline = Settings.Get("fontOutline")
     if not Settings.HasWindowSize() then db.windowSize = nil end
     for key in pairs(reloadRequired) do loadValues[key] = Settings.Get(key) end
     if ns.Window and ns.Window.ApplyScale then

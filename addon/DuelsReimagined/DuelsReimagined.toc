@@ -3,11 +3,12 @@
 ## Notes: A dueling companion for World of Warcraft.
 ## Author: Handi
 ## Category: PvP
-## OptionalDeps: EllesmereUI
+## OptionalDeps: EllesmereUI, LibSharedMedia-3.0, SharedMedia
 ## SavedVariables: DuelsReimaginedDB
 ## IconTexture: Interface\AddOns\DuelsReimagined\Media\Icons\DuelsReimagined-AddonIcon.blp
 
 Core\Settings.lua
+UI\Fonts.lua
 UI\Style.lua
 UI\Motion.lua
 UI\Chrome.lua

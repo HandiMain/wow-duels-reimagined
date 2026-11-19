@@ -7,6 +7,16 @@ ns.Motion = Motion
 local driver = CreateFrame("Frame")
 local active = {}
 
+-- Polestar-inspired reduced-motion contract, driven by our existing single
+-- tween owner. Never create a second animator or a permanent polling loop.
+Motion.Presets = { quick = 0.12, normal = 0.17, gentle = 0.22 }
+function Motion.Duration(kind)
+    return Motion.Presets[kind] or Motion.Presets.normal
+end
+local function Reduced()
+    return ns.Settings and ns.Settings.Get("reduceMotion") == true
+end
+
 local function Smooth(p)
     return p * p * (3 - 2 * p)
 end
@@ -29,6 +39,9 @@ end
 function Motion.Value(key, from, target, duration, apply)
     if not key or type(apply) ~= "function" then return end
     active[key] = nil
+    -- Reduced motion snaps movement/slider transitions; opacity fades are
+    -- still handled as brief fades in Motion.Fade.
+    if Reduced() then duration = 0 end
     if not duration or duration <= 0 or math.abs(from - target) < 0.001 then
         apply(key, target)
         if not next(active) then driver:SetScript("OnUpdate", nil) end
@@ -47,6 +60,9 @@ end
 
 function Motion.Fade(region, target, duration)
     if not region then return end
+    -- Keep a tiny opacity transition for readability in reduced-motion mode.
+    -- Callers retain their existing animations otherwise.
+    if Reduced() then duration = 0 end
     Motion.Value(region, region:GetAlpha(), target, duration, ApplyAlpha)
 end
 

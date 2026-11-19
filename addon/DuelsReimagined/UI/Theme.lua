@@ -41,6 +41,12 @@ function Theme.Refresh()
         end
     end
 
+    -- EllesmereUI's active match takes priority over the saved manual pick.
+    -- With no matching provider, the user's chosen SharedMedia font applies;
+    -- otherwise Style falls back to Blizzard's locale-appropriate default.
+    if not font and ns.Fonts and type(ns.Fonts.Resolve) == "function" then
+        font = ns.Fonts.Resolve(Settings.Get("fontChoice"))
+    end
     Style.ApplyTheme(accent, panel, font)
     if ns.Chrome then ns.Chrome.Refresh() end
     if ns.Window and ns.Window.RefreshTheme then ns.Window.RefreshTheme() end

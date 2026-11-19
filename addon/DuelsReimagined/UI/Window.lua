@@ -272,6 +272,7 @@ function Window.ApplyScale(value)
     pendingScale = nil
     frame:SetScale(v)
     FitWindowToScreen(v)
+    if Style.RefreshPixelEdges then Style.RefreshPixelEdges() end
     if ns.Header and ns.Header.AfterWindowResized then
         ns.Header.AfterWindowResized()
     end

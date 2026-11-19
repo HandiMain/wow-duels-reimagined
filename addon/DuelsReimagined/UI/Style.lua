@@ -23,6 +23,24 @@ Style.color = {
 
 local colorTextures = {}
 local fontStrings = {}
+local pixelEdges = {}
+
+-- BurstFX-style physical-pixel sizing, using the frame's effective scale.
+-- Only plain line/border textures are tracked; the approved metal PNG rim
+-- is deliberately not touched.
+function Style.Pixel(region, physicalPixels)
+    local scale = region and region.GetEffectiveScale and region:GetEffectiveScale() or 1
+    if type(scale) ~= "number" or scale <= 0 then scale = 1 end
+    return (physicalPixels or 1) / scale
+end
+
+function Style.RefreshPixelEdges()
+    for _, entry in ipairs(pixelEdges) do
+        local unit = Style.Pixel(entry.parent, entry.pixels)
+        for _, region in ipairs(entry.horizontal) do region:SetHeight(unit) end
+        for _, region in ipairs(entry.vertical) do region:SetWidth(unit) end
+    end
+end
 
 local function RegisterTexture(region, color)
     for token, value in pairs(Style.color) do
@@ -62,7 +80,8 @@ end
 
 function Style.Border(parent, color, thickness)
     local c = color or Style.color.goldDim
-    local w = thickness or 1
+    local physical = thickness or 1
+    local w = Style.Pixel(parent, physical)
     local top = parent:CreateTexture(nil, "BORDER")
     top:SetColorTexture(unpack(c))
     RegisterTexture(top, c)
@@ -87,6 +106,10 @@ function Style.Border(parent, color, thickness)
     right:SetPoint("TOPRIGHT", parent, "TOPRIGHT", 0, 0)
     right:SetPoint("BOTTOMRIGHT", parent, "BOTTOMRIGHT", 0, 0)
     right:SetWidth(w)
+    pixelEdges[#pixelEdges + 1] = {
+        parent = parent, pixels = physical,
+        horizontal = { top, bottom }, vertical = { left, right },
+    }
 end
 
 -- EditBoxes and other font-bearing controls use the same centralized
@@ -171,13 +194,19 @@ function Style.ApplyTheme(accent, panel, fontPath)
     for _, item in ipairs(colorTextures) do
         item.region:SetColorTexture(unpack(Style.color[item.token]))
     end
+    local scale = ns.Settings and ns.Settings.Get("fontScale") or 1
+    local mode = ns.Settings and ns.Settings.Get("fontOutline") or "default"
     for _, item in ipairs(fontStrings) do
         local fs = item.label
         local path = fontPath or STANDARD_TEXT_FONT or "Fonts\\FRIZQT__.TTF"
-        local ok = fs:SetFont(path, item.size, item.outline and "OUTLINE" or "")
-        if not ok and fontPath then
-            fs:SetFont(STANDARD_TEXT_FONT or "Fonts\\FRIZQT__.TTF",
-                item.size, item.outline and "OUTLINE" or "")
+        local size = item.size * scale
+        local outline = item.outline and "OUTLINE" or ""
+        if mode == "none" then outline = ""
+        elseif mode == "outline" then outline = "OUTLINE"
+        elseif mode == "thick" then outline = "THICKOUTLINE" end
+        local ok = fs:SetFont(path, size, outline)
+        if not ok then
+            fs:SetFont(STANDARD_TEXT_FONT or "Fonts\\FRIZQT__.TTF", size, outline)
         end
         if item.token then fs:SetTextColor(unpack(Style.color[item.token])) end
     end
