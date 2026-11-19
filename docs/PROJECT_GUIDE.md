@@ -158,3 +158,11 @@ Past experiments included duel history, personal statistics, rankings, player pr
 - Reuse `Chrome.PrimaryRail(button)` **only** on navigation sections explicitly tagged `primary = true`. Hall is the first primary section. Community and Options remain completely unchanged. Other page titles, nav columns, content and window shell are untouched.
 - The primary background is brighter while selected and dimmed when inactive. Hover/pressed tint is limited to the red center, never painted over the metal rim. The original navigation owner retains click, tooltips, search, hover motion, icon and label. No new animation driver or settings.
 - Static regression checks ensure primary selectability, secondary unchanged, source art dimensions and clean tooltip integration. Must verify real WoW at differing menu/font scales, page switching, click areas, and combat; visual match is still unverified until user screenshots it in client.
+
+
+## Hall primary rail — alignment and hover repair (2026-11-19)
+
+- In-game screenshot revealed crossed swords touching the top gold frame and the Hall artwork visually offset inside the narrow 88-unit rail. The approved 128x128 PNG contains significant transparent padding; its 100x90 full-canvas display was too large.
+- Corrected only the primary rail geometry: 86x74 hit area centered within 88-unit rail, art 92x90 with 5px downward compensation, top at -19, swords 35x35 anchored -11px and text -1px below icon. Secondary Community/Options buttons keep their original 86x68 hit area, -12 top/previous bottom anchoring, 39px icon and labels.
+- Fixed hover root cause: the selected Hall was explicitly excluded from hover animations. Now both selected and inactive primary buttons get a soft additive gold rim gleam, using the exact approved Hall PNG a second time as an overlay. `Motion` remains the only animator, with the same press/tooltip owner and no global UI changes.
+- Static tests check geometry and selected/unselected hover paths. Visual feedback, hit areas, tooltip lifecycle and menu scaling must be verified in WoW; CI alone is not in-game proof.

@@ -190,8 +190,12 @@ class CommunityUITests(unittest.TestCase):
         self.assertNotIn('key = "options", label = "Options", icon = "Options", primary', navigation)
         self.assertIn("function Chrome.PrimaryRail(parent)", chrome)
         self.assertIn('tex:SetTexture(art .. "NavPrimary.png")', chrome)
-        self.assertIn('tex:SetSize(100, 90)', chrome)
-        self.assertIn('button:SetSize(section.primary and 94 or 86, section.primary and 74 or 68)', navigation)
+        self.assertIn('tex:SetSize(92, 90)', chrome)
+        self.assertIn('tex:SetPoint("CENTER", parent, "CENTER", 0, -5)', chrome)
+        self.assertIn('button:SetSize(section.primary and 86 or 86, section.primary and 74 or 68)', navigation)
+        self.assertIn('section.primary and -19 or -12', navigation)
+        self.assertIn('icon:SetSize(section.primary and 35 or 39, section.primary and 35 or 39)', navigation)
+        self.assertIn('section.primary and -11 or -3', navigation)
         self.assertIn('if section.primary then\n        primaryArt = Chrome.PrimaryRail(button)', navigation)
         self.assertIn('selected, hover = AddOverlay(button, true)', navigation)
         self.assertIn('if item.primaryArt then Motion.Stop(item.primaryArt, on and 1 or 0.48) end', navigation)
@@ -200,6 +204,13 @@ class CommunityUITests(unittest.TestCase):
         self.assertIn('ns.Tooltips.Bind(button, { title = section.label,', navigation)
         self.assertIn('icon = icon, label = label,', navigation)
         self.assertIn('ns.Widgets.PressFeedback(button, hover)', navigation)
+        self.assertIn('hover = Chrome.PrimaryRail(button)', navigation)
+        self.assertIn('hover:SetBlendMode("ADD")', navigation)
+        self.assertIn('currentSection == index and 0.28 or 0.34', navigation)
+        self.assertIn('item.primary and item.button and item.button:IsMouseOver()', navigation)
+        self.assertIn('button = button', navigation)
+        self.assertIn('else\n        selected, hover = AddOverlay(button, true)', navigation)
+        self.assertIn('elseif currentSection ~= index then', navigation)
 
     def test_primary_art_is_power_of_two_and_has_soft_alpha(self):
         path = ADDON / "Media" / "Concept" / "NavPrimary.png"

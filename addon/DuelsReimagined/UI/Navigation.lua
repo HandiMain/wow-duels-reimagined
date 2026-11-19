@@ -45,7 +45,10 @@ local function FadeSelection(item, active)
     -- paint a full-size SelectionRail rectangle over those gold corners.
     Motion.Fade(item.selected,
         active and (item.primary and 0.10 or 0.94) or 0, 0.18)
-    Motion.Fade(item.hover, 0, 0.13)
+    -- Unlike the old secondary nav, a selected primary button still needs
+    -- feedback on hover. Preserve it after clicking into Hall as well.
+    local hovered = item.primary and item.button and item.button:IsMouseOver()
+    Motion.Fade(item.hover, hovered and 0.28 or 0, 0.13)
 end
 
 local function Select(sectionIndex, pageIndex, noMotion)
@@ -58,7 +61,10 @@ local function Select(sectionIndex, pageIndex, noMotion)
         local on = i == sectionIndex
         if noMotion then
             Motion.Stop(item.selected, on and (item.primary and 0.10 or 0.94) or 0)
-            if item.primaryArt then Motion.Stop(item.primaryArt, on and 1 or 0.48) end
+            if item.primaryArt then
+                Motion.Stop(item.primaryArt, on and 1 or 0.48)
+                Motion.Stop(item.hover, item.button and item.button:IsMouseOver() and 0.28 or 0)
+            end
         else
             FadeSelection(item, on)
             if item.primaryArt then
@@ -99,27 +105,33 @@ end
 
 for index, section in ipairs(sections) do
     local button = CreateFrame("Button", nil, Window.rail)
-    button:SetSize(section.primary and 94 or 86, section.primary and 74 or 68)
+    -- Primary Hall stays within the 88px rail; secondary hit areas unchanged.
+    button:SetSize(section.primary and 86 or 86, section.primary and 74 or 68)
     if section.key == "options" then
         button:SetPoint("BOTTOM", Window.rail, "BOTTOM", 0, 11)
     elseif section.key == "community" then
         button:SetPoint("BOTTOM", Window.rail, "BOTTOM", 0, 85)
     else
-        button:SetPoint("TOP", Window.rail, "TOP", 0, -12)
+        button:SetPoint("TOP", Window.rail, "TOP", 0,
+            section.primary and -19 or -12)
     end
     local selected, hover, primaryArt
     if section.primary then
         primaryArt = Chrome.PrimaryRail(button)
-        -- Restrict interaction feedback to the enamel center, not the
-        -- concept's metal frame or diamond embellishments.
+        -- A restrained selected tint stays inside the red enamel.
         selected = Style.Fill(button, C.goldDim, "ARTWORK")
-        hover = Style.Fill(button, C.goldDim, "ARTWORK")
-        for _, glow in ipairs({ selected, hover }) do
-            glow:ClearAllPoints()
-            glow:SetPoint("TOPLEFT", button, "TOPLEFT", 12, -12)
-            glow:SetPoint("BOTTOMRIGHT", button, "BOTTOMRIGHT", -12, 12)
-            glow:SetAlpha(0)
-        end
+        selected:ClearAllPoints()
+        selected:SetPoint("TOPLEFT", button, "TOPLEFT", 12, -12)
+        selected:SetPoint("BOTTOMRIGHT", button, "BOTTOMRIGHT", -12, 12)
+        selected:SetAlpha(0)
+
+        -- The hover follows the SAME shaped gold frame (no rectangular box
+        -- painted across the corners). Additive blend makes the rim gleam
+        -- even when Hall is already selected; Motion owns its fades.
+        hover = Chrome.PrimaryRail(button)
+        hover:SetBlendMode("ADD")
+        hover:SetVertexColor(1, 0.82, 0.58)
+        hover:SetAlpha(0)
     else
         selected, hover = AddOverlay(button, true)
     end
@@ -130,16 +142,21 @@ for index, section in ipairs(sections) do
     bar:SetWidth(3)
     local icon = Chrome.Icon(button, section.icon)
     -- Each 128px square asset has the same transparent margin; none is stretched.
-    icon:SetSize(39, 39)
-    icon:SetPoint("TOP", button, "TOP", 0, -3)
+    icon:SetSize(section.primary and 35 or 39, section.primary and 35 or 39)
+    -- Keep the swords beneath the gold upper rim and the Hall text inside
+    -- the enamel. Secondary icons retain their exact previous anchors.
+    icon:SetPoint("TOP", button, "TOP", 0, section.primary and -11 or -3)
     local label = Style.Text(button, string.upper(section.label), 11, C.muted, true)
-    label:SetPoint("TOP", icon, "BOTTOM", 0, -2)
+    label:SetPoint("TOP", icon, "BOTTOM", 0, section.primary and -1 or -2)
     label:SetJustifyH("CENTER")
     button:SetScript("OnClick", function() Select(index, 1) end)
     button:SetScript("OnEnter", function()
-        if currentSection ~= index then
-            Motion.Fade(hover, section.primary and 0.18 or 0.58, 0.17)
-            if primaryArt then Motion.Fade(primaryArt, 0.80, 0.17) end
+        if section.primary then
+            -- Selected Hall must have a visible hover as well as inactive Hall.
+            Motion.Fade(hover, currentSection == index and 0.28 or 0.34, 0.15)
+            Motion.Fade(primaryArt, currentSection == index and 1 or 0.86, 0.15)
+        elseif currentSection ~= index then
+            Motion.Fade(hover, 0.58, 0.17)
         end
     end)
     button:SetScript("OnLeave", function()
@@ -153,7 +170,7 @@ for index, section in ipairs(sections) do
         detail = "Open the " .. section.label .. " section." })
     railButtons[index] = {
         selected = selected, hover = hover, bar = bar, icon = icon, label = label,
-        primary = section.primary, primaryArt = primaryArt
+        primary = section.primary, primaryArt = primaryArt, button = button
     }
 
     local pages = {}
