@@ -155,7 +155,7 @@ class CommunityUITests(unittest.TestCase):
             "ffb1518a5a4b4974d199067ab6961518b862db98159c143ab6a472c68785adac",
             "The approved Horde artwork must remain byte-for-byte unchanged")
         lion = (path / "CommunityAllianceLion.png").read_bytes()
-        self.assertEqual(lion[:8], b"\\x89PNG\\r\\n\\x1a\\n")
+        self.assertEqual(lion[:8], bytes((137, 80, 78, 71, 13, 10, 26, 10)))
         self.assertEqual(struct.unpack(">II", lion[16:24]), (128, 128))
         self.assertEqual(lion[24], 8)
         self.assertEqual(lion[25], 6)
