@@ -14,7 +14,14 @@ frame:SetClampedToScreen(true)
 frame:SetMovable(true)
 frame:EnableMouse(true)
 frame:Hide()
-Style.Fill(frame, C.window)
+
+-- The window's visible interior is inset from the decorative rim. The root
+-- frame itself has NO backdrop, so dark pixels cannot bleed outside the metal.
+local inset = 10
+local interior = CreateFrame("Frame", nil, frame)
+interior:SetPoint("TOPLEFT", frame, "TOPLEFT", inset, -inset)
+interior:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -inset, inset)
+Style.Fill(interior, C.window)
 Window.frame = frame
 
 local function Drag(handle)
@@ -31,15 +38,15 @@ end
 -- These bands span the entire window, not individual navigation columns.
 local header = CreateFrame("Frame", nil, frame)
 header:SetHeight(90)
-header:SetPoint("TOPLEFT", frame, "TOPLEFT", 2, -2)
-header:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -2, -2)
+header:SetPoint("TOPLEFT", interior, "TOPLEFT")
+header:SetPoint("TOPRIGHT", interior, "TOPRIGHT")
 Style.Fill(header, C.header)
 Drag(header)
 
 local footer = CreateFrame("Frame", nil, frame)
 footer:SetHeight(56)
-footer:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", 2, 2)
-footer:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -2, 2)
+footer:SetPoint("BOTTOMLEFT", interior, "BOTTOMLEFT")
+footer:SetPoint("BOTTOMRIGHT", interior, "BOTTOMRIGHT")
 Style.Fill(footer, C.footer)
 
 local body = CreateFrame("Frame", nil, frame)
@@ -179,7 +186,8 @@ Window.ApplyScale(Settings.Get("menuScale") or 1)
 
 local close = Style.Action(footer, "Close", "footer")
 close:SetSize(120, 30)
-close:SetPoint("RIGHT", footer, "RIGHT", -36, 0)
+-- Centered vertically, with safe padding from the actual interior boundary.
+close:SetPoint("RIGHT", footer, "RIGHT", -32, 0)
 close:SetScript("OnClick", function() frame:Hide() end)
 
 local title = Style.Text(content, "Welcome to the Hall", 28, C.pale, true)
