@@ -22,6 +22,7 @@ UI\Navigation.lua
 Community\Credits.lua
 UI\Community.lua
 UI\Options.lua
+UI\PatchNotes.lua
 UI\Footer.lua
 Core\Commands.lua
 UI\AccessIcons.lua

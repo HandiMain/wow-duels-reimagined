@@ -31,6 +31,7 @@ local boolDefaults = {
     autoPeekMoving = true,
     reduceMotion = false,
     showTooltips = true,
+    patchNotesReminder = true,
     -- This is our membership in Blizzard's addon compartment, NOT the
     -- visibility of Blizzard's own compartment button.
     showInCompartment = true,
@@ -107,6 +108,24 @@ local function WriteDB()
         _G.DuelsReimaginedDB = db
     end
     return db
+end
+
+-- Patch Notes is account-wide presentation state, not a real addon version.
+-- The stable content ID is stored alongside other preferences, by this owner.
+function Settings.GetPatchNotesSeenId()
+    local db = ReadDB()
+    local id = db and db.patchNotesSeenId
+    return type(id) == "string" and #id <= 128 and id or nil
+end
+
+function Settings.MarkPatchNotesSeen(id)
+    if type(id) ~= "string" or #id < 1 or #id > 128 then return end
+    local db = WriteDB()
+    if db.patchNotesSeenId == id then return end
+    db.patchNotesSeenId = id
+    if ns.PatchNotes and ns.PatchNotes.RefreshReminder then
+        ns.PatchNotes.RefreshReminder()
+    end
 end
 
 function Settings.NormalizeScale(value)
@@ -298,7 +317,11 @@ function Settings.Set(key, value)
     local db = WriteDB()
     if db[key] == value then return end
     db[key] = value
-    if key == "autoPeekMoving" then
+    if key == "patchNotesReminder" then
+        if ns.PatchNotes and ns.PatchNotes.RefreshReminder then
+            ns.PatchNotes.RefreshReminder()
+        end
+    elseif key == "autoPeekMoving" then
         if ns.Header and ns.Header.RefreshAutoPeek then
             ns.Header.RefreshAutoPeek()
         end
@@ -312,6 +335,10 @@ function Settings.Set(key, value)
         if ns.Options and ns.Options.Refresh then ns.Options.Refresh() end
     elseif ns.Theme then
         ns.Theme.Refresh()
+    end
+    if key == "reduceMotion" and ns.PatchNotes and
+        ns.PatchNotes.RefreshReminder then
+        ns.PatchNotes.RefreshReminder()
     end
     if ns.Footer and ns.Footer.Refresh then ns.Footer.Refresh() end
 end
@@ -341,6 +368,10 @@ loader:SetScript("OnEvent", function(self, _, loadedName)
     db.fontScale = Settings.Get("fontScale")
     db.fontOutline = Settings.Get("fontOutline")
     for key in pairs(accessDefaults) do db[key] = Settings.Get(key) end
+    if type(db.patchNotesSeenId) ~= "string" or
+        #db.patchNotesSeenId > 128 then
+        db.patchNotesSeenId = nil
+    end
     local position = db.widgetPosition
     if position ~= nil then
         local valid = type(position) == "table" and
@@ -361,4 +392,7 @@ loader:SetScript("OnEvent", function(self, _, loadedName)
     if ns.Window and ns.Window.RefreshScaleMarker then ns.Window.RefreshScaleMarker() end
     if ns.Footer and ns.Footer.Refresh then ns.Footer.Refresh() end
     if ns.AccessIcons and ns.AccessIcons.Refresh then ns.AccessIcons.Refresh() end
+    if ns.PatchNotes and ns.PatchNotes.RefreshReminder then
+        ns.PatchNotes.RefreshReminder()
+    end
 end)

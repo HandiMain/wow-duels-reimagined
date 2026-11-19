@@ -22,6 +22,12 @@ local sections = {
         { key = "special-thanks", label = "Special Thanks", community = true,
           title = "Special Thanks", subtitle = "People we appreciate." },
     } },
+    { key = "patchnotes", label = "Patch Notes", icon = "PatchNotes", pages = {
+        { key = "latest", label = "Latest Update", patchNotes = true,
+          title = "Patch Notes", subtitle = "What's new in Duels Reimagined." },
+        { key = "history", label = "Previous Updates", patchNotes = true,
+          title = "Previous Updates", subtitle = "Browse older test notes." },
+    } },
     { key = "options", label = "Options", icon = "Options", pages = {
         { key = "options", label = "Appearance", title = "Appearance",
           subtitle = "Make the interface your own." },
@@ -31,6 +37,7 @@ local sections = {
 }
 
 local railButtons, subButtons = {}, {}
+local patchDot, patchPulse
 local sectionTitle = Style.Text(Window.nav, "THE HALL", 18, C.gold, true)
 sectionTitle:SetPoint("TOPLEFT", Window.nav, "TOPLEFT", 20, -24)
 local subtitleRule = Chrome.Divider(Window.nav, 201, 12)
@@ -97,8 +104,10 @@ for index, section in ipairs(sections) do
     button:SetSize(86, 68)
     if section.key == "options" then
         button:SetPoint("BOTTOM", Window.rail, "BOTTOM", 0, 11)
-    elseif section.key == "community" then
+    elseif section.key == "patchnotes" then
         button:SetPoint("BOTTOM", Window.rail, "BOTTOM", 0, 85)
+    elseif section.key == "community" then
+        button:SetPoint("BOTTOM", Window.rail, "BOTTOM", 0, 159)
     else
         button:SetPoint("TOP", Window.rail, "TOP", 0, -12)
     end
@@ -115,6 +124,40 @@ for index, section in ipairs(sections) do
     local label = Style.Text(button, string.upper(section.label), 11, C.muted, true)
     label:SetPoint("TOP", icon, "BOTTOM", 0, -2)
     label:SetJustifyH("CENTER")
+    if section.key == "patchnotes" then
+        -- The shared concept atlas has no scroll icon yet. Use a native
+        -- parchment icon rather than introducing an unlicensed asset.
+        icon:SetTexture("Interface\\Icons\\INV_Scroll_03")
+        icon:SetTexCoord(0.09, 0.91, 0.09, 0.91)
+        icon:SetSize(31, 31)
+        icon:ClearAllPoints()
+        icon:SetPoint("TOP", button, "TOP", 0, -8)
+        patchDot = CreateFrame("Frame", nil, button)
+        patchDot:SetSize(9, 9)
+        patchDot:SetPoint("TOPRIGHT", button, "TOPRIGHT", -10, -4)
+        local jewel = patchDot:CreateTexture(nil, "OVERLAY")
+        jewel:SetAllPoints(patchDot)
+        jewel:SetColorTexture(0.98, 0.18, 0.15, 1)
+        patchPulse = patchDot:CreateAnimationGroup()
+        patchPulse:SetLooping("BOUNCE")
+        local breathe = patchPulse:CreateAnimation("Alpha")
+        breathe:SetFromAlpha(0.46)
+        breathe:SetToAlpha(1)
+        breathe:SetDuration(0.92)
+        patchDot:SetScript("OnShow", function()
+            if ns.Settings.Get("reduceMotion") then
+                patchPulse:Stop()
+                patchDot:SetAlpha(1)
+            else
+                patchPulse:Play()
+            end
+        end)
+        patchDot:SetScript("OnHide", function()
+            patchPulse:Stop()
+            patchDot:SetAlpha(1)
+        end)
+        patchDot:Hide()
+    end
     button:SetScript("OnClick", function() Select(index, 1) end)
     button:SetScript("OnEnter", function()
         if currentSection ~= index then Motion.Fade(hover, 0.58, 0.17) end
@@ -160,6 +203,18 @@ for index, section in ipairs(sections) do
 end
 
 ns.Navigation = {
+    SetPatchUnread = function(unread)
+        if not patchDot then return end
+        patchDot:SetShown(unread == true)
+        if unread and patchDot:IsVisible() then
+            if ns.Settings.Get("reduceMotion") then
+                patchPulse:Stop()
+                patchDot:SetAlpha(1)
+            elseif not patchPulse:IsPlaying() then
+                patchPulse:Play()
+            end
+        end
+    end,
     RefreshSelection = function()
         if currentSection and currentPage then
             Select(currentSection, currentPage, true, true)

@@ -66,12 +66,12 @@ local function Card(page, y, height)
 end
 
 local appearance = Page(255)
-local interface = Page(1300)
+local interface = Page(1365)
 
 local appearanceCard = Card(appearance, 0, 245)
-local behaviorCard = Card(interface, 0, 330)
-local typographyCard = Card(interface, 348, 397)
-local accessCard = Card(interface, 763, 495)
+local behaviorCard = Card(interface, 0, 395)
+local typographyCard = Card(interface, 413, 397)
+local accessCard = Card(interface, 828, 495)
 
 local function Section(card, title, subtitle, top)
     local heading = Style.Text(card, title, 18, C.pale)
@@ -149,6 +149,9 @@ AddToggle(behaviorCard, "interface", "reduceMotion", "Reduce motion",
     "Shorten or skip UI animation while retaining visual feedback.", -148, false)
 AddToggle(behaviorCard, "interface", "showTooltips", "Show addon tooltips",
     "Show helpful descriptions when hovering over Duels controls.", -214, false)
+AddToggle(behaviorCard, "interface", "patchNotesReminder", "New patch reminder",
+    "Show a subtle unread dot on Patch Notes when a new update is published.",
+    -280, false)
 
 local fontChoice = Widgets.ChoiceRow(typographyCard, "Interface font",
     "Blizzard by default; includes fonts registered with SharedMedia.",
@@ -266,7 +269,7 @@ accessHint:SetJustifyH("LEFT")
 local behaviorInfo = Style.Text(behaviorCard,
     "Hold the eye to Peek. Fold leaves the header visible.",
     12, C.muted)
-behaviorInfo:SetPoint("TOPLEFT", behaviorCard, "TOPLEFT", 20, -292)
+behaviorInfo:SetPoint("TOPLEFT", behaviorCard, "TOPLEFT", 20, -359)
 behaviorInfo:SetPoint("RIGHT", behaviorCard, "RIGHT", -20, 0)
 behaviorInfo:SetJustifyH("LEFT")
 

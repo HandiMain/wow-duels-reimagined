@@ -435,15 +435,20 @@ function Window.ShowPage(page)
     emptyDetail:SetText(page.emptyDetail or "")
     local isOptions = page.key == "options" or page.key == "interface"
     local isCommunity = page.community == true
-    -- Hall artwork stays Hall-only. Community owns its own complete view.
-    title:SetShown(not isCommunity)
-    titleRule:SetShown(not isCommunity)
-    subtitle:SetShown(not isCommunity)
-    watermark:SetShown(not isOptions and not isCommunity)
-    emptyHeading:SetShown(not isOptions and not isCommunity)
-    emptyDetail:SetShown(not isOptions and not isCommunity)
+    local isPatchNotes = page.patchNotes == true
+    local isCustomPage = isOptions or isCommunity or isPatchNotes
+    -- Hall artwork stays Hall-only. Other owners present their own pages.
+    title:SetShown(not isCommunity and not isPatchNotes)
+    titleRule:SetShown(not isCommunity and not isPatchNotes)
+    subtitle:SetShown(not isCommunity and not isPatchNotes)
+    watermark:SetShown(not isCustomPage)
+    emptyHeading:SetShown(not isCustomPage)
+    emptyDetail:SetShown(not isCustomPage)
     if ns.Options then ns.Options.Show(isOptions and page.key or nil) end
     if ns.Community then ns.Community.Show(isCommunity and page.key or nil) end
+    if ns.PatchNotes then
+        ns.PatchNotes.Show(isPatchNotes and page.key or nil)
+    end
     if frame:IsShown() then
         Motion.Stop(content, 0.68)
         Motion.Fade(content, 1, 0.19)
