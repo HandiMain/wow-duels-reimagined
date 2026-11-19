@@ -79,7 +79,7 @@ end
 
 function Widgets.ToggleRow(parent, label, description, onToggle)
     local row = CreateFrame("Button", nil, parent)
-    row:SetHeight(72)
+    row:SetHeight(56)
     row:RegisterForClicks("LeftButtonUp")
     row.available = true
     row.checked = false
@@ -94,9 +94,9 @@ function Widgets.ToggleRow(parent, label, description, onToggle)
     row.divider:SetHeight(1)
 
     row.name = Style.Text(row, label, 15, C.text)
-    row.name:SetPoint("TOPLEFT", row, "TOPLEFT", 1, -13)
+    row.name:SetPoint("TOPLEFT", row, "TOPLEFT", 1, -7)
     row.description = Style.Text(row, description, 12, C.muted)
-    row.description:SetPoint("TOPLEFT", row.name, "BOTTOMLEFT", 0, -6)
+    row.description:SetPoint("TOPLEFT", row.name, "BOTTOMLEFT", 0, -3)
     row.description:SetPoint("RIGHT", row, "RIGHT", -77, 0)
     row.description:SetJustifyH("LEFT")
 

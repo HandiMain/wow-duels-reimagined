@@ -75,13 +75,13 @@ end
 
 for index, section in ipairs(sections) do
     local button = CreateFrame("Button", nil, Window.rail)
-    button:SetSize(124, 96)
+    button:SetSize(86, 68)
     if section.key == "options" then
-        button:SetPoint("BOTTOM", Window.rail, "BOTTOM", 0, 19)
+        button:SetPoint("BOTTOM", Window.rail, "BOTTOM", 0, 11)
     elseif section.key == "community" then
-        button:SetPoint("BOTTOM", Window.rail, "BOTTOM", 0, 122)
+        button:SetPoint("BOTTOM", Window.rail, "BOTTOM", 0, 85)
     else
-        button:SetPoint("TOP", Window.rail, "TOP", 0, -17)
+        button:SetPoint("TOP", Window.rail, "TOP", 0, -12)
     end
     local selected, hover = AddOverlay(button, true)
     local bar = button:CreateTexture(nil, "OVERLAY")
@@ -91,10 +91,10 @@ for index, section in ipairs(sections) do
     bar:SetWidth(3)
     local icon = Chrome.Icon(button, section.icon)
     -- Each 128px square asset has the same transparent margin; none is stretched.
-    icon:SetSize(61, 61)
-    icon:SetPoint("TOP", button, "TOP", 0, -4)
-    local label = Style.Text(button, string.upper(section.label), 12, C.muted, true)
-    label:SetPoint("TOP", icon, "BOTTOM", 0, -1)
+    icon:SetSize(39, 39)
+    icon:SetPoint("TOP", button, "TOP", 0, -3)
+    local label = Style.Text(button, string.upper(section.label), 11, C.muted, true)
+    label:SetPoint("TOP", icon, "BOTTOM", 0, -2)
     label:SetJustifyH("CENTER")
     button:SetScript("OnClick", function() Select(index, 1) end)
     button:SetScript("OnEnter", function()

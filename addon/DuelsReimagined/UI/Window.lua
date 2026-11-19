@@ -6,8 +6,8 @@ local Window = {}
 ns.Window = Window
 
 local frame = CreateFrame("Frame", "DuelsReimaginedWindow", UIParent)
-frame:SetSize(1100, 660)
-frame:SetPoint("CENTER", UIParent, "CENTER", 0, 18)
+frame:SetSize(1300, 946)
+frame:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
 frame:SetFrameStrata("DIALOG")
 frame:SetToplevel(true)
 frame:SetClampedToScreen(true)
@@ -37,14 +37,14 @@ end
 
 -- These bands span the entire window, not individual navigation columns.
 local header = CreateFrame("Frame", nil, frame)
-header:SetHeight(90)
+header:SetHeight(82)
 header:SetPoint("TOPLEFT", interior, "TOPLEFT")
 header:SetPoint("TOPRIGHT", interior, "TOPRIGHT")
 Style.Fill(header, C.header)
 Drag(header)
 
 local footer = CreateFrame("Frame", nil, frame)
-footer:SetHeight(56)
+footer:SetHeight(52)
 footer:SetPoint("BOTTOMLEFT", interior, "BOTTOMLEFT")
 footer:SetPoint("BOTTOMRIGHT", interior, "BOTTOMRIGHT")
 Style.Fill(footer, C.footer)
@@ -55,7 +55,7 @@ body:SetPoint("BOTTOMRIGHT", footer, "TOPRIGHT", 0, 0)
 local rail = CreateFrame("Frame", nil, body)
 rail:SetPoint("TOPLEFT", body, "TOPLEFT", 0, 0)
 rail:SetPoint("BOTTOMLEFT", body, "BOTTOMLEFT", 0, 0)
-rail:SetWidth(128)
+rail:SetWidth(88)
 Style.Fill(rail, C.rail)
 Window.rail = rail
 
@@ -80,12 +80,12 @@ Chrome.Shell(frame, header, footer, rail, nav, content)
 
 local brandIcon = header:CreateTexture(nil, "ARTWORK")
 brandIcon:SetTexture("Interface\\AddOns\\DuelsReimagined\\Media\\Icons\\DuelsReimagined-AddonIcon.blp")
-brandIcon:SetSize(75, 75)
+brandIcon:SetSize(67, 67)
 brandIcon:SetPoint("LEFT", header, "LEFT", 20, 0)
 
-local brandTop = Style.Text(header, "DUELS", 30, C.pale, true)
-brandTop:SetPoint("TOPLEFT", header, "TOPLEFT", 143, -17)
-local brandBottom = Style.Text(header, "R E I M A G I N E D", 12, C.gold, true)
+local brandTop = Style.Text(header, "DUELS", 27, C.pale, true)
+brandTop:SetPoint("TOPLEFT", header, "TOPLEFT", 134, -14)
+local brandBottom = Style.Text(header, "R E I M A G I N E D", 11, C.gold, true)
 brandBottom:SetPoint("TOPLEFT", brandTop, "BOTTOMLEFT", 2, -5)
 
 local Settings = ns.Settings
@@ -134,10 +134,32 @@ local function PaintScale(value)
     scalePercent:SetText(math.floor(v * 100 + 0.5) .. "%")
 end
 
+-- Match Polestar's 1300 x 946 physical-pixel default while respecting
+-- UIParent scaling, the menu-scale preference and screen-safe margins.
+-- The window is not resized continuously while the scale slider is dragged.
+local BASE_WIDTH, BASE_HEIGHT, EDGE = 1300, 946, 16
+
+local function FitWindowToScreen(menuScale)
+    local parentH, parentW = UIParent:GetHeight(), UIParent:GetWidth()
+    local physicalH
+    if type(GetPhysicalScreenSize) == "function" then
+        local _, h = GetPhysicalScreenSize()
+        physicalH = h
+    end
+    local pixelsPerUnit = (type(physicalH) == "number" and physicalH > 0
+        and parentH and parentH > 0) and physicalH / parentH or 1
+    local desiredW = math.floor(BASE_WIDTH / pixelsPerUnit + 0.5)
+    local desiredH = math.floor(BASE_HEIGHT / pixelsPerUnit + 0.5)
+    local limitW = math.max(1, math.floor(parentW / menuScale - 2 * EDGE))
+    local limitH = math.max(1, math.floor(parentH / menuScale - 2 * EDGE))
+    frame:SetSize(math.min(desiredW, limitW), math.min(desiredH, limitH))
+end
+
 function Window.ApplyScale(value)
     local v = RoundScale(value)
     pendingScale = nil
     frame:SetScale(v)
+    FitWindowToScreen(v)
     scale:SetValue(v)
     PaintScale(v)
 end
@@ -190,11 +212,11 @@ close:SetSize(120, 30)
 close:SetPoint("RIGHT", footer, "RIGHT", -32, 0)
 close:SetScript("OnClick", function() frame:Hide() end)
 
-local title = Style.Text(content, "Welcome to the Hall", 28, C.pale, true)
-title:SetPoint("TOP", content, "TOP", 0, -34)
-local titleRule = Chrome.Divider(content, 390, 18)
+local title = Style.Text(content, "Welcome to the Hall", 25, C.pale, true)
+title:SetPoint("TOP", content, "TOP", 0, -27)
+local titleRule = Chrome.Divider(content, 346, 16)
 titleRule:SetPoint("TOP", title, "BOTTOM", 0, -7)
-local subtitle = Style.Text(content, "Your dueling journey starts here.", 15, C.muted)
+local subtitle = Style.Text(content, "Your dueling journey starts here.", 13, C.muted)
 subtitle:SetPoint("TOP", titleRule, "BOTTOM", 0, -8)
 
 local watermark = content:CreateTexture(nil, "BORDER")
@@ -206,9 +228,9 @@ watermark:SetTexCoord(0.085, 0.98, 0.055, 0.975)
 watermark:SetAlpha(0.68)
 watermark:EnableMouse(false)
 
-local emptyHeading = Style.Text(content, "No duels recorded yet", 22, C.pale)
-emptyHeading:SetPoint("BOTTOM", content, "BOTTOM", 0, 103)
-local emptyDetail = Style.Text(content, "Your recent activity will appear here.", 14, C.muted)
+local emptyHeading = Style.Text(content, "No duels recorded yet", 20, C.pale)
+emptyHeading:SetPoint("BOTTOM", content, "BOTTOM", 0, 142)
+local emptyDetail = Style.Text(content, "Your recent activity will appear here.", 13, C.muted)
 emptyDetail:SetPoint("TOP", emptyHeading, "BOTTOM", 0, -8)
 function Window.ShowPage(page)
     title:SetText(page.title)
@@ -235,6 +257,8 @@ function Window.Toggle()
     if frame:IsShown() then
         frame:Hide()
     else
+        -- Recompute the physical-pixel footprint if resolution or UI scale changed.
+        Window.ApplyScale(Settings.Get("menuScale") or 1)
         frame:SetAlpha(0.25)
         frame:Show()
         frame:Raise()

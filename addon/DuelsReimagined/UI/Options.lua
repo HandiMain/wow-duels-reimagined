@@ -7,21 +7,24 @@ local Options = {}
 ns.Options = Options
 
 local panel = CreateFrame("Frame", nil, Window.content)
-panel:SetPoint("TOPLEFT", Window.content, "TOPLEFT", 46, -143)
-panel:SetPoint("BOTTOMRIGHT", Window.content, "BOTTOMRIGHT", -46, 38)
+-- Compact settings section: width follows the content area; height follows
+-- the controls, leaving room for future sections rather than stretching one card.
+panel:SetPoint("TOPLEFT", Window.content, "TOPLEFT", 34, -112)
+panel:SetPoint("TOPRIGHT", Window.content, "TOPRIGHT", -34, -112)
+panel:SetHeight(245)
 Style.Fill(panel, C.nav)
 Style.Border(panel, C.goldDim)
 ns.Chrome.Panel(panel)
 panel:Hide()
 
-local heading = Style.Text(panel, "Appearance", 20, C.pale)
-heading:SetPoint("TOPLEFT", panel, "TOPLEFT", 22, -20)
+local heading = Style.Text(panel, "Appearance", 18, C.pale)
+heading:SetPoint("TOPLEFT", panel, "TOPLEFT", 20, -16)
 local description = Style.Text(panel,
-    "Choose how Duels Reimagined matches your interface.", 13, C.muted)
-description:SetPoint("TOPLEFT", heading, "BOTTOMLEFT", 0, -8)
+    "Choose how Duels Reimagined matches your interface.", 12, C.muted)
+description:SetPoint("TOPLEFT", heading, "BOTTOMLEFT", 0, -5)
 
-local availability = Style.Text(panel, "", 13, C.muted)
-availability:SetPoint("TOPLEFT", description, "BOTTOMLEFT", 0, -28)
+local availability = Style.Text(panel, "", 12, C.muted)
+availability:SetPoint("TOPLEFT", description, "BOTTOMLEFT", 0, -17)
 
 local unavailable = "EllesmereUI matching is unavailable. Enable EllesmereUI and its third-party skinning support."
 local rows = {}
@@ -30,15 +33,15 @@ local function AddToggle(key, label, descriptionText, top)
     local row = Widgets.ToggleRow(panel, label, descriptionText, function(value)
         Settings.Set(key, value)
     end)
-    row:SetPoint("TOPLEFT", panel, "TOPLEFT", 22, top)
-    row:SetPoint("TOPRIGHT", panel, "TOPRIGHT", -22, top)
+    row:SetPoint("TOPLEFT", panel, "TOPLEFT", 20, top)
+    row:SetPoint("TOPRIGHT", panel, "TOPRIGHT", -20, top)
     rows[#rows + 1] = { key = key, widget = row }
 end
 
 AddToggle("matchColors", "Match EllesmereUI colors",
-    "Use EllesmereUI's accent and panel colors, keeping our dueling identity.", -112)
+    "Use EllesmereUI's accent and panel colors, keeping our dueling identity.", -93)
 AddToggle("matchFont", "Match EllesmereUI font",
-    "Use your selected EllesmereUI interface font.", -189)
+    "Use your selected EllesmereUI interface font.", -153)
 
 function Options.Refresh()
     local ready = Theme.IsAvailable()
