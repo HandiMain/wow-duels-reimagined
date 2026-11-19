@@ -83,9 +83,9 @@ Chrome.Shell(frame, header, footer, rail, nav, content)
 -- padding via UVs; preserve the original artwork's proportions in the header.
 local brandLogo = header:CreateTexture(nil, "ARTWORK")
 brandLogo:SetTexture("Interface\\AddOns\\DuelsReimagined\\Media\\Concept\\DuelsReimagined-HeaderLogo.png")
-brandLogo:SetSize(304, 106)
+brandLogo:SetSize(280, 85)
 brandLogo:SetPoint("LEFT", header, "LEFT", 18, 0)
-brandLogo:SetTexCoord(14 / 1024, 1009 / 1024, 83 / 512, 429 / 512)
+brandLogo:SetTexCoord(62 / 1024, 962 / 1024, 119 / 512, 393 / 512)
 Chrome.Sharp(brandLogo)
 
 local Settings = ns.Settings
