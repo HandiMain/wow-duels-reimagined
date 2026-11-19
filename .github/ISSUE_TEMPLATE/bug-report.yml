@@ -1,0 +1,53 @@
+name: Bug report
+description: Report a problem with Duels Reimagined.
+title: "Bug: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for helping improve Duels Reimagined! Please avoid including passwords, private chat, or other sensitive information.
+  - type: dropdown
+    id: client
+    attributes:
+      label: WoW client
+      description: Which client did this happen on?
+      options:
+        - WoW Forever
+        - WoW Retail
+        - Not sure
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: What happened?
+      description: Describe the problem in your own words.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: How can we reproduce it?
+      description: What did you click or do before the problem appeared?
+      placeholder: |
+        1. Open Duels Reimagined
+        2. ...
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Addon build or version
+      description: Use the version shown in the addon or AddOns list, if known.
+  - type: textarea
+    id: lua-error
+    attributes:
+      label: Lua error (if any)
+      description: Paste the full error message, removing any private information.
+      render: text
+  - type: textarea
+    id: other-addons
+    attributes:
+      label: Other relevant addons
+      description: Especially UI or tooltip addons that might interact with Duels.

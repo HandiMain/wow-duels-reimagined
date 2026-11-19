@@ -1,0 +1,28 @@
+name: Suggest an idea
+description: Suggest something that would make Duels Reimagined more useful.
+title: "Idea: "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: idea
+    attributes:
+      label: What would you like to see?
+      description: Describe it in player language. What would appear, and what would it do?
+    validations:
+      required: true
+  - type: textarea
+    id: when
+    attributes:
+      label: When would it be useful?
+      description: Explain a duel or addon moment where it would help.
+    validations:
+      required: true
+  - type: dropdown
+    id: client
+    attributes:
+      label: Client
+      options:
+        - Both Forever and Retail
+        - WoW Forever
+        - WoW Retail
+        - Not sure
