@@ -408,11 +408,9 @@ function Access.Refresh()
         and (iconMode == "minimap" or iconMode == "both")
     if not miniVisible then
         miniButton:Hide()
-    elseif OwnsMinimapPlacement() then
-        miniButton:Show()
     elseif not lastMiniWanted then
-        -- When the player re-enables a collector-owned entry, show it once.
-        -- The collector may then manage its visibility/position as before.
+        -- A collector may have hidden this still-Minimap-parented button
+        -- for its flyout. Avoid fighting its visibility on every Refresh.
         miniButton:Show()
     end
     lastMiniWanted = miniVisible and true or false
@@ -460,7 +458,11 @@ end
 
 if Minimap and Minimap.HookScript then
     Minimap:HookScript("OnHide", function()
-        if OwnsMinimapPlacement() then miniButton:Hide() end
+        if OwnsMinimapPlacement() then
+            miniButton:Hide()
+            -- An actual minimap visibility transition is ours to restore.
+            lastMiniWanted = false
+        end
     end)
     Minimap:HookScript("OnShow", function() if loginReady then Access.Refresh() end end)
     Minimap:HookScript("OnSizeChanged", function()

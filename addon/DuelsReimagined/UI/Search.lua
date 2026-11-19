@@ -44,7 +44,7 @@ function Search.Query(value)
         local available = true
         if item.available then
             local ok, result = pcall(item.available)
-            available = ok and result ~= false
+            available = ok and result == true
         end
         if all and available then
             local score = 10

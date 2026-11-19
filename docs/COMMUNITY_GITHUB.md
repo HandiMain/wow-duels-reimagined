@@ -20,7 +20,7 @@ The forms in `.github/ISSUE_TEMPLATE/` are prepared on **develop**:
 - [Report a bug](https://github.com/HandiMain/wow-duels-reimagined/issues/new?template=bug-report.yml)
 - [Suggest an idea](https://github.com/HandiMain/wow-duels-reimagined/issues/new?template=feature-request.yml)
 
-**Important:** GitHub serves issue forms from the repository's default branch (`main`). Until the approved templates are promoted to main, those links might show a blank/new issue form instead of our custom questions. Never tell players that a report is filed merely because they copied a link. WoW addons cannot send GitHub Issues or open external URLs on their own: the Community UI will present a **selectable link to copy with Ctrl+C**; the player submits in a browser while logged in.
+**Current state:** Both approved issue-form templates are present on the default branch (`main`), so the GitHub links can resolve to our custom questions. Their presence was verified against the branch's tree; browser form behavior still needs separate verification. Never tell players that a report is filed merely because they copied a link. WoW addons cannot send GitHub Issues or open external URLs on their own: the Community UI presents a **selectable link to copy with Ctrl+C**; the player submits in a browser while logged in.
 
 ## Verified bug workflow
 

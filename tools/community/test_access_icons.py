@@ -67,7 +67,7 @@ class AccessIconsTests(unittest.TestCase):
         a = read("UI/AccessIcons.lua")
         t = read("UI/Tooltips.lua")
         start = a.index("local function ConnectClick(button, isWidget)")
-        end = a.index("-- BurstFX pattern:", start)
+        end = a.index("-- Polestar/Ellesmere collector interoperability:", start)
         block = a[start:end]
         self.assertLess(block.index('button:SetScript("OnEnter"'),
                         block.index("Tooltips.Bind(button, function()"))
@@ -89,6 +89,20 @@ class AccessIconsTests(unittest.TestCase):
         self.assertIn('.. " px" end, true)', o)
         self.assertIn('end, nil, true)', o)
         self.assertIn('RegisterOption("minimapButton"', o)
+
+    def test_compartment_toggle_and_collector_contract(self):
+        s, a, o = read("Core/Settings.lua"), read("UI/AccessIcons.lua"), read("UI/Options.lua")
+        self.assertIn('showInCompartment = true', s)
+        self.assertIn('Settings.RegisterReloadRequired("showInCompartment")', a)
+        self.assertIn('not Settings.Get("showInCompartment")', a)
+        self.assertIn('"showInCompartment", "Show in AddOn Compartment"', o)
+        self.assertIn("needsCompartment", o)
+        self.assertIn('CreateFrame("Button", "DuelsReimaginedMinimapButton", Minimap or UIParent)', a)
+        self.assertIn('local function OwnsMinimapPlacement()', a)
+        self.assertIn('elseif not lastMiniWanted then', a)
+        self.assertNotIn('elseif OwnsMinimapPlacement() then', a)
+        self.assertIn('miniButton:GetParent() ~= Minimap', a)
+        self.assertIn('Settings.NeedsReload()', read("UI/Footer.lua"))
 
     def test_hall_revert_and_unrelated_sections(self):
         n = read("UI/Navigation.lua")
