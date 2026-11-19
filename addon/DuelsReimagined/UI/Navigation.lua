@@ -11,7 +11,16 @@ local sections = {
           emptyDetail = "Your recent activity will appear here." },
     } },
     { key = "community", label = "Community", icon = "Community", pages = {
-        { key = "community", label = "Community", title = "Community", subtitle = "The people behind the duels.", emptyTitle = "Nothing to show yet", emptyDetail = "Community features will arrive later." },
+        { key = "community", label = "The Duelist's Circle", community = true,
+          title = "The Duelist's Circle", subtitle = "The people shaping Duels Reimagined." },
+        { key = "contributors", label = "Contributors", community = true,
+          title = "Contributors", subtitle = "Merged GitHub pull requests." },
+        { key = "bug-hunters", label = "Bug Hunters", community = true,
+          title = "Bug Hunters", subtitle = "Reports that led to verified fixes." },
+        { key = "community-ideas", label = "Community Ideas", community = true,
+          title = "Community Ideas", subtitle = "Suggestions that made it into the addon." },
+        { key = "special-thanks", label = "Special Thanks", community = true,
+          title = "Special Thanks", subtitle = "People we appreciate." },
     } },
     { key = "options", label = "Options", icon = "Options", pages = {
         { key = "options", label = "Appearance", title = "Appearance",

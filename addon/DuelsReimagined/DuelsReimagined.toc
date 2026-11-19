@@ -19,6 +19,8 @@ UI\Window.lua
 UI\Search.lua
 UI\Header.lua
 UI\Navigation.lua
+Community\Credits.lua
+UI\Community.lua
 UI\Options.lua
 UI\Footer.lua
 Core\Commands.lua

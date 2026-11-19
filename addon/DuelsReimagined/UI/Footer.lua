@@ -107,21 +107,75 @@ heading:SetJustifyH("CENTER")
 local message = Style.Text(dialog, "COMING SOON", 14, C.gold)
 message:SetPoint("TOP", heading, "BOTTOM", 0, -7)
 message:SetJustifyH("CENTER")
+
+-- One existing popup owner now supports a safe, selectable GitHub URL.
+-- The WoW client cannot open browsers or set the OS clipboard directly.
+local linkText = ""
+local copyBox = CreateFrame("EditBox", nil, dialog)
+copyBox:SetSize(378, 32)
+copyBox:SetAutoFocus(false)
+copyBox:SetFont(STANDARD_TEXT_FONT or "Fonts\\FRIZQT__.TTF", 12, "")
+Style.BindFont(copyBox, 12)
+copyBox:SetTextColor(unpack(C.text))
+copyBox:SetJustifyH("CENTER")
+copyBox:SetPoint("TOP", message, "BOTTOM", 0, -16)
+copyBox:SetMaxLetters(256)
+Style.Fill(copyBox, C.body)
+Style.Border(copyBox, C.goldDim)
+copyBox:SetScript("OnEditFocusGained", function(self) self:HighlightText() end)
+copyBox:SetScript("OnTextChanged", function(self, userInput)
+    if userInput and self:GetText() ~= linkText then self:SetText(linkText) end
+end)
+copyBox:Hide()
 local close = Style.Action(dialog, "Close", "footer")
 close:SetSize(112, 30)
 close:SetPoint("BOTTOM", dialog, "BOTTOM", 0, 16)
 function Footer.ClosePopup()
+    copyBox:ClearFocus()
     Motion.Stop(modal, 1)
     modal:Hide()
     ns.Tooltips.Hide(nil, true)
 end
-function Footer.ShowPopup()
-    if ns.Header and ns.Header.IsFolded and ns.Header.IsFolded() then return end
+local function OpenDialog()
+    if ns.Header and ns.Header.IsFolded and ns.Header.IsFolded() then return false end
     ns.Tooltips.Hide(nil, true)
     modal:SetAlpha(0)
     modal:Show()
     Motion.Fade(modal, 1, Motion.Duration("quick"))
+    return true
 end
+function Footer.ShowPopup()
+    dialog:SetHeight(202)
+    logo:Show()
+    heading:SetText("Duels Reimagined Discord")
+    heading:ClearAllPoints()
+    heading:SetPoint("TOP", logo, "BOTTOM", 0, -10)
+    message:SetText("COMING SOON")
+    copyBox:Hide()
+    OpenDialog()
+end
+function Footer.ShowCommunityLink(title, url)
+    if type(title) ~= "string" or type(url) ~= "string" then return end
+    -- Only public links to this repository's GitHub issue forms are allowed.
+    local prefix = "https://github.com/HandiMain/wow-duels-reimagined/issues/new?template="
+    if url ~= prefix .. "bug-report.yml" and
+       url ~= prefix .. "feature-request.yml" then return end
+    dialog:SetHeight(218)
+    logo:Hide()
+    heading:SetText(title)
+    heading:ClearAllPoints()
+    heading:SetPoint("TOP", dialog, "TOP", 0, -30)
+    message:SetText("Select the link, press Ctrl+C, then paste it into your browser.")
+    copyBox:Show()
+    linkText = url
+    copyBox:SetText(url)
+    if OpenDialog() then
+        copyBox:SetFocus()
+        copyBox:HighlightText()
+    end
+end
+copyBox:SetScript("OnEscapePressed", Footer.ClosePopup)
+copyBox:SetScript("OnEnterPressed", Footer.ClosePopup)
 close:SetScript("OnClick", Footer.ClosePopup)
 ns.Tooltips.Bind(close, {
     title = "Close dialog",
