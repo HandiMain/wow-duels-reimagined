@@ -50,6 +50,9 @@ jobs:
           sudo apt-get install -y lua5.1
           find addon/DuelsReimagined -name '*.lua' -type f -print0 | xargs -0 -r -n 1 luac5.1 -p
 
+      - name: Execute Search and SavedVariables runtime contracts (Lua 5.1)
+        run: lua5.1 tools/community/check_runtime.lua
+
       - name: Check generator and UI contracts without network
         run: python3 -m unittest discover -s tools/community -p 'test_*.py' -v
 
