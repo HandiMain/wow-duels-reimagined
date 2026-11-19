@@ -360,6 +360,9 @@ function Window.SetSizingEnabled(on)
     end
     frame:SetResizable(on and true or false)
     grip:SetShown(on and true or false)
+    -- Fold also swaps the decorative grip back to a non-resizable corner.
+    -- Otherwise the artwork would advertise an unavailable interaction.
+    if Chrome.SetResizeCorner then Chrome.SetResizeCorner(on) end
 end
 
 local close = Style.Action(footer, "Close", "footer")

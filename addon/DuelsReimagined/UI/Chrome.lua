@@ -43,6 +43,15 @@ function Chrome.Divider(parent, width, height)
     return Chrome.Sharp(tex)
 end
 
+local bottomRightCorner
+
+function Chrome.SetResizeCorner(available)
+    if bottomRightCorner then
+        bottomRightCorner:SetTexture(metal ..
+            (available and "CornerBRResize.png" or "CornerBR.png"))
+    end
+end
+
 function Chrome.Shell(frame, header, footer, rail, nav)
     -- ONE outer rim, no additional drawn borders or backdrop-sized images.
     -- It frames the inset content rather than lying on top of an oversized fill.
@@ -79,6 +88,7 @@ function Chrome.Shell(frame, header, footer, rail, nav)
             ("Corner" .. corner[1])
         local tex = Art(rim, cornerArt, "OVERLAY")
         tex:SetSize(64, 64)
+        if corner[1] == "BR" then bottomRightCorner = tex end
         tex:SetPoint(corner[2], rim, corner[2])
     end
 
