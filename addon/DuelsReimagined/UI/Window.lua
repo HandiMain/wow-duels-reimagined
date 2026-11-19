@@ -148,8 +148,11 @@ local function FitWindowToScreen(menuScale)
     end
     local pixelsPerUnit = (type(physicalH) == "number" and physicalH > 0
         and parentH and parentH > 0) and physicalH / parentH or 1
-    local desiredW = math.floor(BASE_WIDTH / pixelsPerUnit + 0.5)
-    local desiredH = math.floor(BASE_HEIGHT / pixelsPerUnit + 0.5)
+    -- Polestar enlarges its default footprint in 5% steps above 1440p.
+    local growth = math.max(1,
+        math.floor((physicalH or 0) / 1440 * 20 + 0.5) / 20)
+    local desiredW = math.floor(BASE_WIDTH * growth / pixelsPerUnit + 0.5)
+    local desiredH = math.floor(BASE_HEIGHT * growth / pixelsPerUnit + 0.5)
     local limitW = math.max(1, math.floor(parentW / menuScale - 2 * EDGE))
     local limitH = math.max(1, math.floor(parentH / menuScale - 2 * EDGE))
     frame:SetSize(math.min(desiredW, limitW), math.min(desiredH, limitH))
