@@ -8,6 +8,10 @@ ns.Settings = Settings
 Settings.MIN_SCALE = 0.65
 Settings.MAX_SCALE = 1.20
 Settings.SCALE_STEP = 0.05
+-- Independent type scale: keep 100% as the Blizzard/Ellesmere default.
+Settings.MIN_FONT_SCALE = 0.75
+Settings.MAX_FONT_SCALE = 1.50
+Settings.FONT_SCALE_STEP = 0.05
 
 -- Every persistent Options toggle belongs here, including future ones.
 local boolDefaults = {
@@ -95,6 +99,13 @@ function Settings.NormalizeScale(value)
         math.floor(value / step + 0.5) * step))
 end
 
+function Settings.NormalizeFontScale(value)
+    if type(value) ~= "number" or value ~= value then return 1 end
+    local step = Settings.FONT_SCALE_STEP
+    return math.max(Settings.MIN_FONT_SCALE, math.min(Settings.MAX_FONT_SCALE,
+        math.floor(value / step + 0.5) * step))
+end
+
 -- Separate, optional account-wide window dimensions. A missing entry
 -- requests the existing screen-fitted default. Never return the database table.
 local function CleanWindowSize(size)
@@ -129,9 +140,7 @@ function Settings.Get(key)
         return Settings.NormalizeScale(db and db.menuScale)
     end
     if key == "fontScale" then
-        local value = db and db.fontScale
-        if type(value) ~= "number" or value ~= value then return 1 end
-        return math.max(0.9, math.min(1.15, math.floor(value * 20 + 0.5) / 20))
+        return Settings.NormalizeFontScale(db and db.fontScale)
     end
     if key == "fontChoice" then
         local value = db and db.fontChoice
@@ -173,7 +182,7 @@ function Settings.Set(key, value)
             nextValue = value
         elseif key == "fontScale" then
             if type(value) ~= "number" or value ~= value then return end
-            nextValue = math.max(0.9, math.min(1.15, math.floor(value * 20 + 0.5) / 20))
+            nextValue = Settings.NormalizeFontScale(value)
         else
             if value ~= "default" and value ~= "none" and
                 value ~= "outline" and value ~= "thick" then return end

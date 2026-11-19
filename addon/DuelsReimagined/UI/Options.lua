@@ -6,55 +6,99 @@ local Theme, Window, Fonts = ns.Theme, ns.Window, ns.Fonts
 local Options = {}
 ns.Options = Options
 
--- Polestar/Ellesmere-style pages scroll only when the available window height
--- requires it. Each screen owns its widgets; no duplicate option registry.
-local function Panel(height)
+-- One scroll owner per Options page. Only section cards get outlines; the
+-- scroll content itself is transparent, so separate groups do not blend into
+-- one giant panel. The same shared thumb supports smaller window sizes.
+local function Page(contentHeight)
     local scroll = CreateFrame("ScrollFrame", nil, Window.content)
     scroll:SetPoint("TOPLEFT", Window.content, "TOPLEFT", 34, -112)
     scroll:SetPoint("BOTTOMRIGHT", Window.content, "BOTTOMRIGHT", -34, 27)
     scroll:EnableMouseWheel(true)
-    local panel = CreateFrame("Frame", nil, scroll)
-    panel:SetSize(690, height)
-    scroll:SetScrollChild(panel)
-    scroll:SetScript("OnSizeChanged", function(self, width)
-        panel:SetWidth(math.max(1, width or 1))
-        local bottom = math.max(0, panel:GetHeight() - self:GetHeight())
-        if self:GetVerticalScroll() > bottom then self:SetVerticalScroll(bottom) end
+    local content = CreateFrame("Frame", nil, scroll)
+    content:SetSize(690, contentHeight)
+    scroll:SetScrollChild(content)
+    local function Clamp()
+        local maxScroll = math.max(0, content:GetHeight() - scroll:GetHeight())
+        if scroll:GetVerticalScroll() > maxScroll then
+            scroll:SetVerticalScroll(maxScroll)
+        end
+    end
+    local bar = Widgets.ScrollBar(scroll,
+        function()
+            return scroll:GetHeight(), content:GetHeight(),
+                scroll:GetVerticalScroll()
+        end,
+        function(value)
+            scroll:SetVerticalScroll(value)
+        end)
+    scroll:SetScript("OnSizeChanged", function(_, width)
+        content:SetWidth(math.max(1, width or 1))
+        if scroll.UpdateScrollChildRect then scroll:UpdateScrollChildRect() end
+        Clamp()
+        bar:Refresh()
     end)
+    scroll:SetScript("OnVerticalScroll", function() bar:Refresh() end)
     scroll:SetScript("OnMouseWheel", function(self, delta)
-        local bottom = math.max(0, panel:GetHeight() - self:GetHeight())
-        self:SetVerticalScroll(math.max(0, math.min(bottom,
-            self:GetVerticalScroll() - delta * 42)))
+        local maxScroll = math.max(0, content:GetHeight() - self:GetHeight())
+        self:SetVerticalScroll(math.max(0, math.min(maxScroll,
+            self:GetVerticalScroll() - delta * 48)))
+        bar:Refresh()
         Widgets.CloseChoices()
     end)
-    Style.Fill(panel, C.nav)
-    Style.Border(panel, C.goldDim)
-    panel.scrollOwner = scroll
+    scroll:HookScript("OnShow", function()
+        Clamp()
+        bar:Refresh()
+    end)
     scroll:Hide()
-    return panel
+    content.scrollOwner, content.scrollBar = scroll, bar
+    return content
 end
 
-local appearance = Panel(245)
-local interface = Panel(604)
+local function Card(page, y, height)
+    local card = CreateFrame("Frame", nil, page)
+    card:SetPoint("TOPLEFT", page, "TOPLEFT", 0, -y)
+    card:SetPoint("TOPRIGHT", page, "TOPRIGHT", -18, -y)
+    card:SetHeight(height)
+    Style.Fill(card, C.nav)
+    Style.Border(card, C.goldDim)
+    card.scrollOwner, card.scrollTop = page.scrollOwner, y
+    return card
+end
 
-local function Section(panel, title, subtitle, top)
-    local heading = Style.Text(panel, title, 18, C.pale)
-    heading:SetPoint("TOPLEFT", panel, "TOPLEFT", 20, top)
-    local detail = Style.Text(panel, subtitle, 12, C.muted)
+local appearance = Page(255)
+local interface = Page(656)
+
+local appearanceCard = Card(appearance, 0, 245)
+local behaviorCard = Card(interface, 0, 225)
+local typographyCard = Card(interface, 243, 397)
+
+local function Section(card, title, subtitle, top)
+    local heading = Style.Text(card, title, 18, C.pale)
+    heading:SetPoint("TOPLEFT", card, "TOPLEFT", 20, top)
+    local detail = Style.Text(card, subtitle, 12, C.muted)
     detail:SetPoint("TOPLEFT", heading, "BOTTOMLEFT", 0, -5)
     return detail
 end
 
-local appearanceDescription = Section(appearance, "Appearance",
+local appearanceDescription = Section(appearanceCard, "Appearance",
     "Choose how Duels Reimagined matches your interface.", -16)
-local availability = Style.Text(appearance, "", 12, C.muted)
+local availability = Style.Text(appearanceCard, "", 12, C.muted)
 availability:SetPoint("TOPLEFT", appearanceDescription, "BOTTOMLEFT", 0, -17)
-Section(interface, "Window behavior",
+Section(behaviorCard, "Window behavior",
     "Keep the world visible while the dueling hall is open.", -16)
+Section(typographyCard, "Typography",
+    "Choose text appearance independently of window scale.", -18)
 
 local unavailable = "Enable EllesmereUI and its third-party skinning support to use this setting."
 local rows = {}
 
+local function MarkPosition(row, card, top)
+    row.optionsScroll, row.optionsY = card.scrollOwner, card.scrollTop - top
+    return row
+end
+
+-- Search must reveal the target in scrollable pages, not merely select a page
+-- while the relevant row remains below the viewport.
 local function RegisterOption(key, name, detail, pageKey, widget)
     ns.Search.Register("setting:" .. key, name,
         "Options / " .. (pageKey == "options" and "Appearance" or "Interface"),
@@ -62,54 +106,65 @@ local function RegisterOption(key, name, detail, pageKey, widget)
             if ns.Navigation and ns.Navigation.SelectKey then
                 ns.Navigation.SelectKey("options", pageKey)
             end
-            if widget and widget.hover then
-                Motion.Stop(widget.hover, 0.34)
-                Motion.Fade(widget.hover, 0, 0.72)
+            if widget and widget.optionsScroll then
+                local sf, top = widget.optionsScroll, widget.optionsY or 0
+                local current, height = sf:GetVerticalScroll(), sf:GetHeight()
+                if top < current + 18 or top + widget:GetHeight() > current + height - 18 then
+                    local maxScroll = math.max(0,
+                        sf:GetScrollChild():GetHeight() - height)
+                    sf:SetVerticalScroll(math.max(0,
+                        math.min(maxScroll, top - 46)))
+                end
+                if widget.hover then
+                    Motion.Stop(widget.hover, 0.34)
+                    Motion.Fade(widget.hover, 0, 0.72)
+                end
             end
         end)
 end
 
-local function AddToggle(panel, pageKey, key, name, detail, top, requiresEllesmere)
-    local row = Widgets.ToggleRow(panel, name, detail,
+local function AddToggle(card, pageKey, key, name, detail, top, requiresEllesmere)
+    local row = Widgets.ToggleRow(card, name, detail,
         function(value) Settings.Set(key, value) end,
         function() Settings.Reset(key) end)
-    row:SetPoint("TOPLEFT", panel, "TOPLEFT", 20, top)
-    row:SetPoint("TOPRIGHT", panel, "TOPRIGHT", -20, top)
+    row:SetPoint("TOPLEFT", card, "TOPLEFT", 20, top)
+    row:SetPoint("TOPRIGHT", card, "TOPRIGHT", -20, top)
+    MarkPosition(row, card, top)
     rows[#rows + 1] = { key = key, widget = row, needsEllesmere = requiresEllesmere }
     RegisterOption(key, name, detail, pageKey, row)
     return row
 end
 
-AddToggle(appearance, "options", "matchColors", "Match EllesmereUI colors",
+AddToggle(appearanceCard, "options", "matchColors", "Match EllesmereUI colors",
     "Use EllesmereUI's accent and panel colors, keeping our dueling identity.",
     -93, true)
-AddToggle(appearance, "options", "matchFont", "Match EllesmereUI font",
+AddToggle(appearanceCard, "options", "matchFont", "Match EllesmereUI font",
     "Use your selected EllesmereUI interface font.", -153, true)
-AddToggle(interface, "interface", "autoPeekMoving", "Automatic Peek while moving",
+AddToggle(behaviorCard, "interface", "autoPeekMoving", "Automatic Peek while moving",
     "Fade the window during movement; restore it when you stop.", -82, false)
-AddToggle(interface, "interface", "reduceMotion", "Reduce motion",
+AddToggle(behaviorCard, "interface", "reduceMotion", "Reduce motion",
     "Shorten or skip UI animation while retaining visual feedback.", -148, false)
 
-Section(interface, "Typography", "Choose text appearance independently of window scale.", -229)
-
-local fontChoice = Widgets.ChoiceRow(interface, "Interface font",
+local fontChoice = Widgets.ChoiceRow(typographyCard, "Interface font",
     "Blizzard by default; includes fonts registered with SharedMedia.",
     function(key) Settings.Set("fontChoice", key) end,
     function() Settings.Reset("fontChoice") end, false)
-fontChoice:SetPoint("TOPLEFT", interface, "TOPLEFT", 20, -301)
-fontChoice:SetPoint("TOPRIGHT", interface, "TOPRIGHT", -20, -301)
+fontChoice:SetPoint("TOPLEFT", typographyCard, "TOPLEFT", 20, -88)
+fontChoice:SetPoint("TOPRIGHT", typographyCard, "TOPRIGHT", -20, -88)
+MarkPosition(fontChoice, typographyCard, -88)
 RegisterOption("fontChoice", "Interface font",
     "Choose a Blizzard or LibSharedMedia font for the addon", "interface", fontChoice)
 
-local fontScale = Widgets.SliderRow(interface, "Text size",
+local fontScale = Widgets.SliderRow(typographyCard, "Text size",
     "Adjust text size without changing the menu scale.",
-    0.9, 1.15, 0.05,
+    Settings.MIN_FONT_SCALE, Settings.MAX_FONT_SCALE, Settings.FONT_SCALE_STEP,
     function(v) Settings.Set("fontScale", v) end,
     function() Settings.Reset("fontScale") end)
-fontScale:SetPoint("TOPLEFT", interface, "TOPLEFT", 20, -385)
-fontScale:SetPoint("TOPRIGHT", interface, "TOPRIGHT", -20, -385)
+fontScale:SetPoint("TOPLEFT", typographyCard, "TOPLEFT", 20, -174)
+fontScale:SetPoint("TOPRIGHT", typographyCard, "TOPRIGHT", -20, -174)
+MarkPosition(fontScale, typographyCard, -174)
 RegisterOption("fontScale", "Text size",
-    "Change interface font scale between 90 and 115 percent", "interface", fontScale)
+    "Change interface font scale between 75 and 150 percent", "interface", fontScale)
 
 local outlineChoices = {
     { key = "default", label = "Default" },
@@ -117,20 +172,21 @@ local outlineChoices = {
     { key = "outline", label = "Outline" },
     { key = "thick", label = "Thick Outline" },
 }
-local fontOutline = Widgets.ChoiceRow(interface, "Text outline",
+local fontOutline = Widgets.ChoiceRow(typographyCard, "Text outline",
     "Use the original style, or choose a clearer outline.",
     function(key) Settings.Set("fontOutline", key) end,
     function() Settings.Reset("fontOutline") end, true)
-fontOutline:SetPoint("TOPLEFT", interface, "TOPLEFT", 20, -469)
-fontOutline:SetPoint("TOPRIGHT", interface, "TOPRIGHT", -20, -469)
+fontOutline:SetPoint("TOPLEFT", typographyCard, "TOPLEFT", 20, -258)
+fontOutline:SetPoint("TOPRIGHT", typographyCard, "TOPRIGHT", -20, -258)
+MarkPosition(fontOutline, typographyCard, -258)
 RegisterOption("fontOutline", "Text outline",
     "Choose default, none, outline or thick outline", "interface", fontOutline)
 
-local info = Style.Text(interface,
+local info = Style.Text(typographyCard,
     "Hold the eye to Peek. Fold leaves the header visible. Font matching is controlled under Appearance.",
     12, C.muted)
-info:SetPoint("TOPLEFT", interface, "TOPLEFT", 20, -565)
-info:SetPoint("RIGHT", interface, "RIGHT", -20, 0)
+info:SetPoint("TOPLEFT", typographyCard, "TOPLEFT", 20, -355)
+info:SetPoint("RIGHT", typographyCard, "RIGHT", -20, 0)
 info:SetJustifyH("LEFT")
 
 function Options.Refresh()
@@ -162,6 +218,8 @@ function Options.Refresh()
     fontOutline:SetAvailable(true)
     fontOutline:SetModified(Settings.IsModified("fontOutline"))
     fontOutline.resetIcon:SetVertexColor(unpack(C.gold))
+    appearance.scrollBar:Refresh()
+    interface.scrollBar:Refresh()
 end
 
 function Options.Show(pageKey)

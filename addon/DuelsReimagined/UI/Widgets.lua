@@ -261,8 +261,11 @@ function Widgets.ChoiceRow(parent, caption, detail, onChoose, onReset, above)
     valueText:SetPoint("LEFT", control, "LEFT", 9, 0)
     valueText:SetPoint("RIGHT", control, "RIGHT", -25, 0)
     valueText:SetJustifyH("LEFT")
-    local arrow = Style.Text(control, "⌄", 16, C.gold)
-    arrow:SetPoint("RIGHT", control, "RIGHT", -9, 1)
+    local arrow = control:CreateTexture(nil, "ARTWORK")
+    arrow:SetTexture("Interface\\AddOns\\DuelsReimagined\\Media\\Concept\\Header\\FoldDown.png")
+    arrow:SetSize(17, 17)
+    arrow:SetPoint("RIGHT", control, "RIGHT", -7, 0)
+    Chrome.Sharp(arrow)
     Widgets.AttachModified(row, control, onReset)
     local hover = Style.Fill(control, C.goldDim)
     hover:SetAlpha(0)
@@ -292,7 +295,7 @@ function Widgets.ChoiceRow(parent, caption, detail, onChoose, onReset, above)
     Style.Fill(popup, C.nav)
     Style.Border(popup, C.goldDim)
     local items, offset = {}, 0
-    local pageSize = 7
+    local pageSize, scrollBar = 7, nil
     local function Render()
         local choices = row.choices or {}
         offset = math.max(0, math.min(offset, math.max(0, #choices - pageSize)))
@@ -305,12 +308,13 @@ function Widgets.ChoiceRow(parent, caption, detail, onChoose, onReset, above)
             end
         end
         popup:SetHeight(12 + math.min(pageSize, #choices) * 31)
+        if scrollBar then scrollBar:Refresh() end
     end
     for i = 1, pageSize do
         local b = CreateFrame("Button", nil, popup)
         b:SetHeight(29)
         b:SetPoint("TOPLEFT", popup, "TOPLEFT", 6, -6 - (i - 1) * 31)
-        b:SetPoint("TOPRIGHT", popup, "TOPRIGHT", -6, -6 - (i - 1) * 31)
+        b:SetPoint("TOPRIGHT", popup, "TOPRIGHT", -21, -6 - (i - 1) * 31)
         b:RegisterForClicks("LeftButtonUp")
         local label = Style.Text(b, "", 12, C.text)
         label:SetPoint("LEFT", b, "LEFT", 6, 0)
@@ -342,6 +346,19 @@ function Widgets.ChoiceRow(parent, caption, detail, onChoose, onReset, above)
         if openChoicePopup == popup then openChoicePopup = nil end
         if clickCatcher then clickCatcher:Hide() end
     end)
+    -- Same draggable scrollbar machinery as the Options pages, fed by the
+    -- picker’s virtualized 31px rows. Never create a second scroll engine.
+    scrollBar = Widgets.ScrollBar(popup,
+        function()
+            local n = #(row.choices or {})
+            return math.min(pageSize, n) * 31, n * 31, offset * 31
+        end,
+        function(value)
+            local n = #(row.choices or {})
+            offset = math.max(0, math.min(math.max(0, n - pageSize),
+                math.floor(value / 31 + 0.5)))
+            Render()
+        end)
     popup:Hide()
     control:SetScript("OnClick", function()
         if not row.available then return end
@@ -479,4 +496,82 @@ function Widgets.SliderRow(parent, caption, detail, minVal, maxVal, step, onComm
     end
     row:RefreshColors()
     return row
+end
+
+
+-- Polestar-reference scroll behavior, independently implemented for Duels.
+-- A thin draggable thumb appears only for overflow; its only OnUpdate exists
+-- during an actual mouse drag and is always cleared on mouse up/hide.
+-- A single reusable component serves regular ScrollFrames and dropdown lists.
+function Widgets.ScrollBar(parent, metrics, setOffset)
+    local bar = CreateFrame("Button", nil, parent)
+    bar:SetWidth(12)
+    bar:SetPoint("TOPRIGHT", parent, "TOPRIGHT", -2, -5)
+    bar:SetPoint("BOTTOMRIGHT", parent, "BOTTOMRIGHT", -2, 5)
+    bar:SetFrameLevel(parent:GetFrameLevel() + 2)
+    bar:RegisterForClicks("LeftButtonUp")
+    local track = Style.Fill(bar, C.goldDim, "BACKGROUND")
+    track:SetAlpha(0.20)
+    local thumb = bar:CreateTexture(nil, "OVERLAY")
+    thumb:SetColorTexture(unpack(C.gold))
+    thumb:SetWidth(4)
+    thumb:SetHeight(24)
+    bar.Thumb = thumb
+    local dragging, startY, startScroll = false, 0, 0
+
+    function bar:Refresh()
+        local view, content, offset = metrics()
+        view, content, offset = math.max(0, view or 0),
+            math.max(0, content or 0), math.max(0, offset or 0)
+        local range = math.max(0, content - view)
+        local span = math.max(1, self:GetHeight())
+        self.range, self.span = range, span
+        if range <= 0 or view <= 0 or span <= 1 then
+            self:Hide()
+            return
+        end
+        local thumbH = math.max(24, span * view / content)
+        thumbH = math.min(span, thumbH)
+        local free = math.max(0, span - thumbH)
+        thumb:SetHeight(thumbH)
+        thumb:ClearAllPoints()
+        thumb:SetPoint("TOP", self, "TOP", 0,
+            -free * math.min(1, offset / range))
+        self.free = free
+        self:Show()
+    end
+
+    local function StopDrag(self)
+        dragging = false
+        self:SetScript("OnUpdate", nil)
+        thumb:SetWidth(self:IsMouseOver() and 6 or 4)
+    end
+    bar:SetScript("OnMouseDown", function(self, mouse)
+        if mouse ~= "LeftButton" or not self:IsShown() then return end
+        local _, y = GetCursorPosition()
+        local scale = math.max(0.01, self:GetEffectiveScale())
+        startY = y / scale
+        local _, _, offset = metrics()
+        startScroll = offset or 0
+        dragging = true
+        thumb:SetWidth(6)
+        self:SetScript("OnUpdate", function()
+            if not dragging then return end
+            local free, range = self.free or 0, self.range or 0
+            if free <= 0 or range <= 0 then return end
+            local _, cursorY = GetCursorPosition()
+            local delta = startY - cursorY / math.max(0.01, self:GetEffectiveScale())
+            setOffset(math.max(0, math.min(range,
+                startScroll + delta * range / free)))
+            self:Refresh()
+        end)
+    end)
+    bar:SetScript("OnMouseUp", StopDrag)
+    bar:SetScript("OnHide", StopDrag)
+    bar:SetScript("OnEnter", function() thumb:SetWidth(6) end)
+    bar:SetScript("OnLeave", function(self)
+        if not dragging then thumb:SetWidth(4) end
+    end)
+    bar:Hide()
+    return bar
 end
