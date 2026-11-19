@@ -19,6 +19,7 @@ local boolDefaults = {
     matchFont = false,
     autoPeekMoving = true,
     reduceMotion = false,
+    showTooltips = true,
 }
 
 -- Future settings must opt in to reload tracking; none currently need it.
@@ -202,6 +203,9 @@ function Settings.Set(key, value)
         if ns.Header and ns.Header.RefreshAutoPeek then
             ns.Header.RefreshAutoPeek()
         end
+        if ns.Options and ns.Options.Refresh then ns.Options.Refresh() end
+    elseif key == "showTooltips" then
+        if not value and ns.Tooltips then ns.Tooltips.Hide(nil, true) end
         if ns.Options and ns.Options.Refresh then ns.Options.Refresh() end
     elseif ns.Theme then
         ns.Theme.Refresh()

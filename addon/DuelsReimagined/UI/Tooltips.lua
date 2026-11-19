@@ -56,7 +56,17 @@ local function Content(owner, source)
     return title, body, data.anchor
 end
 
+function Tooltips.Enabled()
+    -- A missing saved entry means enabled; no separate tooltip preference
+    -- cache is allowed to drift from the central Settings owner.
+    return not ns.Settings or ns.Settings.Get("showTooltips") ~= false
+end
+
 function Tooltips.Show(owner, source)
+    if not Tooltips.Enabled() then
+        Tooltips.Hide(nil, true)
+        return
+    end
     if not owner or not owner.IsShown or not owner:IsShown() then return end
     if ns.Window and ns.Window.frame and not ns.Window.frame:IsShown() then return end
     local title, body, anchor = Content(owner, source)
