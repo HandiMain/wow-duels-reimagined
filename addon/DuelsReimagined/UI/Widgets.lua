@@ -349,6 +349,15 @@ function Widgets.ChoiceRow(parent, caption, detail, onChoose, onReset, above)
         Widgets.CloseChoices()
         offset = 0
         Render()
+        -- Re-anchor for current window size/scroll position. At smaller
+        -- resolutions the menu opens upward instead of leaving the screen.
+        popup:ClearAllPoints()
+        local below = control:GetBottom()
+        if above or (below and below < popup:GetHeight() + 16) then
+            popup:SetPoint("BOTTOMRIGHT", control, "TOPRIGHT", 0, 4)
+        else
+            popup:SetPoint("TOPRIGHT", control, "BOTTOMRIGHT", 0, -4)
+        end
         openChoicePopup = popup
         ChoiceCatcher():Show()
         popup:Show()
