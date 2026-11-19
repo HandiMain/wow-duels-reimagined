@@ -221,8 +221,22 @@ function Widgets.AttachModified(row, anchor, onReset)
 end
 
 local openChoicePopup
+local choiceCounter = 0
+local clickCatcher
 function Widgets.CloseChoices()
     if openChoicePopup then openChoicePopup:Hide(); openChoicePopup = nil end
+    if clickCatcher then clickCatcher:Hide() end
+end
+local function ChoiceCatcher()
+    if clickCatcher then return clickCatcher end
+    local parent = ns.Window.frame
+    clickCatcher = CreateFrame("Button", nil, parent)
+    clickCatcher:SetAllPoints(parent)
+    clickCatcher:SetFrameLevel(parent:GetFrameLevel() + 54)
+    clickCatcher:EnableMouse(true)
+    clickCatcher:SetScript("OnMouseDown", Widgets.CloseChoices)
+    clickCatcher:Hide()
+    return clickCatcher
 end
 
 -- Reusable compact picker for SharedMedia fonts, outlines, and later Options.
@@ -259,7 +273,13 @@ function Widgets.ChoiceRow(parent, caption, detail, onChoose, onReset, above)
         Motion.Fade(hover, 0, Motion.Duration("quick"))
     end)
     Widgets.PressFeedback(control, hover)
-    local popup = CreateFrame("Frame", nil, ns.Window.frame)
+    -- Escape should dismiss the picker before the main Duels window.
+    choiceCounter = choiceCounter + 1
+    local popupName = "DuelsReimaginedChoicePopup" .. choiceCounter
+    local popup = CreateFrame("Frame", popupName, ns.Window.frame)
+    if type(UISpecialFrames) == "table" then
+        table.insert(UISpecialFrames, popupName)
+    end
     popup:SetSize(238, 234)
     popup:SetFrameLevel(ns.Window.frame:GetFrameLevel() + 55)
     popup:EnableMouse(true)
@@ -305,6 +325,11 @@ function Widgets.ChoiceRow(parent, caption, detail, onChoose, onReset, above)
             if option and onChoose then onChoose(option.key) end
         end)
         Widgets.PressFeedback(b, glow)
+        b:EnableMouseWheel(true)
+        b:SetScript("OnMouseWheel", function(_, delta)
+            local handler = popup:GetScript("OnMouseWheel")
+            if handler then handler(popup, delta) end
+        end)
         items[i] = { button = b, label = label }
     end
     popup:SetScript("OnMouseWheel", function(_, delta)
@@ -315,6 +340,7 @@ function Widgets.ChoiceRow(parent, caption, detail, onChoose, onReset, above)
     end)
     popup:SetScript("OnHide", function()
         if openChoicePopup == popup then openChoicePopup = nil end
+        if clickCatcher then clickCatcher:Hide() end
     end)
     popup:Hide()
     control:SetScript("OnClick", function()
@@ -324,6 +350,7 @@ function Widgets.ChoiceRow(parent, caption, detail, onChoose, onReset, above)
         offset = 0
         Render()
         openChoicePopup = popup
+        ChoiceCatcher():Show()
         popup:Show()
     end)
     function row:SetChoices(choices, selected, displayOverride)
