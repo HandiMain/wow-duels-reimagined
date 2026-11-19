@@ -156,6 +156,9 @@ foldButton:SetPoint("RIGHT", Window.scaleReset, "LEFT", -10, 0)
 local searchBox = CreateFrame("Frame", nil, header)
 searchBox:SetSize(264, 29)
 searchBox:SetPoint("RIGHT", peekButton, "LEFT", -15, 0)
+-- Center the approved brand in the real free space, not against the shell edge.
+-- This stays responsive to window resizing and preserves the search hit area.
+Window.PlaceBrandBefore(searchBox)
 Style.Fill(searchBox, C.nav)
 Style.Border(searchBox, C.goldDim, 1)
 

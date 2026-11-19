@@ -79,15 +79,35 @@ Window.content = content
 Window.chromeSeams = Chrome.Shell(frame, header, footer, rail, nav, content)
 Window.header, Window.footer, Window.body = header, footer, body
 
--- Approved two-faction logo: one authored texture, no duplicated text or crest.
--- The PNG canvas is power-of-two with transparent padding. Crop only the
--- padding via UVs; preserve the original artwork's proportions in the header.
-local brandLogo = header:CreateTexture(nil, "ARTWORK")
-brandLogo:SetTexture("Interface\\AddOns\\DuelsReimagined\\Media\\Concept\\DuelsReimagined-HeaderLogo.png")
-brandLogo:SetSize(280, 85)
-brandLogo:SetPoint("LEFT", header, "LEFT", 18, 0)
-brandLogo:SetTexCoord(62 / 1024, 962 / 1024, 119 / 512, 393 / 512)
+-- Approved flat wordmark: gold lettering with a subtle Alliance lion and
+-- Horde crest behind it. Keep the asset independent of the existing addon icon.
+-- The transparent, power-of-two canvas has padding removed by UV coordinates.
+-- The header's left brand area is sized by the search control once it exists.
+local brandArea = CreateFrame("Frame", nil, header)
+brandArea:SetSize(510, 106)
+brandArea:SetPoint("LEFT", header, "LEFT", 20, 0)
+brandArea:EnableMouse(false)
+local brandLogo = brandArea:CreateTexture(nil, "ARTWORK")
+brandLogo:SetTexture("Interface\\AddOns\\DuelsReimagined\\Media\\Concept\\DuelsReimagined-HeaderLogoFlat.png")
+brandLogo:SetSize(360, 104)
+brandLogo:SetPoint("CENTER", brandArea, "CENTER")
+brandLogo:SetTexCoord(130 / 512, 382 / 512, 74 / 256, 182 / 256)
 Chrome.Sharp(brandLogo)
+local function FitBrand(_, width)
+    -- Preserve the wordmark's appearance in a narrowed or rescaled window.
+    -- No OnUpdate or fixed-position guessing; anchors drive the available area.
+    local w = math.min(360, math.max(1, (width or 360) - 12))
+    brandLogo:SetSize(w, w * 104 / 360)
+end
+brandArea:SetScript("OnSizeChanged", FitBrand)
+function Window.PlaceBrandBefore(searchBox)
+    if not searchBox then return end
+    brandArea:ClearAllPoints()
+    brandArea:SetPoint("LEFT", header, "LEFT", 20, 0)
+    brandArea:SetPoint("RIGHT", searchBox, "LEFT", -18, 0)
+    brandArea:SetHeight(106)
+    FitBrand(brandArea, brandArea:GetWidth())
+end
 
 local Settings = ns.Settings
 local scaleCaption = Style.Text(header, "Menu Scale", 12, C.muted)
