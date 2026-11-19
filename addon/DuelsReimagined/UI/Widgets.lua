@@ -512,7 +512,7 @@ function Widgets.SliderRow(parent, caption, detail, minVal, maxVal, step, onComm
         slider:SetValue(v)
         programmatic = false
         Paint(v)
-    end)
+    end
     function row:IsDragging() return dragging and true or false end
     function row:SetAvailable(yes)
         self.available = yes and true or false
