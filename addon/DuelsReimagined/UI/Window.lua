@@ -76,7 +76,8 @@ content:SetAllPoints(main)
 Style.Fill(content, C.body)
 Window.content = content
 
-Chrome.Shell(frame, header, footer, rail, nav, content)
+Window.chromeSeams = Chrome.Shell(frame, header, footer, rail, nav, content)
+Window.header, Window.footer, Window.body = header, footer, body
 
 -- Approved two-faction logo: one authored texture, no duplicated text or crest.
 -- The PNG canvas is power-of-two with transparent padding. Crop only the
@@ -93,7 +94,7 @@ local scaleCaption = Style.Text(header, "Menu Scale", 12, C.muted)
 scaleCaption:SetPoint("RIGHT", header, "RIGHT", -223, 0)
 
 local scale = CreateFrame("Slider", nil, header)
-scale:SetSize(116, 20)
+scale:SetSize(80, 20)
 scale:SetOrientation("HORIZONTAL")
 scale:SetMinMaxValues(0.85, 1.15)
 scale:SetValueStep(0.05)
@@ -120,6 +121,9 @@ scale:SetThumbTexture(scaleThumb)
 
 local scalePercent = Style.Text(header, "100%", 12, C.text)
 scalePercent:SetPoint("LEFT", scale, "RIGHT", 10, 0)
+Window.scaleCaption = scaleCaption
+Window.scaleSlider = scale
+Window.scalePercent = scalePercent
 
 local function RoundScale(value)
     return math.max(0.85, math.min(1.15,
@@ -130,7 +134,7 @@ local pendingScale
 local draggingScale = false
 local function PaintScale(value)
     local v = RoundScale(value)
-    scaleFill:SetWidth(math.max(1, 116 * (v - 0.85) / 0.30))
+    scaleFill:SetWidth(math.max(1, scale:GetWidth() * (v - 0.85) / 0.30))
     scalePercent:SetText(math.floor(v * 100 + 0.5) .. "%")
 end
 
@@ -163,6 +167,9 @@ function Window.ApplyScale(value)
     pendingScale = nil
     frame:SetScale(v)
     FitWindowToScreen(v)
+    if ns.Header and ns.Header.AfterWindowResized then
+        ns.Header.AfterWindowResized()
+    end
     scale:SetValue(v)
     PaintScale(v)
 end
@@ -240,11 +247,11 @@ function Window.ShowPage(page)
     subtitle:SetText(page.subtitle or "")
     emptyHeading:SetText(page.emptyTitle or "")
     emptyDetail:SetText(page.emptyDetail or "")
-    local isOptions = page.key == "options"
+    local isOptions = page.key == "options" or page.key == "interface"
     watermark:SetShown(not isOptions)
     emptyHeading:SetShown(not isOptions)
     emptyDetail:SetShown(not isOptions)
-    if ns.Options then ns.Options.Show(isOptions) end
+    if ns.Options then ns.Options.Show(isOptions and page.key or nil) end
     if frame:IsShown() then
         Motion.Stop(content, 0.68)
         Motion.Fade(content, 1, 0.19)
