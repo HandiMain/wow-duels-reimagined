@@ -61,10 +61,14 @@ class IntegrationContracts(unittest.TestCase):
         b = settings.split("local boolDefaults = {", 1)[1].split("}", 1)[0]
         toggle_keys = re.findall(r"^\s*(\w+)\s*=\s*(?:true|false)\s*,", b, re.M)
         self.assertIn("showInCompartment", toggle_keys)
-        for key in toggle_keys:
-            self.assertRegex(options,
-                r'AddToggle\([\s\S]*?"' + re.escape(key) + r'"',
-                "Missing Options/Search registration for toggle: " + key)
+        # Extract actual AddToggle argument lists, not a greedy match spanning
+        # unrelated lines that could hide an unregistered new setting.
+        registered = set(re.findall(
+            r'\bAddToggle\(\s*\w+\s*,\s*"(?:options|interface)"\s*,\s*"([^"]+)"',
+            options, re.S))
+        self.assertTrue(set(toggle_keys).issubset(registered),
+            "Missing Options/Search registration for toggles: " +
+            str(sorted(set(toggle_keys) - registered)))
         for key in ("iconMode", "widgetSize", "widgetTransparency",
                     "fontChoice", "fontScale", "fontOutline", "minimapButton",
                     "resetIconPositions"):
