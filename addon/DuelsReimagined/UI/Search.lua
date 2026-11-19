@@ -12,13 +12,15 @@ local function Normalize(value)
         :gsub("^%s+", ""):gsub("%s+$", "")
 end
 
-function Search.Register(id, title, where, details, activate)
+function Search.Register(id, title, where, details, activate, available)
     if type(id) ~= "string" or type(title) ~= "string" or
         type(activate) ~= "function" then return end
     if not Search.entries[id] then Search.order[#Search.order + 1] = id end
     Search.entries[id] = {
         id = id, title = title, where = where or "",
         details = details or "", activate = activate,
+        -- An unavailable action should not show up as a dead search result.
+        available = type(available) == "function" and available or nil,
         titleKey = Normalize(title),
         whereKey = Normalize(where or ""),
         keywords = Normalize((title or "") .. " " ..
@@ -39,7 +41,12 @@ function Search.Query(value)
                 break
             end
         end
-        if all then
+        local available = true
+        if item.available then
+            local ok, result = pcall(item.available)
+            available = ok and result ~= false
+        end
+        if all and available then
             local score = 10
             if item.titleKey == term then score = 100
             elseif item.titleKey:sub(1, #term) == term then score = 80
@@ -55,7 +62,9 @@ function Search.Query(value)
         return a.score > b.score
     end)
     local results = {}
-    for i = 1, math.min(6, #matches) do
+    -- Keep the complete result list. Header presents six at a time and
+    -- allows keyboard/wheel browsing, so no result is silently truncated.
+    for i = 1, #matches do
         results[i] = matches[i].item
     end
     return results

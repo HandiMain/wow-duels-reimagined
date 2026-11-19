@@ -153,6 +153,19 @@ Window.scaleCaption = scaleCaption
 Window.scaleSlider = scale
 Window.scalePercent = scalePercent
 
+-- Search must lead to an actual, visible control even when addon tooltips
+-- are disabled. Highlight the existing slider instead of adding a new popup.
+function Window.HighlightMenuScale()
+    Motion.Stop(scaleFill, 0.20)
+    Motion.Fade(scaleFill, 1, 0.55)
+    Motion.Stop(scalePercent, 0.30)
+    Motion.Fade(scalePercent, 1, 0.55)
+    if ns.Tooltips and ns.Tooltips.Enabled() then
+        ns.Tooltips.Show(scale, { title = "Menu Scale",
+            detail = "Drag or scroll this header slider to resize the window." })
+    end
+end
+
 -- Menu Scale gets the same modified marker and per-setting reset as Options.
 local scaleDot = Style.Text(header, "•", 13, C.gold)
 scaleDot:SetPoint("RIGHT", scaleCaption, "LEFT", -4, 0)
@@ -367,7 +380,8 @@ grip:SetScript("OnLeave", function()
 end)
 ns.Tooltips.Bind(grip, { title = "Resize window",
     detail = "Drag the corner to resize. Right-click to restore default dimensions." })
-grip:SetScript("OnHide", function()
+-- Preserve the shared tooltip OnHide cleanup installed with HookScript.
+grip:HookScript("OnHide", function()
     if sizing then
         sizing = false
         frame:StopMovingOrSizing()

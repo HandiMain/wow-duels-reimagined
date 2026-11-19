@@ -43,9 +43,12 @@ local function FadeSelection(item, active)
     Motion.Fade(item.hover, 0, 0.13)
 end
 
-local function Select(sectionIndex, pageIndex, noMotion)
+local function Select(sectionIndex, pageIndex, noMotion, repaintOnly)
     currentSection, currentPage = sectionIndex, pageIndex
-    if ns.Header and ns.Header.CloseSearch then ns.Header.CloseSearch(true) end
+    -- A theme repaint must NOT close Search, modal dialogs or reset pages.
+    if not repaintOnly and ns.Header and ns.Header.CloseSearch then
+        ns.Header.CloseSearch(true)
+    end
     local section, page = sections[sectionIndex], sections[sectionIndex].pages[pageIndex]
     sectionTitle:SetText(string.upper(section.label))
 
@@ -76,6 +79,7 @@ local function Select(sectionIndex, pageIndex, noMotion)
             item.label:SetTextColor(unpack(active and C.pale or C.text))
         end
     end
+    if repaintOnly then return end
     if ns.Footer and ns.Footer.ClosePopup then ns.Footer.ClosePopup() end
     if ns.Tooltips then ns.Tooltips.Hide(nil, true) end
     Window.ShowPage(page)
@@ -157,7 +161,9 @@ end
 
 ns.Navigation = {
     RefreshSelection = function()
-        if currentSection and currentPage then Select(currentSection, currentPage, true) end
+        if currentSection and currentPage then
+            Select(currentSection, currentPage, true, true)
+        end
     end,
     SelectKey = function(sectionKey, pageKey)
         for sectionIndex, section in ipairs(sections) do

@@ -211,15 +211,12 @@ ns.Search.Register("footer:discord", "Discord community", "Footer",
 ns.Search.Register("footer:reset-window", "Reset window", "Footer",
     "Restore window dimensions and menu scale defaults", function()
         if reset:IsEnabled() then Window.ResetWindow() end
-    end)
+    end, function() return reset:IsEnabled() end)
 ns.Search.Register("footer:reload-ui", "Reload UI", "Footer",
     "Reload only when a setting needs it", function()
         if reload:IsEnabled() and type(ReloadUI) == "function" then ReloadUI() end
-    end)
+    end, function() return reload:IsEnabled() end)
 ns.Search.Register("setting:menuScale", "Menu Scale", "Header",
     "Change size between 65 and 120 percent; right click to reset", function()
-        ns.Tooltips.Show(Window.scaleSlider, {
-            title = "Menu Scale",
-            detail = "Drag or scroll the slider in the header to resize the window.",
-        })
+        Window.HighlightMenuScale()
     end)

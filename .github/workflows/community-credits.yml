@@ -7,23 +7,11 @@ on:
   push:
     branches: [develop]
     paths:
+      # Every addon subsystem change must run Lua + contract regression
+      # checks; no hand-maintained partial list of individual Lua files.
+      - addon/DuelsReimagined/**
       - community/credits.json
       - tools/community/**
-      - addon/DuelsReimagined/DuelsReimagined.toc
-      - addon/DuelsReimagined/Community/**
-      - addon/DuelsReimagined/UI/Community.lua
-      - addon/DuelsReimagined/UI/Navigation.lua
-      - addon/DuelsReimagined/UI/Footer.lua
-      - addon/DuelsReimagined/UI/Window.lua
-      - addon/DuelsReimagined/UI/AccessIcons.lua
-      - addon/DuelsReimagined/UI/Options.lua
-      - addon/DuelsReimagined/UI/Widgets.lua
-      - addon/DuelsReimagined/UI/Tooltips.lua
-      - addon/DuelsReimagined/Core/Settings.lua
-      - addon/DuelsReimagined/Media/Concept/CommunityFactionMarks.png
-      - addon/DuelsReimagined/Media/Concept/CommunityAllianceLion.png
-      - addon/DuelsReimagined/Media/Concept/CommunityConceptSymbols.png
-      - addon/DuelsReimagined/UI/Chrome.lua
       - .github/workflows/community-credits.yml
   issues:
     types: [closed, reopened, labeled, unlabeled]

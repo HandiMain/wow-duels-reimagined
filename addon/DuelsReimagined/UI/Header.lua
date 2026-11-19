@@ -64,6 +64,19 @@ function Header.RefreshAutoPeek()
     if frame:IsShown() and Settings.Get("autoPeekMoving") then
         movement:RegisterEvent("PLAYER_STARTED_MOVING")
         movement:RegisterEvent("PLAYER_STOPPED_MOVING")
+        -- Opening while already running should Peek without needing a new
+        -- PLAYER_STARTED_MOVING event. Never evaluate Retail secret values.
+        moving = false
+        if type(IsPlayerMoving) == "function" then
+            local ok, value = pcall(IsPlayerMoving)
+            if ok and type(value) == "boolean" then moving = value end
+        elseif type(GetUnitSpeed) == "function" then
+            local ok, speed = pcall(GetUnitSpeed, "player")
+            if ok and type(speed) == "number" and
+                (not issecretvalue or not issecretvalue(speed)) then
+                moving = speed > 0
+            end
+        end
     else
         moving = false
     end
@@ -189,8 +202,10 @@ Style.Border(dropdown, C.goldDim, 1)
 dropdown:EnableMouse(true)
 dropdown:Hide()
 
-local resultButtons, currentResults, picked = {}, {}, 1
-for i = 1, 6 do
+local resultButtons, currentResults, picked, firstVisible = {}, {}, 1, 1
+local PAGE_SIZE = 6
+local RenderRows
+for i = 1, PAGE_SIZE do
     local b = CreateFrame("Button", nil, dropdown)
     b:SetSize(278, 43)
     b:SetPoint("TOPLEFT", dropdown, "TOPLEFT", 8, -8 - (i - 1) * 43)
@@ -203,18 +218,23 @@ for i = 1, 6 do
     local where = Style.Text(b, "", 11, C.muted)
     where:SetPoint("TOPLEFT", title, "BOTTOMLEFT", 0, -2)
     b:SetScript("OnEnter", function()
-        picked = i
+        picked = firstVisible + i - 1
         Motion.Fade(hover, 0.30, 0.13)
     end)
     b:SetScript("OnLeave", function() Motion.Fade(hover, 0, 0.16) end)
     b:SetScript("OnClick", function()
-        local match = currentResults[i]
+        local match = currentResults[firstVisible + i - 1]
         Header.CloseSearch(true)
         Search.Open(match)
     end)
+    b:EnableMouseWheel(true)
+    b:SetScript("OnMouseWheel", function(_, delta)
+        local handler = dropdown:GetScript("OnMouseWheel")
+        if handler then handler(dropdown, delta) end
+    end)
     ns.Widgets.PressFeedback(b, hover)
     Tooltips.Bind(b, function()
-        local match = currentResults[i]
+        local match = currentResults[firstVisible + i - 1]
         return match and { title = match.title, detail = match.details or match.where }
     end)
     resultButtons[i] = { button = b, title = title, where = where, hover = hover }
@@ -224,25 +244,56 @@ local noMatch = Style.Text(dropdown, "No matching pages or settings", 12, C.mute
 noMatch:SetPoint("CENTER", dropdown, "CENTER")
 noMatch:Hide()
 
+local moreInfo = Style.Text(dropdown, "", 11, C.muted)
+moreInfo:SetPoint("TOPLEFT", dropdown, "TOPLEFT", 11, -(9 + PAGE_SIZE * 43))
+moreInfo:SetWidth(260)
+moreInfo:Hide()
+
+RenderRows = function()
+    local count = #currentResults
+    local shown = math.max(0, math.min(PAGE_SIZE, count - firstVisible + 1))
+    for i, row in ipairs(resultButtons) do
+        local idx = firstVisible + i - 1
+        local match = currentResults[idx]
+        row.button:SetShown(match ~= nil and i <= PAGE_SIZE)
+        if match then
+            row.title:SetText(match.title)
+            row.where:SetText(match.where)
+            Motion.Stop(row.hover, idx == picked and 0.22 or 0)
+        end
+    end
+    noMatch:SetShown(count == 0)
+    local more = count > PAGE_SIZE
+    moreInfo:SetShown(more)
+    if more then
+        moreInfo:SetText("Showing " .. firstVisible .. "-" ..
+            (firstVisible + shown - 1) .. " of " .. count .. " • scroll for more")
+    end
+    dropdown:SetHeight(count == 0 and 44 or
+        (16 + shown * 43 + (more and 22 or 0)))
+    dropdown:Show()
+end
+
 local function Render(query)
     currentResults = Search.Query(query)
-    picked = 1
+    picked, firstVisible = 1, 1
     if query == "" or not frame:IsShown() or folded then
         dropdown:Hide()
         return
     end
-    for i, row in ipairs(resultButtons) do
-        local match = currentResults[i]
-        row.button:SetShown(match ~= nil)
-        if match then
-            row.title:SetText(match.title)
-            row.where:SetText(match.where)
-        end
-    end
-    noMatch:SetShown(#currentResults == 0)
-    dropdown:SetHeight(#currentResults == 0 and 44 or (16 + #currentResults * 43))
-    dropdown:Show()
+    RenderRows()
 end
+
+dropdown:EnableMouseWheel(true)
+dropdown:SetScript("OnMouseWheel", function(_, delta)
+    if #currentResults <= PAGE_SIZE then return end
+    firstVisible = math.max(1, math.min(#currentResults - PAGE_SIZE + 1,
+        firstVisible - (delta > 0 and 2 or -2)))
+    if picked < firstVisible or picked >= firstVisible + PAGE_SIZE then
+        picked = firstVisible
+    end
+    RenderRows()
+end)
 
 function Header.CloseSearch(clear)
     dropdown:Hide()
@@ -271,9 +322,11 @@ input:SetScript("OnArrowPressed", function(_, key)
     if #currentResults == 0 then return end
     picked = math.max(1, math.min(#currentResults,
         picked + (key == "DOWN" and 1 or -1)))
-    for i, row in ipairs(resultButtons) do
-        Motion.Fade(row.hover, i == picked and 0.22 or 0, 0.10)
+    if picked < firstVisible then firstVisible = picked end
+    if picked >= firstVisible + PAGE_SIZE then
+        firstVisible = picked - PAGE_SIZE + 1
     end
+    RenderRows()
 end)
 searchBox:EnableMouse(true)
 searchBox:SetScript("OnMouseDown", function() input:SetFocus() end)
@@ -294,6 +347,8 @@ frame:HookScript("OnHide", function()
     Motion.Stop(frame, 1)
 end)
 
+Search.Register("header:close", "Close window", "Header",
+    "Close the Duels Reimagined window", function() frame:Hide() end)
 Search.Register("header:fold", "Fold window", "Header",
     "Collapse the window to its header; unfold it again", function()
         Header.Fold(not folded)
