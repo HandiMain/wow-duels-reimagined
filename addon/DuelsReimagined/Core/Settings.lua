@@ -249,7 +249,13 @@ function Settings.Set(key, value)
         if db[key] == value then return end
         db[key] = value
         if ns.AccessIcons and ns.AccessIcons.Refresh then ns.AccessIcons.Refresh() end
-        if ns.Options and ns.Options.Refresh then ns.Options.Refresh() end
+        if ns.Options then
+            if key == "iconMode" and ns.Options.Refresh then
+                ns.Options.Refresh()
+            elseif ns.Options.RefreshAccessModified then
+                ns.Options.RefreshAccessModified()
+            end
+        end
         return
     end
     if key == "menuScale" then

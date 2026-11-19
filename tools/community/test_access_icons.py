@@ -53,14 +53,42 @@ class AccessIconsTests(unittest.TestCase):
     def test_settings_visible_searchable(self):
         o = read("UI/Options.lua")
         s = read("Core/Settings.lua")
-        self.assertIn('Section(accessCard, "Access icons"', o)
+        self.assertIn('Section(accessCard, "Minimap button"', o)
         for name in ("iconMode", "widgetSize", "widgetTransparency",
                      "resetIconPositions"):
             self.assertIn('RegisterOption("' + name + '"', o)
         self.assertIn("SetAvailable(hasWidget)", o)
         self.assertIn("formatValue and formatValue(clean)", read("UI/Widgets.lua"))
         self.assertIn('outsideWindow', read("UI/Tooltips.lua"))
+        self.assertIn('RegisterOption("minimapButton"', o)
         self.assertIn('db.widgetPosition = nil', s)
+
+    def test_launcher_tooltip_handlers_and_context(self):
+        a = read("UI/AccessIcons.lua")
+        t = read("UI/Tooltips.lua")
+        start = a.index("local function ConnectClick(button, isWidget)")
+        end = a.index("-- BurstFX pattern:", start)
+        block = a[start:end]
+        self.assertLess(block.index('button:SetScript("OnEnter"'),
+                        block.index("Tooltips.Bind(button, function()"))
+        self.assertLess(block.index('button:SetScript("OnLeave"'),
+                        block.index("Tooltips.Bind(button, function()"))
+        self.assertIn('Left-click: Open the window.', block)
+        self.assertIn('Left-click: Close the window.', block)
+        self.assertIn('Drag: Move around the minimap.', block)
+        self.assertIn('outsideWindow = true', block)
+        self.assertIn('local data = Value(source, owner)', t)
+
+    def test_live_widget_sliders_without_full_refresh(self):
+        o, w, s = read("UI/Options.lua"), read("UI/Widgets.lua"), read("Core/Settings.lua")
+        self.assertIn('function Options.RefreshAccessModified()', o)
+        self.assertIn('if live then CommitLive(clean) end', w)
+        self.assertIn('if programmatic or not (fromUser or dragging) then return end', w)
+        self.assertIn('function row:IsDragging()', w)
+        self.assertIn('ns.Options.RefreshAccessModified()', s)
+        self.assertIn('.. " px" end, true)', o)
+        self.assertIn('end, nil, true)', o)
+        self.assertIn('RegisterOption("minimapButton"', o)
 
     def test_hall_revert_and_unrelated_sections(self):
         n = read("UI/Navigation.lua")

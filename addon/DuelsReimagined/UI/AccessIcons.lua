@@ -193,15 +193,6 @@ local function ConnectClick(button, isWidget)
     button:RegisterForClicks("LeftButtonUp")
     button:RegisterForDrag("LeftButton")
     button:EnableMouse(true)
-    Tooltips.Bind(button, function()
-        return {
-            title = "Duels Reimagined",
-            detail = "Left-click: open or close the window. Drag: move " ..
-                (isWidget and "this widget." or "around the minimap."),
-            outsideWindow = true,
-            anchor = "LEFT",
-        }
-    end)
     button:SetScript("OnEnter", function(self)
         Wake(self)
         Hover(self, true)
@@ -235,6 +226,20 @@ local function ConnectClick(button, isWidget)
         face.sweep:Hide()
         self.duelsHovering = false
         self.duelsDragging = false
+    end)
+    -- Bind after all explicit hover handlers; SetScript after HookScript
+    -- previously replaced the shared tooltip hook.
+    Tooltips.Bind(button, function()
+        local opened = ns.Window and ns.Window.frame and ns.Window.frame:IsShown()
+        return {
+            title = "Duels Reimagined",
+            detail = (opened and "Left-click: Close the window." or
+                "Left-click: Open the window.") .. "\n" ..
+                (isWidget and "Drag: Move the floating widget." or
+                    "Drag: Move around the minimap."),
+            outsideWindow = true,
+            anchor = "LEFT",
+        }
     end)
 end
 

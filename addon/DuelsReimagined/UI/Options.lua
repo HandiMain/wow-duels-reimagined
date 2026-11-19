@@ -89,8 +89,8 @@ Section(behaviorCard, "Window behavior",
     "Keep the world visible while the dueling hall is open.", -16)
 Section(typographyCard, "Typography",
     "Choose text appearance independently of window scale.", -18)
-Section(accessCard, "Access icons",
-    "Choose how to open the addon without typing /duels.", -18)
+Section(accessCard, "Minimap button",
+    "Choose your minimap button or floating widget.", -18)
 
 local unavailable = "Enable EllesmereUI and its third-party skinning support to use this setting."
 local rows = {}
@@ -203,13 +203,18 @@ iconMode:SetPoint("TOPRIGHT", accessCard, "TOPRIGHT", -20, -82)
 MarkPosition(iconMode, accessCard, -82)
 RegisterOption("iconMode", "Icon mode",
     "Choose minimap, floating widget, both, or hidden", "interface", iconMode)
+RegisterOption("minimapButton", "Minimap button",
+    "Configure minimap button and floating widget", "interface", iconMode)
 
 local widgetSize = Widgets.SliderRow(accessCard, "Widget size",
     "Size of the movable floating icon (24 to 128 pixels).",
     Settings.MIN_WIDGET_SIZE, Settings.MAX_WIDGET_SIZE, Settings.WIDGET_SIZE_STEP,
     function(value) Settings.Set("widgetSize", value) end,
-    function() Settings.Reset("widgetSize") end,
-    function(value) return math.floor(value + 0.5) .. " px" end)
+    function()
+        Settings.Reset("widgetSize")
+        if ns.Options and ns.Options.Refresh then ns.Options.Refresh() end
+    end,
+    function(value) return math.floor(value + 0.5) .. " px" end, true)
 widgetSize:SetPoint("TOPLEFT", accessCard, "TOPLEFT", 20, -164)
 widgetSize:SetPoint("TOPRIGHT", accessCard, "TOPRIGHT", -20, -164)
 MarkPosition(widgetSize, accessCard, -164)
@@ -220,7 +225,10 @@ local widgetTransparency = Widgets.SliderRow(accessCard, "Widget transparency",
     "Fade the floating widget when you are not hovering over it.",
     0, Settings.MAX_WIDGET_TRANSPARENCY, 0.05,
     function(value) Settings.Set("widgetTransparency", value) end,
-    function() Settings.Reset("widgetTransparency") end)
+    function()
+        Settings.Reset("widgetTransparency")
+        if ns.Options and ns.Options.Refresh then ns.Options.Refresh() end
+    end, nil, true)
 widgetTransparency:SetPoint("TOPLEFT", accessCard, "TOPLEFT", 20, -243)
 widgetTransparency:SetPoint("TOPRIGHT", accessCard, "TOPRIGHT", -20, -243)
 MarkPosition(widgetTransparency, accessCard, -243)
@@ -261,6 +269,13 @@ local fontInfo = Style.Text(typographyCard,
 fontInfo:SetPoint("TOPLEFT", typographyCard, "TOPLEFT", 20, -355)
 fontInfo:SetPoint("RIGHT", typographyCard, "RIGHT", -20, 0)
 fontInfo:SetJustifyH("LEFT")
+
+-- During a live slider drag repaint only its reset/modified indicator.
+-- A full Refresh would programmatically reassign the active thumb.
+function Options.RefreshAccessModified()
+    widgetSize:SetModified(Settings.IsModified("widgetSize"))
+    widgetTransparency:SetModified(Settings.IsModified("widgetTransparency"))
+end
 
 function Options.Refresh()
     local ready = Theme.IsAvailable()

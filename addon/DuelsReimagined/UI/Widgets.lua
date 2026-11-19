@@ -424,7 +424,7 @@ function Widgets.ChoiceRow(parent, caption, detail, onChoose, onReset, above)
     return row
 end
 
-function Widgets.SliderRow(parent, caption, detail, minVal, maxVal, step, onCommit, onReset, formatValue)
+function Widgets.SliderRow(parent, caption, detail, minVal, maxVal, step, onCommit, onReset, formatValue, live)
     local row = CreateFrame("Frame", nil, parent)
     row:SetHeight(72)
     row.available = true
@@ -458,7 +458,12 @@ function Widgets.SliderRow(parent, caption, detail, minVal, maxVal, step, onComm
     local percent = Style.Text(row, "100%", 12, C.text)
     percent:SetPoint("LEFT", slider, "RIGHT", 9, 0)
     Widgets.AttachModified(row, slider, onReset)
-    local pending, dragging
+    local pending, dragging, programmatic, lastLive
+    local function CommitLive(value)
+        if lastLive == value then return end
+        lastLive = value
+        if onCommit then onCommit(value) end
+    end
     local function Paint(v)
         local clean = math.max(minVal, math.min(maxVal,
             math.floor(v / step + 0.5) * step))
@@ -470,29 +475,45 @@ function Widgets.SliderRow(parent, caption, detail, minVal, maxVal, step, onComm
     end
     slider:SetScript("OnValueChanged", function(_, value, fromUser)
         local clean = Paint(value)
-        if fromUser or dragging then pending = clean end
+        -- Existing slider mode commits on mouse release. Only explicitly
+        -- opted-in widget controls stream stepped updates while dragging.
+        if programmatic or not (fromUser or dragging) then return end
+        pending = clean
+        if live then CommitLive(clean) end
     end)
     slider:SetScript("OnMouseDown", function(_, mouse)
-        if mouse == "LeftButton" then dragging = true end
+        if mouse == "LeftButton" then
+            dragging = true
+            lastLive = nil
+        end
     end)
     slider:SetScript("OnMouseUp", function(_, mouse)
         if mouse ~= "LeftButton" then return end
         dragging = false
         local nextVal = pending or Paint(slider:GetValue())
         pending = nil
-        if onCommit then onCommit(nextVal) end
+        if live then CommitLive(nextVal)
+        elseif onCommit then onCommit(nextVal) end
     end)
     slider:SetScript("OnMouseWheel", function(_, delta)
         local nextVal = Paint(slider:GetValue() + (delta > 0 and step or -step))
+        programmatic = true
         slider:SetValue(nextVal)
+        programmatic = false
         pending = nil
-        if onCommit then onCommit(nextVal) end
+        if live then
+            lastLive = nil
+            CommitLive(nextVal)
+        elseif onCommit then onCommit(nextVal) end
     end)
     function row:SetValue(v)
+        programmatic = true
         pending = nil
         slider:SetValue(v)
+        programmatic = false
         Paint(v)
-    end
+    end)
+    function row:IsDragging() return dragging and true or false end
     function row:SetAvailable(yes)
         self.available = yes and true or false
         slider:SetEnabled(self.available)
