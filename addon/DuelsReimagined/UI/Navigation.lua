@@ -106,7 +106,7 @@ end
 for index, section in ipairs(sections) do
     local button = CreateFrame("Button", nil, Window.rail)
     -- Primary Hall stays within the 88px rail; secondary hit areas unchanged.
-    button:SetSize(section.primary and 86 or 86, section.primary and 74 or 68)
+    button:SetSize(86, section.primary and 74 or 68)
     if section.key == "options" then
         button:SetPoint("BOTTOM", Window.rail, "BOTTOM", 0, 11)
     elseif section.key == "community" then
