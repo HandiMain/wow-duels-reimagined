@@ -8,6 +8,13 @@ ns.Chrome = Chrome
 local path = "Interface\\AddOns\\DuelsReimagined\\Media\\Textures\\"
 local themed = {}
 
+-- Avoid snapping and texel bias on small antialiased UI assets when supported.
+function Chrome.Sharp(texture)
+    if texture.SetSnapToPixelGrid then texture:SetSnapToPixelGrid(false) end
+    if texture.SetTexelSnappingBias then texture:SetTexelSnappingBias(0) end
+    return texture
+end
+
 function Chrome.Texture(parent, name, alpha, layer, token)
     local tex = parent:CreateTexture(nil, layer or "BACKGROUND")
     tex:SetTexture(path .. name .. ".tga")
@@ -22,6 +29,7 @@ end
 function Chrome.Icon(parent, name)
     local tex = parent:CreateTexture(nil, "ARTWORK")
     tex:SetTexture("Interface\\AddOns\\DuelsReimagined\\Media\\Icons\\" .. name .. ".tga")
+    Chrome.Sharp(tex)
     return tex
 end
 

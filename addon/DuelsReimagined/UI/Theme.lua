@@ -43,6 +43,7 @@ function Theme.Refresh()
 
     Style.ApplyTheme(accent, panel, font)
     if ns.Chrome then ns.Chrome.Refresh() end
+    if ns.Window and ns.Window.RefreshTheme then ns.Window.RefreshTheme() end
     if ns.Navigation and ns.Navigation.RefreshSelection then
         ns.Navigation.RefreshSelection()
     end

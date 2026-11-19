@@ -90,8 +90,9 @@ for index, section in ipairs(sections) do
     bar:SetPoint("BOTTOMLEFT", button, "BOTTOMLEFT", 0, -3)
     bar:SetWidth(3)
     local icon = Chrome.Icon(button, section.icon)
-    icon:SetSize(35, 35)
-    icon:SetPoint("TOP", button, "TOP", 0, -8)
+    local isHall = section.key == "hall"
+    icon:SetSize(isHall and 47 or 40, isHall and 47 or 40)
+    icon:SetPoint("TOP", button, "TOP", 0, isHall and -1 or -5)
     local label = Style.Text(button, string.upper(section.label), 12, C.muted, true)
     label:SetPoint("TOP", icon, "BOTTOM", 0, -2)
     label:SetJustifyH("CENTER")

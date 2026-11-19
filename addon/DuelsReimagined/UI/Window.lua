@@ -83,47 +83,107 @@ brandTop:SetPoint("TOPLEFT", header, "TOPLEFT", 137, -17)
 local brandBottom = Style.Text(header, "R E I M A G I N E D", 12, C.gold, true)
 brandBottom:SetPoint("TOPLEFT", brandTop, "BOTTOMLEFT", 2, -5)
 
+local Settings = ns.Settings
 local scaleCaption = Style.Text(header, "Menu Scale", 12, C.muted)
 scaleCaption:SetPoint("RIGHT", header, "RIGHT", -245, 0)
+
 local scale = CreateFrame("Slider", nil, header)
 scale:SetSize(116, 20)
 scale:SetOrientation("HORIZONTAL")
 scale:SetMinMaxValues(0.85, 1.15)
 scale:SetValueStep(0.05)
+if scale.SetObeyStepOnDrag then scale:SetObeyStepOnDrag(true) end
+scale:EnableMouseWheel(true)
 scale:SetPoint("LEFT", scaleCaption, "RIGHT", 15, 0)
+
 local scaleTrack = scale:CreateTexture(nil, "BACKGROUND")
-scaleTrack:SetColorTexture(unpack(C.goldDim))
-scaleTrack:SetPoint("LEFT", scale, "LEFT", 0, 0)
-scaleTrack:SetPoint("RIGHT", scale, "RIGHT", 0, 0)
-scaleTrack:SetHeight(3)
+scaleTrack:SetColorTexture(0.23, 0.26, 0.30, 1)
+scaleTrack:SetPoint("LEFT", scale, "LEFT")
+scaleTrack:SetPoint("RIGHT", scale, "RIGHT")
+scaleTrack:SetHeight(2)
+
+local scaleFill = scale:CreateTexture(nil, "ARTWORK")
+scaleFill:SetColorTexture(unpack(C.gold))
+scaleFill:SetPoint("LEFT", scaleTrack, "LEFT")
+scaleFill:SetHeight(2)
+
 local scaleThumb = scale:CreateTexture(nil, "OVERLAY")
-scaleThumb:SetColorTexture(unpack(C.gold))
-scaleThumb:SetSize(12, 19)
+scaleThumb:SetTexture("Interface\\AddOns\\DuelsReimagined\\Media\\Textures\\SliderThumb.tga")
+scaleThumb:SetSize(14, 14)
+Chrome.Sharp(scaleThumb)
 scale:SetThumbTexture(scaleThumb)
+
 local scalePercent = Style.Text(header, "100%", 12, C.text)
 scalePercent:SetPoint("LEFT", scale, "RIGHT", 10, 0)
-scale:SetScript("OnValueChanged", function(_, value)
-    local rounded = math.floor(value * 20 + 0.5) / 20
-    frame:SetScale(rounded)
-    scalePercent:SetText(math.floor(rounded * 100 + 0.5) .. "%")
-end)
-scale:SetValue(1)
 
-local xButton = CreateFrame("Button", nil, header)
-xButton:SetSize(30, 30)
+local function RoundScale(value)
+    return math.max(0.85, math.min(1.15,
+        math.floor(value * 20 + 0.5) / 20))
+end
+
+local pendingScale
+local draggingScale = false
+local function PaintScale(value)
+    local v = RoundScale(value)
+    scaleFill:SetWidth(math.max(1, 116 * (v - 0.85) / 0.30))
+    scalePercent:SetText(math.floor(v * 100 + 0.5) .. "%")
+end
+
+function Window.ApplyScale(value)
+    local v = RoundScale(value)
+    pendingScale = nil
+    frame:SetScale(v)
+    scale:SetValue(v)
+    PaintScale(v)
+end
+
+scale:SetScript("OnMouseDown", function(_, mouse)
+    if mouse == "LeftButton" then draggingScale = true end
+end)
+scale:SetScript("OnValueChanged", function(_, value, userInput)
+    PaintScale(value)
+    if userInput or draggingScale then pendingScale = RoundScale(value) end
+    -- Deliberately do not call SetScale here: the slider must not move mid-drag.
+end)
+scale:SetScript("OnMouseUp", function(_, mouse)
+    draggingScale = false
+    if mouse == "RightButton" then
+        pendingScale = nil
+        Settings.Set("menuScale", 1)
+        Window.ApplyScale(Settings.Get("menuScale") or 1)
+        return
+    end
+    if mouse ~= "LeftButton" then return end
+    local value = pendingScale or RoundScale(scale:GetValue())
+    pendingScale = nil
+    Settings.Set("menuScale", value)
+    Window.ApplyScale(Settings.Get("menuScale") or 1)
+end)
+scale:SetScript("OnMouseWheel", function(_, delta)
+    draggingScale = false
+    pendingScale = nil
+    local value = RoundScale((Settings.Get("menuScale") or 1)
+        + (delta > 0 and 0.05 or -0.05))
+    Settings.Set("menuScale", value)
+    Window.ApplyScale(Settings.Get("menuScale") or 1)
+end)
+scale:SetScript("OnHide", function()
+    draggingScale = false
+    pendingScale = nil
+    Window.ApplyScale(Settings.Get("menuScale") or 1)
+end)
+
+local xButton = ns.Widgets.IconButton(header, "Close", function()
+    frame:Hide()
+end)
 xButton:SetPoint("RIGHT", header, "RIGHT", -8, 0)
-local xText = Style.Text(xButton, "X", 19, C.gold)
-xText:SetPoint("CENTER")
-xButton:SetScript("OnEnter", function()
-    xText:SetTextColor(1, 0.35, 0.28)
-end)
-xButton:SetScript("OnLeave", function()
-    xText:SetTextColor(unpack(C.gold))
-end)
-xButton:SetScript("OnClick", function() frame:Hide() end)
 
-local footerText = Style.Text(footer, "Duels Reimagined", 13, C.pale)
-footerText:SetPoint("LEFT", footer, "LEFT", 28, 0)
+function Window.RefreshTheme()
+    scaleFill:SetColorTexture(unpack(C.gold))
+end
+
+Window.ApplyScale(Settings.Get("menuScale") or 1)
+
 local close = Style.Action(footer, "Close")
 close:SetSize(116, 29)
 close:SetPoint("RIGHT", footer, "RIGHT", -20, 0)

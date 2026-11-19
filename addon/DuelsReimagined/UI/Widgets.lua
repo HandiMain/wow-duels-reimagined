@@ -2,62 +2,69 @@ local _, ns = ...
 local Style, Chrome, Motion = ns.Style, ns.Chrome, ns.Motion
 local C = Style.color
 
--- Shared option controls, independent of the EllesmereUI integration.
+-- Shared option and icon-button widgets; one owner for all related behavior.
 local Widgets = {}
 ns.Widgets = Widgets
 
 local texPath = "Interface\\AddOns\\DuelsReimagined\\Media\\Textures\\"
-local SLIDE_TIME = 0.19
+local SLIDE_TIME = 0.16
+local OFF = { 0.31, 0.36, 0.42 }
+local DISABLED = { 0.30, 0.32, 0.35 }
 
-local function PaintThumb(key, p)
+local function PaintToggle(key, position)
     local row = key.owner
+    local p = math.max(0, math.min(1, position))
     row.progress = p
-    row.trackOn:SetAlpha(p)
+
+    -- Recompute all visuals from state each time, never multiply old tint.
+    local start = row.available and OFF or DISABLED
+    local finish = row.available and C.gold or DISABLED
+    local r = start[1] + (finish[1] - start[1]) * p
+    local g = start[2] + (finish[2] - start[2]) * p
+    local b = start[3] + (finish[3] - start[3]) * p
+    row.track:SetVertexColor(r, g, b, 1)
+    local thumbTone = row.available and 1 or 0.78
+    row.thumb:SetVertexColor(thumbTone, thumbTone, thumbTone, 1)
+
     row.thumb:ClearAllPoints()
-    row.thumb:SetPoint("LEFT", row.trackOff, "LEFT", 2 + 25 * p, 0)
-    local off = 0.83
-    row.thumb:SetVertexColor(
-        off + (1 - off) * p,
-        off + (0.95 - off) * p,
-        off + (0.79 - off) * p, 1)
+    row.thumb:SetPoint("LEFT", row.track, "LEFT", 3 + 21 * p, 0)
 end
 
 local methods = {}
-
 function methods:SetChecked(value, immediate)
-    local nextValue = value and true or false
-    local destination = nextValue and 1 or 0
-    if self.initialized and self.checked == nextValue then return end
-    self.checked = nextValue
-    if not self.initialized or immediate then
-        Motion.Value(self.slideKey, self.progress or 0, destination, 0, PaintThumb)
-    else
-        Motion.Value(self.slideKey, self.progress or 0, destination, SLIDE_TIME, PaintThumb)
+    local state = value and true or false
+    if self.initialized and self.checked == state then
+        PaintToggle(self.slideKey, self.progress)
+        return
     end
+    self.checked = state
+    local dest = state and 1 or 0
+    Motion.Value(self.slideKey, self.progress or 0, dest,
+        (not self.initialized or immediate) and 0 or SLIDE_TIME, PaintToggle)
     self.initialized = true
 end
 
-function methods:SetAvailable(available, reason)
-    self.available = available and true or false
+function methods:SetAvailable(value, reason)
+    local available = value and true or false
+    self.available = available
     self.unavailableReason = reason
-    self:SetAlpha(self.available and 1 or 0.58)
-    Motion.Fade(self.hover, 0, 0)
+    self:SetAlpha(available and 1 or 0.58)
+    Motion.Stop(self.hover, 0)
+    PaintToggle(self.slideKey, self.progress)
 end
 
 function methods:RefreshColors()
-    local r, g, b = unpack(C.gold)
-    self.trackOn:SetVertexColor(r, g, b, 1)
-    -- The inactive surface stays neutral so the accent remains meaningful.
-    self.trackOff:SetVertexColor(0.30, 0.36, 0.44, 1)
+    -- Always repaint from the central theme, including mid-transition.
+    PaintToggle(self.slideKey, self.progress)
     self.divider:SetColorTexture(unpack(C.goldDim))
     self.divider:SetAlpha(0.24)
     self.name:SetTextColor(unpack(C.text))
     self.description:SetTextColor(unpack(C.muted))
 end
 
-local function Enter(row)
+local function ToggleEnter(row)
     if row.available then
-        Motion.Fade(row.hover, 0.22, 0.15)
+        Motion.Fade(row.hover, 0.22, 0.14)
     elseif row.unavailableReason and GameTooltip then
         GameTooltip:SetOwner(row, "ANCHOR_RIGHT")
         GameTooltip:SetText(row.unavailableReason, 1, 0.81, 0.52, 1, true)
@@ -65,18 +72,11 @@ local function Enter(row)
     end
 end
 
-local function Leave(row)
-    Motion.Fade(row.hover, 0, 0.19)
+local function ToggleLeave(row)
+    Motion.Fade(row.hover, 0, 0.18)
     if GameTooltip and GameTooltip:IsOwned(row) then GameTooltip:Hide() end
 end
 
-local function Click(row)
-    if not row.available then return end
-    if row.onToggle then row.onToggle(not row.checked) end
-end
-
--- One reusable row with a capsule switch. Text, hit area and animation remain
--- real WoW regions; the track and knob are individually replaceable textures.
 function Widgets.ToggleRow(parent, label, description, onToggle)
     local row = CreateFrame("Button", nil, parent)
     row:SetHeight(72)
@@ -89,37 +89,78 @@ function Widgets.ToggleRow(parent, label, description, onToggle)
 
     row.hover = Chrome.Texture(row, "Selection", 0, "BACKGROUND")
     row.divider = row:CreateTexture(nil, "ARTWORK")
-    row.divider:SetPoint("BOTTOMLEFT", row, "BOTTOMLEFT", 0, 0)
-    row.divider:SetPoint("BOTTOMRIGHT", row, "BOTTOMRIGHT", 0, 0)
+    row.divider:SetPoint("BOTTOMLEFT", row, "BOTTOMLEFT")
+    row.divider:SetPoint("BOTTOMRIGHT", row, "BOTTOMRIGHT")
     row.divider:SetHeight(1)
 
     row.name = Style.Text(row, label, 15, C.text)
     row.name:SetPoint("TOPLEFT", row, "TOPLEFT", 1, -13)
     row.description = Style.Text(row, description, 12, C.muted)
     row.description:SetPoint("TOPLEFT", row.name, "BOTTOMLEFT", 0, -6)
-    row.description:SetPoint("RIGHT", row, "RIGHT", -80, 0)
+    row.description:SetPoint("RIGHT", row, "RIGHT", -77, 0)
     row.description:SetJustifyH("LEFT")
 
-    row.trackOff = row:CreateTexture(nil, "ARTWORK")
-    row.trackOff:SetTexture(texPath .. "ToggleTrack.tga")
-    row.trackOff:SetSize(48, 24)
-    row.trackOff:SetPoint("RIGHT", row, "RIGHT", -8, 0)
-
-    row.trackOn = row:CreateTexture(nil, "OVERLAY")
-    row.trackOn:SetTexture(texPath .. "ToggleTrack.tga")
-    row.trackOn:SetAllPoints(row.trackOff)
-    row.trackOn:SetAlpha(0)
+    row.track = row:CreateTexture(nil, "ARTWORK")
+    row.track:SetTexture(texPath .. "ToggleTrack.tga")
+    row.track:SetSize(43, 21)
+    row.track:SetPoint("RIGHT", row, "RIGHT", -8, 0)
+    Chrome.Sharp(row.track)
 
     row.thumb = row:CreateTexture(nil, "OVERLAY")
     row.thumb:SetTexture(texPath .. "ToggleThumb.tga")
-    row.thumb:SetSize(19, 19)
+    row.thumb:SetSize(16, 16)
+    Chrome.Sharp(row.thumb)
 
     for name, fn in pairs(methods) do row[name] = fn end
+    row:SetScript("OnClick", function(self)
+        if self.available and self.onToggle then self.onToggle(not self.checked) end
+    end)
+    row:SetScript("OnEnter", ToggleEnter)
+    row:SetScript("OnLeave", ToggleLeave)
     row:RefreshColors()
-    PaintThumb(row.slideKey, 0)
-
-    row:SetScript("OnClick", Click)
-    row:SetScript("OnEnter", Enter)
-    row:SetScript("OnLeave", Leave)
     return row
+end
+
+-- A light reusable close button with separate glyph and glow textures.
+function Widgets.IconButton(parent, artName, onClick)
+    local button = CreateFrame("Button", nil, parent)
+    button:SetSize(31, 31)
+    button:RegisterForClicks("LeftButtonUp")
+    local icon = button:CreateTexture(nil, "ARTWORK")
+    icon:SetTexture(texPath .. artName .. ".tga")
+    icon:SetSize(27, 27)
+    icon:SetPoint("CENTER", button, "CENTER")
+    Chrome.Sharp(icon)
+
+    local glow = button:CreateTexture(nil, "OVERLAY")
+    glow:SetTexture(texPath .. artName .. "Glow.tga")
+    glow:SetSize(30, 30)
+    glow:SetPoint("CENTER", icon, "CENTER")
+    glow:SetAlpha(0)
+    Chrome.Sharp(glow)
+
+    local function ResetPress()
+        icon:ClearAllPoints()
+        icon:SetPoint("CENTER", button, "CENTER", 0, 0)
+    end
+    button:SetScript("OnEnter", function()
+        Motion.Fade(glow, 0.55, 0.15)
+    end)
+    button:SetScript("OnLeave", function()
+        Motion.Fade(glow, 0, 0.18)
+        ResetPress()
+    end)
+    button:SetScript("OnMouseDown", function(_, mouse)
+        if mouse == "LeftButton" then
+            icon:ClearAllPoints()
+            icon:SetPoint("CENTER", button, "CENTER", 0, -1)
+            Motion.Fade(glow, 0.85, 0.08)
+        end
+    end)
+    button:SetScript("OnMouseUp", function()
+        ResetPress()
+        Motion.Fade(glow, 0.55, 0.11)
+    end)
+    button:SetScript("OnClick", onClick)
+    return button
 end
