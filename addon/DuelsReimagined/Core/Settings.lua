@@ -31,9 +31,13 @@ local boolDefaults = {
     autoPeekMoving = true,
     reduceMotion = false,
     showTooltips = true,
+    -- This is our membership in Blizzard's addon compartment, NOT the
+    -- visibility of Blizzard's own compartment button.
+    showInCompartment = true,
 }
 
--- Future settings must opt in to reload tracking; none currently need it.
+-- Only Addon Compartment membership needs a reload: Blizzard exposes a
+-- registration API but no reliable in-session unregister contract.
 local reloadRequired, loadValues = {}, {}
 local ReadDB
 
@@ -301,6 +305,10 @@ function Settings.Set(key, value)
         if ns.Options and ns.Options.Refresh then ns.Options.Refresh() end
     elseif key == "showTooltips" then
         if not value and ns.Tooltips then ns.Tooltips.Hide(nil, true) end
+        if ns.Options and ns.Options.Refresh then ns.Options.Refresh() end
+    elseif key == "showInCompartment" then
+        -- Registration is applied on PLAYER_LOGIN after /reload. The footer
+        -- shows Reload UI because RegisterReloadRequired tracks this key.
         if ns.Options and ns.Options.Refresh then ns.Options.Refresh() end
     elseif ns.Theme then
         ns.Theme.Refresh()

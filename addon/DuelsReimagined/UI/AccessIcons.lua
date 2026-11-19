@@ -14,6 +14,9 @@ local loginReady = false
 local iconMode
 local miniButton, widgetButton
 local draggingMinimap, pendingMinimapAngle
+local placedX, placedY
+local lastMiniWanted = false
+local compartmentRegistered = false
 
 local SHAPE = {
     ROUND = {true,true,true,true},
@@ -243,14 +246,11 @@ local function ConnectClick(button, isWidget)
     end)
 end
 
--- BurstFX pattern: independent UIParent container avoids unwanted reparenting
--- by custom minimap addons, while still anchoring geometrically to Minimap.
-local miniContainer = CreateFrame("Frame", "DuelsReimaginedMinimapContainer", UIParent)
-miniContainer:SetSize(8, 8)
-miniContainer:SetPoint("CENTER", UIParent, "CENTER")
-miniContainer:SetFrameStrata("MEDIUM")
-miniContainer:EnableMouse(false)
-miniButton = CreateFrame("Button", "DuelsReimaginedMinimapButton", miniContainer)
+-- Polestar/Ellesmere collector interoperability: minimap addons discover
+-- named Button children of Minimap and may adopt them into their own flyout.
+-- When adopted, Duels must stop owning placement/visibility. This replaces
+-- BurstFX's separate UIParent container only for the minimap button.
+miniButton = CreateFrame("Button", "DuelsReimaginedMinimapButton", Minimap or UIParent)
 miniButton:SetSize(MINIMAP_SIZE, MINIMAP_SIZE)
 miniButton:SetFrameStrata("MEDIUM")
 miniButton:SetFrameLevel((Minimap and Minimap:GetFrameLevel() or 1) + 8)
@@ -279,8 +279,18 @@ local function RoundedQuadrant(shape, c, s)
     return entries[quadrant]
 end
 
+local function OwnsMinimapPlacement()
+    if not Minimap or miniButton:GetParent() ~= Minimap then return false end
+    if placedX == nil then return true end
+    local point, relative, relativePoint, x, y = miniButton:GetPoint(1)
+    return point == "CENTER" and relative == Minimap and
+        relativePoint == "CENTER" and SafeNumber(x) and SafeNumber(y)
+        and math.abs(x - placedX) < 1 and math.abs(y - placedY) < 1
+end
+
 local function PositionMinimap(angle)
-    if not Minimap then return end
+    if not Minimap or
+        (not draggingMinimap and not OwnsMinimapPlacement()) then return end
     angle = angle or Settings.Get("minimapAngle") or 225
     local r = math.rad(angle)
     local c, s = math.cos(r), math.sin(r)
@@ -302,6 +312,7 @@ local function PositionMinimap(angle)
     end
     miniButton:ClearAllPoints()
     miniButton:SetPoint("CENTER", Minimap, "CENTER", x, y)
+    placedX, placedY = x, y
 end
 
 local function WidgetPosition()
@@ -332,7 +343,7 @@ local function CursorAngle()
 end
 
 miniButton:SetScript("OnDragStart", function(self)
-    if not Minimap then return end
+    if not OwnsMinimapPlacement() then return end
     self.duelsDragging = true
     self.duelsDraggedThisPress = true
     pendingMinimapAngle = Settings.Get("minimapAngle")
@@ -395,7 +406,16 @@ function Access.Refresh()
     WidgetPosition()
     local miniVisible = loginReady and Minimap and Minimap:IsShown()
         and (iconMode == "minimap" or iconMode == "both")
-    miniButton:SetShown(miniVisible and true or false)
+    if not miniVisible then
+        miniButton:Hide()
+    elseif OwnsMinimapPlacement() then
+        miniButton:Show()
+    elseif not lastMiniWanted then
+        -- When the player re-enables a collector-owned entry, show it once.
+        -- The collector may then manage its visibility/position as before.
+        miniButton:Show()
+    end
+    lastMiniWanted = miniVisible and true or false
     widgetButton:SetShown(loginReady and
         (iconMode == "widget" or iconMode == "both"))
     if miniVisible then IdleMinimap() end
@@ -415,12 +435,18 @@ function Access.GetRuntimeState()
         minimapAngle = Settings.Get("minimapAngle"),
         animationOwner = "UI/Motion.lua", leftClick = "Window.Toggle",
         rightClickMenu = false, patchNotes = false,
+        collectorOwned = Minimap and not OwnsMinimapPlacement() or false,
+        compartmentEnabled = Settings.Get("showInCompartment"),
+        compartmentRegistered = compartmentRegistered,
     }
 end
 
-local compartmentRegistered = false
+-- Applies only on login after SavedVariables load. No unsupported runtime
+-- unregister; toggling this preference requires Reload UI (BurstFX pattern).
+Settings.RegisterReloadRequired("showInCompartment")
 local function RegisterCompartment()
-    if compartmentRegistered or not AddonCompartmentFrame or
+    if compartmentRegistered or not Settings.Get("showInCompartment") or
+        not AddonCompartmentFrame or
         not AddonCompartmentFrame.RegisterAddon then return end
     local okay = pcall(function()
         AddonCompartmentFrame:RegisterAddon({
@@ -433,7 +459,9 @@ local function RegisterCompartment()
 end
 
 if Minimap and Minimap.HookScript then
-    Minimap:HookScript("OnHide", function() miniButton:Hide() end)
+    Minimap:HookScript("OnHide", function()
+        if OwnsMinimapPlacement() then miniButton:Hide() end
+    end)
     Minimap:HookScript("OnShow", function() if loginReady then Access.Refresh() end end)
     Minimap:HookScript("OnSizeChanged", function()
         if loginReady and not draggingMinimap then PositionMinimap() end

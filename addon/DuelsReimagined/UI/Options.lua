@@ -66,12 +66,12 @@ local function Card(page, y, height)
 end
 
 local appearance = Page(255)
-local interface = Page(1165)
+local interface = Page(1300)
 
 local appearanceCard = Card(appearance, 0, 245)
 local behaviorCard = Card(interface, 0, 330)
 local typographyCard = Card(interface, 348, 397)
-local accessCard = Card(interface, 763, 380)
+local accessCard = Card(interface, 763, 495)
 
 local function Section(card, title, subtitle, top)
     local heading = Style.Text(card, title, 18, C.pale)
@@ -235,6 +235,14 @@ MarkPosition(widgetTransparency, accessCard, -243)
 RegisterOption("widgetTransparency", "Widget transparency",
     "Set idle opacity of the floating access icon", "interface", widgetTransparency)
 
+local compartmentToggle = AddToggle(accessCard, "interface",
+    "showInCompartment", "Show in AddOn Compartment",
+    "Include Duels in Blizzard's AddOn Compartment list (requires /reload).",
+    -320, false)
+-- Not every WoW client provides the compartment. Hide the action in that
+-- case, and explain its unavailable state through the existing row tooltip.
+rows[#rows].needsCompartment = true
+
 local resetAccess = Style.Action(accessCard, "Reset icon positions")
 resetAccess:SetSize(200, 34)
 resetAccess:SetPoint("BOTTOMRIGHT", accessCard, "BOTTOMRIGHT", -28, 20)
@@ -279,6 +287,8 @@ end
 
 function Options.Refresh()
     local ready = Theme.IsAvailable()
+    local compartmentAvailable = AddonCompartmentFrame and
+        type(AddonCompartmentFrame.RegisterAddon) == "function"
     availability:SetText(ready and "EllesmereUI matching is available." or
         "EllesmereUI is unavailable. Matching controls are disabled.")
     availability:SetTextColor(
@@ -287,8 +297,12 @@ function Options.Refresh()
     for _, entry in ipairs(rows) do
         local widget = entry.widget
         widget:RefreshColors()
-        widget:SetAvailable(not entry.needsEllesmere or ready,
-            entry.needsEllesmere and unavailable or nil)
+        local canUse = (not entry.needsEllesmere or ready) and
+            (not entry.needsCompartment or compartmentAvailable)
+        widget:SetAvailable(canUse,
+            entry.needsEllesmere and unavailable or
+            (entry.needsCompartment and not compartmentAvailable and
+                "The AddOn Compartment is unavailable on this WoW client." or nil))
         widget:SetChecked(Settings.Get(entry.key))
         widget:SetModified(Settings.IsModified(entry.key))
     end
