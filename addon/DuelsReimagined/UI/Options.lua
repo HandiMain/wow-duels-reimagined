@@ -66,11 +66,11 @@ local function Card(page, y, height)
 end
 
 local appearance = Page(255)
-local interface = Page(656)
+local interface = Page(696)
 
 local appearanceCard = Card(appearance, 0, 245)
-local behaviorCard = Card(interface, 0, 225)
-local typographyCard = Card(interface, 243, 397)
+local behaviorCard = Card(interface, 0, 265)
+local typographyCard = Card(interface, 283, 397)
 
 local function Section(card, title, subtitle, top)
     local heading = Style.Text(card, title, 18, C.pale)
@@ -182,12 +182,21 @@ MarkPosition(fontOutline, typographyCard, -258)
 RegisterOption("fontOutline", "Text outline",
     "Choose default, none, outline or thick outline", "interface", fontOutline)
 
-local info = Style.Text(typographyCard,
-    "Hold the eye to Peek. Fold leaves the header visible. Font matching is controlled under Appearance.",
+-- Interaction help belongs directly beneath its Window behavior controls.
+local behaviorInfo = Style.Text(behaviorCard,
+    "Hold the eye to Peek. Fold leaves the header visible.",
     12, C.muted)
-info:SetPoint("TOPLEFT", typographyCard, "TOPLEFT", 20, -355)
-info:SetPoint("RIGHT", typographyCard, "RIGHT", -20, 0)
-info:SetJustifyH("LEFT")
+behaviorInfo:SetPoint("TOPLEFT", behaviorCard, "TOPLEFT", 20, -220)
+behaviorInfo:SetPoint("RIGHT", behaviorCard, "RIGHT", -20, 0)
+behaviorInfo:SetJustifyH("LEFT")
+
+-- The font-matching hint stays with the font choices, not with Peek/Fold.
+local fontInfo = Style.Text(typographyCard,
+    "Font matching is controlled under Appearance.",
+    12, C.muted)
+fontInfo:SetPoint("TOPLEFT", typographyCard, "TOPLEFT", 20, -355)
+fontInfo:SetPoint("RIGHT", typographyCard, "RIGHT", -20, 0)
+fontInfo:SetJustifyH("LEFT")
 
 function Options.Refresh()
     local ready = Theme.IsAvailable()
