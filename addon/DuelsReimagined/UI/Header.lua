@@ -33,9 +33,10 @@ local function HeaderButton(name, title, detail)
     art:SetPoint("CENTER")
     ns.Chrome.Sharp(art)
     b.art, b.hover = art, hover
+    b.tooltipTitle, b.tooltipDetail = title, detail
     b:SetScript("OnEnter", function()
         Motion.Fade(hover, 0.24, 0.13)
-        Tooltip(b, title, detail)
+        Tooltip(b, b.tooltipTitle, b.tooltipDetail)
     end)
     b:SetScript("OnLeave", function()
         Motion.Fade(hover, 0, 0.18)
@@ -92,6 +93,10 @@ peekButton:SetScript("OnHide", function() manualPeek = false end)
 
 local function PaintFold()
     foldButton.art:SetTexture(iconBase .. (folded and "FoldDown" or "FoldUp") .. ".png")
+    foldButton.tooltipTitle = folded and "Unfold window" or "Fold window"
+    foldButton.tooltipDetail = folded and
+        "Restore the window as you left it." or
+        "Collapse to the header without closing."
 end
 
 function Header.IsFolded()
@@ -161,6 +166,7 @@ ns.Chrome.Sharp(glass)
 local input = CreateFrame("EditBox", nil, searchBox)
 input:SetAutoFocus(false)
 input:SetFont(STANDARD_TEXT_FONT or "Fonts\\FRIZQT__.TTF", 13, "")
+Style.BindFont(input, 13)
 input:SetTextColor(unpack(C.text))
 input:SetHeight(25)
 input:SetPoint("LEFT", searchBox, "LEFT", 31, 0)

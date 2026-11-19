@@ -89,6 +89,12 @@ function Style.Border(parent, color, thickness)
     right:SetWidth(w)
 end
 
+-- EditBoxes and other font-bearing controls use the same centralized
+-- font repaint logic as FontStrings (including optional EllesmereUI fonts).
+function Style.BindFont(region, size, outline)
+    RegisterFont(region, size or 13, nil, outline)
+end
+
 function Style.Text(parent, value, size, color, outline)
     local label = parent:CreateFontString(nil, "OVERLAY")
     label:SetFont(STANDARD_TEXT_FONT or "Fonts\\FRIZQT__.TTF", size or 14, outline and "OUTLINE" or "")
