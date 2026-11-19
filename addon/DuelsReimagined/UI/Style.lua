@@ -15,7 +15,7 @@ Style.color = {
     nav = { 0.069, 0.074, 0.086, 1 },
     body = { 0.050, 0.057, 0.068, 1 },
     header = { 0.065, 0.072, 0.086, 1 },
-    footer = { 0.065, 0.064, 0.073, 1 },
+    footer = { 0.065, 0.072, 0.086, 1 },
     selected = { 0.25, 0.095, 0.10, 0.90 },
     hover = { 0.16, 0.14, 0.14, 0.85 },
     button = { 0.23, 0.105, 0.105, 1 },
@@ -109,7 +109,6 @@ function Style.Action(parent, caption, variant)
 
     -- Render the approved button frame ABOVE its solid-color fallback.
     -- This avoids the bare text/plain red rectangle seen in Retail.
-    Style.Border(button, Style.color.goldDim)
     ns.Chrome.Texture(button, footer and "ButtonFooter" or "Button",
         1, "ARTWORK")
     local hover = ns.Chrome.Texture(button, "Selection", 0, "ARTWORK")
@@ -160,7 +159,7 @@ function Style.ApplyTheme(accent, panel, fontPath)
         SetColor("nav", r, g, b)
         SetColor("body", r * 0.82, g * 0.82, b * 0.82)
         SetColor("header", r * 1.04, g * 1.04, b * 1.04)
-        SetColor("footer", r * 0.96, g * 0.96, b * 0.96)
+        SetColor("footer", r * 1.04, g * 1.04, b * 1.04)
     end
 
     for _, item in ipairs(colorTextures) do

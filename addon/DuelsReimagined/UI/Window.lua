@@ -15,7 +15,6 @@ frame:SetMovable(true)
 frame:EnableMouse(true)
 frame:Hide()
 Style.Fill(frame, C.window)
-Style.Border(frame, C.goldDim, 2)
 Window.frame = frame
 
 local function Drag(handle)
@@ -63,7 +62,6 @@ Window.nav = nav
 local main = CreateFrame("Frame", nil, body)
 main:SetPoint("TOPLEFT", nav, "TOPRIGHT", 0, 0)
 main:SetPoint("BOTTOMRIGHT", body, "BOTTOMRIGHT", 0, 0)
-Style.Fill(main, C.body)
 Window.main = main
 
 local content = CreateFrame("Frame", nil, main)
@@ -181,7 +179,7 @@ Window.ApplyScale(Settings.Get("menuScale") or 1)
 
 local close = Style.Action(footer, "Close", "footer")
 close:SetSize(112, 32)
-close:SetPoint("RIGHT", footer, "RIGHT", -40, 0)
+close:SetPoint("RIGHT", footer, "RIGHT", -25, 0)
 close:SetScript("OnClick", function() frame:Hide() end)
 
 local title = Style.Text(content, "Welcome to the Hall", 28, C.pale, true)
@@ -193,9 +191,9 @@ subtitle:SetPoint("TOP", titleRule, "BOTTOM", 0, -8)
 
 local watermark = content:CreateTexture(nil, "BORDER")
 watermark:SetTexture("Interface\\AddOns\\DuelsReimagined\\Media\\Concept\\Watermark.png")
-watermark:SetSize(256, 256)
-watermark:SetPoint("CENTER", content, "CENTER", 0, -7)
-watermark:SetAlpha(0.78)
+watermark:SetSize(228, 228)
+watermark:SetPoint("CENTER", content, "CENTER", 0, -3)
+watermark:SetAlpha(0.68)
 watermark:EnableMouse(false)
 
 local emptyHeading = Style.Text(content, "No duels recorded yet", 22, C.pale)
