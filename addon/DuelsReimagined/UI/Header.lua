@@ -42,6 +42,7 @@ local function HeaderButton(name, title, detail)
         Motion.Fade(hover, 0, 0.18)
         if GameTooltip and GameTooltip:IsOwned(b) then GameTooltip:Hide() end
     end)
+    ns.Widgets.PressFeedback(b, hover)
     return b
 end
 
@@ -114,6 +115,8 @@ function Header.Fold(value)
         end
         expandedHeight = frame:GetHeight()
         folded = true
+        if ns.Footer and ns.Footer.ClosePopup then ns.Footer.ClosePopup() end
+        if ns.Widgets and ns.Widgets.CloseChoices then ns.Widgets.CloseChoices() end
         if Window.SetSizingEnabled then Window.SetSizingEnabled(false) end
         Header.CloseSearch(true)
         Window.body:Hide()

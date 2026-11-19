@@ -73,6 +73,7 @@ local function FooterButton(label, width, detail)
         Motion.Fade(hover, 0, 0.13)
         HideTip(self)
     end)
+    ns.Widgets.PressFeedback(button, hover)
     return button
 end
 
@@ -117,14 +118,24 @@ message:SetJustifyH("CENTER")
 local close = Style.Action(dialog, "Close", "footer")
 close:SetSize(112, 30)
 close:SetPoint("BOTTOM", dialog, "BOTTOM", 0, 16)
-close:SetScript("OnClick", function() modal:Hide() end)
-modal:SetScript("OnMouseDown", function() modal:Hide() end)
+function Footer.ClosePopup()
+    Motion.Stop(modal, 1)
+    modal:Hide()
+end
+function Footer.ShowPopup()
+    if ns.Header and ns.Header.IsFolded and ns.Header.IsFolded() then return end
+    modal:SetAlpha(0)
+    modal:Show()
+    Motion.Fade(modal, 1, Motion.Duration("quick"))
+end
+close:SetScript("OnClick", Footer.ClosePopup)
+modal:SetScript("OnMouseDown", Footer.ClosePopup)
 modal:Hide()
 frame:HookScript("OnHide", function() modal:Hide() end)
 if type(UISpecialFrames) == "table" then
     table.insert(UISpecialFrames, "DuelsReimaginedDiscordPopup")
 end
-discord:SetScript("OnClick", function() modal:Show() end)
+discord:SetScript("OnClick", Footer.ShowPopup)
 
 function Footer.Refresh()
     local resetReady, reloadReady = not Window.IsDefault(), Settings.NeedsReload()
@@ -142,7 +153,7 @@ ns.Theme.Refresh()
 
 -- Search uses the same enabled gates as the corresponding footer buttons.
 ns.Search.Register("footer:discord", "Discord community", "Footer",
-    "Open the Coming Soon community dialog", function() modal:Show() end)
+    "Open the Coming Soon community dialog", Footer.ShowPopup)
 ns.Search.Register("footer:reset-window", "Reset window", "Footer",
     "Restore window dimensions and menu scale defaults", function()
         if reset:IsEnabled() then Window.ResetWindow() end

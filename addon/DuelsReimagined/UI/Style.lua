@@ -157,6 +157,9 @@ function Style.Action(parent, caption, variant)
         label:ClearAllPoints()
         label:SetPoint("CENTER", button, "CENTER", 0, 0)
     end)
+    if ns.Widgets and ns.Widgets.PressFeedback then
+        ns.Widgets.PressFeedback(button, hover)
+    end
     return button
 end
 

@@ -15,7 +15,7 @@ local builtins = {
 }
 
 local function Library()
-    if type(LibStub) ~= "function" then return nil end
+    if type(LibStub) ~= "function" and type(LibStub) ~= "table" then return nil end
     return LibStub("LibSharedMedia-3.0", true)
 end
 

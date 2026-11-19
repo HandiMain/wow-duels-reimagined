@@ -67,6 +67,7 @@ local function Select(sectionIndex, pageIndex, noMotion)
             item.label:SetTextColor(unpack(active and C.pale or C.text))
         end
     end
+    if ns.Footer and ns.Footer.ClosePopup then ns.Footer.ClosePopup() end
     Window.ShowPage(page)
 end
 
@@ -105,6 +106,7 @@ for index, section in ipairs(sections) do
         if currentSection ~= index then Motion.Fade(hover, 0.58, 0.17) end
     end)
     button:SetScript("OnLeave", function() Motion.Fade(hover, 0, 0.21) end)
+    ns.Widgets.PressFeedback(button, hover)
     railButtons[index] = {
         selected = selected, hover = hover, bar = bar, icon = icon, label = label
     }
@@ -129,6 +131,7 @@ for index, section in ipairs(sections) do
             end
         end)
         sub:SetScript("OnLeave", function() Motion.Fade(subHover, 0, 0.20) end)
+        ns.Widgets.PressFeedback(sub, subHover)
         pages[#pages + 1] = {
             button = sub, selected = subSelected, hover = subHover, bar = subBar, label = text
         }
