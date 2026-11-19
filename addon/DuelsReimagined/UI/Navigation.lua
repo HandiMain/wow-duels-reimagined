@@ -7,8 +7,6 @@ local Window = ns.Window
 local sections = {
     { key = "hall", label = "Hall", icon = "Interface\\Icons\\INV_Sword_04", pages = {
         { key = "overview", label = "Overview", title = "Welcome to the Hall", subtitle = "Your dueling journey starts here.", emptyTitle = "No duels recorded yet", emptyDetail = "Your recent activity will appear here.", action = true },
-    } },
-    { key = "record", label = "Record", icon = "Interface\\Icons\\INV_Misc_Book_09", pages = {
         { key = "personal", label = "My Record", title = "My Record", subtitle = "Your dueling record.", emptyTitle = "No duels recorded yet", emptyDetail = "Your results will appear here." },
         { key = "recent", label = "Recent Duels", title = "Recent Duels", subtitle = "Your latest encounters.", emptyTitle = "No recent duels", emptyDetail = "Completed duels will appear here." },
     } },
@@ -58,8 +56,10 @@ for index, section in ipairs(sections) do
     button:SetSize(104, 76)
     if section.key == "options" then
         button:SetPoint("BOTTOM", Window.rail, "BOTTOM", 0, 24)
+    elseif section.key == "community" then
+        button:SetPoint("BOTTOM", Window.rail, "BOTTOM", 0, 110)
     else
-        button:SetPoint("TOP", Window.rail, "TOP", 0, -(110 + (index - 1) * 90))
+        button:SetPoint("TOP", Window.rail, "TOP", 0, 110 * -1)
     end
     local bg = Style.Fill(button, C.rail)
     local side = button:CreateTexture(nil, "ARTWORK")
@@ -107,5 +107,5 @@ for index, section in ipairs(sections) do
     subButtons[index] = pages
 end
 
-Window.action:SetScript("OnClick", function() Select(2, 1) end)
+Window.action:SetScript("OnClick", function() Select(1, 2) end)
 Select(1, 1)
