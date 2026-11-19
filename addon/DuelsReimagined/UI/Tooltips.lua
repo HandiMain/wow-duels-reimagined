@@ -68,8 +68,12 @@ function Tooltips.Show(owner, source)
         return
     end
     if not owner or not owner.IsShown or not owner:IsShown() then return end
-    if ns.Window and ns.Window.frame and not ns.Window.frame:IsShown() then return end
-    local title, body, anchor = Content(owner, source)
+    -- Launcher controls live outside the addon window. Opt them in explicitly;
+    -- all in-window controls retain their existing visibility guard.
+    local data = Value(source, owner)
+    if ns.Window and ns.Window.frame and not ns.Window.frame:IsShown()
+        and not (type(data) == "table" and data.outsideWindow) then return end
+    local title, body, anchor = Content(owner, data)
     if not title then return end
     Motion.Stop(tip, tip:GetAlpha())
     activeOwner = owner

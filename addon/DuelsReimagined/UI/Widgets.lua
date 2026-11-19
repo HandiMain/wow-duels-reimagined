@@ -424,7 +424,7 @@ function Widgets.ChoiceRow(parent, caption, detail, onChoose, onReset, above)
     return row
 end
 
-function Widgets.SliderRow(parent, caption, detail, minVal, maxVal, step, onCommit, onReset)
+function Widgets.SliderRow(parent, caption, detail, minVal, maxVal, step, onCommit, onReset, formatValue)
     local row = CreateFrame("Frame", nil, parent)
     row:SetHeight(72)
     row.available = true
@@ -464,7 +464,8 @@ function Widgets.SliderRow(parent, caption, detail, minVal, maxVal, step, onComm
             math.floor(v / step + 0.5) * step))
         filled:SetWidth(math.max(1, slider:GetWidth() *
             (clean - minVal) / (maxVal - minVal)))
-        percent:SetText(math.floor(clean * 100 + 0.5) .. "%")
+        percent:SetText(formatValue and formatValue(clean) or
+            (math.floor(clean * 100 + 0.5) .. "%"))
         return clean
     end
     slider:SetScript("OnValueChanged", function(_, value, fromUser)
@@ -500,8 +501,9 @@ function Widgets.SliderRow(parent, caption, detail, minVal, maxVal, step, onComm
     ns.Tooltips.Bind(slider, function()
         return { title = caption,
             detail = (detail or "") .. " Current: " ..
-                math.floor((slider:GetValue() or 1) * 100 + 0.5) ..
-                "%. Drag or use the mouse wheel to adjust.",
+                (formatValue and formatValue(slider:GetValue()) or
+                    (math.floor((slider:GetValue() or 1) * 100 + 0.5) .. "%")) ..
+                ". Drag or use the mouse wheel to adjust.",
             anchor = "LEFT" }
     end)
     row.slider = slider

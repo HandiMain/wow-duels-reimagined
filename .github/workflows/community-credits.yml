@@ -15,10 +15,14 @@ on:
       - addon/DuelsReimagined/UI/Navigation.lua
       - addon/DuelsReimagined/UI/Footer.lua
       - addon/DuelsReimagined/UI/Window.lua
+      - addon/DuelsReimagined/UI/AccessIcons.lua
+      - addon/DuelsReimagined/UI/Options.lua
+      - addon/DuelsReimagined/UI/Widgets.lua
+      - addon/DuelsReimagined/UI/Tooltips.lua
+      - addon/DuelsReimagined/Core/Settings.lua
       - addon/DuelsReimagined/Media/Concept/CommunityFactionMarks.png
       - addon/DuelsReimagined/Media/Concept/CommunityAllianceLion.png
       - addon/DuelsReimagined/Media/Concept/CommunityConceptSymbols.png
-      - addon/DuelsReimagined/Media/Concept/NavPrimary.png
       - addon/DuelsReimagined/UI/Chrome.lua
       - .github/workflows/community-credits.yml
   issues:

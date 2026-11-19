@@ -66,11 +66,12 @@ local function Card(page, y, height)
 end
 
 local appearance = Page(255)
-local interface = Page(765)
+local interface = Page(1165)
 
 local appearanceCard = Card(appearance, 0, 245)
 local behaviorCard = Card(interface, 0, 330)
 local typographyCard = Card(interface, 348, 397)
+local accessCard = Card(interface, 763, 380)
 
 local function Section(card, title, subtitle, top)
     local heading = Style.Text(card, title, 18, C.pale)
@@ -88,6 +89,8 @@ Section(behaviorCard, "Window behavior",
     "Keep the world visible while the dueling hall is open.", -16)
 Section(typographyCard, "Typography",
     "Choose text appearance independently of window scale.", -18)
+Section(accessCard, "Access icons",
+    "Choose how to open the addon without typing /duels.", -18)
 
 local unavailable = "Enable EllesmereUI and its third-party skinning support to use this setting."
 local rows = {}
@@ -184,6 +187,65 @@ MarkPosition(fontOutline, typographyCard, -258)
 RegisterOption("fontOutline", "Text outline",
     "Choose default, none, outline or thick outline", "interface", fontOutline)
 
+-- BurstFX access behavior: one shared owner controls minimap and widget.
+local accessModes = {
+    { key = "minimap", label = "Minimap" },
+    { key = "widget", label = "Widget" },
+    { key = "both", label = "Both" },
+    { key = "none", label = "Hidden" },
+}
+local iconMode = Widgets.ChoiceRow(accessCard, "Icon mode",
+    "Show a minimap button, movable widget, both, or neither.",
+    function(value) Settings.Set("iconMode", value) end,
+    function() Settings.Reset("iconMode") end, true)
+iconMode:SetPoint("TOPLEFT", accessCard, "TOPLEFT", 20, -82)
+iconMode:SetPoint("TOPRIGHT", accessCard, "TOPRIGHT", -20, -82)
+MarkPosition(iconMode, accessCard, -82)
+RegisterOption("iconMode", "Icon mode",
+    "Choose minimap, floating widget, both, or hidden", "interface", iconMode)
+
+local widgetSize = Widgets.SliderRow(accessCard, "Widget size",
+    "Size of the movable floating icon (24 to 128 pixels).",
+    Settings.MIN_WIDGET_SIZE, Settings.MAX_WIDGET_SIZE, Settings.WIDGET_SIZE_STEP,
+    function(value) Settings.Set("widgetSize", value) end,
+    function() Settings.Reset("widgetSize") end,
+    function(value) return math.floor(value + 0.5) .. " px" end)
+widgetSize:SetPoint("TOPLEFT", accessCard, "TOPLEFT", 20, -164)
+widgetSize:SetPoint("TOPRIGHT", accessCard, "TOPRIGHT", -20, -164)
+MarkPosition(widgetSize, accessCard, -164)
+RegisterOption("widgetSize", "Widget size",
+    "Resize the floating access widget", "interface", widgetSize)
+
+local widgetTransparency = Widgets.SliderRow(accessCard, "Widget transparency",
+    "Fade the floating widget when you are not hovering over it.",
+    0, Settings.MAX_WIDGET_TRANSPARENCY, 0.05,
+    function(value) Settings.Set("widgetTransparency", value) end,
+    function() Settings.Reset("widgetTransparency") end)
+widgetTransparency:SetPoint("TOPLEFT", accessCard, "TOPLEFT", 20, -243)
+widgetTransparency:SetPoint("TOPRIGHT", accessCard, "TOPRIGHT", -20, -243)
+MarkPosition(widgetTransparency, accessCard, -243)
+RegisterOption("widgetTransparency", "Widget transparency",
+    "Set idle opacity of the floating access icon", "interface", widgetTransparency)
+
+local resetAccess = Style.Action(accessCard, "Reset icon positions")
+resetAccess:SetSize(200, 34)
+resetAccess:SetPoint("BOTTOMRIGHT", accessCard, "BOTTOMRIGHT", -28, 20)
+resetAccess:SetScript("OnClick", function() Settings.ResetAccessPositions() end)
+ns.Tooltips.Bind(resetAccess, {
+    title = "Reset icon positions",
+    detail = "Restore the minimap button angle and the floating widget's position."
+})
+RegisterOption("resetIconPositions", "Reset icon positions",
+    "Return the minimap and floating widget to their default locations",
+    "interface", resetAccess)
+MarkPosition(resetAccess, accessCard, -323)
+local accessHint = Style.Text(accessCard,
+    "Drag either icon to move it. If both are hidden, type /duels to open this window.",
+    12, C.muted)
+accessHint:SetPoint("BOTTOMLEFT", accessCard, "BOTTOMLEFT", 20, 26)
+accessHint:SetPoint("RIGHT", resetAccess, "LEFT", -18, 0)
+accessHint:SetJustifyH("LEFT")
+
 -- Interaction help belongs directly beneath its Window behavior controls.
 local behaviorInfo = Style.Text(behaviorCard,
     "Hold the eye to Peek. Fold leaves the header visible.",
@@ -229,6 +291,20 @@ function Options.Refresh()
     fontOutline:SetAvailable(true)
     fontOutline:SetModified(Settings.IsModified("fontOutline"))
     fontOutline.resetIcon:SetVertexColor(unpack(C.gold))
+    iconMode:SetChoices(accessModes, Settings.Get("iconMode"))
+    iconMode:SetAvailable(true)
+    iconMode:SetModified(Settings.IsModified("iconMode"))
+    widgetSize:SetValue(Settings.Get("widgetSize"))
+    widgetSize:SetModified(Settings.IsModified("widgetSize"))
+    widgetSize:RefreshColors()
+    widgetTransparency:SetValue(Settings.Get("widgetTransparency"))
+    widgetTransparency:SetModified(Settings.IsModified("widgetTransparency"))
+    widgetTransparency:RefreshColors()
+    local mode = Settings.Get("iconMode")
+    local hasWidget = mode == "widget" or mode == "both"
+    widgetSize:SetAvailable(hasWidget)
+    widgetTransparency:SetAvailable(hasWidget)
+    resetAccess:SetEnabled(true)
     appearance.scrollBar:Refresh()
     interface.scrollBar:Refresh()
 end

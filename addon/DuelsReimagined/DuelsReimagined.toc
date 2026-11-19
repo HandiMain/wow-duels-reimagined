@@ -24,3 +24,4 @@ UI\Community.lua
 UI\Options.lua
 UI\Footer.lua
 Core\Commands.lua
+UI\AccessIcons.lua

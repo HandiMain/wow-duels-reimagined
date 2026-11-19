@@ -70,20 +70,6 @@ function Chrome.SlicedButton(parent)
     return left, middle, right
 end
 
--- Approved Hall concept: red enamel, gold frame and two diamonds extracted
--- from the accepted reference image. Sword icon and text remain live widgets.
--- Shared only by sections explicitly marked "primary" in Navigation.
-function Chrome.PrimaryRail(parent)
-    local tex = parent:CreateTexture(nil, "ARTWORK")
-    tex:SetTexture(art .. "NavPrimary.png")
-    -- Source alpha bounds are symmetrically centered (4..124, 10..118)
-    -- in its 128x128 canvas. Fit the frame within the 88px rail and
-    -- anchor directly to the button, with no compensating shifts.
-    tex:SetSize(88, 78)
-    tex:SetPoint("CENTER", parent, "CENTER")
-    return Chrome.Sharp(tex)
-end
-
 function Chrome.Icon(parent, name)
     local tex = parent:CreateTexture(nil, "ARTWORK")
     tex:SetTexture(art .. "Icon" .. name .. ".png")

@@ -13,6 +13,17 @@ Settings.MIN_FONT_SCALE = 0.75
 Settings.MAX_FONT_SCALE = 1.50
 Settings.FONT_SCALE_STEP = 0.05
 
+-- From BurstFX's proven minimap + floating-access-widget design.
+-- Access preferences are account-wide and owned here, never by UI modules.
+Settings.MIN_WIDGET_SIZE, Settings.MAX_WIDGET_SIZE = 24, 128
+Settings.WIDGET_SIZE_STEP = 2
+Settings.MAX_WIDGET_TRANSPARENCY = 0.90
+local accessDefaults = {
+    iconMode = "minimap", widgetSize = 42,
+    widgetTransparency = 0, minimapAngle = 225,
+}
+local allowedModes = { minimap = true, widget = true, both = true, none = true }
+
 -- Every persistent Options toggle belongs here, including future ones.
 local boolDefaults = {
     matchColors = false,
@@ -42,6 +53,7 @@ function Settings.GetDefault(key)
     if key == "fontChoice" then return "default" end
     if key == "fontScale" then return 1 end
     if key == "fontOutline" then return "default" end
+    if accessDefaults[key] ~= nil then return accessDefaults[key] end
     if IsMatchPreference(key) then return EllesmereReady() end
     return boolDefaults[key]
 end
@@ -143,6 +155,27 @@ function Settings.Get(key)
     if key == "fontScale" then
         return Settings.NormalizeFontScale(db and db.fontScale)
     end
+    if key == "iconMode" then
+        local value = db and db.iconMode
+        return allowedModes[value] and value or accessDefaults.iconMode
+    end
+    if key == "widgetSize" then
+        local value = db and db.widgetSize
+        if type(value) ~= "number" or value ~= value then return accessDefaults.widgetSize end
+        return math.max(24, math.min(128, 24 + 2 *
+            math.floor((value - 24) / 2 + 0.5)))
+    end
+    if key == "widgetTransparency" then
+        local value = db and db.widgetTransparency
+        if type(value) ~= "number" or value ~= value then return 0 end
+        return math.max(0, math.min(0.9, math.floor(value / 0.05 + 0.5) * 0.05))
+    end
+    if key == "minimapAngle" then
+        local value = db and db.minimapAngle
+        if type(value) ~= "number" or value ~= value or
+            value == math.huge or value == -math.huge then return 225 end
+        return value % 360
+    end
     if key == "fontChoice" then
         local value = db and db.fontChoice
         if type(value) ~= "string" or #value > 128 or value == "" then return "default" end
@@ -162,7 +195,63 @@ function Settings.Get(key)
     return Settings.GetDefault(key)
 end
 
+-- Return numeric coordinates, not the mutable SavedVariables table.
+function Settings.GetWidgetPosition()
+    local db = ReadDB()
+    local position = db and db.widgetPosition
+    if type(position) ~= "table" then return 280, 0 end
+    local x, y = position.x, position.y
+    if type(x) ~= "number" or type(y) ~= "number" or
+        x ~= x or y ~= y or math.abs(x) > 10000 or math.abs(y) > 10000 then
+        return 280, 0
+    end
+    return x, y
+end
+
+function Settings.SetWidgetPosition(x, y)
+    if type(x) ~= "number" or type(y) ~= "number" or x ~= x or y ~= y or
+        math.abs(x) > 10000 or math.abs(y) > 10000 then return end
+    WriteDB().widgetPosition = { x = x, y = y }
+end
+
+function Settings.SetMinimapAngle(value)
+    if type(value) ~= "number" or value ~= value then return end
+    WriteDB().minimapAngle = value % 360
+end
+
+function Settings.ResetAccessPositions()
+    local db = WriteDB()
+    db.minimapAngle = accessDefaults.minimapAngle
+    db.widgetPosition = nil
+    if ns.AccessIcons and ns.AccessIcons.Refresh then ns.AccessIcons.Refresh() end
+    if ns.Options and ns.Options.Refresh then ns.Options.Refresh() end
+end
+
 function Settings.Set(key, value)
+    if accessDefaults[key] ~= nil then
+        if key == "minimapAngle" then
+            Settings.SetMinimapAngle(value)
+            if ns.AccessIcons then ns.AccessIcons.Refresh() end
+            return
+        end
+        if key == "iconMode" then
+            if not allowedModes[value] then return end
+        elseif type(value) ~= "number" or value ~= value then
+            return
+        elseif key == "widgetSize" then
+            value = math.max(24, math.min(128, 24 +
+                2 * math.floor((value - 24) / 2 + 0.5)))
+        elseif key == "widgetTransparency" then
+            value = math.max(0, math.min(0.9,
+                math.floor(value / 0.05 + 0.5) * 0.05))
+        end
+        local db = WriteDB()
+        if db[key] == value then return end
+        db[key] = value
+        if ns.AccessIcons and ns.AccessIcons.Refresh then ns.AccessIcons.Refresh() end
+        if ns.Options and ns.Options.Refresh then ns.Options.Refresh() end
+        return
+    end
     if key == "menuScale" then
         local nextValue = Settings.NormalizeScale(value)
         local db = WriteDB()
@@ -237,6 +326,15 @@ loader:SetScript("OnEvent", function(self, _, loadedName)
     db.fontChoice = Settings.Get("fontChoice")
     db.fontScale = Settings.Get("fontScale")
     db.fontOutline = Settings.Get("fontOutline")
+    for key in pairs(accessDefaults) do db[key] = Settings.Get(key) end
+    local position = db.widgetPosition
+    if position ~= nil then
+        local valid = type(position) == "table" and
+            type(position.x) == "number" and type(position.y) == "number" and
+            position.x == position.x and position.y == position.y and
+            math.abs(position.x) <= 10000 and math.abs(position.y) <= 10000
+        if not valid then db.widgetPosition = nil end
+    end
     if not Settings.HasWindowSize() then db.windowSize = nil end
     for key in pairs(reloadRequired) do loadValues[key] = Settings.Get(key) end
     if ns.Window and ns.Window.ApplyScale then
@@ -248,4 +346,5 @@ loader:SetScript("OnEvent", function(self, _, loadedName)
     end
     if ns.Window and ns.Window.RefreshScaleMarker then ns.Window.RefreshScaleMarker() end
     if ns.Footer and ns.Footer.Refresh then ns.Footer.Refresh() end
+    if ns.AccessIcons and ns.AccessIcons.Refresh then ns.AccessIcons.Refresh() end
 end)
