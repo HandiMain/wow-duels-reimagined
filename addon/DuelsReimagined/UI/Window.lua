@@ -37,7 +37,7 @@ end
 
 -- These bands span the entire window, not individual navigation columns.
 local header = CreateFrame("Frame", nil, frame)
-header:SetHeight(82)
+header:SetHeight(112)
 header:SetPoint("TOPLEFT", interior, "TOPLEFT")
 header:SetPoint("TOPRIGHT", interior, "TOPRIGHT")
 Style.Fill(header, C.header)
@@ -78,15 +78,15 @@ Window.content = content
 
 Chrome.Shell(frame, header, footer, rail, nav, content)
 
-local brandIcon = header:CreateTexture(nil, "ARTWORK")
-brandIcon:SetTexture("Interface\\AddOns\\DuelsReimagined\\Media\\Icons\\DuelsReimagined-AddonIcon.blp")
-brandIcon:SetSize(67, 67)
-brandIcon:SetPoint("LEFT", header, "LEFT", 20, 0)
-
-local brandTop = Style.Text(header, "DUELS", 27, C.pale, true)
-brandTop:SetPoint("TOPLEFT", header, "TOPLEFT", 134, -14)
-local brandBottom = Style.Text(header, "R E I M A G I N E D", 11, C.gold, true)
-brandBottom:SetPoint("TOPLEFT", brandTop, "BOTTOMLEFT", 2, -5)
+-- Approved two-faction logo: one authored texture, no duplicated text or crest.
+-- The PNG canvas is power-of-two with transparent padding. Crop only the
+-- padding via UVs; preserve the original artwork's proportions in the header.
+local brandLogo = header:CreateTexture(nil, "ARTWORK")
+brandLogo:SetTexture("Interface\\AddOns\\DuelsReimagined\\Media\\Concept\\DuelsReimagined-HeaderLogo.png")
+brandLogo:SetSize(304, 106)
+brandLogo:SetPoint("LEFT", header, "LEFT", 18, 0)
+brandLogo:SetTexCoord(14 / 1024, 1009 / 1024, 83 / 512, 429 / 512)
+Chrome.Sharp(brandLogo)
 
 local Settings = ns.Settings
 local scaleCaption = Style.Text(header, "Menu Scale", 12, C.muted)
