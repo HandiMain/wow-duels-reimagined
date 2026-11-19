@@ -79,29 +79,28 @@ Window.content = content
 Window.chromeSeams = Chrome.Shell(frame, header, footer, rail, nav, content)
 Window.header, Window.footer, Window.body = header, footer, body
 
--- Approved flat wordmark: gold lettering with a subtle Alliance lion and
--- Horde crest behind it. Keep the asset independent of the existing addon icon.
--- The transparent, power-of-two canvas has padding removed by UV coordinates.
--- The header's left brand area is sized by the search control once it exists.
+-- Approved Option 5: metallic DR monogram, gold divider, and the
+-- two-line DUELS REIMAGINED wordmark. Preserve the previous Alliance/Horde
+-- logo independently on the Blizzard Settings landing page.
+-- Artwork was isolated from the approved concept into a power-of-two
+-- 512x128 canvas, with the 420x102 visible logo at x=46, y=13.
+-- Keep this element constrained to the header space before Search.
 local brandArea = CreateFrame("Frame", nil, header)
 brandArea:SetSize(510, 106)
 brandArea:SetPoint("LEFT", header, "LEFT", 20, 0)
 brandArea:EnableMouse(false)
 local brandLogo = brandArea:CreateTexture(nil, "ARTWORK")
-brandLogo:SetTexture("Interface\\AddOns\\DuelsReimagined\\Media\\Concept\\DuelsReimagined-HeaderLogoFlat.png")
--- Preserve the cropped artwork's native proportions (252x108 source pixels).
--- 300 is only a width cap: the 86-unit height limit governs normal-size
--- display, so the wordmark never stretches to fill spare header space.
-local BRAND_ASPECT = (382 - 130) / (182 - 74)
-local BRAND_MAX_WIDTH, BRAND_MAX_HEIGHT = 300, 86
+brandLogo:SetTexture("Interface\\AddOns\\DuelsReimagined\\Media\\Concept\\Option5HeaderLogo.png")
+local BRAND_ASPECT = 420 / 102
+local BRAND_MAX_WIDTH, BRAND_MAX_HEIGHT = 480, 106
 brandLogo:SetSize(math.min(BRAND_MAX_WIDTH, BRAND_MAX_HEIGHT * BRAND_ASPECT),
     BRAND_MAX_HEIGHT)
 brandLogo:SetPoint("CENTER", brandArea, "CENTER")
-brandLogo:SetTexCoord(130 / 512, 382 / 512, 74 / 256, 182 / 256)
+brandLogo:SetTexCoord(46 / 512, 466 / 512, 13 / 128, 115 / 128)
 Chrome.Sharp(brandLogo)
 local function FitBrand(_, width)
-    -- Center at a natural fixed size; shrink only when space is constrained.
-    -- No OnUpdate or overlap with Search, Peek, Fold or Menu Scale.
+    -- Fill the available brand area without stretching or overlapping Search.
+    -- Only repaint on size changes, never poll during gameplay.
     local availableWidth = math.max(1, (width or brandArea:GetWidth()) - 12)
     local w = math.min(BRAND_MAX_WIDTH, BRAND_MAX_HEIGHT * BRAND_ASPECT,
         availableWidth)
