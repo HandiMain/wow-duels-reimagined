@@ -68,6 +68,7 @@ local function Select(sectionIndex, pageIndex, noMotion)
         end
     end
     if ns.Footer and ns.Footer.ClosePopup then ns.Footer.ClosePopup() end
+    if ns.Tooltips then ns.Tooltips.Hide(nil, true) end
     Window.ShowPage(page)
 end
 
@@ -107,6 +108,8 @@ for index, section in ipairs(sections) do
     end)
     button:SetScript("OnLeave", function() Motion.Fade(hover, 0, 0.21) end)
     ns.Widgets.PressFeedback(button, hover)
+    ns.Tooltips.Bind(button, { title = section.label,
+        detail = "Open the " .. section.label .. " section." })
     railButtons[index] = {
         selected = selected, hover = hover, bar = bar, icon = icon, label = label
     }
@@ -132,6 +135,10 @@ for index, section in ipairs(sections) do
         end)
         sub:SetScript("OnLeave", function() Motion.Fade(subHover, 0, 0.20) end)
         ns.Widgets.PressFeedback(sub, subHover)
+        ns.Tooltips.Bind(sub, {
+            title = page.label,
+            detail = page.subtitle or ("Open the " .. page.label .. " page.")
+        })
         pages[#pages + 1] = {
             button = sub, selected = subSelected, hover = subHover, bar = subBar, label = text
         }

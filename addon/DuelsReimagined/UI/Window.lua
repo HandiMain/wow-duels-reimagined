@@ -166,17 +166,9 @@ scaleResetIcon:SetTexture("Interface\\AddOns\\DuelsReimagined\\Media\\Polestar\\
 Chrome.Sharp(scaleResetIcon)
 scaleReset:SetScript("OnClick", function()
     Settings.Reset("menuScale")
-    if GameTooltip then GameTooltip:Hide() end
 end)
-scaleReset:SetScript("OnEnter", function(self)
-    if not GameTooltip then return end
-    GameTooltip:SetOwner(self, "ANCHOR_BOTTOM")
-    GameTooltip:SetText("Reset Menu Scale to 100%", 1, 0.84, 0.57)
-    GameTooltip:Show()
-end)
-scaleReset:SetScript("OnLeave", function(self)
-    if GameTooltip and GameTooltip:IsOwned(self) then GameTooltip:Hide() end
-end)
+ns.Tooltips.Bind(scaleReset, { title = "Reset Menu Scale",
+    detail = "Restore the window to 100% scale." })
 Window.scaleReset = scaleReset
 function Window.RefreshScaleMarker()
     local changed = Settings.IsModified("menuScale")
@@ -316,6 +308,11 @@ scale:SetScript("OnHide", function()
     pendingScale = nil
     Window.ApplyScale(Settings.Get("menuScale") or 1)
 end)
+ns.Tooltips.Bind(scale, function()
+    return { title = "Menu Scale",
+        detail = "Current: " .. math.floor((Settings.Get("menuScale") or 1) * 100 + 0.5) ..
+            "%. Drag or scroll to resize the window; right-click to reset." }
+end)
 
 function Window.RefreshTheme()
     scaleFill:SetColorTexture(unpack(C.gold))
@@ -362,19 +359,14 @@ end)
 grip:SetScript("OnClick", function(_, button)
     if button == "RightButton" then Window.ResetSize() end
 end)
-grip:SetScript("OnEnter", function(self)
+grip:SetScript("OnEnter", function()
     Motion.Fade(gripIcon, 0.95, 0.12)
-    if GameTooltip then
-        GameTooltip:SetOwner(self, "ANCHOR_TOP")
-        GameTooltip:SetText("Drag to resize", 1, 0.84, 0.57)
-        GameTooltip:AddLine("Right-click: restore default dimensions.", 0.8, 0.8, 0.8, true)
-        GameTooltip:Show()
-    end
 end)
-grip:SetScript("OnLeave", function(self)
+grip:SetScript("OnLeave", function()
     Motion.Fade(gripIcon, 0, 0.18)
-    if GameTooltip and GameTooltip:IsOwned(self) then GameTooltip:Hide() end
 end)
+ns.Tooltips.Bind(grip, { title = "Resize window",
+    detail = "Drag the corner to resize. Right-click to restore default dimensions." })
 grip:SetScript("OnHide", function()
     if sizing then
         sizing = false
@@ -399,6 +391,8 @@ close:SetSize(120, 30)
 -- Centered vertically, with safe padding from the actual interior boundary.
 close:SetPoint("RIGHT", footer, "RIGHT", -32, 0)
 close:SetScript("OnClick", function() frame:Hide() end)
+ns.Tooltips.Bind(close, { title = "Close Duels Reimagined",
+    detail = "Hide this window without changing your settings." })
 
 local title = Style.Text(content, "Welcome to the Hall", 25, C.pale, true)
 title:SetPoint("TOP", content, "TOP", 0, -27)

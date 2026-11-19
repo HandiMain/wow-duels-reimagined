@@ -5,19 +5,12 @@ local C = Style.color
 local frame, header = Window.frame, Window.header
 local Header = {}
 ns.Header = Header
+local Tooltips = ns.Tooltips
 
 local iconBase = "Interface\\AddOns\\DuelsReimagined\\Media\\Concept\\Header\\"
 local manualPeek, moving, folded = false, false, false
 local expandedHeight = frame:GetHeight()
 local alphaWhilePeeking = 0.16
-
-local function Tooltip(button, title, detail)
-    if not GameTooltip then return end
-    GameTooltip:SetOwner(button, "ANCHOR_BOTTOM")
-    GameTooltip:SetText(title, 1, 0.84, 0.57)
-    if detail then GameTooltip:AddLine(detail, 0.82, 0.82, 0.82, true) end
-    GameTooltip:Show()
-end
 
 local function HeaderButton(name, title, detail)
     local b = CreateFrame("Button", nil, header)
@@ -36,19 +29,21 @@ local function HeaderButton(name, title, detail)
     b.tooltipTitle, b.tooltipDetail = title, detail
     b:SetScript("OnEnter", function()
         Motion.Fade(hover, 0.24, 0.13)
-        Tooltip(b, b.tooltipTitle, b.tooltipDetail)
     end)
     b:SetScript("OnLeave", function()
         Motion.Fade(hover, 0, 0.18)
-        if GameTooltip and GameTooltip:IsOwned(b) then GameTooltip:Hide() end
     end)
     ns.Widgets.PressFeedback(b, hover)
+    Tooltips.Bind(b, function()
+        return { title = b.tooltipTitle, detail = b.tooltipDetail }
+    end)
     return b
 end
 
 local function RefreshFade()
     if not frame:IsShown() then return end
     local faded = manualPeek or (moving and Settings.Get("autoPeekMoving"))
+    if faded then Tooltips.Hide(nil, true) end
     Motion.Fade(frame, faded and alphaWhilePeeking or 1, 0.17)
 end
 
@@ -217,6 +212,11 @@ for i = 1, 6 do
         Header.CloseSearch(true)
         Search.Open(match)
     end)
+    ns.Widgets.PressFeedback(b, hover)
+    Tooltips.Bind(b, function()
+        local match = currentResults[i]
+        return match and { title = match.title, detail = match.details or match.where }
+    end)
     resultButtons[i] = { button = b, title = title, where = where, hover = hover }
 end
 
@@ -256,6 +256,7 @@ input:SetScript("OnTextChanged", function(self)
     Render(query)
 end)
 input:SetScript("OnEditFocusGained", function(self)
+    Tooltips.Hide(nil, true)
     Render(self:GetText() or "")
 end)
 input:SetScript("OnEnterPressed", function()
@@ -276,10 +277,15 @@ input:SetScript("OnArrowPressed", function(_, key)
 end)
 searchBox:EnableMouse(true)
 searchBox:SetScript("OnMouseDown", function() input:SetFocus() end)
+Tooltips.Bind(searchBox, { title = "Search Duels Reimagined",
+    detail = "Find pages, settings, and available window actions." })
+Tooltips.Bind(input, { title = "Search pages and settings",
+    detail = "Type a name or keyword. Press Enter to open a result; Escape to clear." })
 
 frame:HookScript("OnShow", Header.RefreshAutoPeek)
 frame:HookScript("OnHide", function()
     Header.CloseSearch(true)
+    Tooltips.Hide(nil, true)
     manualPeek = false
     moving = false
     movement:UnregisterEvent("PLAYER_STARTED_MOVING")
