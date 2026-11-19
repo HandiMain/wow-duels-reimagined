@@ -76,11 +76,11 @@ end
 function Chrome.PrimaryRail(parent)
     local tex = parent:CreateTexture(nil, "ARTWORK")
     tex:SetTexture(art .. "NavPrimary.png")
-    -- The approved PNG has transparent space above/below the enamel.
-    -- Slightly narrower art and a 5px downward correction keep its visible
-    -- gold frame centered inside the rail without stretching the texture.
-    tex:SetSize(92, 90)
-    tex:SetPoint("CENTER", parent, "CENTER", 0, -5)
+    -- Source alpha bounds are symmetrically centered (4..124, 10..118)
+    -- in its 128x128 canvas. Fit the frame within the 88px rail and
+    -- anchor directly to the button, with no compensating shifts.
+    tex:SetSize(88, 78)
+    tex:SetPoint("CENTER", parent, "CENTER")
     return Chrome.Sharp(tex)
 end
 

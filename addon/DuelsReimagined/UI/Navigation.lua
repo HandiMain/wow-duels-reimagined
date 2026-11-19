@@ -40,6 +40,12 @@ subtitleRule:SetPoint("TOPLEFT", Window.nav, "TOPLEFT", 19, -56)
 
 local currentSection, currentPage
 
+-- One hover strength for selected/inactive primary buttons; the shared
+-- Motion engine owns all transitions. Secondary navigation is unchanged.
+local function PrimaryHoverAlpha(active)
+    return active and 0.54 or 0.66
+end
+
 local function FadeSelection(item, active)
     -- Premium rail art already carries its own red selected surface. Never
     -- paint a full-size SelectionRail rectangle over those gold corners.
@@ -48,7 +54,8 @@ local function FadeSelection(item, active)
     -- Unlike the old secondary nav, a selected primary button still needs
     -- feedback on hover. Preserve it after clicking into Hall as well.
     local hovered = item.primary and item.button and item.button:IsMouseOver()
-    Motion.Fade(item.hover, hovered and 0.28 or 0, 0.13)
+    Motion.Fade(item.hover,
+        hovered and PrimaryHoverAlpha(active) or 0, 0.13)
 end
 
 local function Select(sectionIndex, pageIndex, noMotion)
@@ -63,7 +70,8 @@ local function Select(sectionIndex, pageIndex, noMotion)
             Motion.Stop(item.selected, on and (item.primary and 0.10 or 0.94) or 0)
             if item.primaryArt then
                 Motion.Stop(item.primaryArt, on and 1 or 0.48)
-                Motion.Stop(item.hover, item.button and item.button:IsMouseOver() and 0.28 or 0)
+                Motion.Stop(item.hover, item.button and item.button:IsMouseOver()
+                    and PrimaryHoverAlpha(on) or 0)
             end
         else
             FadeSelection(item, on)
@@ -141,11 +149,16 @@ for index, section in ipairs(sections) do
     bar:SetPoint("BOTTOMLEFT", button, "BOTTOMLEFT", 0, -3)
     bar:SetWidth(3)
     local icon = Chrome.Icon(button, section.icon)
-    -- Each 128px square asset has the same transparent margin; none is stretched.
-    icon:SetSize(section.primary and 35 or 39, section.primary and 35 or 39)
-    -- Keep the swords beneath the gold upper rim and the Hall text inside
-    -- the enamel. Secondary icons retain their exact previous anchors.
-    icon:SetPoint("TOP", button, "TOP", 0, section.primary and -11 or -3)
+    -- For primary buttons, center the icon/label as a single visual stack
+    -- inside the red enamel. Do not measure from the transparent PNG edges.
+    -- Secondary buttons keep their original icon size and anchor.
+    if section.primary then
+        icon:SetSize(30, 30)
+        icon:SetPoint("CENTER", button, "CENTER", 0, 8)
+    else
+        icon:SetSize(39, 39)
+        icon:SetPoint("TOP", button, "TOP", 0, -3)
+    end
     local label = Style.Text(button, string.upper(section.label), 11, C.muted, true)
     label:SetPoint("TOP", icon, "BOTTOM", 0, section.primary and -1 or -2)
     label:SetJustifyH("CENTER")
@@ -153,7 +166,7 @@ for index, section in ipairs(sections) do
     button:SetScript("OnEnter", function()
         if section.primary then
             -- Selected Hall must have a visible hover as well as inactive Hall.
-            Motion.Fade(hover, currentSection == index and 0.28 or 0.34, 0.15)
+            Motion.Fade(hover, PrimaryHoverAlpha(currentSection == index), 0.15)
             Motion.Fade(primaryArt, currentSection == index and 1 or 0.86, 0.15)
         elseif currentSection ~= index then
             Motion.Fade(hover, 0.58, 0.17)
@@ -165,7 +178,10 @@ for index, section in ipairs(sections) do
             Motion.Fade(primaryArt, currentSection == index and 1 or 0.48, 0.18)
         end
     end)
-    ns.Widgets.PressFeedback(button, hover)
+    -- The existing PressFeedback helper animates its supplied texture on
+    -- mouse up. Give it the primary's press tint, NOT the gold hover layer,
+    -- so it cannot silently reduce a hovered Hall to alpha 0.20.
+    ns.Widgets.PressFeedback(button, section.primary and selected or hover)
     ns.Tooltips.Bind(button, { title = section.label,
         detail = "Open the " .. section.label .. " section." })
     railButtons[index] = {
