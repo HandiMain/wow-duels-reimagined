@@ -159,7 +159,12 @@ function Window.ShowPage(page)
     subtitle:SetText(page.subtitle)
     emptyHeading:SetText(page.emptyTitle)
     emptyDetail:SetText(page.emptyDetail)
-    action:SetShown(page.action and true or false)
+    local isOptions = page.key == "options"
+    watermark:SetShown(not isOptions)
+    emptyHeading:SetShown(not isOptions)
+    emptyDetail:SetShown(not isOptions)
+    action:SetShown(not isOptions and page.action and true or false)
+    if ns.Options then ns.Options.Show(isOptions) end
 end
 
 function Window.Toggle()

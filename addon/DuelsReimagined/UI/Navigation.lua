@@ -107,5 +107,11 @@ for index, section in ipairs(sections) do
     subButtons[index] = pages
 end
 
+ns.Navigation = {
+    RefreshSelection = function()
+        if currentSection and currentPage then Select(currentSection, currentPage) end
+    end,
+}
+
 Window.action:SetScript("OnClick", function() Select(1, 2) end)
 Select(1, 1)
