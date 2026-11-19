@@ -89,15 +89,23 @@ brandArea:SetPoint("LEFT", header, "LEFT", 20, 0)
 brandArea:EnableMouse(false)
 local brandLogo = brandArea:CreateTexture(nil, "ARTWORK")
 brandLogo:SetTexture("Interface\\AddOns\\DuelsReimagined\\Media\\Concept\\DuelsReimagined-HeaderLogoFlat.png")
-brandLogo:SetSize(360, 104)
+-- Preserve the cropped artwork's native proportions (252x108 source pixels).
+-- 300 is only a width cap: the 86-unit height limit governs normal-size
+-- display, so the wordmark never stretches to fill spare header space.
+local BRAND_ASPECT = (382 - 130) / (182 - 74)
+local BRAND_MAX_WIDTH, BRAND_MAX_HEIGHT = 300, 86
+brandLogo:SetSize(math.min(BRAND_MAX_WIDTH, BRAND_MAX_HEIGHT * BRAND_ASPECT),
+    BRAND_MAX_HEIGHT)
 brandLogo:SetPoint("CENTER", brandArea, "CENTER")
 brandLogo:SetTexCoord(130 / 512, 382 / 512, 74 / 256, 182 / 256)
 Chrome.Sharp(brandLogo)
 local function FitBrand(_, width)
-    -- Preserve the wordmark's appearance in a narrowed or rescaled window.
-    -- No OnUpdate or fixed-position guessing; anchors drive the available area.
-    local w = math.min(360, math.max(1, (width or 360) - 12))
-    brandLogo:SetSize(w, w * 104 / 360)
+    -- Center at a natural fixed size; shrink only when space is constrained.
+    -- No OnUpdate or overlap with Search, Peek, Fold or Menu Scale.
+    local availableWidth = math.max(1, (width or brandArea:GetWidth()) - 12)
+    local w = math.min(BRAND_MAX_WIDTH, BRAND_MAX_HEIGHT * BRAND_ASPECT,
+        availableWidth)
+    brandLogo:SetSize(w, w / BRAND_ASPECT)
 end
 brandArea:SetScript("OnSizeChanged", FitBrand)
 function Window.PlaceBrandBefore(searchBox)
