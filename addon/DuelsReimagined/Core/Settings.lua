@@ -16,6 +16,37 @@ local boolDefaults = {
     autoPeekMoving = true,
 }
 
+-- Future settings must opt in to reload tracking; none currently need it.
+local reloadRequired, loadValues = {}, {}
+
+function Settings.GetDefault(key)
+    if key == "menuScale" then return 1 end
+    return boolDefaults[key]
+end
+
+function Settings.IsModified(key)
+    local default = Settings.GetDefault(key)
+    return default ~= nil and Settings.Get(key) ~= default
+end
+
+function Settings.Reset(key)
+    local default = Settings.GetDefault(key)
+    if default ~= nil then Settings.Set(key, default) end
+end
+
+function Settings.RegisterReloadRequired(key)
+    if Settings.GetDefault(key) == nil then return end
+    reloadRequired[key] = true
+    loadValues[key] = Settings.Get(key)
+end
+
+function Settings.NeedsReload()
+    for key in pairs(reloadRequired) do
+        if Settings.Get(key) ~= loadValues[key] then return true end
+    end
+    return false
+end
+
 local function ReadDB()
     local db = _G.DuelsReimaginedDB
     return type(db) == "table" and db or nil
@@ -35,6 +66,34 @@ function Settings.NormalizeScale(value)
     local step = Settings.SCALE_STEP
     return math.max(Settings.MIN_SCALE, math.min(Settings.MAX_SCALE,
         math.floor(value / step + 0.5) * step))
+end
+
+-- Separate, optional account-wide window dimensions. A missing entry
+-- requests the existing screen-fitted default. Never return the database table.
+local function CleanWindowSize(size)
+    if type(size) ~= "table" then return nil end
+    local w, h = size.width, size.height
+    if type(w) ~= "number" or type(h) ~= "number" or w ~= w or h ~= h or
+        w < 600 or h < 450 or w > 6000 or h > 6000 then return nil end
+    return math.floor(w + 0.5), math.floor(h + 0.5)
+end
+
+function Settings.GetWindowSize()
+    local db = ReadDB()
+    return CleanWindowSize(db and db.windowSize)
+end
+
+function Settings.HasWindowSize()
+    return Settings.GetWindowSize() ~= nil
+end
+
+function Settings.SetWindowSize(w, h)
+    local db = WriteDB()
+    local nw, nh = CleanWindowSize({ width = w, height = h })
+    local ow, oh = CleanWindowSize(db.windowSize)
+    if nw == ow and nh == oh then return end
+    db.windowSize = nw and { width = nw, height = nh } or nil
+    if ns.Footer and ns.Footer.Refresh then ns.Footer.Refresh() end
 end
 
 function Settings.Get(key)
@@ -57,6 +116,8 @@ function Settings.Set(key, value)
         if ns.Window and ns.Window.ApplyScale then
             ns.Window.ApplyScale(nextValue)
         end
+        if ns.Window and ns.Window.RefreshScaleMarker then ns.Window.RefreshScaleMarker() end
+        if ns.Footer and ns.Footer.Refresh then ns.Footer.Refresh() end
         return
     end
     if boolDefaults[key] == nil or type(value) ~= "boolean" then return end
@@ -71,6 +132,7 @@ function Settings.Set(key, value)
     elseif ns.Theme then
         ns.Theme.Refresh()
     end
+    if ns.Footer and ns.Footer.Refresh then ns.Footer.Refresh() end
 end
 
 -- SavedVariables are authoritative only once this addon's ADDON_LOADED fires.
@@ -85,6 +147,8 @@ loader:SetScript("OnEvent", function(self, _, loadedName)
         if type(db[key]) ~= "boolean" then db[key] = default end
     end
     db.menuScale = Settings.NormalizeScale(db.menuScale)
+    if not Settings.HasWindowSize() then db.windowSize = nil end
+    for key in pairs(reloadRequired) do loadValues[key] = Settings.Get(key) end
     if ns.Window and ns.Window.ApplyScale then
         ns.Window.ApplyScale(db.menuScale)
     end
@@ -92,4 +156,6 @@ loader:SetScript("OnEvent", function(self, _, loadedName)
     if ns.Header and ns.Header.RefreshAutoPeek then
         ns.Header.RefreshAutoPeek()
     end
+    if ns.Window and ns.Window.RefreshScaleMarker then ns.Window.RefreshScaleMarker() end
+    if ns.Footer and ns.Footer.Refresh then ns.Footer.Refresh() end
 end)

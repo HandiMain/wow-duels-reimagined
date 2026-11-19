@@ -125,6 +125,37 @@ Window.scaleCaption = scaleCaption
 Window.scaleSlider = scale
 Window.scalePercent = scalePercent
 
+-- Menu Scale gets the same modified marker and per-setting reset as Options.
+local scaleDot = Style.Text(header, "•", 13, C.gold)
+scaleDot:SetPoint("RIGHT", scaleCaption, "LEFT", -4, 0)
+local scaleReset = CreateFrame("Button", nil, header)
+scaleReset:SetSize(18, 18)
+scaleReset:SetPoint("RIGHT", scaleDot, "LEFT", -2, 0)
+scaleReset:RegisterForClicks("LeftButtonUp")
+local scaleResetIcon = scaleReset:CreateTexture(nil, "ARTWORK")
+scaleResetIcon:SetAllPoints(scaleReset)
+scaleResetIcon:SetTexture("Interface\\AddOns\\DuelsReimagined\\Media\\Polestar\\reset.tga")
+Chrome.Sharp(scaleResetIcon)
+scaleReset:SetScript("OnClick", function()
+    Settings.Reset("menuScale")
+    if GameTooltip then GameTooltip:Hide() end
+end)
+scaleReset:SetScript("OnEnter", function(self)
+    if not GameTooltip then return end
+    GameTooltip:SetOwner(self, "ANCHOR_BOTTOM")
+    GameTooltip:SetText("Reset Menu Scale to 100%", 1, 0.84, 0.57)
+    GameTooltip:Show()
+end)
+scaleReset:SetScript("OnLeave", function(self)
+    if GameTooltip and GameTooltip:IsOwned(self) then GameTooltip:Hide() end
+end)
+Window.scaleReset = scaleReset
+function Window.RefreshScaleMarker()
+    local changed = Settings.IsModified("menuScale")
+    scaleDot:SetShown(changed)
+    scaleReset:SetShown(changed)
+end
+
 local function RoundScale(value)
     return Settings.NormalizeScale(value)
 end
@@ -142,23 +173,70 @@ end
 -- The window is not resized continuously while the scale slider is dragged.
 local BASE_WIDTH, BASE_HEIGHT, EDGE = 1300, 946, 16
 
-local function FitWindowToScreen(menuScale)
+-- A single geometry calculation owns defaults, resize bounds and screen-fit.
+-- Use client UI units, so saved dimensions also respect Menu Scale.
+local function WindowGeometry(menuScale)
     local parentH, parentW = UIParent:GetHeight(), UIParent:GetWidth()
     local physicalH
     if type(GetPhysicalScreenSize) == "function" then
         local _, h = GetPhysicalScreenSize()
         physicalH = h
     end
-    local pixelsPerUnit = (type(physicalH) == "number" and physicalH > 0
+    local ppu = (type(physicalH) == "number" and physicalH > 0
         and parentH and parentH > 0) and physicalH / parentH or 1
-    -- Polestar enlarges its default footprint in 5% steps above 1440p.
     local growth = math.max(1,
         math.floor((physicalH or 0) / 1440 * 20 + 0.5) / 20)
-    local desiredW = math.floor(BASE_WIDTH * growth / pixelsPerUnit + 0.5)
-    local desiredH = math.floor(BASE_HEIGHT * growth / pixelsPerUnit + 0.5)
-    local limitW = math.max(1, math.floor(parentW / menuScale - 2 * EDGE))
-    local limitH = math.max(1, math.floor(parentH / menuScale - 2 * EDGE))
-    frame:SetSize(math.min(desiredW, limitW), math.min(desiredH, limitH))
+    local maxW = math.max(1, math.floor(parentW / menuScale - 2 * EDGE))
+    local maxH = math.max(1, math.floor(parentH / menuScale - 2 * EDGE))
+    local minW, minH = math.min(1050, maxW), math.min(650, maxH)
+    local defW = math.max(minW, math.min(maxW, math.floor(BASE_WIDTH * growth / ppu + 0.5)))
+    local defH = math.max(minH, math.min(maxH, math.floor(BASE_HEIGHT * growth / ppu + 0.5)))
+    return defW, defH, minW, minH, maxW, maxH
+end
+
+frame:SetResizable(true)
+local function FitWindowToScreen(menuScale)
+    local dw, dh, minW, minH, maxW, maxH = WindowGeometry(menuScale)
+    if frame.SetResizeBounds then
+        frame:SetResizeBounds(minW, minH, maxW, maxH)
+    else
+        if frame.SetMinResize then frame:SetMinResize(minW, minH) end
+        if frame.SetMaxResize then frame:SetMaxResize(maxW, maxH) end
+    end
+    local savedW, savedH = Settings.GetWindowSize()
+    frame:SetSize(math.max(minW, math.min(maxW, savedW or dw)),
+        math.max(minH, math.min(maxH, savedH or dh)))
+end
+
+function Window.DefaultSize()
+    return WindowGeometry(Settings.Get("menuScale") or 1)
+end
+
+function Window.CommitResize()
+    local w, h = math.floor(frame:GetWidth() + 0.5), math.floor(frame:GetHeight() + 0.5)
+    local defaultW, defaultH = Window.DefaultSize()
+    if math.abs(w - defaultW) <= 2 and math.abs(h - defaultH) <= 2 then
+        Settings.SetWindowSize(nil)
+    else
+        Settings.SetWindowSize(w, h)
+    end
+    if ns.Footer and ns.Footer.Refresh then ns.Footer.Refresh() end
+end
+
+function Window.ResetSize()
+    Settings.SetWindowSize(nil)
+    Window.ApplyScale(Settings.Get("menuScale") or 1)
+end
+
+function Window.ResetWindow()
+    Settings.SetWindowSize(nil)
+    Settings.Reset("menuScale")
+    Window.ApplyScale(Settings.Get("menuScale") or 1)
+    if ns.Footer and ns.Footer.Refresh then ns.Footer.Refresh() end
+end
+
+function Window.IsDefault()
+    return not Settings.HasWindowSize() and not Settings.IsModified("menuScale")
 end
 
 function Window.ApplyScale(value)
@@ -171,6 +249,7 @@ function Window.ApplyScale(value)
     end
     scale:SetValue(v)
     PaintScale(v)
+    Window.RefreshScaleMarker()
 end
 
 scale:SetScript("OnMouseDown", function(_, mouse)
@@ -211,9 +290,72 @@ end)
 
 function Window.RefreshTheme()
     scaleFill:SetColorTexture(unpack(C.gold))
+    scaleResetIcon:SetVertexColor(unpack(C.gold))
+    if Window.resizeGrip then Window.resizeGrip.icon:SetVertexColor(unpack(C.gold)) end
 end
 
 Window.ApplyScale(Settings.Get("menuScale") or 1)
+
+-- One resize owner, regardless of active page. Persist once on mouse release.
+local grip = CreateFrame("Button", nil, frame)
+grip:SetSize(24, 24)
+grip:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -2, 2)
+grip:SetFrameLevel(frame:GetFrameLevel() + 45)
+grip:RegisterForClicks("RightButtonUp")
+local gripIcon = grip:CreateTexture(nil, "ARTWORK")
+gripIcon:SetAllPoints(grip)
+gripIcon:SetTexture("Interface\\AddOns\\DuelsReimagined\\Media\\Polestar\\resize.tga")
+gripIcon:SetVertexColor(unpack(C.gold))
+Chrome.Sharp(gripIcon)
+grip.icon = gripIcon
+local sizing = false
+grip:SetScript("OnMouseDown", function(_, button)
+    if button ~= "LeftButton" or (ns.Header and ns.Header.IsFolded()) then return end
+    local left, top = frame:GetLeft(), frame:GetTop()
+    if left and top then
+        frame:ClearAllPoints()
+        frame:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", left, top)
+    end
+    sizing = true
+    frame:StartSizing("BOTTOMRIGHT")
+end)
+grip:SetScript("OnMouseUp", function(_, button)
+    if button ~= "LeftButton" or not sizing then return end
+    sizing = false
+    frame:StopMovingOrSizing()
+    Window.CommitResize()
+end)
+grip:SetScript("OnClick", function(_, button)
+    if button == "RightButton" then Window.ResetSize() end
+end)
+grip:SetScript("OnEnter", function(self)
+    gripIcon:SetVertexColor(unpack(C.pale))
+    if GameTooltip then
+        GameTooltip:SetOwner(self, "ANCHOR_TOP")
+        GameTooltip:SetText("Drag to resize", 1, 0.84, 0.57)
+        GameTooltip:AddLine("Right-click: restore default dimensions.", 0.8, 0.8, 0.8, true)
+        GameTooltip:Show()
+    end
+end)
+grip:SetScript("OnLeave", function(self)
+    gripIcon:SetVertexColor(unpack(C.gold))
+    if GameTooltip and GameTooltip:IsOwned(self) then GameTooltip:Hide() end
+end)
+grip:SetScript("OnHide", function()
+    if sizing then
+        sizing = false
+        frame:StopMovingOrSizing()
+    end
+end)
+Window.resizeGrip = grip
+function Window.SetSizingEnabled(on)
+    if not on and sizing then
+        sizing = false
+        frame:StopMovingOrSizing()
+    end
+    frame:SetResizable(on and true or false)
+    grip:SetShown(on and true or false)
+end
 
 local close = Style.Action(footer, "Close", "footer")
 close:SetSize(120, 30)

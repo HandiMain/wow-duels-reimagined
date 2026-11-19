@@ -114,6 +114,7 @@ function Header.Fold(value)
         end
         expandedHeight = frame:GetHeight()
         folded = true
+        if Window.SetSizingEnabled then Window.SetSizingEnabled(false) end
         Header.CloseSearch(true)
         Window.body:Hide()
         Window.footer:Hide()
@@ -122,6 +123,7 @@ function Header.Fold(value)
     else
         folded = false
         frame:SetHeight(expandedHeight)
+        if Window.SetSizingEnabled then Window.SetSizingEnabled(true) end
         Window.body:Show()
         Window.footer:Show()
         if Window.chromeSeams then Window.chromeSeams:Show() end
@@ -149,7 +151,7 @@ Window.scaleSlider:ClearAllPoints()
 Window.scaleSlider:SetPoint("RIGHT", Window.scalePercent, "LEFT", -11, 0)
 Window.scaleCaption:ClearAllPoints()
 Window.scaleCaption:SetPoint("RIGHT", Window.scaleSlider, "LEFT", -9, 0)
-foldButton:SetPoint("RIGHT", Window.scaleCaption, "LEFT", -12, 0)
+foldButton:SetPoint("RIGHT", Window.scaleReset, "LEFT", -10, 0)
 
 local searchBox = CreateFrame("Frame", nil, header)
 searchBox:SetSize(264, 29)

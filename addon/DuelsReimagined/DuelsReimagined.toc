@@ -18,4 +18,5 @@ UI\Search.lua
 UI\Header.lua
 UI\Navigation.lua
 UI\Options.lua
+UI\Footer.lua
 Core\Commands.lua

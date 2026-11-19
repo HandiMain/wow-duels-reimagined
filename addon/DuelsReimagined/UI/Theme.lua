@@ -50,6 +50,7 @@ function Theme.Refresh()
     if ns.Options and ns.Options.Refresh then
         ns.Options.Refresh()
     end
+    if ns.Footer and ns.Footer.Refresh then ns.Footer.Refresh() end
 end
 
 -- Register only through the documented, optional third-party appearance API.

@@ -52,6 +52,8 @@ local rows = {}
 local function AddToggle(panel, pageKey, key, name, detail, top, requiresEllesmere)
     local row = Widgets.ToggleRow(panel, name, detail, function(value)
         Settings.Set(key, value)
+    end, function()
+        Settings.Reset(key)
     end)
     row:SetPoint("TOPLEFT", panel, "TOPLEFT", 20, top)
     row:SetPoint("TOPRIGHT", panel, "TOPRIGHT", -20, top)
@@ -93,6 +95,7 @@ function Options.Refresh()
         widget:SetAvailable(not entry.needsEllesmere or ready,
             entry.needsEllesmere and unavailable or nil)
         widget:SetChecked(Settings.Get(entry.key))
+        widget:SetModified(Settings.IsModified(entry.key))
     end
 end
 

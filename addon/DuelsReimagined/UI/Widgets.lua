@@ -51,6 +51,16 @@ function methods:SetAvailable(value, reason)
     self:SetAlpha(available and 1 or 0.58)
     Motion.Stop(self.hover, 0)
     PaintToggle(self.slideKey, self.progress)
+    self.resetButton:SetEnabled(self.modified and available)
+    self.resetButton:SetAlpha(available and 1 or 0.42)
+end
+
+function methods:SetModified(value)
+    self.modified = value and true or false
+    self.modDot:SetShown(self.modified)
+    self.resetButton:SetShown(self.modified)
+    self.resetButton:SetEnabled(self.modified and self.available)
+    self.resetButton:SetAlpha(self.available and 1 or 0.42)
 end
 
 function methods:RefreshColors()
@@ -59,6 +69,7 @@ function methods:RefreshColors()
     self.divider:SetColorTexture(unpack(C.goldDim))
     self.divider:SetAlpha(0.24)
     self.name:SetTextColor(unpack(C.text))
+    self.resetIcon:SetVertexColor(unpack(C.gold))
     self.description:SetTextColor(unpack(C.muted))
 end
 
@@ -77,7 +88,7 @@ local function ToggleLeave(row)
     if GameTooltip and GameTooltip:IsOwned(row) then GameTooltip:Hide() end
 end
 
-function Widgets.ToggleRow(parent, label, description, onToggle)
+function Widgets.ToggleRow(parent, label, description, onToggle, onReset)
     local row = CreateFrame("Button", nil, parent)
     row:SetHeight(56)
     row:RegisterForClicks("LeftButtonUp")
@@ -85,6 +96,7 @@ function Widgets.ToggleRow(parent, label, description, onToggle)
     row.checked = false
     row.progress = 0
     row.onToggle = onToggle
+    row.onReset = onReset
     row.slideKey = { owner = row }
 
     row.hover = Chrome.Texture(row, "Selection", 0, "BACKGROUND")
@@ -97,7 +109,7 @@ function Widgets.ToggleRow(parent, label, description, onToggle)
     row.name:SetPoint("TOPLEFT", row, "TOPLEFT", 1, -7)
     row.description = Style.Text(row, description, 12, C.muted)
     row.description:SetPoint("TOPLEFT", row.name, "BOTTOMLEFT", 0, -3)
-    row.description:SetPoint("RIGHT", row, "RIGHT", -77, 0)
+    row.description:SetPoint("RIGHT", row, "RIGHT", -93, 0)
     row.description:SetJustifyH("LEFT")
 
     row.track = row:CreateTexture(nil, "ARTWORK")
@@ -111,6 +123,33 @@ function Widgets.ToggleRow(parent, label, description, onToggle)
     row.thumb:SetSize(16, 16)
     Chrome.Sharp(row.thumb)
 
+    row.modDot = Style.Text(row, "•", 14, C.gold)
+    row.modDot:SetPoint("RIGHT", row.name, "LEFT", -5, 0)
+    row.modDot:Hide()
+    local reset = CreateFrame("Button", nil, row)
+    reset:SetSize(19, 19)
+    reset:SetPoint("RIGHT", row.track, "LEFT", -9, 0)
+    reset:RegisterForClicks("LeftButtonUp")
+    local icon = reset:CreateTexture(nil, "ARTWORK")
+    icon:SetAllPoints(reset)
+    icon:SetTexture("Interface\\AddOns\\DuelsReimagined\\Media\\Polestar\\reset.tga")
+    Chrome.Sharp(icon)
+    row.resetButton, row.resetIcon = reset, icon
+    reset:Hide()
+    reset:SetScript("OnClick", function()
+        if row.onReset and row.available then row.onReset() end
+        if GameTooltip then GameTooltip:Hide() end
+    end)
+    reset:SetScript("OnEnter", function(self)
+        if not GameTooltip then return end
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        GameTooltip:SetText("Reset to default", 1, 0.84, 0.57)
+        GameTooltip:Show()
+    end)
+    reset:SetScript("OnLeave", function(self)
+        if GameTooltip and GameTooltip:IsOwned(self) then GameTooltip:Hide() end
+    end)
+
     for name, fn in pairs(methods) do row[name] = fn end
     row:SetScript("OnClick", function(self)
         if self.available and self.onToggle then self.onToggle(not self.checked) end
@@ -118,5 +157,6 @@ function Widgets.ToggleRow(parent, label, description, onToggle)
     row:SetScript("OnEnter", ToggleEnter)
     row:SetScript("OnLeave", ToggleLeave)
     row:RefreshColors()
+    row:SetModified(false)
     return row
 end
