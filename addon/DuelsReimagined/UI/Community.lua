@@ -89,22 +89,35 @@ scroll:SetScript("OnSizeChanged", function(_, width)
 end)
 scroll:HookScript("OnShow", ClampScroll)
 
--- The original artwork is one power-of-two 512x256 atlas. Each crest
--- occupies a centered 160x160 region within its half of the canvas.
--- Decorative only: like BurstFX's class watermark, never intercepts input.
+-- Both faction watermarks are exact-image-derived masks extracted from the
+-- approved Duelist's Circle concept, NOT newly invented faction logos.
+-- Each half of the 128x64 RGBA atlas is sourced from its corresponding
+-- faction watermark in that concept. No mouse interception.
 local art = "Interface\\AddOns\\DuelsReimagined\\Media\\Concept\\CommunityFactionMarks.png"
+local symbolArt = "Interface\\AddOns\\DuelsReimagined\\Media\\Concept\\CommunityConceptSymbols.png"
+local function ConceptSymbol(parent, slot, size)
+    local tex = parent:CreateTexture(nil, "ARTWORK")
+    tex:SetTexture(symbolArt)
+    local x, y = slot % 4, math.floor(slot / 4)
+    tex:SetTexCoord(x / 4 + 0.002, (x + 1) / 4 - 0.002,
+        y / 4 + 0.002, (y + 1) / 4 - 0.002)
+    tex:SetSize(size, size)
+    tex:EnableMouse(false)
+    return Chrome.Sharp(tex)
+end
 local function FactionMark(left)
     local tex = canvas:CreateTexture(nil, "BACKGROUND")
     tex:SetTexture(art)
     tex:SetSize(229, 229)
     if left then
-        tex:SetTexCoord(48 / 512, 208 / 512, 48 / 256, 208 / 256)
+        tex:SetTexCoord(0, 0.5, 0, 1)
         tex:SetPoint("TOPLEFT", canvas, "TOPLEFT", 4, 14)
     else
-        tex:SetTexCoord(304 / 512, 464 / 512, 48 / 256, 208 / 256)
+        tex:SetTexCoord(0.5, 1, 0, 1)
         tex:SetPoint("TOPRIGHT", canvas, "TOPRIGHT", -4, 14)
     end
-    tex:SetAlpha(left and 0.12 or 0.10)
+    -- Source PNG already contains the concept's very subtle alpha gradient.
+    tex:SetAlpha(left and 0.78 or 0.76)
     tex:EnableMouse(false)
     Chrome.Sharp(tex)
     return tex
@@ -130,9 +143,13 @@ end
 
 local function Action(kind, heading, xOffset)
     local btn = Style.Action(canvas, heading)
-    btn:SetSize(250, 42)
+    btn:SetSize(270, 43)
     btn:SetPoint("TOP", canvas, "TOP", xOffset, -112)
     btn:SetScript("OnClick", function() SelectableURL(kind) end)
+    local actionIcon = ConceptSymbol(btn, kind == "bug" and 8 or 9, 34)
+    actionIcon:SetPoint("LEFT", btn, "LEFT", 10, 0)
+    local githubIcon = ConceptSymbol(btn, 10, 31)
+    githubIcon:SetPoint("RIGHT", btn, "RIGHT", -7, 0)
     ns.Tooltips.Bind(btn, {
         title = heading,
         detail = "Display the GitHub form URL. Copy it with Ctrl+C, then open it in your browser.",
@@ -141,8 +158,10 @@ local function Action(kind, heading, xOffset)
     copy:SetSize(184, 25)
     copy:SetPoint("TOP", btn, "BOTTOM", 0, -3)
     copy:RegisterForClicks("LeftButtonUp")
+    local linkIcon = ConceptSymbol(copy, 11, 25)
+    linkIcon:SetPoint("LEFT", copy, "LEFT", 10, 0)
     local label = Style.Text(copy, "Copy GitHub link", 12, C.muted)
-    label:SetPoint("CENTER")
+    label:SetPoint("LEFT", linkIcon, "RIGHT", 4, 0)
     copy:SetScript("OnClick", function() SelectableURL(kind) end)
     copy:SetScript("OnEnter", function() label:SetTextColor(unpack(C.gold)) end)
     copy:SetScript("OnLeave", function() label:SetTextColor(unpack(C.muted)) end)
@@ -153,8 +172,8 @@ local function Action(kind, heading, xOffset)
     return btn
 end
 
-Action("bug", "REPORT A BUG", -146)
-Action("idea", "SUGGEST AN IDEA", 146)
+Action("bug", "REPORT A BUG", -163)
+Action("idea", "SUGGEST AN IDEA", 163)
 
 local cards = {}
 local function PreviewCard(data, index)
@@ -180,18 +199,19 @@ local function PreviewCard(data, index)
     Widgets.PressFeedback(card, hover)
     ns.Tooltips.Bind(card, { title = data.title,
         detail = "Open the full " .. data.title:lower() .. " list." })
+    local titleIcon = ConceptSymbol(card, index - 1, 50)
+    titleIcon:SetPoint("TOPLEFT", card, "TOPLEFT", 13, -11)
     local heading = Style.Text(card, data.title, 17, C.gold)
-    heading:SetPoint("TOPLEFT", card, "TOPLEFT", 21, -16)
+    heading:SetPoint("TOPLEFT", card, "TOPLEFT", 73, -16)
     local hint = Style.Text(card, data.hint, 12, C.muted)
     hint:SetPoint("TOPLEFT", heading, "BOTTOMLEFT", 0, -4)
     hint:SetPoint("RIGHT", card, "RIGHT", -20, 0)
     local rule = Chrome.Divider(card, 265, 12)
     rule:SetPoint("TOP", card, "TOP", 0, -67)
 
-    local emptyIcon = Chrome.Icon(card, "Community")
-    emptyIcon:SetSize(48, 48)
+    local emptyIcon = ConceptSymbol(card, index + 3, 59)
     emptyIcon:SetPoint("TOP", card, "TOP", 0, -82)
-    emptyIcon:SetAlpha(0.16)
+    emptyIcon:SetAlpha(0.88)
     local emptyLabel = Style.Text(card, data.empty, 13, C.muted)
     emptyLabel:SetPoint("TOPLEFT", card, "TOPLEFT", 13, -151)
     emptyLabel:SetPoint("TOPRIGHT", card, "TOPRIGHT", -13, -151)

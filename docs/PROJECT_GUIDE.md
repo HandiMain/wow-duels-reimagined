@@ -127,3 +127,12 @@ Past experiments included duel history, personal statistics, rankings, player pr
 - The existing Footer popup owner also displays a selectable/read-only GitHub Issue form URL for Ctrl+C. WoW cannot launch a browser or copy to the system clipboard. Popup Escape/close must restore focus and hide correctly, preserving Blizzard chat Enter outside the dialog.
 - Reuse Widgets.ScrollBar for overflow, Tooltips.Bind for every clickable control, Style/Chrome for theme and artwork, and existing navigation/Close/Fold/Peek without duplication. Source artwork was generated for this addon and stored as a transparent faction atlas; decorations never take mouse focus.
 - This is an **IMPLEMENTED/UNTESTED** feature until both Forever/Retail checks pass. GitHub generator passed a real Actions run on develop. Public issue forms and issue event triggers require the approved GitHub-only files on default branch/main; no automatic releases, main code merges or Discord setup.
+
+
+## Approved concept fidelity — binding design rule (2026-11-19)
+
+- The exact **approved concept image** is the visual specification and acceptance baseline, not an inspiration prompt. Reproduce the same shapes, watermarks, layout, colors, panel proportions, icon treatment, texture detail, spacing, opacity, and hierarchy as closely as the WoW UI permits.
+- **Never replace approved artwork with newly generated, random, vaguely similar, or placeholder artwork without explicit approval.** When available, extract/reuse the actual pixels from the approved reference, preserving its distinctive details, rather than reimagining the subject. Creating a new asset requires a separate explicit design review.
+- If an asset cannot be reliably extracted, matched, or displayed in WoW, mark the mismatch and ask to approve the specific substitute. Never silently assert a 1:1 match or use untested PNGs as proof of in-game fidelity.
+- Before committing UI, inspect and compare the actual approved concept and current in-game screenshot. Validate positions, proportions, colors, texture integrity, legibility, aspect ratios, and UI scaling. A code/CI pass is **not** visual or live-client verification.
+- Source of Community marks and icons: the approved Nov 19 Duelist's Circle concept screenshot. `Media/Concept/CommunityFactionMarks.png` and `CommunityConceptSymbols.png` contain **pixel-derived masked crops** from that image, with transparent backgrounds; they are not newly invented emblems. They are approximate crops at low resolution and still require the user's in-game visual review.
