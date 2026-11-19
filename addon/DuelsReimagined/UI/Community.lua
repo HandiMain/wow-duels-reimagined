@@ -89,11 +89,12 @@ scroll:SetScript("OnSizeChanged", function(_, width)
 end)
 scroll:HookScript("OnShow", ClampScroll)
 
--- Both faction watermarks are exact-image-derived masks extracted from the
--- approved Duelist's Circle concept, NOT newly invented faction logos.
--- Each half of the 128x64 RGBA atlas is sourced from its corresponding
--- faction watermark in that concept. No mouse interception.
+-- The approved lion needed a higher-resolution crop: its face was lost when
+-- the old 64px left half of the faction atlas was enlarged in-game.
+-- Use a separately extracted 128px lion. The Horde keeps its original atlas,
+-- UV, position, dimensions and opacity completely unchanged.
 local art = "Interface\\AddOns\\DuelsReimagined\\Media\\Concept\\CommunityFactionMarks.png"
+local allianceArt = "Interface\\AddOns\\DuelsReimagined\\Media\\Concept\\CommunityAllianceLion.png"
 local symbolArt = "Interface\\AddOns\\DuelsReimagined\\Media\\Concept\\CommunityConceptSymbols.png"
 local function ConceptSymbol(parent, slot, size)
     local tex = parent:CreateTexture(nil, "ARTWORK")
@@ -107,17 +108,18 @@ local function ConceptSymbol(parent, slot, size)
 end
 local function FactionMark(left)
     local tex = canvas:CreateTexture(nil, "BACKGROUND")
-    tex:SetTexture(art)
     tex:SetSize(229, 229)
     if left then
-        tex:SetTexCoord(0, 0.5, 0, 1)
+        tex:SetTexture(allianceArt)
+        tex:SetTexCoord(0, 1, 0, 1)
         tex:SetPoint("TOPLEFT", canvas, "TOPLEFT", 4, 14)
     else
+        tex:SetTexture(art)
         tex:SetTexCoord(0.5, 1, 0, 1)
         tex:SetPoint("TOPRIGHT", canvas, "TOPRIGHT", -4, 14)
     end
-    -- Source PNG already contains the concept's very subtle alpha gradient.
-    tex:SetAlpha(left and 0.78 or 0.76)
+    -- Slightly clearer Alliance face; Horde alpha stays at its prior 0.76.
+    tex:SetAlpha(left and 0.84 or 0.76)
     tex:EnableMouse(false)
     Chrome.Sharp(tex)
     return tex

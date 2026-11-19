@@ -85,7 +85,9 @@ class CommunityUITests(unittest.TestCase):
         self.assertEqual(data[25], 6, "WoW texture must be truecolor RGBA")
         community = content("UI/Community.lua")
         self.assertIn("CommunityFactionMarks.png", community)
-        self.assertIn("tex:SetAlpha(left and 0.78 or 0.76)", community)
+        self.assertIn("tex:SetTexture(allianceArt)", community)
+        self.assertIn("tex:SetTexture(art)", community)
+        self.assertIn("tex:SetAlpha(left and 0.84 or 0.76)", community)
 
     def test_concept_assets_have_partial_alpha_and_correct_sources(self):
         # Explicitly reject the previous flat color squares. The approved
@@ -141,9 +143,25 @@ class CommunityUITests(unittest.TestCase):
             self.assertGreater(soft_pixels, 100,
                 "Source-derived artwork needs faded/transparent shapes, not flat colored squares")
         community = content("UI/Community.lua")
-        self.assertIn("tex:SetTexCoord(0, 0.5, 0, 1)", community)
+        self.assertIn("tex:SetTexCoord(0, 1, 0, 1)", community)
         self.assertIn("tex:SetTexCoord(0.5, 1, 0, 1)", community)
         self.assertIn("CommunityConceptSymbols.png", community)
+
+    def test_alliance_lion_detail_and_horde_bytes_unchanged(self):
+        import hashlib
+        path = ADDON / "Media" / "Concept"
+        old = (path / "CommunityFactionMarks.png").read_bytes()
+        self.assertEqual(hashlib.sha256(old).hexdigest(),
+            "ffb1518a5a4b4974d199067ab6961518b862db98159c143ab6a472c68785adac",
+            "The approved Horde artwork must remain byte-for-byte unchanged")
+        lion = (path / "CommunityAllianceLion.png").read_bytes()
+        self.assertEqual(lion[:8], b"\\x89PNG\\r\\n\\x1a\\n")
+        self.assertEqual(struct.unpack(">II", lion[16:24]), (128, 128))
+        self.assertEqual(lion[24], 8)
+        self.assertEqual(lion[25], 6)
+        self.assertGreater(len(lion), 5000, "Refuse a flat placeholder texture")
+        community = content("UI/Community.lua")
+        self.assertIn("CommunityAllianceLion.png", community)
 
     def test_shared_components_and_no_network_in_wow(self):
         source = content("UI/Community.lua")

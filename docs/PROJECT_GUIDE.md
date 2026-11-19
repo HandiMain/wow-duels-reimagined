@@ -136,3 +136,11 @@ Past experiments included duel history, personal statistics, rankings, player pr
 - If an asset cannot be reliably extracted, matched, or displayed in WoW, mark the mismatch and ask to approve the specific substitute. Never silently assert a 1:1 match or use untested PNGs as proof of in-game fidelity.
 - Before committing UI, inspect and compare the actual approved concept and current in-game screenshot. Validate positions, proportions, colors, texture integrity, legibility, aspect ratios, and UI scaling. A code/CI pass is **not** visual or live-client verification.
 - Source of Community marks and icons: the approved Nov 19 Duelist's Circle concept screenshot. `Media/Concept/CommunityFactionMarks.png` and `CommunityConceptSymbols.png` contain **pixel-derived masked crops** from that image, with transparent backgrounds; they are not newly invented emblems. They are approximate crops at low resolution and still require the user's in-game visual review.
+
+
+## Alliance watermark clarity — visual-only targeted correction
+
+- Current Community hero used the concept-derived 64px Alliance crop magnified to 229 UI units, losing the face into a blurry blue patch. Horde was already visually approved.
+- Re-extracted the same lion from the approved `a_high_detail_screenshot_of_a_fantasy_mmorpg_addon.png` design (not a new/generated emblem), retained its face/mane details and fade in the dedicated 128x128 RGBA `Media/Concept/CommunityAllianceLion.png`.
+- The Alliance watermark retains its 229-unit dimensions and original anchor; alpha increases modestly from 0.78 to 0.84 for legibility. The Horde continues to use the untouched atlas with **identical bytes**, UV coordinates, size, location and 0.76 alpha. No changes to gameplay, buttons, community credits, Search or options.
+- Dedicated Community regression test verifies the Horde atlas SHA-256 and new Alliance image dimensions/format. Automated tests do not substitute for an in-game visual check.
