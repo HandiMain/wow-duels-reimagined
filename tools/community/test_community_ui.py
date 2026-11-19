@@ -182,6 +182,32 @@ class CommunityUITests(unittest.TestCase):
         self.assertIn('local note = Style.Text(canvas, description, 12, C.muted)', community)
         self.assertIn('ns.Tooltips.Bind(btn, {', community)
 
+    def test_primary_hall_button_preserves_secondary_navigation(self):
+        navigation = content("UI/Navigation.lua")
+        chrome = content("UI/Chrome.lua")
+        self.assertIn('key = "hall", label = "Hall", icon = "Hall", primary = true', navigation)
+        self.assertNotIn('key = "community", label = "Community", icon = "Community", primary', navigation)
+        self.assertNotIn('key = "options", label = "Options", icon = "Options", primary', navigation)
+        self.assertIn("function Chrome.PrimaryRail(parent)", chrome)
+        self.assertIn('tex:SetTexture(art .. "NavPrimary.png")', chrome)
+        self.assertIn('tex:SetSize(92, 82)', chrome)
+        self.assertIn('if section.primary then\n        primaryArt = Chrome.PrimaryRail(button)', navigation)
+        self.assertIn('selected, hover = AddOverlay(button, true)', navigation)
+        self.assertIn('if item.primaryArt then Motion.Stop(item.primaryArt, on and 1 or 0.48) end', navigation)
+        self.assertIn('Motion.Fade(item.primaryArt, on and 1 or 0.48, 0.18)', navigation)
+        self.assertIn('button:SetScript("OnClick", function() Select(index, 1) end)', navigation)
+        self.assertIn('ns.Tooltips.Bind(button, { title = section.label,', navigation)
+        self.assertIn('icon = icon, label = label,', navigation)
+        self.assertIn('ns.Widgets.PressFeedback(button, hover)', navigation)
+
+    def test_primary_art_is_power_of_two_and_has_soft_alpha(self):
+        path = ADDON / "Media" / "Concept" / "NavPrimary.png"
+        raw = path.read_bytes()
+        self.assertEqual(raw[:8], bytes((137, 80, 78, 71, 13, 10, 26, 10)))
+        self.assertEqual(struct.unpack(">II", raw[16:24]), (128, 128))
+        self.assertEqual(raw[24:26], bytes((8, 6)), "WoW needs 8-bit RGBA")
+        self.assertGreater(len(raw), 3500, "Do not replace the approved art with a flat placeholder")
+
     def test_shared_components_and_no_network_in_wow(self):
         source = content("UI/Community.lua")
         for marker in ("Widgets.ScrollBar(", "ns.Tooltips.Bind(",

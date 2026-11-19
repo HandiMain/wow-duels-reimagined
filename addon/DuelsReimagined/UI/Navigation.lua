@@ -4,7 +4,9 @@ local C, Window = Style.color, ns.Window
 
 -- Navigation is a visual shell prototype, not a gameplay or record engine.
 local sections = {
-    { key = "hall", label = "Hall", icon = "Hall", pages = {
+    -- Primary sections get the premium rail treatment. Existing secondary
+    -- sections (Community / Options) keep their exact original visuals.
+    { key = "hall", label = "Hall", icon = "Hall", primary = true, pages = {
         { key = "overview", label = "Overview", title = "Welcome to the Hall",
           subtitle = "Your dueling journey starts here.",
           emptyTitle = "No duels recorded yet",
@@ -39,7 +41,10 @@ subtitleRule:SetPoint("TOPLEFT", Window.nav, "TOPLEFT", 19, -56)
 local currentSection, currentPage
 
 local function FadeSelection(item, active)
-    Motion.Fade(item.selected, active and 0.94 or 0, 0.18)
+    -- Premium rail art already carries its own red selected surface. Never
+    -- paint a full-size SelectionRail rectangle over those gold corners.
+    Motion.Fade(item.selected,
+        active and (item.primary and 0.10 or 0.94) or 0, 0.18)
     Motion.Fade(item.hover, 0, 0.13)
 end
 
@@ -52,9 +57,13 @@ local function Select(sectionIndex, pageIndex, noMotion)
     for i, item in ipairs(railButtons) do
         local on = i == sectionIndex
         if noMotion then
-            item.selected:SetAlpha(on and 0.94 or 0)
+            Motion.Stop(item.selected, on and (item.primary and 0.10 or 0.94) or 0)
+            if item.primaryArt then Motion.Stop(item.primaryArt, on and 1 or 0.48) end
         else
             FadeSelection(item, on)
+            if item.primaryArt then
+                Motion.Fade(item.primaryArt, on and 1 or 0.48, 0.18)
+            end
         end
         item.bar:SetShown(false)
         item.label:SetTextColor(unpack(on and C.pale or C.muted))
@@ -98,7 +107,22 @@ for index, section in ipairs(sections) do
     else
         button:SetPoint("TOP", Window.rail, "TOP", 0, -12)
     end
-    local selected, hover = AddOverlay(button, true)
+    local selected, hover, primaryArt
+    if section.primary then
+        primaryArt = Chrome.PrimaryRail(button)
+        -- Restrict interaction feedback to the enamel center, not the
+        -- concept's metal frame or diamond embellishments.
+        selected = Style.Fill(button, C.goldDim, "ARTWORK")
+        hover = Style.Fill(button, C.goldDim, "ARTWORK")
+        for _, glow in ipairs({ selected, hover }) do
+            glow:ClearAllPoints()
+            glow:SetPoint("TOPLEFT", button, "TOPLEFT", 12, -12)
+            glow:SetPoint("BOTTOMRIGHT", button, "BOTTOMRIGHT", -12, 12)
+            glow:SetAlpha(0)
+        end
+    else
+        selected, hover = AddOverlay(button, true)
+    end
     local bar = button:CreateTexture(nil, "OVERLAY")
     bar:SetColorTexture(unpack(C.red))
     bar:SetPoint("TOPLEFT", button, "TOPLEFT", 0, 3)
@@ -113,14 +137,23 @@ for index, section in ipairs(sections) do
     label:SetJustifyH("CENTER")
     button:SetScript("OnClick", function() Select(index, 1) end)
     button:SetScript("OnEnter", function()
-        if currentSection ~= index then Motion.Fade(hover, 0.58, 0.17) end
+        if currentSection ~= index then
+            Motion.Fade(hover, section.primary and 0.18 or 0.58, 0.17)
+            if primaryArt then Motion.Fade(primaryArt, 0.80, 0.17) end
+        end
     end)
-    button:SetScript("OnLeave", function() Motion.Fade(hover, 0, 0.21) end)
+    button:SetScript("OnLeave", function()
+        Motion.Fade(hover, 0, 0.21)
+        if primaryArt then
+            Motion.Fade(primaryArt, currentSection == index and 1 or 0.48, 0.18)
+        end
+    end)
     ns.Widgets.PressFeedback(button, hover)
     ns.Tooltips.Bind(button, { title = section.label,
         detail = "Open the " .. section.label .. " section." })
     railButtons[index] = {
-        selected = selected, hover = hover, bar = bar, icon = icon, label = label
+        selected = selected, hover = hover, bar = bar, icon = icon, label = label,
+        primary = section.primary, primaryArt = primaryArt
     }
 
     local pages = {}

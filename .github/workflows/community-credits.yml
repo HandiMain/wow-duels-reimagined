@@ -18,6 +18,8 @@ on:
       - addon/DuelsReimagined/Media/Concept/CommunityFactionMarks.png
       - addon/DuelsReimagined/Media/Concept/CommunityAllianceLion.png
       - addon/DuelsReimagined/Media/Concept/CommunityConceptSymbols.png
+      - addon/DuelsReimagined/Media/Concept/NavPrimary.png
+      - addon/DuelsReimagined/UI/Chrome.lua
       - .github/workflows/community-credits.yml
   issues:
     types: [closed, reopened, labeled, unlabeled]
