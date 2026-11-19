@@ -144,3 +144,10 @@ Past experiments included duel history, personal statistics, rankings, player pr
 - Re-extracted the same lion from the approved `a_high_detail_screenshot_of_a_fantasy_mmorpg_addon.png` design (not a new/generated emblem), retained its face/mane details and fade in the dedicated 128x128 RGBA `Media/Concept/CommunityAllianceLion.png`.
 - The Alliance watermark retains its 229-unit dimensions and original anchor; alpha increases modestly from 0.78 to 0.84 for legibility. The Horde continues to use the untouched atlas with **identical bytes**, UV coordinates, size, location and 0.76 alpha. No changes to gameplay, buttons, community credits, Search or options.
 - Dedicated Community regression test verifies the Horde atlas SHA-256 and new Alliance image dimensions/format. Automated tests do not substitute for an in-game visual check.
+
+
+## Community hero buttons — exact concept fit (2026-11-19)
+
+- Previously the entire 256x64 primary-button texture was stretched to 270x43, distorting the corner bevels and making them visually extend beyond the red body. Polestar's primary button styling reinforced avoiding stacked/doubled edges. Duels retains its own approved PNG and shared Style.Action owner, with an opt-in `community` variant rendered as one **three-slice frame** in Chrome. The two end caps retain their shape and only the straight middle stretches. A strictly inset hover layer cannot spill over the gold corners. Default/footer buttons are unchanged.
+- Removed both redundant `Copy GitHub link` **buttons** under the primary hero actions. Replaced them with quiet, non-clickable descriptions of what each main action does. The only click target is the original main action, which still opens the existing selectable GitHub link dialog. No changes to GitHub automation, credits, search, tooltips, or navigation.
+- Regression test checks source ownership, cap sizing, proper button variant and a single click handler. Verify in WoW at varied Menu Scale and font sizes; automated checks cannot prove on-screen corner alignment.

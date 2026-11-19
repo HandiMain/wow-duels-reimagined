@@ -132,15 +132,28 @@ end
 
 function Style.Action(parent, caption, variant)
     local footer = variant == "footer"
+    local community = variant == "community"
     local button = CreateFrame("Button", nil, parent)
     button:SetSize(footer and 112 or 204, footer and 32 or 36)
-    Style.Fill(button, footer and Style.color.footer or Style.color.button)
 
-    -- Render the approved button frame ABOVE its solid-color fallback.
-    -- This avoids the bare text/plain red rectangle seen in Retail.
-    ns.Chrome.Texture(button, footer and "ButtonFooter" or "Button",
-        1, "ARTWORK")
-    local hover = ns.Chrome.Texture(button, "Selection", 0, "ARTWORK")
+    -- Only the two wide Community actions use properly proportioned end
+    -- caps. Keep all other button variants and their art unchanged.
+    local hover
+    if community then
+        ns.Chrome.SlicedButton(button)
+        hover = Style.Fill(button, Style.color.goldDim, "ARTWORK")
+        hover:ClearAllPoints()
+        hover:SetPoint("TOPLEFT", button, "TOPLEFT", 18, -8)
+        hover:SetPoint("BOTTOMRIGHT", button, "BOTTOMRIGHT", -18, 8)
+        hover:SetAlpha(0)
+    else
+        Style.Fill(button, footer and Style.color.footer or Style.color.button)
+
+        -- Render the approved button frame above its solid-color fallback.
+        ns.Chrome.Texture(button, footer and "ButtonFooter" or "Button",
+            1, "ARTWORK")
+        hover = ns.Chrome.Texture(button, "Selection", 0, "ARTWORK")
+    end
     local label = Style.Text(button, caption, 15, Style.color.pale)
     label:SetPoint("CENTER")
     button:SetScript("OnEnter", function()

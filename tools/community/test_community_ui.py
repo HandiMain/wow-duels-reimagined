@@ -163,6 +163,25 @@ class CommunityUITests(unittest.TestCase):
         community = content("UI/Community.lua")
         self.assertIn("CommunityAllianceLion.png", community)
 
+    def test_community_buttons_are_proportional_and_have_one_click_target(self):
+        style = content("UI/Style.lua")
+        chrome = content("UI/Chrome.lua")
+        community = content("UI/Community.lua")
+        self.assertIn('local community = variant == "community"', style)
+        self.assertIn('ns.Chrome.SlicedButton(button)', style)
+        self.assertIn('function Chrome.SlicedButton(parent)', chrome)
+        self.assertIn('local capU = 32 / 256', chrome)
+        self.assertIn('middle:SetTexCoord(capU, 1 - capU, 0, 1)', chrome)
+        self.assertIn('parent:HookScript("OnSizeChanged", FitCaps)', chrome)
+        self.assertIn('local btn = Style.Action(canvas, heading, "community")', community)
+        self.assertEqual(community.count('btn:SetScript("OnClick"'), 1)
+        self.assertNotIn('local copy = CreateFrame("Button"', community)
+        self.assertNotIn('copy:SetScript("OnClick"', community)
+        self.assertIn('Get a link to report a bug on GitHub.', community)
+        self.assertIn('Get a link to suggest an improvement.', community)
+        self.assertIn('local note = Style.Text(canvas, description, 12, C.muted)', community)
+        self.assertIn('ns.Tooltips.Bind(btn, {', community)
+
     def test_shared_components_and_no_network_in_wow(self):
         source = content("UI/Community.lua")
         for marker in ("Widgets.ScrollBar(", "ns.Tooltips.Bind(",

@@ -30,6 +30,46 @@ function Chrome.Texture(parent, name, alpha, layer)
     return Chrome.Sharp(tex)
 end
 
+-- Keep the original concept's gold corner artwork unstretched on wide buttons.
+-- The source texture is 256x64. Fixed-width end caps follow button height;
+-- only the long straight middle is stretched. No per-frame updates.
+function Chrome.SlicedButton(parent)
+    local texturePath = art .. textureNames.Button
+    local capU = 32 / 256
+
+    local left = parent:CreateTexture(nil, "ARTWORK")
+    left:SetTexture(texturePath)
+    left:SetTexCoord(0, capU, 0, 1)
+    left:SetPoint("TOPLEFT", parent, "TOPLEFT")
+    left:SetPoint("BOTTOMLEFT", parent, "BOTTOMLEFT")
+
+    local right = parent:CreateTexture(nil, "ARTWORK")
+    right:SetTexture(texturePath)
+    right:SetTexCoord(1 - capU, 1, 0, 1)
+    right:SetPoint("TOPRIGHT", parent, "TOPRIGHT")
+    right:SetPoint("BOTTOMRIGHT", parent, "BOTTOMRIGHT")
+
+    local middle = parent:CreateTexture(nil, "ARTWORK")
+    middle:SetTexture(texturePath)
+    middle:SetTexCoord(capU, 1 - capU, 0, 1)
+    middle:SetPoint("TOPLEFT", left, "TOPRIGHT")
+    middle:SetPoint("BOTTOMRIGHT", right, "BOTTOMLEFT")
+
+    Chrome.Sharp(left)
+    Chrome.Sharp(right)
+    Chrome.Sharp(middle)
+
+    local function FitCaps(self)
+        -- 32 source pixels at the original 64px height; no distorted bevels.
+        local cap = math.max(1, math.min(32, self:GetHeight() * 0.5))
+        left:SetWidth(cap)
+        right:SetWidth(cap)
+    end
+    parent:HookScript("OnSizeChanged", FitCaps)
+    FitCaps(parent)
+    return left, middle, right
+end
+
 function Chrome.Icon(parent, name)
     local tex = parent:CreateTexture(nil, "ARTWORK")
     tex:SetTexture(art .. "Icon" .. name .. ".png")

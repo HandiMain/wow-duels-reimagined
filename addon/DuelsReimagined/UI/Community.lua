@@ -144,7 +144,7 @@ local function SelectableURL(kind)
 end
 
 local function Action(kind, heading, xOffset)
-    local btn = Style.Action(canvas, heading)
+    local btn = Style.Action(canvas, heading, "community")
     btn:SetSize(270, 43)
     btn:SetPoint("TOP", canvas, "TOP", xOffset, -112)
     btn:SetScript("OnClick", function() SelectableURL(kind) end)
@@ -156,21 +156,17 @@ local function Action(kind, heading, xOffset)
         title = heading,
         detail = "Display the GitHub form URL. Copy it with Ctrl+C, then open it in your browser.",
     })
-    local copy = CreateFrame("Button", nil, canvas)
-    copy:SetSize(184, 25)
-    copy:SetPoint("TOP", btn, "BOTTOM", 0, -3)
-    copy:RegisterForClicks("LeftButtonUp")
-    local linkIcon = ConceptSymbol(copy, 11, 25)
-    linkIcon:SetPoint("LEFT", copy, "LEFT", 10, 0)
-    local label = Style.Text(copy, "Copy GitHub link", 12, C.muted)
-    label:SetPoint("LEFT", linkIcon, "RIGHT", 4, 0)
-    copy:SetScript("OnClick", function() SelectableURL(kind) end)
-    copy:SetScript("OnEnter", function() label:SetTextColor(unpack(C.gold)) end)
-    copy:SetScript("OnLeave", function() label:SetTextColor(unpack(C.muted)) end)
-    ns.Tooltips.Bind(copy, {
-        title = "Copy GitHub link",
-        detail = "Show a selectable link, then press Ctrl+C (Cmd+C on Mac).",
-    })
+    -- An explanation, not a second button: the main action is the only
+    -- clickable target. The URL dialog still lets players select Ctrl+C.
+    local description = kind == "bug"
+        and "Get a link to report a bug on GitHub."
+        or "Get a link to suggest an improvement."
+    local note = Style.Text(canvas, description, 12, C.muted)
+    note:SetPoint("TOP", btn, "BOTTOM", 0, -4)
+    note:SetWidth(308)
+    note:SetHeight(32)
+    note:SetJustifyH("CENTER")
+    note:SetWordWrap(true)
     return btn
 end
 
