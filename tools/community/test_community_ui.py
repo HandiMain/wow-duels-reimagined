@@ -81,11 +81,69 @@ class CommunityUITests(unittest.TestCase):
         self.assertEqual(data[:8], b"\x89PNG\r\n\x1a\n")
         self.assertEqual(data[12:16], b"IHDR")
         width, height = struct.unpack(">II", data[16:24])
-        self.assertEqual((width, height), (512, 256))
+        self.assertEqual((width, height), (128, 64))
         self.assertEqual(data[25], 6, "WoW texture must be truecolor RGBA")
         community = content("UI/Community.lua")
         self.assertIn("CommunityFactionMarks.png", community)
-        self.assertIn("tex:SetAlpha(left and 0.12 or 0.10)", community)
+        self.assertIn("tex:SetAlpha(left and 0.78 or 0.76)", community)
+
+    def test_concept_assets_have_partial_alpha_and_correct_sources(self):
+        # Explicitly reject the previous flat color squares. The approved
+        # concept textures must retain soft-edged transparent silhouettes.
+        import zlib
+        for filename, dims in (
+            ("CommunityFactionMarks.png", (128, 64)),
+            ("CommunityConceptSymbols.png", (128, 128)),
+        ):
+            raw = (ADDON / "Media" / "Concept" / filename).read_bytes()
+            self.assertEqual(struct.unpack(">II", raw[16:24]), dims)
+            self.assertEqual(raw[25], 6, "Use truecolor RGBA, not palette PNG")
+            pos = 8
+            chunks = []
+            while pos < len(raw):
+                size = struct.unpack(">I", raw[pos:pos+4])[0]
+                kind = raw[pos+4:pos+8]
+                if kind == b"IDAT":
+                    chunks.append(raw[pos+8:pos+8+size])
+                pos += 12 + size
+                if kind == b"IEND":
+                    break
+            packed = zlib.decompress(b"".join(chunks))
+            width, height = dims
+            previous = bytearray(width * 4)
+            offset = 0
+            soft_pixels = 0
+            for _ in range(height):
+                mode = packed[offset]
+                offset += 1
+                line = bytearray(packed[offset:offset+width*4])
+                offset += width*4
+                for x in range(len(line)):
+                    left = line[x-4] if x >= 4 else 0
+                    up = previous[x]
+                    up_left = previous[x-4] if x >= 4 else 0
+                    if mode == 1:
+                        predictor = left
+                    elif mode == 2:
+                        predictor = up
+                    elif mode == 3:
+                        predictor = (left+up)//2
+                    elif mode == 4:
+                        p = left+up-up_left
+                        distances = (abs(p-left), abs(p-up), abs(p-up_left))
+                        predictor = (left, up, up_left)[distances.index(min(distances))]
+                    else:
+                        self.assertEqual(mode, 0)
+                        predictor = 0
+                    line[x] = (line[x] + predictor) & 255
+                soft_pixels += sum(0 < line[i] < 255 for i in range(3, len(line), 4))
+                previous = line
+            self.assertGreater(soft_pixels, 100,
+                "Source-derived artwork needs faded/transparent shapes, not flat colored squares")
+        community = content("UI/Community.lua")
+        self.assertIn("tex:SetTexCoord(0, 0.5, 0, 1)", community)
+        self.assertIn("tex:SetTexCoord(0.5, 1, 0, 1)", community)
+        self.assertIn("CommunityConceptSymbols.png", community)
 
     def test_shared_components_and_no_network_in_wow(self):
         source = content("UI/Community.lua")
