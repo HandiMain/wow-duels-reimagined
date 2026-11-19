@@ -304,6 +304,13 @@ function Options.Refresh()
     local hasWidget = mode == "widget" or mode == "both"
     widgetSize:SetAvailable(hasWidget)
     widgetTransparency:SetAvailable(hasWidget)
+    -- Disabled sliders must still explain how to make them available.
+    widgetSize.description:SetText(hasWidget and
+        "Size of the movable floating icon (24 to 128 pixels)." or
+        "Choose Widget or Both in Icon mode to change widget size.")
+    widgetTransparency.description:SetText(hasWidget and
+        "Fade the floating widget when you are not hovering over it." or
+        "Choose Widget or Both in Icon mode to change transparency.")
     resetAccess:SetEnabled(true)
     appearance.scrollBar:Refresh()
     interface.scrollBar:Refresh()
