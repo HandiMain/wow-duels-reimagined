@@ -41,7 +41,7 @@ local footer = CreateFrame("Frame", nil, frame)
 footer:SetHeight(56)
 footer:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", 2, 2)
 footer:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -2, 2)
-Style.Fill(footer, C.footer)
+Style.Fill(footer, C.header)
 
 local body = CreateFrame("Frame", nil, frame)
 body:SetPoint("TOPLEFT", header, "BOTTOMLEFT", 0, 0)
@@ -180,8 +180,8 @@ end
 Window.ApplyScale(Settings.Get("menuScale") or 1)
 
 local close = Style.Action(footer, "Close")
-close:SetSize(116, 33)
-close:SetPoint("RIGHT", footer, "RIGHT", -20, 0)
+close:SetSize(112, 32)
+close:SetPoint("RIGHT", footer, "RIGHT", -30, 0)
 close:SetScript("OnClick", function() frame:Hide() end)
 
 local title = Style.Text(content, "Welcome to the Hall", 28, C.pale, true)

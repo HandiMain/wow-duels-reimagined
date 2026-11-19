@@ -51,7 +51,7 @@ end
 
 function Chrome.Shell(frame, header, footer, rail, nav, content)
     Chrome.Texture(header, "Header", 0.94, "BACKGROUND", "header")
-    Chrome.Texture(footer, "Footer", 0.94, "BACKGROUND", "footer")
+    Chrome.Texture(footer, "Header", 0.94, "BACKGROUND", "header")
     Chrome.Texture(rail, "Rail", 0.92, "BACKGROUND", "rail")
     Chrome.Texture(nav, "Nav", 0.92, "BACKGROUND", "nav")
     Chrome.Texture(content, "Content", 0.94, "BACKGROUND", "body")
