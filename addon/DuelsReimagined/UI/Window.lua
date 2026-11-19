@@ -63,7 +63,7 @@ Style.Fill(main, C.body)
 Window.main = main
 
 local brandIcon = rail:CreateTexture(nil, "ARTWORK")
-brandIcon:SetTexture("Interface\AddOns\DuelsReimagined\Media\Icons\DuelsReimagined-AddonIcon.blp")
+brandIcon:SetTexture("Interface\\AddOns\\DuelsReimagined\\Media\\Icons\\DuelsReimagined-AddonIcon.blp")
 brandIcon:SetSize(64, 64)
 brandIcon:SetPoint("TOP", rail, "TOP", 0, -14)
 
@@ -141,7 +141,7 @@ local subtitle = Style.Text(content, "Your dueling journey starts here.", 15, C.
 subtitle:SetPoint("TOP", titleRule, "BOTTOM", 0, -16)
 
 local watermark = content:CreateTexture(nil, "BACKGROUND", nil, 1)
-watermark:SetTexture("Interface\AddOns\DuelsReimagined\Media\Icons\DuelsReimagined-AddonIcon.blp")
+watermark:SetTexture("Interface\\AddOns\\DuelsReimagined\\Media\\Icons\\DuelsReimagined-AddonIcon.blp")
 watermark:SetSize(260, 260)
 watermark:SetPoint("CENTER", content, "CENTER", 0, -25)
 watermark:SetAlpha(0.095)

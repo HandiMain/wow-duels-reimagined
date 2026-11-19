@@ -63,7 +63,7 @@ end
 
 function Style.Text(parent, value, size, color, outline)
     local label = parent:CreateFontString(nil, "OVERLAY")
-    label:SetFont(STANDARD_TEXT_FONT or "Fonts\FRIZQT__.TTF", size or 14, outline and "OUTLINE" or "")
+    label:SetFont(STANDARD_TEXT_FONT or "Fonts\\FRIZQT__.TTF", size or 14, outline and "OUTLINE" or "")
     local c = color or Style.color.text
     label:SetTextColor(unpack(c))
     label:SetJustifyH("LEFT")

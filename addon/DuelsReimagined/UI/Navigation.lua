@@ -5,17 +5,17 @@ local Window = ns.Window
 
 -- These entries exercise navigation and empty states only. No duel systems exist yet.
 local sections = {
-    { key = "hall", label = "Hall", icon = "Interface\Icons\INV_Sword_04", pages = {
+    { key = "hall", label = "Hall", icon = "Interface\\Icons\\INV_Sword_04", pages = {
         { key = "overview", label = "Overview", title = "Welcome to the Hall", subtitle = "Your dueling journey starts here.", emptyTitle = "No duels recorded yet", emptyDetail = "Your recent activity will appear here.", action = true },
     } },
-    { key = "record", label = "Record", icon = "Interface\Icons\INV_Misc_Book_09", pages = {
+    { key = "record", label = "Record", icon = "Interface\\Icons\\INV_Misc_Book_09", pages = {
         { key = "personal", label = "My Record", title = "My Record", subtitle = "Your dueling record.", emptyTitle = "No duels recorded yet", emptyDetail = "Your results will appear here." },
         { key = "recent", label = "Recent Duels", title = "Recent Duels", subtitle = "Your latest encounters.", emptyTitle = "No recent duels", emptyDetail = "Completed duels will appear here." },
     } },
-    { key = "community", label = "Community", icon = "Interface\Icons\INV_Misc_GroupLooking", pages = {
+    { key = "community", label = "Community", icon = "Interface\\Icons\\INV_Misc_GroupLooking", pages = {
         { key = "community", label = "Community", title = "Community", subtitle = "The people behind the duels.", emptyTitle = "Nothing to show yet", emptyDetail = "Community features will arrive later." },
     } },
-    { key = "options", label = "Options", icon = "Interface\Buttons\UI-OptionsButton", pages = {
+    { key = "options", label = "Options", icon = "Interface\\Buttons\\UI-OptionsButton", pages = {
         { key = "options", label = "Appearance", title = "Appearance", subtitle = "Make the interface your own.", emptyTitle = "Options coming later", emptyDetail = "We'll design the controls together." },
     } },
 }
