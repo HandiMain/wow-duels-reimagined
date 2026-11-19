@@ -1,12 +1,15 @@
 local _, ns = ...
 local Style, Chrome, Motion = ns.Style, ns.Chrome, ns.Motion
 local C = Style.color
+-- The smallest dimensions supported by the resize grip are now also the
+-- default. Keep this as the single owner for first-load and reset sizing.
+local MIN_WIDTH, MIN_HEIGHT, EDGE = 1050, 650, 16
 
 local Window = {}
 ns.Window = Window
 
 local frame = CreateFrame("Frame", "DuelsReimaginedWindow", UIParent)
-frame:SetSize(1300, 946)
+frame:SetSize(MIN_WIDTH, MIN_HEIGHT)
 frame:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
 frame:SetFrameStrata("DIALOG")
 frame:SetToplevel(true)
@@ -92,7 +95,7 @@ brandArea:EnableMouse(false)
 local brandLogo = brandArea:CreateTexture(nil, "ARTWORK")
 brandLogo:SetTexture("Interface\\AddOns\\DuelsReimagined\\Media\\Concept\\Option5HeaderLogo.png")
 local BRAND_ASPECT = 420 / 102
-local BRAND_MAX_WIDTH, BRAND_MAX_HEIGHT = 480, 106
+local BRAND_MAX_WIDTH, BRAND_MAX_HEIGHT = 480, 96
 brandLogo:SetSize(math.min(BRAND_MAX_WIDTH, BRAND_MAX_HEIGHT * BRAND_ASPECT),
     BRAND_MAX_HEIGHT)
 brandLogo:SetPoint("CENTER", brandArea, "CENTER")
@@ -200,30 +203,16 @@ local function PaintScale(value)
     scalePercent:SetText(math.floor(v * 100 + 0.5) .. "%")
 end
 
--- Match Polestar's 1300 x 946 physical-pixel default while respecting
--- UIParent scaling, the menu-scale preference and screen-safe margins.
--- The window is not resized continuously while the scale slider is dragged.
-local BASE_WIDTH, BASE_HEIGHT, EDGE = 1300, 946, 16
-
--- A single geometry calculation owns defaults, resize bounds and screen-fit.
--- Use client UI units, so saved dimensions also respect Menu Scale.
+-- Like Polestar, constrain the window to the available screen after
+-- Menu Scale. Unlike the larger prototype, use the existing resize minimum
+-- as the new default on every resolution; custom saved sizes still win.
+-- The scale slider remains release-to-apply, never resize-on-drag.
 local function WindowGeometry(menuScale)
     local parentH, parentW = UIParent:GetHeight(), UIParent:GetWidth()
-    local physicalH
-    if type(GetPhysicalScreenSize) == "function" then
-        local _, h = GetPhysicalScreenSize()
-        physicalH = h
-    end
-    local ppu = (type(physicalH) == "number" and physicalH > 0
-        and parentH and parentH > 0) and physicalH / parentH or 1
-    local growth = math.max(1,
-        math.floor((physicalH or 0) / 1440 * 20 + 0.5) / 20)
     local maxW = math.max(1, math.floor(parentW / menuScale - 2 * EDGE))
     local maxH = math.max(1, math.floor(parentH / menuScale - 2 * EDGE))
-    local minW, minH = math.min(1050, maxW), math.min(650, maxH)
-    local defW = math.max(minW, math.min(maxW, math.floor(BASE_WIDTH * growth / ppu + 0.5)))
-    local defH = math.max(minH, math.min(maxH, math.floor(BASE_HEIGHT * growth / ppu + 0.5)))
-    return defW, defH, minW, minH, maxW, maxH
+    local minW, minH = math.min(MIN_WIDTH, maxW), math.min(MIN_HEIGHT, maxH)
+    return minW, minH, minW, minH, maxW, maxH
 end
 
 frame:SetResizable(true)
@@ -268,7 +257,13 @@ function Window.ResetWindow()
 end
 
 function Window.IsDefault()
-    return not Settings.HasWindowSize() and not Settings.IsModified("menuScale")
+    if Settings.IsModified("menuScale") then return false end
+    local w, h = Settings.GetWindowSize()
+    if not w then return true end
+    -- A player who already resized to the old minimum is visually at the
+    -- new default. Do not misleadingly enable Reset for that saved size.
+    local dw, dh = Window.DefaultSize()
+    return math.abs(w - dw) <= 2 and math.abs(h - dh) <= 2
 end
 
 function Window.ApplyScale(value)
