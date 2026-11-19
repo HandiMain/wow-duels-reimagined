@@ -1,52 +1,57 @@
 local _, ns = ...
 
--- One idle-free animation driver for all Duels-owned visual feedback.
+-- One shared animation driver. It runs only while at least one value changes.
 local Motion = {}
 ns.Motion = Motion
 
 local driver = CreateFrame("Frame")
 local active = {}
 
+local function Smooth(p)
+    return p * p * (3 - 2 * p)
+end
+
 local function Tick(_, elapsed)
-    local running = false
-    for region, tween in pairs(active) do
+    for key, tween in pairs(active) do
         tween.elapsed = tween.elapsed + elapsed
-        local p = math.min(1, tween.elapsed / tween.duration)
-        p = p * p * (3 - 2 * p)
-        region:SetAlpha(tween.from + (tween.to - tween.from) * p)
-        if tween.elapsed >= tween.duration then
-            region:SetAlpha(tween.to)
-            active[region] = nil
-        else
-            running = true
+        local progress = math.min(1, tween.elapsed / tween.duration)
+        local value = tween.from + (tween.to - tween.from) * Smooth(progress)
+        tween.apply(key, value)
+        if progress >= 1 then
+            active[key] = nil
         end
     end
-    if not running then driver:SetScript("OnUpdate", nil) end
+    if not next(active) then driver:SetScript("OnUpdate", nil) end
+end
+
+-- Numeric interpolation for shared components such as sliding toggles.
+-- Retargeting a value replaces its existing tween, never stacks a second one.
+function Motion.Value(key, from, target, duration, apply)
+    if not key or type(apply) ~= "function" then return end
+    active[key] = nil
+    if not duration or duration <= 0 or math.abs(from - target) < 0.001 then
+        apply(key, target)
+        if not next(active) then driver:SetScript("OnUpdate", nil) end
+        return
+    end
+
+    local tween = { from = from, to = target, duration = duration,
+        elapsed = 0, apply = apply }
+    active[key] = tween
+    driver:SetScript("OnUpdate", Tick)
+end
+
+local function ApplyAlpha(region, value)
+    region:SetAlpha(value)
 end
 
 function Motion.Fade(region, target, duration)
     if not region then return end
-    local current = region:GetAlpha()
-    if duration == nil or duration <= 0 or math.abs(current - target) < 0.001 then
-        active[region] = nil
-        region:SetAlpha(target)
-        if not next(active) then driver:SetScript("OnUpdate", nil) end
-        return
-    end
-    local tween = active[region]
-    if not tween then
-        tween = {}
-        active[region] = tween
-    end
-    tween.from = current
-    tween.to = target
-    tween.elapsed = 0
-    tween.duration = duration
-    driver:SetScript("OnUpdate", Tick)
+    Motion.Value(region, region:GetAlpha(), target, duration, ApplyAlpha)
 end
 
 function Motion.Stop(region, value)
     active[region] = nil
-    if value then region:SetAlpha(value) end
+    if value ~= nil then region:SetAlpha(value) end
     if not next(active) then driver:SetScript("OnUpdate", nil) end
 end

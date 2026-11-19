@@ -46,8 +46,9 @@ local function Select(sectionIndex, pageIndex, noMotion)
         end
         item.bar:SetShown(on)
         item.label:SetTextColor(unpack(on and C.pale or C.muted))
-        item.icon:SetVertexColor(on and 1 or 0.77, on and 0.94 or 0.78,
-            on and 0.72 or 0.81, 1)
+        -- Keep the Hall's blue/red faction accents intact.
+        item.icon:SetVertexColor(1, 1, 1, 1)
+        item.icon:SetAlpha(on and 1 or 0.85)
     end
     for i, group in ipairs(subButtons) do
         for j, item in ipairs(group) do
