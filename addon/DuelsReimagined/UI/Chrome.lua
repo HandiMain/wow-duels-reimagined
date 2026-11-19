@@ -73,7 +73,11 @@ function Chrome.Shell(frame, header, footer, rail, nav)
         { "TL", "TOPLEFT" }, { "TR", "TOPRIGHT" },
         { "BL", "BOTTOMLEFT" }, { "BR", "BOTTOMRIGHT" },
     }) do
-        local tex = Art(rim, "Corner" .. corner[1], "OVERLAY")
+        -- Only the bottom-right corner is reshaped to expose an actual
+        -- resize affordance. The other three approved corner assets stay.
+        local cornerArt = corner[1] == "BR" and "CornerBRResize" or
+            ("Corner" .. corner[1])
+        local tex = Art(rim, cornerArt, "OVERLAY")
         tex:SetSize(64, 64)
         tex:SetPoint(corner[2], rim, corner[2])
     end

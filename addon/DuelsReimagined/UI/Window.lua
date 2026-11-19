@@ -291,21 +291,26 @@ end)
 function Window.RefreshTheme()
     scaleFill:SetColorTexture(unpack(C.gold))
     scaleResetIcon:SetVertexColor(unpack(C.gold))
-    if Window.resizeGrip then Window.resizeGrip.icon:SetVertexColor(unpack(C.gold)) end
+    -- This authored artwork remains legible under optional EllesmereUI colors.
+    if Window.resizeGrip then Window.resizeGrip.icon:SetVertexColor(1, 1, 1) end
 end
 
 Window.ApplyScale(Settings.Get("menuScale") or 1)
 
 -- One resize owner, regardless of active page. Persist once on mouse release.
 local grip = CreateFrame("Button", nil, frame)
-grip:SetSize(24, 24)
-grip:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -2, 2)
+-- A 34x34 hit area sits INSIDE the bottom-right corner, clear of Close.
+grip:SetSize(34, 34)
+grip:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -4, 4)
 grip:SetFrameLevel(frame:GetFrameLevel() + 45)
 grip:RegisterForClicks("RightButtonUp")
 local gripIcon = grip:CreateTexture(nil, "ARTWORK")
 gripIcon:SetAllPoints(grip)
-gripIcon:SetTexture("Interface\\AddOns\\DuelsReimagined\\Media\\Polestar\\resize.tga")
-gripIcon:SetVertexColor(unpack(C.gold))
+-- The new corner supplies the always-visible grip artwork. This separate
+-- glow layer provides responsive feedback without a second overlapping icon.
+gripIcon:SetTexture("Interface\\AddOns\\DuelsReimagined\\Media\\Concept\\Frame\\ResizeGripHighlight.png")
+gripIcon:SetVertexColor(1, 1, 1)
+gripIcon:SetAlpha(0)
 Chrome.Sharp(gripIcon)
 grip.icon = gripIcon
 local sizing = false
@@ -329,7 +334,7 @@ grip:SetScript("OnClick", function(_, button)
     if button == "RightButton" then Window.ResetSize() end
 end)
 grip:SetScript("OnEnter", function(self)
-    gripIcon:SetVertexColor(unpack(C.pale))
+    Motion.Fade(gripIcon, 0.95, 0.12)
     if GameTooltip then
         GameTooltip:SetOwner(self, "ANCHOR_TOP")
         GameTooltip:SetText("Drag to resize", 1, 0.84, 0.57)
@@ -338,7 +343,7 @@ grip:SetScript("OnEnter", function(self)
     end
 end)
 grip:SetScript("OnLeave", function(self)
-    gripIcon:SetVertexColor(unpack(C.gold))
+    Motion.Fade(gripIcon, 0, 0.18)
     if GameTooltip and GameTooltip:IsOwned(self) then GameTooltip:Hide() end
 end)
 grip:SetScript("OnHide", function()

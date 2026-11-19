@@ -18,9 +18,22 @@ local boolDefaults = {
 
 -- Future settings must opt in to reload tracking; none currently need it.
 local reloadRequired, loadValues = {}, {}
+local ReadDB
+
+-- Ellesmere integration is an optional capability, not a fixed user default.
+-- No saved override: follow availability. Explicit stored choices persist.
+local function EllesmereReady()
+    return ns.Theme and type(ns.Theme.IsAvailable) == "function"
+        and ns.Theme.IsAvailable() or false
+end
+
+local function IsMatchPreference(key)
+    return key == "matchColors" or key == "matchFont"
+end
 
 function Settings.GetDefault(key)
     if key == "menuScale" then return 1 end
+    if IsMatchPreference(key) then return EllesmereReady() end
     return boolDefaults[key]
 end
 
@@ -30,6 +43,16 @@ function Settings.IsModified(key)
 end
 
 function Settings.Reset(key)
+    if IsMatchPreference(key) then
+        -- Reset means AUTO: remove the override rather than saving whatever
+        -- the third-party addon happens to report in this session.
+        local db = ReadDB()
+        if db and db[key] ~= nil then
+            db[key] = nil
+            if ns.Theme and ns.Theme.Refresh then ns.Theme.Refresh() end
+        end
+        return
+    end
     local default = Settings.GetDefault(key)
     if default ~= nil then Settings.Set(key, default) end
 end
@@ -47,7 +70,7 @@ function Settings.NeedsReload()
     return false
 end
 
-local function ReadDB()
+ReadDB = function()
     local db = _G.DuelsReimaginedDB
     return type(db) == "table" and db or nil
 end
@@ -102,9 +125,12 @@ function Settings.Get(key)
         return Settings.NormalizeScale(db and db.menuScale)
     end
     if boolDefaults[key] == nil then return nil end
+    -- When the integration is unavailable, the EFFECTIVE setting is OFF.
+    -- Preserve any saved ON override for when EllesmereUI is enabled again.
+    if IsMatchPreference(key) and not EllesmereReady() then return false end
     local stored = db and db[key]
     if type(stored) == "boolean" then return stored end
-    return boolDefaults[key]
+    return Settings.GetDefault(key)
 end
 
 function Settings.Set(key, value)
@@ -144,7 +170,15 @@ loader:SetScript("OnEvent", function(self, _, loadedName)
     self:UnregisterEvent("ADDON_LOADED")
     local db = WriteDB()
     for key, default in pairs(boolDefaults) do
-        if type(db[key]) ~= "boolean" then db[key] = default end
+        if IsMatchPreference(key) then
+            -- Keep nil for automatic detection. Legacy true/false choices
+            -- remain intact; invalid saved types become auto.
+            if db[key] ~= nil and type(db[key]) ~= "boolean" then
+                db[key] = nil
+            end
+        elseif type(db[key]) ~= "boolean" then
+            db[key] = default
+        end
     end
     db.menuScale = Settings.NormalizeScale(db.menuScale)
     if not Settings.HasWindowSize() then db.windowSize = nil end
