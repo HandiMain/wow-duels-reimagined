@@ -5,17 +5,6 @@ local Footer = {}
 ns.Footer = Footer
 local iconBase = "Interface\\AddOns\\DuelsReimagined\\Media\\Polestar\\"
 
-local function ShowTip(button, title, detail)
-    if not GameTooltip then return end
-    GameTooltip:SetOwner(button, "ANCHOR_TOP")
-    GameTooltip:SetText(title, 1, 0.84, 0.57)
-    if detail then GameTooltip:AddLine(detail, 0.8, 0.8, 0.8, true) end
-    GameTooltip:Show()
-end
-local function HideTip(button)
-    if GameTooltip and GameTooltip:IsOwned(button) then GameTooltip:Hide() end
-end
-
 local version = Style.Text(footer, "Version Test Build", 11, C.muted)
 version:SetPoint("LEFT", footer, "LEFT", 22, 0)
 local beta = CreateFrame("Frame", nil, footer)
@@ -36,14 +25,16 @@ discordIcon:SetAllPoints(discord)
 discordIcon:SetTexture(iconBase .. "discord.tga")
 discordIcon:SetVertexColor(0.345, 0.396, 0.949)
 ns.Chrome.Sharp(discordIcon)
-discord:SetScript("OnEnter", function(self)
+discord:SetScript("OnEnter", function()
     discordIcon:SetVertexColor(0.52, 0.57, 1)
-    ShowTip(self, "Duels Reimagined Discord", "Community invite: COMING SOON")
 end)
-discord:SetScript("OnLeave", function(self)
+discord:SetScript("OnLeave", function()
     discordIcon:SetVertexColor(0.345, 0.396, 0.949)
-    HideTip(self)
 end)
+ns.Tooltips.Bind(discord, {
+    title = "Duels Reimagined Discord",
+    detail = "Community invite is coming soon.",
+})
 
 local function FooterButton(label, width, detail)
     local button = CreateFrame("Button", nil, footer)
@@ -64,16 +55,17 @@ local function FooterButton(label, width, detail)
     button.icon, button.hover = icon, hover
     button:SetScript("OnEnter", function(self)
         if self:IsEnabled() then Motion.Fade(hover, 0.28, 0.13) end
-        local message = self:IsEnabled() and detail or
-            (label == "Reload UI" and "No setting requires a reload." or
-             "Window size and Menu Scale are already at their defaults.")
-        ShowTip(self, label, message)
-    end)
+     end)
     button:SetScript("OnLeave", function(self)
         Motion.Fade(hover, 0, 0.13)
-        HideTip(self)
     end)
     ns.Widgets.PressFeedback(button, hover)
+    ns.Tooltips.Bind(button, function(self)
+        return { title = label,
+            detail = self:IsEnabled() and detail or
+                (label == "Reload UI" and "No setting currently requires a reload." or
+                 "Window size and Menu Scale are already at their defaults.") }
+    end)
     return button
 end
 
@@ -121,14 +113,20 @@ close:SetPoint("BOTTOM", dialog, "BOTTOM", 0, 16)
 function Footer.ClosePopup()
     Motion.Stop(modal, 1)
     modal:Hide()
+    ns.Tooltips.Hide(nil, true)
 end
 function Footer.ShowPopup()
     if ns.Header and ns.Header.IsFolded and ns.Header.IsFolded() then return end
+    ns.Tooltips.Hide(nil, true)
     modal:SetAlpha(0)
     modal:Show()
     Motion.Fade(modal, 1, Motion.Duration("quick"))
 end
 close:SetScript("OnClick", Footer.ClosePopup)
+ns.Tooltips.Bind(close, {
+    title = "Close dialog",
+    detail = "Return to Duels Reimagined.",
+})
 modal:SetScript("OnMouseDown", Footer.ClosePopup)
 modal:Hide()
 frame:HookScript("OnHide", function() modal:Hide() end)
@@ -164,9 +162,8 @@ ns.Search.Register("footer:reload-ui", "Reload UI", "Footer",
     end)
 ns.Search.Register("setting:menuScale", "Menu Scale", "Header",
     "Change size between 65 and 120 percent; right click to reset", function()
-        if GameTooltip then
-            GameTooltip:SetOwner(Window.scaleSlider, "ANCHOR_BOTTOM")
-            GameTooltip:SetText("Drag Menu Scale in the header.", 1, 0.84, 0.57)
-            GameTooltip:Show()
-        end
+        ns.Tooltips.Show(Window.scaleSlider, {
+            title = "Menu Scale",
+            detail = "Drag or scroll the slider in the header to resize the window.",
+        })
     end)
