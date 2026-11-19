@@ -47,41 +47,51 @@ function Chrome.Divider(parent, width, height)
 end
 
 function Chrome.Shell(frame, header, footer, rail, nav)
-    -- A single, continuous frame border. No second rim, trim strips or
-    -- corner screenshots that can overlap or introduce an unwanted X.
+    -- The frame has ONE border owner. Its eight separate PNGs are the only
+    -- outer frame artwork: four continuous strips plus four corner ornaments.
+    -- Never add a second Style.Border or a page-sized border wallpaper.
+    local metal = art .. "Frame\\"
     local rim = CreateFrame("Frame", nil, frame)
     rim:SetAllPoints(frame)
     rim:SetFrameLevel(frame:GetFrameLevel() + 20)
     rim:EnableMouse(false)
 
-    local function Edge(top, bottom, left, right, horizontal)
-        local line = Style.Fill(rim, C.goldDim, "ARTWORK")
-        line:ClearAllPoints()
-        if horizontal then
-            line:SetPoint(top, frame, top, 0, 0)
-            line:SetPoint(bottom, frame, bottom, 0, 0)
-            line:SetHeight(2)
-        else
-            line:SetPoint(left, frame, left, 0, 0)
-            line:SetPoint(right, frame, right, 0, 0)
-            line:SetWidth(2)
-        end
-        return line
+    local function Strip(filename, anchorA, anchorB, vertical)
+        local tex = rim:CreateTexture(nil, "ARTWORK")
+        tex:SetTexture(metal .. filename .. ".png")
+        tex:SetPoint(anchorA, rim, anchorA, 0, 0)
+        tex:SetPoint(anchorB, rim, anchorB, 0, 0)
+        if vertical then tex:SetWidth(16) else tex:SetHeight(16) end
+        Chrome.Sharp(tex)
     end
 
-    Edge("TOPLEFT", "TOPRIGHT", nil, nil, true)
-    Edge("BOTTOMLEFT", "BOTTOMRIGHT", nil, nil, true)
-    Edge(nil, nil, "TOPLEFT", "BOTTOMLEFT", false)
-    Edge(nil, nil, "TOPRIGHT", "BOTTOMRIGHT", false)
+    Strip("TrimTop", "TOPLEFT", "TOPRIGHT", false)
+    Strip("TrimBottom", "BOTTOMLEFT", "BOTTOMRIGHT", false)
+    Strip("TrimLeft", "TOPLEFT", "BOTTOMLEFT", true)
+    Strip("TrimRight", "TOPRIGHT", "BOTTOMRIGHT", true)
+
+    -- Corner PNGs contain only decorative metal, never backdrop pixels or
+    -- the close icon. They sit flush with the same frame that owns the strips.
+    for _, corner in ipairs({
+        { "TL", "TOPLEFT" }, { "TR", "TOPRIGHT" },
+        { "BL", "BOTTOMLEFT" }, { "BR", "BOTTOMRIGHT" },
+    }) do
+        local tex = rim:CreateTexture(nil, "OVERLAY")
+        tex:SetTexture(metal .. "Corner" .. corner[1] .. ".png")
+        tex:SetSize(64, 64)
+        tex:SetPoint(corner[2], rim, corner[2], 0, 0)
+        Chrome.Sharp(tex)
+    end
 
     local function Separator(host, point1, point2, vertical)
-        local t = Style.Fill(host, C.goldDim, "ARTWORK")
-        t:ClearAllPoints()
-        t:SetPoint(point1, host, point1, 0, 0)
-        t:SetPoint(point2, host, point2, 0, 0)
-        if vertical then t:SetWidth(1) else t:SetHeight(1) end
-        t:SetAlpha(0.43)
+        local line = Style.Fill(host, C.goldDim, "ARTWORK")
+        line:ClearAllPoints()
+        line:SetPoint(point1, host, point1, 0, 0)
+        line:SetPoint(point2, host, point2, 0, 0)
+        if vertical then line:SetWidth(1) else line:SetHeight(1) end
+        line:SetAlpha(0.40)
     end
+
     Separator(header, "BOTTOMLEFT", "BOTTOMRIGHT", false)
     Separator(footer, "TOPLEFT", "TOPRIGHT", false)
     Separator(rail, "TOPRIGHT", "BOTTOMRIGHT", true)

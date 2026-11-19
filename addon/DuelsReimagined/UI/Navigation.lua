@@ -5,9 +5,10 @@ local C, Window = Style.color, ns.Window
 -- Navigation is a visual shell prototype, not a gameplay or record engine.
 local sections = {
     { key = "hall", label = "Hall", icon = "Hall", pages = {
-        { key = "overview", label = "Overview", title = "Welcome to the Hall", subtitle = "Your dueling journey starts here.", emptyTitle = "No duels recorded yet", emptyDetail = "Your recent activity will appear here.", action = true },
-        { key = "personal", label = "My Record", title = "My Record", subtitle = "Your dueling record.", emptyTitle = "No duels recorded yet", emptyDetail = "Your results will appear here." },
-        { key = "recent", label = "Recent Duels", title = "Recent Duels", subtitle = "Your latest encounters.", emptyTitle = "No recent duels", emptyDetail = "Completed duels will appear here." },
+        { key = "overview", label = "Overview", title = "Welcome to the Hall",
+          subtitle = "Your dueling journey starts here.",
+          emptyTitle = "No duels recorded yet",
+          emptyDetail = "Your recent activity will appear here." },
     } },
     { key = "community", label = "Community", icon = "Community", pages = {
         { key = "community", label = "Community", title = "Community", subtitle = "The people behind the duels.", emptyTitle = "Nothing to show yet", emptyDetail = "Community features will arrive later." },
@@ -136,5 +137,4 @@ ns.Navigation = {
         if currentSection and currentPage then Select(currentSection, currentPage, true) end
     end,
 }
-Window.action:SetScript("OnClick", function() Select(1, 2) end)
 Select(1, 1, true)

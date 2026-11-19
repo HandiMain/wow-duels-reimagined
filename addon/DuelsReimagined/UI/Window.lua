@@ -178,8 +178,8 @@ end
 Window.ApplyScale(Settings.Get("menuScale") or 1)
 
 local close = Style.Action(footer, "Close", "footer")
-close:SetSize(112, 32)
-close:SetPoint("RIGHT", footer, "RIGHT", -25, 0)
+close:SetSize(120, 30)
+close:SetPoint("RIGHT", footer, "RIGHT", -36, 0)
 close:SetScript("OnClick", function() frame:Hide() end)
 
 local title = Style.Text(content, "Welcome to the Hall", 28, C.pale, true)
@@ -191,8 +191,10 @@ subtitle:SetPoint("TOP", titleRule, "BOTTOM", 0, -8)
 
 local watermark = content:CreateTexture(nil, "BORDER")
 watermark:SetTexture("Interface\\AddOns\\DuelsReimagined\\Media\\Concept\\Watermark.png")
-watermark:SetSize(228, 228)
+watermark:SetSize(242, 220)
 watermark:SetPoint("CENTER", content, "CENTER", 0, -3)
+-- Trim uneven transparent padding without stretching the emblem.
+watermark:SetTexCoord(0.085, 0.98, 0.055, 0.975)
 watermark:SetAlpha(0.68)
 watermark:EnableMouse(false)
 
@@ -200,11 +202,6 @@ local emptyHeading = Style.Text(content, "No duels recorded yet", 22, C.pale)
 emptyHeading:SetPoint("BOTTOM", content, "BOTTOM", 0, 103)
 local emptyDetail = Style.Text(content, "Your recent activity will appear here.", 14, C.muted)
 emptyDetail:SetPoint("TOP", emptyHeading, "BOTTOM", 0, -8)
-local action = Style.Action(content, "View My Record")
-action:SetSize(230, 37)
-action:SetPoint("TOP", emptyDetail, "BOTTOM", 0, -24)
-Window.action = action
-
 function Window.ShowPage(page)
     title:SetText(page.title)
     subtitle:SetText(page.subtitle)
@@ -214,7 +211,6 @@ function Window.ShowPage(page)
     watermark:SetShown(not isOptions)
     emptyHeading:SetShown(not isOptions)
     emptyDetail:SetShown(not isOptions)
-    action:SetShown(not isOptions and page.action and true or false)
     if ns.Options then ns.Options.Show(isOptions) end
     if frame:IsShown() then
         Motion.Stop(content, 0.68)
