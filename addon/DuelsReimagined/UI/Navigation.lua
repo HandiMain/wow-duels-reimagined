@@ -20,10 +20,8 @@ local sections = {
 local railButtons, subButtons = {}, {}
 local sectionTitle = Style.Text(Window.nav, "THE HALL", 18, C.gold, true)
 sectionTitle:SetPoint("TOPLEFT", Window.nav, "TOPLEFT", 20, -24)
-local subtitleRule = Window.nav:CreateTexture(nil, "ARTWORK")
-subtitleRule:SetColorTexture(unpack(C.goldDim))
-subtitleRule:SetPoint("TOPLEFT", Window.nav, "TOPLEFT", 19, -58)
-subtitleRule:SetSize(191, 1)
+local subtitleRule = Chrome.Divider(Window.nav, 201, 12)
+subtitleRule:SetPoint("TOPLEFT", Window.nav, "TOPLEFT", 19, -56)
 
 local currentSection, currentPage
 
@@ -48,7 +46,7 @@ local function Select(sectionIndex, pageIndex, noMotion)
         item.label:SetTextColor(unpack(on and C.pale or C.muted))
         -- Keep the Hall's blue/red faction accents intact.
         item.icon:SetVertexColor(1, 1, 1, 1)
-        item.icon:SetAlpha(on and 1 or 0.85)
+        item.icon:SetAlpha(on and 1 or 0.92)
     end
     for i, group in ipairs(subButtons) do
         for j, item in ipairs(group) do
@@ -75,13 +73,13 @@ end
 
 for index, section in ipairs(sections) do
     local button = CreateFrame("Button", nil, Window.rail)
-    button:SetSize(104, 76)
+    button:SetSize(124, 96)
     if section.key == "options" then
-        button:SetPoint("BOTTOM", Window.rail, "BOTTOM", 0, 23)
+        button:SetPoint("BOTTOM", Window.rail, "BOTTOM", 0, 19)
     elseif section.key == "community" then
-        button:SetPoint("BOTTOM", Window.rail, "BOTTOM", 0, 109)
+        button:SetPoint("BOTTOM", Window.rail, "BOTTOM", 0, 122)
     else
-        button:SetPoint("TOP", Window.rail, "TOP", 0, -15)
+        button:SetPoint("TOP", Window.rail, "TOP", 0, -17)
     end
     local selected, hover = AddOverlay(button)
     local bar = button:CreateTexture(nil, "OVERLAY")
@@ -90,11 +88,11 @@ for index, section in ipairs(sections) do
     bar:SetPoint("BOTTOMLEFT", button, "BOTTOMLEFT", 0, -3)
     bar:SetWidth(3)
     local icon = Chrome.Icon(button, section.icon)
-    local isHall = section.key == "hall"
-    icon:SetSize(isHall and 50 or 46, isHall and 50 or 46)
-    icon:SetPoint("TOP", button, "TOP", 0, isHall and -2 or -4)
+    -- Each 128px square asset has the same transparent margin; none is stretched.
+    icon:SetSize(61, 61)
+    icon:SetPoint("TOP", button, "TOP", 0, -4)
     local label = Style.Text(button, string.upper(section.label), 12, C.muted, true)
-    label:SetPoint("TOP", icon, "BOTTOM", 0, -2)
+    label:SetPoint("TOP", icon, "BOTTOM", 0, -1)
     label:SetJustifyH("CENTER")
     button:SetScript("OnClick", function() Select(index, 1) end)
     button:SetScript("OnEnter", function()
@@ -108,8 +106,8 @@ for index, section in ipairs(sections) do
     local pages = {}
     for pageIndex, page in ipairs(section.pages) do
         local sub = CreateFrame("Button", nil, Window.nav)
-        sub:SetSize(219, 41)
-        sub:SetPoint("TOPLEFT", Window.nav, "TOPLEFT", 9, -(78 + (pageIndex - 1) * 44))
+        sub:SetSize(230, 43)
+        sub:SetPoint("TOPLEFT", Window.nav, "TOPLEFT", 9, -(82 + (pageIndex - 1) * 46))
         local subSelected, subHover = AddOverlay(sub)
         local subBar = sub:CreateTexture(nil, "OVERLAY")
         subBar:SetColorTexture(unpack(C.gold))

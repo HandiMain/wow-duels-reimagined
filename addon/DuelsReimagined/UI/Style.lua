@@ -101,25 +101,30 @@ function Style.Text(parent, value, size, color, outline)
     return label
 end
 
-function Style.Action(parent, caption)
+function Style.Action(parent, caption, variant)
+    local footer = variant == "footer"
     local button = CreateFrame("Button", nil, parent)
-    button:SetSize(204, 36)
-    Style.Fill(button, Style.color.button)
-    Style.Border(button, Style.color.goldDim)
-    local art = ns.Chrome.Texture(button, "Button", 1, "BACKGROUND")
+    button:SetSize(footer and 112 or 204, footer and 32 or 36)
+    Style.Fill(button, footer and Style.color.footer or Style.color.button)
+
+    -- Actual concept button art; text stays an independent WoW FontString.
+    ns.Chrome.Texture(button, footer and "ButtonFooter" or "Button",
+        1, "BACKGROUND")
     local hover = ns.Chrome.Texture(button, "Selection", 0, "ARTWORK")
     local label = Style.Text(button, caption, 15, Style.color.pale)
     label:SetPoint("CENTER")
     button:SetScript("OnEnter", function()
-        ns.Motion.Fade(hover, 0.35, 0.17)
+        ns.Motion.Fade(hover, footer and 0.14 or 0.21, 0.17)
     end)
     button:SetScript("OnLeave", function()
-        ns.Motion.Fade(hover, 0, 0.22)
+        ns.Motion.Fade(hover, 0, 0.21)
     end)
     button:SetScript("OnMouseDown", function()
+        label:ClearAllPoints()
         label:SetPoint("CENTER", button, "CENTER", 0, -1)
     end)
     button:SetScript("OnMouseUp", function()
+        label:ClearAllPoints()
         label:SetPoint("CENTER", button, "CENTER", 0, 0)
     end)
     return button

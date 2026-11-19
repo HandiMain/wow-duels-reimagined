@@ -1,14 +1,24 @@
 local _, ns = ...
-local Style = ns.Style
-local C = Style.color
+local Style, C = ns.Style, ns.Style.color
 
+-- Only this module knows where the authored visuals are stored.
 local Chrome = {}
 ns.Chrome = Chrome
 
-local path = "Interface\\AddOns\\DuelsReimagined\\Media\\Textures\\"
+local concept = "Interface\\AddOns\\DuelsReimagined\\Media\\Concept\\"
+local legacy = "Interface\\AddOns\\DuelsReimagined\\Media\\Textures\\"
+local textureNames = {
+    Header = "SurfaceHeader",
+    Footer = "SurfaceFooter",
+    Rail = "SurfaceRail",
+    Nav = "SurfaceNav",
+    Content = "SurfaceContent",
+    Selection = "Selection",
+    Button = "ButtonPrimary",
+    ButtonFooter = "ButtonFooter",
+}
 local themed = {}
 
--- Avoid snapping and texel bias on small antialiased UI assets when supported.
 function Chrome.Sharp(texture)
     if texture.SetSnapToPixelGrid then texture:SetSnapToPixelGrid(false) end
     if texture.SetTexelSnappingBias then texture:SetTexelSnappingBias(0) end
@@ -17,9 +27,12 @@ end
 
 function Chrome.Texture(parent, name, alpha, layer, token)
     local tex = parent:CreateTexture(nil, layer or "BACKGROUND")
-    tex:SetTexture(path .. name .. ".tga")
+    local authored = textureNames[name]
+    tex:SetTexture(authored and (concept .. authored .. ".png") or
+        (legacy .. name .. ".tga"))
     tex:SetAllPoints(parent)
     tex:SetAlpha(alpha or 1)
+    Chrome.Sharp(tex)
     if token then
         themed[#themed + 1] = { tex = tex, token = token }
     end
@@ -28,84 +41,87 @@ end
 
 function Chrome.Icon(parent, name)
     local tex = parent:CreateTexture(nil, "ARTWORK")
-    tex:SetTexture("Interface\\AddOns\\DuelsReimagined\\Media\\Icons\\" .. name .. ".tga")
+    tex:SetTexture(concept .. "Icon" .. name .. ".png")
     Chrome.Sharp(tex)
     return tex
 end
 
-function Chrome.Corners(parent, offset)
-    local inset = offset or 0
-    local specs = {
-        { "TL", "TOPLEFT", inset, -inset },
-        { "TR", "TOPRIGHT", -inset, -inset },
-        { "BL", "BOTTOMLEFT", inset, inset },
-        { "BR", "BOTTOMRIGHT", -inset, inset },
-    }
-    for _, spec in ipairs(specs) do
-        local tex = parent:CreateTexture(nil, "OVERLAY")
-        tex:SetTexture(path .. "Corner" .. spec[1] .. ".tga")
-        tex:SetSize(48, 48)
-        tex:SetPoint(spec[2], parent, spec[2], spec[3], spec[4])
+-- Shared decorative rule with the concept's centered diamond and lighting.
+function Chrome.Divider(parent, width, height)
+    local line = parent:CreateTexture(nil, "ARTWORK")
+    line:SetTexture(concept .. "Divider.png")
+    line:SetSize(width or 220, height or 15)
+    Chrome.Sharp(line)
+    return line
+end
+
+function Chrome.Corners(parent)
+    for _, spec in ipairs({
+        { "TL", "TOPLEFT", 0, 0 },
+        { "TR", "TOPRIGHT", 0, 0 },
+        { "BL", "BOTTOMLEFT", 0, 0 },
+        { "BR", "BOTTOMRIGHT", 0, 0 },
+    }) do
+        local t = parent:CreateTexture(nil, "OVERLAY")
+        t:SetTexture(concept .. "Corner" .. spec[1] .. ".png")
+        t:SetSize(46, 46)
+        t:SetPoint(spec[2], parent, spec[2], spec[3], spec[4])
+        Chrome.Sharp(t)
     end
 end
 
 function Chrome.Shell(frame, header, footer, rail, nav, content)
-    Chrome.Texture(header, "Header", 0.94, "BACKGROUND", "header")
-    Chrome.Texture(footer, "Header", 0.94, "BACKGROUND", "header")
-    Chrome.Texture(rail, "Rail", 0.92, "BACKGROUND", "rail")
-    Chrome.Texture(nav, "Nav", 0.92, "BACKGROUND", "nav")
-    Chrome.Texture(content, "Content", 0.94, "BACKGROUND", "body")
+    Chrome.Texture(header, "Header", 0.98, "BACKGROUND", "header")
+    Chrome.Texture(footer, "Footer", 0.98, "BACKGROUND", "footer")
+    Chrome.Texture(rail, "Rail", 0.96, "BACKGROUND", "rail")
+    Chrome.Texture(nav, "Nav", 0.96, "BACKGROUND", "nav")
+    Chrome.Texture(content, "Content", 0.96, "BACKGROUND", "body")
 
-    local function Edge(host, at, vertical, w, h, color)
-        local t = host:CreateTexture(nil, "ARTWORK")
-        t:SetColorTexture(unpack(color))
-        t:SetPoint(at, host, at, 0, 0)
-        -- Stretch to the real parent edges so footer height changes cannot
-        -- make separators overlap neighboring areas.
-        t:SetPoint("BOTTOMRIGHT", host, "BOTTOMRIGHT", 0, 0)
-        if vertical then t:SetWidth(w)
-        else t:SetHeight(h) end
-        t:SetAlpha(0.52)
+    -- Keep structural lines separate from the artwork and the click regions.
+    local function Seam(parent, side, vertical)
+        local t = parent:CreateTexture(nil, "ARTWORK")
+        t:SetColorTexture(unpack(C.goldDim))
+        t:SetAlpha(0.38)
+        if vertical then
+            t:SetPoint("TOP" .. side, parent, "TOP" .. side)
+            t:SetPoint("BOTTOM" .. side, parent, "BOTTOM" .. side)
+            t:SetWidth(1)
+        else
+            t:SetPoint(side .. "LEFT", parent, side .. "LEFT")
+            t:SetPoint(side .. "RIGHT", parent, side .. "RIGHT")
+            t:SetHeight(1)
+        end
+    end
+    Seam(header, "BOTTOM", false)
+    Seam(footer, "TOP", false)
+    Seam(rail, "RIGHT", true)
+    Seam(nav, "RIGHT", true)
+
+    local rim = CreateFrame("Frame", nil, frame)
+    rim:SetAllPoints(frame)
+    rim:SetFrameLevel(frame:GetFrameLevel() + 20)
+    rim:EnableMouse(false)
+    local function Trim(file, corners, dimension, offset)
+        local t = rim:CreateTexture(nil, "ARTWORK")
+        t:SetTexture(legacy .. file .. ".tga")
+        t:SetPoint(corners[1], frame, corners[1],
+            corners[1]:find("RIGHT") and -offset or offset,
+            corners[1]:find("BOTTOM") and offset or -offset)
+        t:SetPoint(corners[2], frame, corners[2],
+            corners[2]:find("RIGHT") and -offset or offset,
+            corners[2]:find("BOTTOM") and offset or -offset)
+        if dimension == "h" then t:SetHeight(7) else t:SetWidth(7) end
         return t
     end
-
-    -- Modular metallic trim, with separate corner pieces over the joins.
-    local rimLayer = CreateFrame("Frame", nil, frame)
-    rimLayer:SetAllPoints(frame)
-    rimLayer:SetFrameLevel(frame:GetFrameLevel() + 20)
-    rimLayer:EnableMouse(false)
-    local top = rimLayer:CreateTexture(nil, "ARTWORK")
-    top:SetTexture(path .. "TrimH.tga")
-    top:SetPoint("TOPLEFT", frame, "TOPLEFT", 7, -2)
-    top:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -7, -2)
-    top:SetHeight(7)
-    local bottom = rimLayer:CreateTexture(nil, "ARTWORK")
-    bottom:SetTexture(path .. "TrimH.tga")
-    bottom:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", 7, 2)
-    bottom:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -7, 2)
-    bottom:SetHeight(7)
-    local left = rimLayer:CreateTexture(nil, "ARTWORK")
-    left:SetTexture(path .. "TrimV.tga")
-    left:SetPoint("TOPLEFT", frame, "TOPLEFT", 2, -7)
-    left:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", 2, 7)
-    left:SetWidth(7)
-    local right = rimLayer:CreateTexture(nil, "ARTWORK")
-    right:SetTexture(path .. "TrimV.tga")
-    right:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -2, -7)
-    right:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -2, 7)
-    right:SetWidth(7)
-
-    -- Structural edges are independent of the panel artwork, not baked into it.
-    Edge(header, "BOTTOMLEFT", false, 1100, 2, C.goldDim)
-    Edge(footer, "TOPLEFT", false, 1100, 2, C.goldDim)
-    Edge(rail, "TOPRIGHT", true, 1, 520, C.goldDim)
-    Edge(nav, "TOPRIGHT", true, 1, 520, C.goldDim)
-
-    Chrome.Corners(rimLayer)
+    Trim("TrimH", {"TOPLEFT", "TOPRIGHT"}, "h", 7)
+    Trim("TrimH", {"BOTTOMLEFT", "BOTTOMRIGHT"}, "h", 7)
+    Trim("TrimV", {"TOPLEFT", "BOTTOMLEFT"}, "v", 7)
+    Trim("TrimV", {"TOPRIGHT", "BOTTOMRIGHT"}, "v", 7)
+    Chrome.Corners(rim)
 end
 
 function Chrome.Panel(panel)
-    Chrome.Texture(panel, "Nav", 0.62, "BACKGROUND", "nav")
+    Chrome.Texture(panel, "Nav", 0.78, "BACKGROUND", "nav")
 end
 
 function Chrome.Refresh()
@@ -113,11 +129,11 @@ function Chrome.Refresh()
         and ns.Theme and ns.Theme.IsAvailable()
     for _, entry in ipairs(themed) do
         if matching then
-            local c = C[entry.token]
+            local color = C[entry.token]
             entry.tex:SetVertexColor(
-                math.min(1.3, 0.76 + c[1] * 2.7),
-                math.min(1.3, 0.76 + c[2] * 2.7),
-                math.min(1.3, 0.76 + c[3] * 2.7), 1)
+                math.min(1, 0.77 + color[1]),
+                math.min(1, 0.77 + color[2]),
+                math.min(1, 0.77 + color[3]), 1)
         else
             entry.tex:SetVertexColor(1, 1, 1, 1)
         end

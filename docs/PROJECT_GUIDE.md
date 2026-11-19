@@ -4,13 +4,13 @@ This document is for work in progress. It records the agreed direction and preve
 
 ## Current state
 
-- **Phase:** Visual design exploration (IDEA)
-- **Addon source:** Not started
-- **Build authorization:** Not granted
-- **Live game verification:** None
-- **Target clients:** World of Warcraft: Forever and Retail (planned; compatibility must be checked separately)
+- **Phase:** Approved visual concept; window-shell build authorized
+- **Addon source:** UI prototype on `develop`; no released gameplay system
+- **Build authorization:** Main window shell and visual revisions authorized
+- **Live game verification:** Earlier prototype screenshots tested in Retail; the concept-derived PNG reconstruction is IMPLEMENTED/UNTESTED
+- **Target clients:** World of Warcraft Forever and Retail; PNG rendering requires in-game verification on each client
 
-The first task is to explore and approve an original overall interface identity. No screen, system, or visual concept has been approved yet.
+The user-approved 1672 × 941 **Hall concept image** is the visual reference, not a loose inspiration. Reproduce its actual icon artwork, depth, metallic treatment, decorative dividers, shaded panels and button finishes as independent reusable assets. The original art is reconstructed under `addon/DuelsReimagined/Media/Concept/`; do not use one whole-window wallpaper or bake text and hit regions into images. Respect later explicit revisions: the top-right close X and footer branding are omitted; the real Close button stays in the footer. Keep shared navigation, themes, saved settings, animations, input handling and optional EllesmereUI compatibility intact.
 
 ## Branches
 
