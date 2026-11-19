@@ -60,8 +60,11 @@ function Chrome.Shell(frame, header, footer, rail, nav, content)
         local t = host:CreateTexture(nil, "ARTWORK")
         t:SetColorTexture(unpack(color))
         t:SetPoint(at, host, at, 0, 0)
-        if vertical then t:SetWidth(w); t:SetHeight(h)
-        else t:SetHeight(h); t:SetWidth(w) end
+        -- Stretch to the real parent edges so footer height changes cannot
+        -- make separators overlap neighboring areas.
+        t:SetPoint("BOTTOMRIGHT", host, "BOTTOMRIGHT", 0, 0)
+        if vertical then t:SetWidth(w)
+        else t:SetHeight(h) end
         t:SetAlpha(0.52)
         return t
     end

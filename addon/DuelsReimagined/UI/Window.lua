@@ -38,7 +38,7 @@ Style.Fill(header, C.header)
 Drag(header)
 
 local footer = CreateFrame("Frame", nil, frame)
-footer:SetHeight(48)
+footer:SetHeight(56)
 footer:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", 2, 2)
 footer:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -2, 2)
 Style.Fill(footer, C.footer)
@@ -85,7 +85,7 @@ brandBottom:SetPoint("TOPLEFT", brandTop, "BOTTOMLEFT", 2, -5)
 
 local Settings = ns.Settings
 local scaleCaption = Style.Text(header, "Menu Scale", 12, C.muted)
-scaleCaption:SetPoint("RIGHT", header, "RIGHT", -245, 0)
+scaleCaption:SetPoint("RIGHT", header, "RIGHT", -223, 0)
 
 local scale = CreateFrame("Slider", nil, header)
 scale:SetSize(116, 20)
@@ -173,11 +173,6 @@ scale:SetScript("OnHide", function()
     Window.ApplyScale(Settings.Get("menuScale") or 1)
 end)
 
-local xButton = ns.Widgets.IconButton(header, "Close", function()
-    frame:Hide()
-end)
-xButton:SetPoint("RIGHT", header, "RIGHT", -8, 0)
-
 function Window.RefreshTheme()
     scaleFill:SetColorTexture(unpack(C.gold))
 end
@@ -185,7 +180,7 @@ end
 Window.ApplyScale(Settings.Get("menuScale") or 1)
 
 local close = Style.Action(footer, "Close")
-close:SetSize(116, 29)
+close:SetSize(116, 33)
 close:SetPoint("RIGHT", footer, "RIGHT", -20, 0)
 close:SetScript("OnClick", function() frame:Hide() end)
 
@@ -199,10 +194,10 @@ local subtitle = Style.Text(content, "Your dueling journey starts here.", 15, C.
 subtitle:SetPoint("TOP", titleRule, "BOTTOM", 0, -16)
 
 local watermark = content:CreateTexture(nil, "BORDER")
-watermark:SetTexture("Interface\\AddOns\\DuelsReimagined\\Media\\Textures\\Watermark.tga")
-watermark:SetSize(248, 248)
+watermark:SetTexture("Interface\\AddOns\\DuelsReimagined\\Media\\Icons\\DuelsReimagined-AddonIcon.blp")
+watermark:SetSize(255, 255)
 watermark:SetPoint("CENTER", content, "CENTER", 0, -2)
-watermark:SetAlpha(0.46)
+watermark:SetAlpha(0.115)
 watermark:EnableMouse(false)
 
 local emptyHeading = Style.Text(content, "No duels recorded yet", 22, C.pale)
