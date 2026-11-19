@@ -42,7 +42,7 @@ local function Select(sectionIndex, pageIndex, noMotion)
         else
             FadeSelection(item, on)
         end
-        item.bar:SetShown(on)
+        item.bar:SetShown(false)
         item.label:SetTextColor(unpack(on and C.pale or C.muted))
         -- Keep the Hall's blue/red faction accents intact.
         item.icon:SetVertexColor(1, 1, 1, 1)
@@ -58,16 +58,17 @@ local function Select(sectionIndex, pageIndex, noMotion)
             else
                 FadeSelection(item, active)
             end
-            item.bar:SetShown(active)
+            item.bar:SetShown(false)
             item.label:SetTextColor(unpack(active and C.pale or C.text))
         end
     end
     Window.ShowPage(page)
 end
 
-local function AddOverlay(button)
-    local selected = Chrome.Texture(button, "Selection", 0, "BACKGROUND")
-    local hover = Chrome.Texture(button, "Selection", 0, "ARTWORK")
+local function AddOverlay(button, rail)
+    local art = rail and "SelectionRail" or "Selection"
+    local selected = Chrome.Texture(button, art, 0, "BACKGROUND")
+    local hover = Chrome.Texture(button, art, 0, "ARTWORK")
     return selected, hover
 end
 
@@ -81,7 +82,7 @@ for index, section in ipairs(sections) do
     else
         button:SetPoint("TOP", Window.rail, "TOP", 0, -17)
     end
-    local selected, hover = AddOverlay(button)
+    local selected, hover = AddOverlay(button, true)
     local bar = button:CreateTexture(nil, "OVERLAY")
     bar:SetColorTexture(unpack(C.red))
     bar:SetPoint("TOPLEFT", button, "TOPLEFT", 0, 3)
@@ -108,7 +109,7 @@ for index, section in ipairs(sections) do
         local sub = CreateFrame("Button", nil, Window.nav)
         sub:SetSize(230, 43)
         sub:SetPoint("TOPLEFT", Window.nav, "TOPLEFT", 9, -(82 + (pageIndex - 1) * 46))
-        local subSelected, subHover = AddOverlay(sub)
+        local subSelected, subHover = AddOverlay(sub, false)
         local subBar = sub:CreateTexture(nil, "OVERLAY")
         subBar:SetColorTexture(unpack(C.gold))
         subBar:SetPoint("TOPLEFT", sub, "TOPLEFT", 0, -5)

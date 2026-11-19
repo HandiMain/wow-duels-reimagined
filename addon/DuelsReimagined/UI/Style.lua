@@ -107,9 +107,11 @@ function Style.Action(parent, caption, variant)
     button:SetSize(footer and 112 or 204, footer and 32 or 36)
     Style.Fill(button, footer and Style.color.footer or Style.color.button)
 
-    -- Actual concept button art; text stays an independent WoW FontString.
+    -- Render the approved button frame ABOVE its solid-color fallback.
+    -- This avoids the bare text/plain red rectangle seen in Retail.
+    Style.Border(button, Style.color.goldDim)
     ns.Chrome.Texture(button, footer and "ButtonFooter" or "Button",
-        1, "BACKGROUND")
+        1, "ARTWORK")
     local hover = ns.Chrome.Texture(button, "Selection", 0, "ARTWORK")
     local label = Style.Text(button, caption, 15, Style.color.pale)
     label:SetPoint("CENTER")

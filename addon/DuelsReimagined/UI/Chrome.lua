@@ -14,6 +14,7 @@ local textureNames = {
     Nav = "SurfaceNav",
     Content = "SurfaceContent",
     Selection = "Selection",
+    SelectionRail = "SelectionRail",
     Button = "ButtonPrimary",
     ButtonFooter = "ButtonFooter",
 }
@@ -71,11 +72,12 @@ function Chrome.Corners(parent)
 end
 
 function Chrome.Shell(frame, header, footer, rail, nav, content)
-    Chrome.Texture(header, "Header", 0.98, "BACKGROUND", "header")
-    Chrome.Texture(footer, "Footer", 0.98, "BACKGROUND", "footer")
-    Chrome.Texture(rail, "Rail", 0.96, "BACKGROUND", "rail")
-    Chrome.Texture(nav, "Nav", 0.96, "BACKGROUND", "nav")
-    Chrome.Texture(content, "Content", 0.96, "BACKGROUND", "body")
+    -- Art occupies BORDER, above base flat fills, below live labels/controls.
+    Chrome.Texture(header, "Header", 1, "BORDER", "header")
+    Chrome.Texture(footer, "Footer", 1, "BORDER", "footer")
+    Chrome.Texture(rail, "Rail", 1, "BORDER", "rail")
+    Chrome.Texture(nav, "Nav", 1, "BORDER", "nav")
+    Chrome.Texture(content, "Content", 1, "BORDER", "body")
 
     -- Keep structural lines separate from the artwork and the click regions.
     local function Seam(parent, side, vertical)
@@ -121,7 +123,7 @@ function Chrome.Shell(frame, header, footer, rail, nav, content)
 end
 
 function Chrome.Panel(panel)
-    Chrome.Texture(panel, "Nav", 0.78, "BACKGROUND", "nav")
+    Chrome.Texture(panel, "Nav", 0.92, "BORDER", "nav")
 end
 
 function Chrome.Refresh()
