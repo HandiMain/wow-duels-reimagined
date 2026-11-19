@@ -96,8 +96,8 @@ scaleCaption:SetPoint("RIGHT", header, "RIGHT", -223, 0)
 local scale = CreateFrame("Slider", nil, header)
 scale:SetSize(80, 20)
 scale:SetOrientation("HORIZONTAL")
-scale:SetMinMaxValues(0.85, 1.15)
-scale:SetValueStep(0.05)
+scale:SetMinMaxValues(Settings.MIN_SCALE, Settings.MAX_SCALE)
+scale:SetValueStep(Settings.SCALE_STEP)
 if scale.SetObeyStepOnDrag then scale:SetObeyStepOnDrag(true) end
 scale:EnableMouseWheel(true)
 scale:SetPoint("LEFT", scaleCaption, "RIGHT", 15, 0)
@@ -126,15 +126,14 @@ Window.scaleSlider = scale
 Window.scalePercent = scalePercent
 
 local function RoundScale(value)
-    return math.max(0.85, math.min(1.15,
-        math.floor(value * 20 + 0.5) / 20))
+    return Settings.NormalizeScale(value)
 end
 
 local pendingScale
 local draggingScale = false
 local function PaintScale(value)
     local v = RoundScale(value)
-    scaleFill:SetWidth(math.max(1, scale:GetWidth() * (v - 0.85) / 0.30))
+    scaleFill:SetWidth(math.max(1, scale:GetWidth() * (v - Settings.MIN_SCALE) / (Settings.MAX_SCALE - Settings.MIN_SCALE)))
     scalePercent:SetText(math.floor(v * 100 + 0.5) .. "%")
 end
 
@@ -200,7 +199,7 @@ scale:SetScript("OnMouseWheel", function(_, delta)
     draggingScale = false
     pendingScale = nil
     local value = RoundScale((Settings.Get("menuScale") or 1)
-        + (delta > 0 and 0.05 or -0.05))
+        + (delta > 0 and Settings.SCALE_STEP or -Settings.SCALE_STEP))
     Settings.Set("menuScale", value)
     Window.ApplyScale(Settings.Get("menuScale") or 1)
 end)
