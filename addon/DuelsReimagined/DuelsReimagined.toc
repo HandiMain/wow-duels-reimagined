@@ -27,3 +27,4 @@ UI\PatchNotes.lua
 UI\Footer.lua
 Core\Commands.lua
 UI\AccessIcons.lua
+UI\BlizzardSettings.lua

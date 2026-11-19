@@ -276,3 +276,11 @@ Before implementing an item in the future, first re-audit the current Duels code
 ### Revisit gate
 
 Prioritize the missing core dueling and player-facing functionality first. Keep the currently approved Patch Notes design and demo content untouched until real release notes are available. When core features mature, revisit these ideas one by one only if they solve observed player problems. **No code, TOC, UI settings, tests, releases or main-branch changes are authorized by this backlog.**
+
+## Blizzard AddOns landing — authorized Nov 19 2026
+
+- Minimal native Settings > AddOns page with the Duels gold logo, short description, and exactly TWO buttons: Open Duels Reimagined and View Community. No character card, diagnostics, fake release number, or separate settings UI.
+- UI/BlizzardSettings.lua is an external launcher only; it reuses the existing Window, Navigation, Style, Chrome, Motion and Tooltips. Blizzard owns the outer Settings shell and normal menu controls.
+- **Optional EllesmereUI integration:** reuse existing Theme.Refresh and Style.ApplyTheme for matching accent, panel and font when supported/enabled; preserve the standalone Duels gold visuals otherwise. Refresh on display and on appearance changes through the existing owner. Do not call an Ellesmere Shell or register a duplicate skin.
+- Safe panel handoff: close Blizzard Settings outside combat, then show Duels; View Community selects its real Community page. In combat, leave protected Blizzard UI alone and give manual /duels instructions.
+- Status: IMPLEMENTED / UNTESTED IN GAME. Test Forever and Retail, with/without EllesmereUI, theme matching ON/OFF and live changes, button navigation, Fold, Escape/chat/Game Menu, combat, small settings window, tooltips and /reload. No TOC interface or version bump, no main/release change.
