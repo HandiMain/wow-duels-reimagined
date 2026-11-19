@@ -16,6 +16,7 @@ on:
       - addon/DuelsReimagined/UI/Footer.lua
       - addon/DuelsReimagined/UI/Window.lua
       - addon/DuelsReimagined/Media/Concept/CommunityFactionMarks.png
+      - addon/DuelsReimagined/Media/Concept/CommunityConceptSymbols.png
       - .github/workflows/community-credits.yml
   issues:
     types: [closed, reopened, labeled, unlabeled]
