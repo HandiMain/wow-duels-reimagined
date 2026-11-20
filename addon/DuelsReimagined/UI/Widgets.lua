@@ -155,6 +155,18 @@ function Widgets.ToggleRow(parent, label, description, onToggle, onReset)
             anchor = "RIGHT",
         }
     end)
+    -- Layout changes only the presentation; the toggle remains the same
+    -- full-row click target, SavedVariables owner and animation.
+    function row:LayoutForWidth(width, paired)
+        self:SetHeight(paired and 76 or 54)
+        self.name:ClearAllPoints()
+        self.name:SetPoint("TOPLEFT", self, "TOPLEFT", 1, -7)
+        self.name:SetWidth(math.max(70, width - (paired and 66 or 93)))
+        self.description:ClearAllPoints()
+        self.description:SetPoint("TOPLEFT", self.name, "BOTTOMLEFT", 0, -3)
+        self.description:SetWidth(math.max(70, width - (paired and 66 or 93)))
+        self.description:SetHeight(paired and 40 or 29)
+    end
     row:RefreshColors()
     row:SetModified(false)
     return row
@@ -419,6 +431,24 @@ function Widgets.ChoiceRow(parent, caption, detail, onChoose, onReset, above)
     row:HookScript("OnHide", function(self) ns.Tooltips.Hide(self, true) end)
     row.control = control
     row.popup = popup
+    function row:LayoutForWidth(width, paired)
+        self:SetHeight(paired and 102 or 66)
+        self.name:ClearAllPoints()
+        self.name:SetPoint("TOPLEFT", self, "TOPLEFT", 1, -7)
+        self.name:SetWidth(math.max(70, width - 10))
+        self.description:ClearAllPoints()
+        self.description:SetPoint("TOPLEFT", self.name, "BOTTOMLEFT", 0, -3)
+        self.description:SetWidth(math.max(70, width - (paired and 14 or 262)))
+        self.description:SetHeight(paired and 38 or 30)
+        control:ClearAllPoints()
+        if paired then
+            control:SetWidth(math.max(126, math.min(226, width - 18)))
+            control:SetPoint("BOTTOMRIGHT", self, "BOTTOMRIGHT", -8, 7)
+        else
+            control:SetWidth(226)
+            control:SetPoint("RIGHT", self, "RIGHT", -8, -1)
+        end
+    end
     return row
 end
 
@@ -531,6 +561,26 @@ function Widgets.SliderRow(parent, caption, detail, minVal, maxVal, step, onComm
         track:SetColorTexture(unpack(C.track))
         filled:SetColorTexture(unpack(C.gold))
         self.resetIcon:SetVertexColor(unpack(C.gold))
+    end
+    function row:LayoutForWidth(width, paired)
+        self:SetHeight(paired and 96 or 64)
+        self.name:ClearAllPoints()
+        self.name:SetPoint("TOPLEFT", self, "TOPLEFT", 1, -8)
+        self.name:SetWidth(math.max(70, width - 10))
+        self.description:ClearAllPoints()
+        self.description:SetPoint("TOPLEFT", self.name, "BOTTOMLEFT", 0, -3)
+        self.description:SetWidth(math.max(70, width - (paired and 14 or 262)))
+        self.description:SetHeight(paired and 38 or 29)
+        slider:ClearAllPoints()
+        if paired then
+            slider:SetWidth(math.max(75, math.min(172, width - 115)))
+            slider:SetPoint("BOTTOMRIGHT", self, "BOTTOMRIGHT", -63, 8)
+        else
+            slider:SetWidth(172)
+            slider:SetPoint("RIGHT", self, "RIGHT", -55, 0)
+        end
+        -- Recompute the fill if the column width changes while visible.
+        Paint(slider:GetValue())
     end
     row:RefreshColors()
     return row

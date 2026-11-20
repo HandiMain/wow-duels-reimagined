@@ -85,7 +85,7 @@ local function Select(sectionIndex, pageIndex, noMotion, repaintOnly)
         item.bar:SetShown(on)
         item.label:SetTextColor(unpack(on and C.tabText or C.tabMuted))
         -- Keep the Hall's blue/red faction accents intact.
-        item.icon:SetVertexColor(1, 1, 1, 1)
+        if item.icon.SetVertexColor then item.icon:SetVertexColor(1, 1, 1, 1) end
         item.icon:SetAlpha(on and 1 or 0.92)
     end
     for i, group in ipairs(subButtons) do
@@ -148,8 +148,14 @@ for index, section in ipairs(sections) do
         end
     end
 
-    -- Keep the same atlas-based premium skin and shared theme color roles.
-    -- No flat replacement buttons or independent theme renderer.
+    -- Even when Hall is not selected its raised outline reads as a button.
+    -- It uses the existing shared tintable premium masks; hover and selected
+    -- layers remain independent and retain their current animations.
+    if isPrimary then
+        Style.Skin(button, C.rail, {
+            corner=11, edge=C.goldDim, shine=0.22, shade=0.26, rim=0.82,
+        })
+    end
     local selected, hover = AddOverlay(button, isPrimary)
     local bar = button:CreateTexture(nil, "OVERLAY")
     bar:SetColorTexture(unpack(C.gold))
@@ -163,8 +169,42 @@ for index, section in ipairs(sections) do
         bar:SetWidth(2)
     end
 
-    local icon = section.key == "patchnotes" and
-        button:CreateTexture(nil, "ARTWORK") or Chrome.Icon(button, section.icon)
+    local icon
+    if section.key == "patchnotes" then
+        -- One gold line-art scroll, built with the same recolorable style
+        -- tokens as the other utility glyphs; not the former atlas tile.
+        icon = CreateFrame("Frame", nil, button)
+        local parchment = Style.Fill(icon, C.goldDim, "ARTWORK")
+        parchment:ClearAllPoints()
+        parchment:SetPoint("TOPLEFT", icon, "TOPLEFT", 11, -9)
+        parchment:SetPoint("BOTTOMRIGHT", icon, "BOTTOMRIGHT", -11, 9)
+        parchment:SetAlpha(0.30)
+        -- Draw just the parchment edges, not a square button border.
+        for _, x in ipairs({ 11, 32 }) do
+            local side = Style.Fill(icon, C.gold, "ARTWORK")
+            side:ClearAllPoints()
+            side:SetPoint("TOPLEFT", icon, "TOPLEFT", x, -8)
+            side:SetSize(2, 30)
+            side:SetAlpha(0.85)
+        end
+        for _, y in ipairs({ -13, -19, -25 }) do
+            local stroke = Style.Fill(icon, C.gold, "OVERLAY")
+            stroke:ClearAllPoints()
+            stroke:SetPoint("TOPLEFT", icon, "TOPLEFT", 14, y)
+            stroke:SetPoint("TOPRIGHT", icon, "TOPRIGHT", -14, y)
+            stroke:SetHeight(2)
+            stroke:SetAlpha(0.8)
+        end
+        for _, y in ipairs({ -7, -36 }) do
+            local roll = Style.Fill(icon, C.gold, "OVERLAY")
+            roll:ClearAllPoints()
+            roll:SetPoint("TOPLEFT", icon, "TOPLEFT", 8, y)
+            roll:SetPoint("TOPRIGHT", icon, "TOPRIGHT", -8, y)
+            roll:SetHeight(3)
+        end
+    else
+        icon = Chrome.Icon(button, section.icon)
+    end
     icon:SetSize(isPrimary and 29 or 43, isPrimary and 29 or 43)
     local label = Style.Text(button, string.upper(section.label),
         isPrimary and 16 or 11, C.tabMuted)
@@ -182,9 +222,7 @@ for index, section in ipairs(sections) do
     end
 
     if section.key == "patchnotes" then
-        -- Preserve the authored scroll icon and unread reminder animation.
-        icon:SetTexture("Interface\\AddOns\\DuelsReimagined\\Media\\Concept\\PatchNotesAtlas.tga")
-        icon:SetTexCoord(0, 0.5, 0, 0.5)
+        -- Preserve the unread animation, not the old mismatched bitmap.
         label:SetText("PATCH\nNOTES")
         patchDot = CreateFrame("Frame", nil, button)
         patchDot:SetSize(9, 9)

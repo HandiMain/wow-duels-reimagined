@@ -18,13 +18,11 @@ class CompactPageDensityTests(unittest.TestCase):
             'brandLogo:SetPoint("LEFT", brandArea, "LEFT", 24, -3)',
             'BrandLayer(C.gold,       0,    0.25, -4)',
             'BrandLayer(C.headerText, 0.25, 0.50, -4)',
-            'local underline = CreateFrame("Frame", nil, brandLogo)',
-            'leftRule:SetPoint("RIGHT", underline, "CENTER", -9, 0)',
-            'rightRule:SetPoint("LEFT", underline, "CENTER", 9, 0)',
+            '-- Text-only branding: the two alpha-masked letter layers above are the',
             'brandArea:SetPoint("RIGHT", searchBox, "LEFT", -18, 0)',
         ):
             self.assertIn(marker, w)
-        self.assertIn("DuelsReimagined-HeaderLogoFlat.png",
+        self.assertIn("HeaderOption5TintAtlas.png",
                       src("UI/BlizzardSettings.lua"))
 
     def test_secondary_icons_labels_and_selected_text(self):

@@ -50,7 +50,9 @@ class PatchNotesUITests(unittest.TestCase):
     def test_shared_owners_and_font_consistency(self):
         nav, page = load("UI/Navigation.lua"), load("UI/PatchNotes.lua")
         self.assertIn('label:SetText("PATCH\\nNOTES")', nav)
-        self.assertIn('PatchNotesAtlas.tga', nav)
+        self.assertNotIn('PatchNotesAtlas.tga', nav)
+        self.assertIn('local parchment = Style.Fill(icon, C.goldDim, "ARTWORK")', nav)
+        self.assertIn('for _, y in ipairs({ -13, -19, -25 }) do', nav)
         self.assertIn("Style.Text(button, string.upper(section.label),", nav)
         self.assertIn("isPrimary and 16 or 11, C.tabMuted)", nav)
         self.assertIn("Style.Text(root,", page)

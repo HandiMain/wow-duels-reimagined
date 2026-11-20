@@ -15,19 +15,25 @@ surface:SetPoint("TOPLEFT", panel, "TOPLEFT", 12, -12)
 surface:SetPoint("BOTTOMRIGHT", panel, "BOTTOMRIGHT", -12, 12)
 Style.Skin(surface, C.body, { corner=12, edge=C.border, shine=0.22, shade=0.20 })
 
-local art = "Interface\\AddOns\\DuelsReimagined\\Media\\Concept\\"
--- The original faction logo remains. Decorative outer edges are now drawn
--- by the shared, recolorable Style.Border instead of fixed gold corner PNGs.
-
+-- Match the main window's text-only wordmark. Both bands use the same
+-- neutral atlas and the same semantic gold/text palette roles; optional
+-- EllesmereUI recolors this landing logo via Style's normal repaint path.
 local layout = CreateFrame("Frame", nil, surface)
 layout:SetSize(490, 405)
 layout:SetPoint("CENTER", surface, "CENTER", 0, 6)
-local logo = layout:CreateTexture(nil, "ARTWORK")
-logo:SetTexture(art .. "DuelsReimagined-HeaderLogoFlat.png")
-logo:SetTexCoord(130 / 512, 382 / 512, 74 / 256, 182 / 256)
-logo:SetSize(300, 300 * 108 / 252)
-logo:SetPoint("TOP", layout, "TOP", 0, -6)
-Chrome.Sharp(logo)
+local logo = CreateFrame("Frame", nil, layout)
+logo:SetSize(326, 326 / 4.65)
+logo:SetPoint("TOP", layout, "TOP", 0, -14)
+local brandAtlas = "Interface\\AddOns\\DuelsReimagined\\Media\\Skin\\HeaderOption5TintAtlas.png"
+local function LogoBand(color, top, bottom)
+    local texture = Style.TintedImage(logo, brandAtlas, color, "ARTWORK")
+    texture:SetPoint("TOPLEFT", logo, "TOPLEFT", 0, -4)
+    texture:SetPoint("BOTTOMRIGHT", logo, "BOTTOMRIGHT", 0, -4)
+    texture:SetTexCoord(0, 1, top, bottom)
+    Chrome.Sharp(texture)
+end
+LogoBand(C.gold, 0, 0.25)
+LogoBand(C.headerText, 0.25, 0.50)
 
 local subtitle = Style.Text(layout,
     "Your dueling companion in World of Warcraft.", 14, C.text)

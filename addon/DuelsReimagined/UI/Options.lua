@@ -33,6 +33,7 @@ local function Page(contentHeight)
         end)
     scroll:SetScript("OnSizeChanged", function(_, width)
         content:SetWidth(math.max(1, width or 1))
+        if content.Relayout then content:Relayout(content:GetWidth()) end
         if scroll.UpdateScrollChildRect then scroll:UpdateScrollChildRect() end
         Clamp()
         bar:Refresh()
@@ -46,6 +47,7 @@ local function Page(contentHeight)
         Widgets.CloseChoices()
     end)
     scroll:HookScript("OnShow", function()
+        if content.Relayout then content:Relayout(content:GetWidth()) end
         Clamp()
         bar:Refresh()
     end)
@@ -83,6 +85,8 @@ end
 local appearanceDescription = Section(appearanceCard, "Appearance",
     "Choose a complete look, with optional EllesmereUI matching.", -16)
 local availability = Style.Text(appearanceCard, "", 12, C.muted)
+availability:SetJustifyH("LEFT")
+availability:SetWordWrap(true)
 availability:SetPoint("TOPLEFT", appearanceCard, "TOPLEFT", 20, -264)
 Section(behaviorCard, "Window behavior",
     "Keep the world visible while the dueling hall is open.", -16)
@@ -147,18 +151,18 @@ MarkPosition(themeChoice, appearanceCard, -61)
 RegisterOption("uiTheme", "Color theme",
     "Choose a Duels color theme when EllesmereUI color matching is off", "options", themeChoice)
 
-AddToggle(appearanceCard, "options", "matchColors", "Match EllesmereUI colors",
+local matchColorsRow = AddToggle(appearanceCard, "options", "matchColors", "Match EllesmereUI colors",
     "Override all color roles with EllesmereUI's accent and panel palette.",
     -131, true)
-AddToggle(appearanceCard, "options", "matchFont", "Match EllesmereUI font",
+local matchFontRow = AddToggle(appearanceCard, "options", "matchFont", "Match EllesmereUI font",
     "Use your selected EllesmereUI interface font.", -191, true)
-AddToggle(behaviorCard, "interface", "autoPeekMoving", "Automatic Peek while moving",
+local autoPeekRow = AddToggle(behaviorCard, "interface", "autoPeekMoving", "Automatic Peek while moving",
     "Fade the window during movement; restore it when you stop.", -64, false)
-AddToggle(behaviorCard, "interface", "reduceMotion", "Reduce motion",
+local reduceMotionRow = AddToggle(behaviorCard, "interface", "reduceMotion", "Reduce motion",
     "Shorten or skip UI animation while retaining visual feedback.", -119, false)
-AddToggle(behaviorCard, "interface", "showTooltips", "Show addon tooltips",
+local tooltipsRow = AddToggle(behaviorCard, "interface", "showTooltips", "Show addon tooltips",
     "Show helpful descriptions when hovering over Duels controls.", -174, false)
-AddToggle(behaviorCard, "interface", "patchNotesReminder", "New patch reminder",
+local reminderRow = AddToggle(behaviorCard, "interface", "patchNotesReminder", "New patch reminder",
     "Show a subtle unread dot on Patch Notes when a new update is published.",
     -229, false)
 
@@ -290,6 +294,125 @@ fontInfo:SetPoint("TOPLEFT", typographyCard, "TOPLEFT", 20, -281)
 fontInfo:SetPoint("RIGHT", typographyCard, "RIGHT", -20, 0)
 fontInfo:SetJustifyH("LEFT")
 
+-- One responsive content layout owner, adapted from the row-pair behavior
+-- inspected in Polestar_Options/UI/Options.lua. The original option widgets
+-- keep their Settings callbacks, tooltips, reset behavior and scrollbar.
+-- Only their positions and presentation change as the scroll width changes.
+-- At compact widths we retain ONE readable column; at wider widths we pair
+-- appropriate controls in TWO columns. No constant OnUpdate work.
+local COLUMN_BREAKPOINT = 630
+local COLUMN_GAP, ROW_GAP, SECTION_GAP = 12, 8, 14
+
+local function LayoutPage(page, groups, width)
+    width = math.max(1, width or page:GetWidth())
+    if width <= 1 then return end
+    local two = width >= COLUMN_BREAKPOINT
+    local sectionY = 0
+    for _, group in ipairs(groups) do
+        local card = group.card
+        card:ClearAllPoints()
+        card:SetPoint("TOPLEFT", page, "TOPLEFT", 0, -sectionY)
+        card:SetPoint("TOPRIGHT", page, "TOPRIGHT", -18, -sectionY)
+        local usable = math.max(1, width - 58)
+        local half = math.max(1, math.floor((usable - COLUMN_GAP) / 2))
+        local y, pending, firstHeight = 65, false, 0
+
+        local function Place(entry, x, cellWidth, paired)
+            local widget = entry.widget
+            widget:ClearAllPoints()
+            widget:SetPoint("TOPLEFT", card, "TOPLEFT", 20 + x, -y)
+            widget:SetWidth(cellWidth)
+            if widget.LayoutForWidth then
+                widget:LayoutForWidth(cellWidth, paired)
+            elseif entry.height then
+                widget:SetHeight(entry.height)
+            end
+            -- Search targets are derived from LIVE positions after resize,
+            -- not the old static -y numbers assigned during initial setup.
+            if widget.optionsScroll then
+                widget.optionsY = sectionY + y
+            end
+            return entry.height or widget:GetHeight()
+        end
+
+        for _, entry in ipairs(group.entries) do
+            if not two or entry.wide then
+                if pending then
+                    y = y + firstHeight + ROW_GAP
+                    pending = false
+                end
+                y = y + Place(entry, 0, usable, false) + ROW_GAP
+            elseif pending then
+                local height = Place(entry, half + COLUMN_GAP, half, true)
+                y = y + math.max(firstHeight, height) + ROW_GAP
+                pending = false
+            else
+                firstHeight = Place(entry, 0, half, true)
+                pending = true
+            end
+        end
+        if pending then y = y + firstHeight + ROW_GAP end
+        if group.footer then y = group.footer(card, sectionY, y, usable) end
+        card:SetHeight(y + 13)
+        sectionY = sectionY + y + 13 + SECTION_GAP
+    end
+    page:SetHeight(math.max(sectionY, page.scrollOwner:GetHeight()))
+    if page.scrollOwner.UpdateScrollChildRect then
+        page.scrollOwner:UpdateScrollChildRect()
+    end
+    page.scrollBar:Refresh()
+end
+
+local function FooterNote(label, card, y, width)
+    label:ClearAllPoints()
+    label:SetPoint("TOPLEFT", card, "TOPLEFT", 20, -y)
+    label:SetWidth(width)
+    label:SetHeight(28)
+    return y + 30
+end
+
+local appearanceGroups = {
+    { card = appearanceCard, entries = {
+        { widget = themeChoice, wide = true },
+        -- The meaning of a disabled/enabled picker lives right under it.
+        { widget = availability, wide = true, height = 38 },
+        { widget = matchColorsRow },
+        { widget = matchFontRow },
+    }},
+}
+local interfaceGroups = {
+    { card = behaviorCard, entries = {
+        { widget = autoPeekRow }, { widget = reduceMotionRow },
+        { widget = tooltipsRow }, { widget = reminderRow },
+    }, footer = function(card, _, y, usable)
+        return FooterNote(behaviorInfo, card, y, usable)
+    end },
+    { card = typographyCard, entries = {
+        { widget = fontChoice }, { widget = fontScale },
+        { widget = fontOutline },
+    }, footer = function(card, _, y, usable)
+        return FooterNote(fontInfo, card, y, usable)
+    end },
+    { card = accessCard, entries = {
+        { widget = iconMode }, { widget = widgetSize },
+        { widget = widgetTransparency }, { widget = compartmentToggle },
+    }, footer = function(card, sectionY, y, usable)
+        resetAccess:ClearAllPoints()
+        resetAccess:SetPoint("TOPRIGHT", card, "TOPRIGHT", -20, -y)
+        resetAccess.optionsY = sectionY + y
+        resetAccess:SetWidth(math.min(190, usable))
+        accessHint:ClearAllPoints()
+        accessHint:SetPoint("TOPLEFT", card, "TOPLEFT", 20, -(y + 40))
+        accessHint:SetWidth(usable)
+        accessHint:SetHeight(34)
+        return y + 78
+    end },
+}
+function appearance:Relayout(width) LayoutPage(self, appearanceGroups, width) end
+function interface:Relayout(width) LayoutPage(self, interfaceGroups, width) end
+appearance:Relayout(appearance:GetWidth())
+interface:Relayout(interface:GetWidth())
+
 -- During a live slider drag repaint only its reset/modified indicator.
 -- A full Refresh would programmatically reassign the active thumb.
 function Options.RefreshAccessModified()
@@ -308,11 +431,14 @@ function Options.Refresh()
     themeChoice.resetIcon:SetVertexColor(unpack(C.gold))
     local compartmentAvailable = AddonCompartmentFrame and
         type(AddonCompartmentFrame.RegisterAddon) == "function"
-    availability:SetText(ready and "EllesmereUI matching is available." or
-        "EllesmereUI is unavailable. Matching controls are disabled.")
-    availability:SetTextColor(
-        ready and 0.46 or 0.73, ready and 0.86 or 0.65,
-        ready and 0.60 or 0.58, 1)
+    if not ready then
+        availability:SetText("Duels theme is active. EllesmereUI is unavailable, so its color and font matching are disabled.")
+    elseif matchedColors then
+        availability:SetText("EllesmereUI controls the interface colors. Disable color matching below to choose a Duels theme.")
+    else
+        availability:SetText("Duels theme colors are active. Enable Match EllesmereUI colors below to use its palette instead.")
+    end
+    availability:SetTextColor(unpack(C.muted))
     for _, entry in ipairs(rows) do
         local widget = entry.widget
         widget:RefreshColors()
@@ -368,6 +494,8 @@ function Options.Show(pageKey)
     Widgets.CloseChoices()
     appearance.scrollOwner:SetShown(pageKey == "options")
     interface.scrollOwner:SetShown(pageKey == "interface")
+    if pageKey == "options" then appearance:Relayout(appearance:GetWidth()) end
+    if pageKey == "interface" then interface:Relayout(interface:GetWidth()) end
     if pageKey == "options" or pageKey == "interface" then Options.Refresh() end
 end
 

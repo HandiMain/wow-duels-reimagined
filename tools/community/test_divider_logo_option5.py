@@ -41,8 +41,9 @@ class DividerAndWordmarkTests(unittest.TestCase):
         self.assertIn('BrandLayer(C.gold,       0,    0.25, -4)',window)
         self.assertIn('BrandLayer(C.headerText, 0.25, 0.50, -4)',window)
         self.assertNotIn('BrandLayer(C.gold,       0.50, 0.75, 3)',window)
-        self.assertIn('leftRule:SetPoint("RIGHT", underline, "CENTER", -9, 0)',window)
-        self.assertIn('rightRule:SetPoint("LEFT", underline, "CENTER", 9, 0)',window)
+        self.assertNotIn('local underline = CreateFrame(',window)
+        self.assertNotIn('local leftRule = Style.Fill(',window)
+        self.assertNotIn('local rightRule = Style.Fill(',window)
         self.assertIn('local BRAND_ASPECT = 4.65',window)
         self.assertIn('brandLogo:SetPoint("LEFT", brandArea, "LEFT", 24, -3)',window)
         self.assertNotIn('Option5HeaderLogo.png',window)
@@ -56,8 +57,8 @@ class DividerAndWordmarkTests(unittest.TestCase):
         self.assertIn('brandArea:SetScript("OnSizeChanged", FitBrand)',window)
         self.assertIn('function Window.PlaceBrandBefore(searchBox)',window)
         self.assertIn('brandArea:SetPoint("RIGHT", searchBox, "LEFT", -18, 0)',window)
-        self.assertIn('DuelsReimagined-HeaderLogoFlat.png',landing)
-        self.assertNotIn('HeaderOption5TintAtlas.png',landing)
+        self.assertIn('HeaderOption5TintAtlas.png',landing)
+        self.assertNotIn('DuelsReimagined-HeaderLogoFlat.png',landing)
         self.assertIn('function Window.ResetWindow()',window)
 
 if __name__ == "__main__":

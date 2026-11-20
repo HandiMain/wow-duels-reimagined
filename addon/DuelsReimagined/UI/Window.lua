@@ -121,7 +121,7 @@ brandArea:EnableMouse(false)
 
 local brandLogo = CreateFrame("Frame", nil, brandArea)
 brandLogo:EnableMouse(false)
--- Wider wordmark with independently positioned lettering and ornament.
+-- Centered text-only wordmark; both letter bands remain palette-tintable.
 local BRAND_ASPECT = 4.65
 local BRAND_MAX_WIDTH, BRAND_MAX_HEIGHT = 312, 67
 brandLogo:SetSize(BRAND_MAX_WIDTH, BRAND_MAX_HEIGHT)
@@ -141,25 +141,8 @@ end
 BrandLayer(C.gold,       0,    0.25, -4) -- DUELS lettering
 BrandLayer(C.headerText, 0.25, 0.50, -4) -- REIMAGINED, aligned baseline
 
--- The old atlas ornament had an off-center diamond and asymmetric bends.
--- Use two equal-length, theme-colored strokes instead: zero extra media,
--- a consistent gap, and identical ends regardless of header width.
-local underline = CreateFrame("Frame", nil, brandLogo)
-underline:SetPoint("BOTTOMLEFT", brandLogo, "BOTTOMLEFT", 12, -3)
-underline:SetPoint("BOTTOMRIGHT", brandLogo, "BOTTOMRIGHT", -12, -3)
-underline:SetHeight(10)
-local leftRule = Style.Fill(underline, C.gold, "ARTWORK")
-leftRule:ClearAllPoints()
-leftRule:SetPoint("LEFT", underline, "LEFT")
-leftRule:SetPoint("RIGHT", underline, "CENTER", -9, 0)
-leftRule:SetHeight(2)
-leftRule:SetAlpha(0.66)
-local rightRule = Style.Fill(underline, C.gold, "ARTWORK")
-rightRule:ClearAllPoints()
-rightRule:SetPoint("LEFT", underline, "CENTER", 9, 0)
-rightRule:SetPoint("RIGHT", underline, "RIGHT")
-rightRule:SetHeight(2)
-rightRule:SetAlpha(0.66)
+-- Text-only branding: the two alpha-masked letter layers above are the
+-- entire logo. There is deliberately no underline, diamond or frame art.
 
 local function FitBrand(_, width)
     -- Full artwork scales uniformly and never overlaps the search field.
