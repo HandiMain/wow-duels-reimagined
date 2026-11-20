@@ -26,7 +26,7 @@ class NavigationIconAtlasTests(unittest.TestCase):
         self.assertIn("local NAV_ICON_ATLAS =", chrome)
         for name, coords in (
             ("Hall", "{ 0,   0.5, 0,   0.5 }"),
-            ("Community", "{ 0.5, 1,   0,   0.5 }"),
+            ("Community", "{ 0.5, 1, 19/128, 0.5 }"),
             ("PatchNotes", "{ 0,   0.5, 0.5, 1 }"),
             ("Options", "{ 0.5, 1,   0.5, 1 }"),
         ):
@@ -39,12 +39,17 @@ class NavigationIconAtlasTests(unittest.TestCase):
 
     def test_text_and_icons_fit_buttons_without_replacing_behavior(self):
         nav = source("UI/Navigation.lua")
-        self.assertIn("button:SetSize(216, 44)", nav)
+        self.assertIn("button:SetSize(HALL_BUTTON_WIDTH, 44)", nav)
+        self.assertIn("local HALL_BUTTON_WIDTH = 156", nav)
+        self.assertIn("math.min(HALL_BUTTON_WIDTH + gutter,", nav)
         self.assertIn("button:SetSize(90, 90)", nav)
         self.assertIn("icon:SetSize(isPrimary and 34 or 50", nav)
         self.assertIn("isPrimary and 18 or 12, C.tabMuted", nav)
         self.assertIn('icon:SetPoint("RIGHT", button, "CENTER", -11, 0)', nav)
         self.assertIn('icon:SetPoint("TOP", button, "TOP", 0, -4)', nav)
+        self.assertIn('icon:SetHeight(50 * (1 - trim))', nav)
+        self.assertIn('icon:SetPoint("TOP", button, "TOP", 0, -4 - 50 * trim)', nav)
+        self.assertIn('local trim = 19 / 64', nav)
         self.assertIn("label:SetWidth(88)", nav)
         self.assertIn("label:SetHeight(30)", nav)
         self.assertLessEqual(4 + 50 + 30, 90)

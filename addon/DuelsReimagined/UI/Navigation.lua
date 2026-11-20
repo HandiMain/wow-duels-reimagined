@@ -124,7 +124,10 @@ local function AddOverlay(button, primary)
     return selected, hover
 end
 
-local utilityIndex = 0
+-- Keep the gameplay tab compact; primary tabs can still shrink if the
+-- available width becomes constrained.
+local HALL_BUTTON_WIDTH = 156
+local utilityIndex, previousUtilityButton = 0, nil
 for index, section in ipairs(sections) do
     local isPrimary = primaryKeys[section.key] == true
     local parent = isPrimary and Window.rail or Window.utility
@@ -133,19 +136,22 @@ for index, section in ipairs(sections) do
     if isPrimary then
         -- Hall is the sole primary tab for now; leave the rest of this row
         -- available for real dueling, ranking or tournament features later.
-        button:SetSize(216, 44)
+        button:SetSize(HALL_BUTTON_WIDTH, 44)
         button:SetPoint("LEFT", Window.rail, "LEFT", 24, 0)
     else
         utilityIndex = utilityIndex + 1
         button:SetSize(90, 90)
         button:SetPoint("TOP", Window.utility, "TOP",
             0, -12 - (utilityIndex - 1) * 98)
-        if utilityIndex > 1 then
+        if previousUtilityButton then
+            -- The 8-unit gap belongs to the rail, never to either button.
+            -- Anchor to the actual prior button rather than a guessed row
+            -- offset, keeping dividers consistent after future resizing.
             local separator = Chrome.Divider(Window.utility, 44, 8)
-            separator:SetPoint("TOP", Window.utility, "TOP",
-                0, -6 - (utilityIndex - 1) * 98)
+            separator:SetPoint("TOP", previousUtilityButton, "BOTTOM", 0, 0)
             separator:SetAlpha(0.50)
         end
+        previousUtilityButton = button
     end
 
     -- Even when Hall is not selected its raised outline reads as a button.
@@ -183,9 +189,17 @@ for index, section in ipairs(sections) do
         label:SetPoint("LEFT", icon, "RIGHT", 12, 0)
         label:SetJustifyH("LEFT")
     else
-        -- 4 + 50 + 0 + 30 = 84 of the existing 90-unit button.
-        -- Larger art and label remain fully inside the hit area.
-        icon:SetPoint("TOP", button, "TOP", 0, -4)
+        -- The Community icon atlas has a small baked-in gold line above the
+        -- figures. Chrome crops the line; compensate the texture height and
+        -- top anchor so the actual figures stay at their EXACT former scale
+        -- and position, without shifting the label or changing the hit area.
+        if section.key == "community" then
+            local trim = 19 / 64
+            icon:SetHeight(50 * (1 - trim))
+            icon:SetPoint("TOP", button, "TOP", 0, -4 - 50 * trim)
+        else
+            icon:SetPoint("TOP", button, "TOP", 0, -4)
+        end
         label:SetPoint("TOP", icon, "BOTTOM", 0, 0)
         label:SetWidth(88)
         label:SetHeight(30)
@@ -279,7 +293,8 @@ local function FitTabs(self, width)
     local w = (type(width) == "number" and width > 0) and width or self:GetWidth()
     if not w or w <= 0 or #primaryButtons == 0 then return end
     local pad, gutter = 24, 12
-    local slot = math.min(232, math.max(112, (w - 2 * pad) / #primaryButtons))
+    local slot = math.min(HALL_BUTTON_WIDTH + gutter,
+        math.max(112, (w - 2 * pad) / #primaryButtons))
     for i, item in ipairs(primaryButtons) do
         item.button:ClearAllPoints()
         item.button:SetPoint("LEFT", self, "LEFT", pad + (i - 1) * slot, 0)

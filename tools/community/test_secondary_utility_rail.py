@@ -18,14 +18,15 @@ class UtilityRailTests(unittest.TestCase):
         self.assertIn('local primaryKeys = { hall = true }', n)
         self.assertIn('local railButtons, primaryButtons, subButtons = {}, {}, {}', n)
         self.assertIn('local parent = isPrimary and Window.rail or Window.utility', n)
-        self.assertIn('button:SetSize(216, 44)', n)
+        self.assertIn('button:SetSize(HALL_BUTTON_WIDTH, 44)', n)
+        self.assertIn('local HALL_BUTTON_WIDTH = 156', n)
         self.assertIn('button:SetSize(90, 90)', n)
         self.assertIn('Window.utility = utility', w)
         self.assertIn('utility:SetWidth(98)', w)
         self.assertIn('nav:SetWidth(210)', w)
         self.assertIn('nav:SetPoint("TOPLEFT", utility, "TOPRIGHT", 8, 0)', w)
         self.assertIn('main:SetPoint("TOPLEFT", nav, "TOPRIGHT", 9, 0)', w)
-        self.assertNotIn('button:SetSize(165, 44)', n)
+        self.assertNotIn('button:SetSize(216, 44)', n)
 
     def test_exact_three_utilities_not_added_as_primary(self):
         n = read("UI/Navigation.lua")
@@ -36,6 +37,9 @@ class UtilityRailTests(unittest.TestCase):
         self.assertIn('local utilityIndex = 0', n)
         self.assertIn('0, -12 - (utilityIndex - 1) * 98', n)
         self.assertIn('separator = Chrome.Divider(Window.utility, 44, 8)', n)
+        self.assertIn('separator:SetPoint("TOP", previousUtilityButton, "BOTTOM", 0, 0)', n)
+        self.assertIn('previousUtilityButton = button', n)
+        self.assertNotIn('separator:SetPoint("TOP", Window.utility, "TOP",', n)
         self.assertIn('item.primary and C.gold or C.goldDim', n)
 
     def test_all_buttons_share_our_premium_theme_skin_and_motion(self):

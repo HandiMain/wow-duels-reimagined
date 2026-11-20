@@ -877,3 +877,43 @@ EllesmereUI enabled, window scaling/reflow, /reload and input behavior.
 Status: SOURCE RESTORED; CI/in-game verification must be reported
 separately. This rollback follows player feedback, NOT a claim that
 the abandoned concept was verified.
+
+## Compact Hall tab and consistent utility separators — 2026-11-20
+
+User screenshots revealed (a) the only primary Hall button retained an
+overly broad 220-unit resting/clickable area despite a ~90-unit icon/text
+group, and (b) the Community graphic included a small built-in gold
+flourish above the heads, while the Patch Notes and Options breaks used
+actual external dividers. Requested both adjustments together.
+
+Polestar first: Theme/Widgets.lua W.SetButtonText measures text + icon
+and uses fixed/tight padding instead of an arbitrarily broad button.
+Our UI/Navigation.lua FitTabs previously reset the initial 216-unit Hall
+button to 220. New HALL_BUTTON_WIDTH=156 caps the FitTabs slot and
+sets the initial width consistently. Hall remains 44 tall with identical
+34-unit sword icon, 18pt text, clickable hit area equal to the new border,
+and unchanged hover/selection/click behaviors.
+
+The existing original gold Community atlas cell in Media/Icons/
+DuelsNavigationAtlas.png has an ornamental star-and-horizontal-line
+in source rows 0..18. We did NOT regenerate or overwrite the approved
+art asset: Chrome.Icon crops that ornament using the same texture with
+a top UV starting at row 19. Navigation.lua adjusts only Community's
+texture height and anchor to preserve the figures' original display
+size, position, and the icon/label spacing. In addition, 44x8
+Chrome.Divider frames now anchor TOP to the preceding utility button's
+BOTTOM, aligning their center in the actual 8-unit gap between
+90x90 buttons, instead of relying on a fixed utility-parent offset.
+All dividers are non-interactive and outside the buttons.
+
+No new settings, assets, media ownership, navigation state, polling,
+or gameplay changes. Regression tests updated in navigation-icon and
+utility-rail suites. Expected in-game: Hall button ends closer to its
+label; Community shows only the group icon; matching diamond dividers
+appear between Community/Patch Notes and Patch Notes/Options, including
+hover/selected states, at different UI scales and /reload. Existing
+Obsidian & Ember default, recolor themes, EUI integration, minimap,
+search, widget, tooltips and layout remain unchanged.
+
+Status: IMPLEMENTED/UNTESTED before CI and in-game evidence.
+Rollback baseline develop 9abba02e9ed7b52fa15abe374a02396ff552698b.

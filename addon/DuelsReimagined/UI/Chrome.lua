@@ -35,7 +35,9 @@ end
 local NAV_ICON_ATLAS = "Interface\\AddOns\\DuelsReimagined\\Media\\Icons\\DuelsNavigationAtlas.png"
 local NAV_ICON_UV = {
     Hall       = { 0,   0.5, 0,   0.5 },
-    Community  = { 0.5, 1,   0,   0.5 },
+    -- Crop only the ornamental line above the figures (atlas rows 0..18).
+    -- Actual community glyph pixels are unchanged and still fully visible.
+    Community  = { 0.5, 1, 19/128, 0.5 },
     PatchNotes = { 0,   0.5, 0.5, 1 },
     Options    = { 0.5, 1,   0.5, 1 },
 }
