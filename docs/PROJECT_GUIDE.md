@@ -492,3 +492,35 @@ scrollbars, font 75/100/150%, all themes, Ellesmere ON/OFF, minimap and widget
 live settings, Fold/Peek/Enter/Escape and combat. Neither mock/static checks
 nor screenshots can substitute for live testing. Prior rollback baseline:
 develop 241abcacbee92f4d9d14cb5d9c57c22939a94e85.
+
+## Landing and minimap emblem replacement — approved November 20, 2026
+
+Selected visual: the user's DR shield with crossed swords and laurels,
+above a dark burgundy/gold nameplate reading DUELS REIMAGINED. The user
+explicitly authorized extracting and installing exactly these two graphics.
+Keep the addon name, tagline, original Open Duels Reimagined/View Community
+buttons, footer, Blizzard Settings navigation and other UI untouched.
+
+Polestar-first references: Theme/Theme.lua's independent brand colors,
+and docs/DESIGN.md's brand lockup and power-of-two media. No Polestar
+art/code is reused. Extracted user-selected concept artwork is separated
+into fixed-color, transparent RGBA textures:
+- Media/Brand/DuelsLandingEmblem.png (512x256) on Blizzard landing ONLY;
+- Media/Icons/DuelsCrestIcon.png (128x128) on minimap and floating widget.
+
+UI/BlizzardSettings.lua replaces the old tinted atlas with an independent
+untinted texture, UV cropping unused vertical padding. The same themed
+background, two actions and combat/tooltip behavior are preserved. The main
+window header's Option 5 theme-tinted wordmark stays unchanged.
+UI/AccessIcons.lua changes only the ICON media path; its shared minimap
+and floating-widget machinery, color glows, hover/drag, collectors,
+SavedVariables, and Search/Options are preserved. ## IconTexture in TOC
+remains the old Blizzard AddOns-list icon, outside this scope. No new
+settings/modules/animations and no main-branch release or TOC bump.
+
+Status: IMPLEMENTED/UNTESTED IN GAME. Structural PNG/test checks run
+on CI; user should test all five themes and Ellesmere match ON/OFF,
+Blizzard landing logo fit/readability at native and reduced screen sizes,
+both buttons, minimap crest clarity and hover/drag/collector, widget
+24/42/128 size and opacity, /reload, focus and combat, Forever/Retail.
+Rollback baseline: develop 6811448019612b7084e1bb7dee2ade5d7de73670.

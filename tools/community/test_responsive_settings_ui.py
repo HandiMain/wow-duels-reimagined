@@ -131,15 +131,15 @@ class ResponsiveSettingsTests(unittest.TestCase):
         self.assertNotIn('db.uiTheme = nil', opts)
         self.assertIn("pcall(eui.RegisterSkin", read("UI/Theme.lua"))
 
-    def test_main_and_landing_share_same_two_wordmark_layers(self):
+    def test_main_header_themed_and_landing_art_fixed_colors(self):
         win, land = read("UI/Window.lua"), read("UI/BlizzardSettings.lua")
         self.assertIn("BrandLayer(C.gold,       0,    0.25, -4)", win)
         self.assertIn("BrandLayer(C.headerText, 0.25, 0.50, -4)", win)
-        self.assertIn("LogoBand(C.gold, 0, 0.25)", land)
-        self.assertIn("LogoBand(C.headerText, 0.25, 0.50)", land)
+        self.assertIn("DuelsLandingEmblem.png", land)
+        self.assertNotIn("LogoBand(", land)
         self.assertNotIn("local underline = CreateFrame(", win)
         self.assertNotIn("DuelsReimagined-HeaderLogoFlat.png", land)
-        self.assertIn("Style.TintedImage(logo, brandAtlas", land)
+        self.assertNotIn("Style.TintedImage(logo, brandAtlas", land)
         self.assertIn('function Window.PlaceBrandBefore(searchBox)', win)
 
     def test_hall_has_idle_skin_and_click_feedback(self):

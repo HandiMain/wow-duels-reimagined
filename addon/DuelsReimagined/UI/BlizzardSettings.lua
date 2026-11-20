@@ -15,29 +15,24 @@ surface:SetPoint("TOPLEFT", panel, "TOPLEFT", 12, -12)
 surface:SetPoint("BOTTOMRIGHT", panel, "BOTTOMRIGHT", -12, 12)
 Style.Skin(surface, C.body, { corner=12, edge=C.border, shine=0.22, shade=0.20 })
 
--- Match the main window's text-only wordmark. Both bands use the same
--- neutral atlas and the same semantic gold/text palette roles; optional
--- EllesmereUI recolors this landing logo via Style's normal repaint path.
+-- This approved DR crest and nameplate are fixed-color identity artwork.
+-- The surrounding panel/buttons continue to use the shared Duels theme.
+-- Do NOT tint this image: it must remain legible on ivory, dark and
+-- third-party EllesmereUI panel colors.
 local layout = CreateFrame("Frame", nil, surface)
 layout:SetSize(490, 405)
 layout:SetPoint("CENTER", surface, "CENTER", 0, 6)
-local logo = CreateFrame("Frame", nil, layout)
-logo:SetSize(326, 326 / 4.65)
-logo:SetPoint("TOP", layout, "TOP", 0, -14)
-local brandAtlas = "Interface\\AddOns\\DuelsReimagined\\Media\\Skin\\HeaderOption5TintAtlas.png"
-local function LogoBand(color, top, bottom)
-    local texture = Style.TintedImage(logo, brandAtlas, color, "ARTWORK")
-    texture:SetPoint("TOPLEFT", logo, "TOPLEFT", 0, -4)
-    texture:SetPoint("BOTTOMRIGHT", logo, "BOTTOMRIGHT", 0, -4)
-    texture:SetTexCoord(0, 1, top, bottom)
-    Chrome.Sharp(texture)
-end
-LogoBand(C.gold, 0, 0.25)
-LogoBand(C.headerText, 0.25, 0.50)
+local logo = layout:CreateTexture(nil, "ARTWORK")
+logo:SetSize(430, 172)
+logo:SetPoint("TOP", layout, "TOP", 0, -2)
+logo:SetTexture("Interface\\AddOns\\DuelsReimagined\\Media\\Brand\\DuelsLandingEmblem.png")
+-- Transparent power-of-two art; crop only unused padded vertical space.
+logo:SetTexCoord(0, 1, 0.10, 0.90)
+Chrome.Sharp(logo)
 
 local subtitle = Style.Text(layout,
     "Your dueling companion in World of Warcraft.", 14, C.text)
-subtitle:SetPoint("TOP", logo, "BOTTOM", 0, -20)
+subtitle:SetPoint("TOP", logo, "BOTTOM", 0, -4)
 subtitle:SetPoint("LEFT", layout, "LEFT", 18, 0)
 subtitle:SetPoint("RIGHT", layout, "RIGHT", -18, 0)
 subtitle:SetHeight(42)
@@ -45,14 +40,14 @@ subtitle:SetWordWrap(true)
 subtitle:SetJustifyH("CENTER")
 subtitle:SetJustifyV("MIDDLE")
 local divider = Chrome.Divider(layout, 304, 15)
-divider:SetPoint("TOP", subtitle, "BOTTOM", 0, -12)
+divider:SetPoint("TOP", subtitle, "BOTTOM", 0, -7)
 
 local open = Style.Action(layout, "Open Duels Reimagined", "community")
 open:SetSize(360, 46)
-open:SetPoint("TOP", divider, "BOTTOM", 0, -25)
+open:SetPoint("TOP", divider, "BOTTOM", 0, -12)
 local community = Style.Action(layout, "View Community", "footer")
 community:SetSize(230, 38)
-community:SetPoint("TOP", open, "BOTTOM", 0, -22)
+community:SetPoint("TOP", open, "BOTTOM", 0, -12)
 
 -- The screenshot's example version number is not an actual release.
 local build = Style.Text(surface, "Duels Reimagined  |  Test Build", 11, C.muted)

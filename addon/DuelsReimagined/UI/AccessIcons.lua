@@ -7,7 +7,9 @@ local Settings, Motion, Tooltips = ns.Settings, ns.Motion, ns.Tooltips
 local Access = {}
 ns.AccessIcons = Access
 
-local ICON = "Interface\\AddOns\\DuelsReimagined\\Media\\Icons\\DuelsReimagined-AddonIcon.blp"
+-- The approved fixed-color DR crest is shared by minimap and floating
+-- widget. Keep all existing access, drag, tooltip and motion machinery.
+local ICON = "Interface\\AddOns\\DuelsReimagined\\Media\\Icons\\DuelsCrestIcon.png"
 local EDGE, MINIMAP_SIZE = 8, 36
 local IDLE_DELAY, IDLE_ALPHA = 4, 0.60
 local loginReady = false

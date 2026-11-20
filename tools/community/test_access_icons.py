@@ -14,7 +14,12 @@ class AccessIconsTests(unittest.TestCase):
         self.assertIn("UI\\AccessIcons.lua", toc)
         self.assertLess(toc.index("Core\\Settings.lua"), toc.index("UI\\AccessIcons.lua"))
         self.assertLess(toc.index("UI\\Options.lua"), toc.index("UI\\AccessIcons.lua"))
-        self.assertIn("DuelsReimagined-AddonIcon.blp", read("UI/AccessIcons.lua"))
+        self.assertIn("DuelsReimagined-AddonIcon.blp", toc)
+        self.assertIn("DuelsCrestIcon.png", read("UI/AccessIcons.lua"))
+        a = read("UI/AccessIcons.lua")
+        for marker in ("glow:SetTexture(ICON)", "ring:SetTexture(ICON)",
+                       "mark:SetTexture(ICON)", "highlight:SetTexture(ICON)"):
+            self.assertIn(marker, a)
 
     def test_minimap_and_widget_modes(self):
         s = read("Core/Settings.lua")
