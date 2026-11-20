@@ -26,7 +26,7 @@ titleRule:SetPoint("TOP", heading, "BOTTOM", 0, -3)
 local subtitle = Style.Text(root, "What's new in Duels Reimagined", 12, C.muted)
 subtitle:SetPoint("TOP", titleRule, "BOTTOM", 0, -4)
 local hint = Style.Text(root,
-    "Select a highlighted entry to jump directly to its setting.", 11, C.muted
+    "Select a highlighted entry to jump directly to its setting.", 11, C.muted)
 hint:SetPoint("TOP", subtitle, "BOTTOM", 0, -10)
 hint:SetJustifyH("CENTER")
 

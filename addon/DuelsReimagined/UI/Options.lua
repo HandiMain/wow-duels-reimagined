@@ -141,8 +141,8 @@ local themeChoice = Widgets.ChoiceRow(appearanceCard, "Color theme",
     "Recolor the whole addon, including panels, tabs, text and buttons.",
     function(key) Settings.Set("uiTheme", key) end,
     function() Settings.Reset("uiTheme") end, false)
-themeChoice:SetPoint("TOPLEFT", appearanceCard, "TOPLEFT", 20, -61
-themeChoice:SetPoint("TOPRIGHT", appearanceCard, "TOPRIGHT", -20, -61
+themeChoice:SetPoint("TOPLEFT", appearanceCard, "TOPLEFT", 20, -61)
+themeChoice:SetPoint("TOPRIGHT", appearanceCard, "TOPRIGHT", -20, -61)
 MarkPosition(themeChoice, appearanceCard, -61)
 RegisterOption("uiTheme", "Color theme",
     "Choose a Duels color theme when EllesmereUI color matching is off", "options", themeChoice)
