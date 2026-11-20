@@ -16,7 +16,8 @@ class ResponsiveSettingsTests(unittest.TestCase):
     def test_polestar_inspired_columns_reflow_from_actual_width(self):
         src = read("UI/Options.lua")
         self.assertIn("local COLUMN_BREAKPOINT = 630", src)
-        self.assertIn("local two = width >= COLUMN_BREAKPOINT", src)
+        self.assertIn("local two = width >= (largeText and 860 or COLUMN_BREAKPOINT)", src)
+        self.assertIn('Settings.Get("fontScale") or 1', src)
         self.assertIn("math.floor((usable - COLUMN_GAP) / 2)", src)
         self.assertIn("y = y + math.max(firstHeight, height) + ROW_GAP", src)
         self.assertIn("if content.Relayout then content:Relayout(content:GetWidth()) end", src)
@@ -33,14 +34,17 @@ class ResponsiveSettingsTests(unittest.TestCase):
         for kind in ("ToggleRow", "ChoiceRow", "SliderRow"):
             self.assertIn("function Widgets."+kind+"(", src)
         for marker in (
-            "self:SetHeight(paired and 76 or 54)",
-            "self:SetHeight(paired and 102 or 66)",
-            "self:SetHeight(paired and 96 or 64)",
-            'control:SetPoint("BOTTOMRIGHT", self, "BOTTOMRIGHT", -8, 7)',
-            'slider:SetPoint("BOTTOMRIGHT", self, "BOTTOMRIGHT", -63, 8)',
+            "self:SetHeight(54)",
+            "self:SetHeight(paired and 56 or 66)",
+            "self:SetHeight(paired and 56 or 64)",
+            'control:SetWidth(math.max(112, math.min(140, width - 165)))',
+            'slider:SetWidth(math.max(75, math.min(112, width - 165)))',
             'Paint(slider:GetValue())',
         ):
             self.assertIn(marker, src)
+        self.assertIn("self.description:SetShown(not paired)", src)
+        self.assertIn("if self.paired then", src)
+        self.assertIn("ns.Tooltips.Show(self, { title = caption, detail = detail", src)
         self.assertNotIn('SetScript("OnUpdate"', src[:src.index("function Widgets.ScrollBar(")])
 
     def test_card_group_layout_owns_all_existing_settings(self):

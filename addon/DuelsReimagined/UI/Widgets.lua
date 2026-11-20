@@ -158,14 +158,17 @@ function Widgets.ToggleRow(parent, label, description, onToggle, onReset)
     -- Layout changes only the presentation; the toggle remains the same
     -- full-row click target, SavedVariables owner and animation.
     function row:LayoutForWidth(width, paired)
-        self:SetHeight(paired and 76 or 54)
+        -- Polestar-like dense paired rows: title and toggle are always
+        -- visible, while its full explanation remains available on hover.
+        self:SetHeight(54)
         self.name:ClearAllPoints()
-        self.name:SetPoint("TOPLEFT", self, "TOPLEFT", 1, -7)
+        self.name:SetPoint("TOPLEFT", self, "TOPLEFT", 1, paired and -15 or -7)
         self.name:SetWidth(math.max(70, width - (paired and 66 or 93)))
         self.description:ClearAllPoints()
         self.description:SetPoint("TOPLEFT", self.name, "BOTTOMLEFT", 0, -3)
-        self.description:SetWidth(math.max(70, width - (paired and 66 or 93)))
-        self.description:SetHeight(paired and 40 or 29)
+        self.description:SetWidth(math.max(70, width - 93))
+        self.description:SetHeight(29)
+        self.description:SetShown(not paired)
     end
     row:RefreshColors()
     row:SetModified(false)
@@ -419,10 +422,10 @@ function Widgets.ChoiceRow(parent, caption, detail, onChoose, onReset, above)
     row:EnableMouse(true)
     -- The parent receives hover events when a disabled dropdown cannot.
     row:SetScript("OnEnter", function(self)
-        if not self.available then
+        if not self.available or self.paired then
             ns.Tooltips.Show(self, {
                 title = caption,
-                detail = self.disabledReason or detail,
+                detail = not self.available and (self.disabledReason or detail) or detail,
                 anchor = "RIGHT",
             })
         end
@@ -432,22 +435,24 @@ function Widgets.ChoiceRow(parent, caption, detail, onChoose, onReset, above)
     row.control = control
     row.popup = popup
     function row:LayoutForWidth(width, paired)
-        self:SetHeight(paired and 102 or 66)
+        self.paired = paired
+        self:SetHeight(paired and 56 or 66)
         self.name:ClearAllPoints()
-        self.name:SetPoint("TOPLEFT", self, "TOPLEFT", 1, -7)
-        self.name:SetWidth(math.max(70, width - 10))
+        self.name:SetPoint("TOPLEFT", self, "TOPLEFT",
+            1, paired and -17 or -7)
+        self.name:SetWidth(math.max(76, width - (paired and 160 or 10)))
         self.description:ClearAllPoints()
         self.description:SetPoint("TOPLEFT", self.name, "BOTTOMLEFT", 0, -3)
-        self.description:SetWidth(math.max(70, width - (paired and 14 or 262)))
-        self.description:SetHeight(paired and 38 or 30)
+        self.description:SetWidth(math.max(70, width - 262))
+        self.description:SetHeight(30)
+        self.description:SetShown(not paired)
         control:ClearAllPoints()
         if paired then
-            control:SetWidth(math.max(126, math.min(226, width - 18)))
-            control:SetPoint("BOTTOMRIGHT", self, "BOTTOMRIGHT", -8, 7)
+            control:SetWidth(math.max(112, math.min(140, width - 165)))
         else
             control:SetWidth(226)
-            control:SetPoint("RIGHT", self, "RIGHT", -8, -1)
         end
+        control:SetPoint("RIGHT", self, "RIGHT", -8, -1)
     end
     return row
 end
@@ -555,6 +560,16 @@ function Widgets.SliderRow(parent, caption, detail, minVal, maxVal, step, onComm
                 ". Drag or use the mouse wheel to adjust.",
             anchor = "LEFT" }
     end)
+    -- Compact paired rows hide long descriptions; hovering the row itself
+    -- still reveals the full text using the existing addon tooltip owner.
+    row:EnableMouse(true)
+    row:SetScript("OnEnter", function(self)
+        if self.paired then
+            ns.Tooltips.Show(self, { title = caption, detail = detail, anchor = "RIGHT" })
+        end
+    end)
+    row:SetScript("OnLeave", function(self) ns.Tooltips.Hide(self) end)
+    row:HookScript("OnHide", function(self) ns.Tooltips.Hide(self, true) end)
     row.slider = slider
     row.fill = filled
     function row:RefreshColors()
@@ -563,22 +578,24 @@ function Widgets.SliderRow(parent, caption, detail, minVal, maxVal, step, onComm
         self.resetIcon:SetVertexColor(unpack(C.gold))
     end
     function row:LayoutForWidth(width, paired)
-        self:SetHeight(paired and 96 or 64)
+        self.paired = paired
+        self:SetHeight(paired and 56 or 64)
         self.name:ClearAllPoints()
-        self.name:SetPoint("TOPLEFT", self, "TOPLEFT", 1, -8)
-        self.name:SetWidth(math.max(70, width - 10))
+        self.name:SetPoint("TOPLEFT", self, "TOPLEFT",
+            1, paired and -17 or -8)
+        self.name:SetWidth(math.max(76, width - (paired and 177 or 10)))
         self.description:ClearAllPoints()
         self.description:SetPoint("TOPLEFT", self.name, "BOTTOMLEFT", 0, -3)
-        self.description:SetWidth(math.max(70, width - (paired and 14 or 262)))
-        self.description:SetHeight(paired and 38 or 29)
+        self.description:SetWidth(math.max(70, width - 262))
+        self.description:SetHeight(29)
+        self.description:SetShown(not paired)
         slider:ClearAllPoints()
         if paired then
-            slider:SetWidth(math.max(75, math.min(172, width - 115)))
-            slider:SetPoint("BOTTOMRIGHT", self, "BOTTOMRIGHT", -63, 8)
+            slider:SetWidth(math.max(75, math.min(112, width - 165)))
         else
             slider:SetWidth(172)
-            slider:SetPoint("RIGHT", self, "RIGHT", -55, 0)
         end
+        slider:SetPoint("RIGHT", self, "RIGHT", -55, 0)
         -- Recompute the fill if the column width changes while visible.
         Paint(slider:GetValue())
     end

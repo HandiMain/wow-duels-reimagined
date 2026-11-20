@@ -306,7 +306,10 @@ local COLUMN_GAP, ROW_GAP, SECTION_GAP = 12, 8, 14
 local function LayoutPage(page, groups, width)
     width = math.max(1, width or page:GetWidth())
     if width <= 1 then return end
-    local two = width >= COLUMN_BREAKPOINT
+    -- At large user-selected font sizes prefer a single readable column
+    -- until the window has enough width to keep labels from colliding.
+    local largeText = (Settings.Get("fontScale") or 1) > 1.20
+    local two = width >= (largeText and 860 or COLUMN_BREAKPOINT)
     local sectionY = 0
     for _, group in ipairs(groups) do
         local card = group.card
@@ -486,6 +489,10 @@ function Options.Refresh()
         "Fade the floating widget when you are not hovering over it." or
         "Choose Widget or Both in Icon mode to change transparency.")
     resetAccess:SetEnabled(true)
+    -- Font scaling can change the one/two-column breakpoint without
+    -- changing window dimensions. Keep the adaptive layout in sync.
+    appearance:Relayout(appearance:GetWidth())
+    interface:Relayout(interface:GetWidth())
     appearance.scrollBar:Refresh()
     interface.scrollBar:Refresh()
 end
