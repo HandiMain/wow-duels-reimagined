@@ -427,6 +427,15 @@ ns.Navigation = {
     end,
 }
 
+-- Like every other real action, Back participates in the ONE Search registry.
+-- It is unavailable until the player actually has somewhere to return.
+ns.Search.Register("navigation:back", "Back", "Navigation",
+    "Return to your previous Duels page", function()
+        return ns.Navigation.Back()
+    end, function()
+        return ns.Navigation.CanGoBack()
+    end)
+
 -- Every visible page registers itself, so new pages join search automatically.
 for sectionIndex, section in ipairs(sections) do
     for pageIndex, page in ipairs(section.pages) do

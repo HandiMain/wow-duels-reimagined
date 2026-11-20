@@ -984,3 +984,12 @@ the miniature size/alpha when a preview is shown. No full Options.Refresh
 during drag, slider state owner changes, new settings, animation or layout
 changes. The regular Options.Refresh also refreshes a visible miniature.
 Live in-game slider responsiveness and popup overlap remain UNVERIFIED.
+
+## Search integration for new Back and preview actions — 2026-11-20
+
+Final cross-system audit: Navigation.Back is registered in the EXISTING
+ns.Search registry, with Navigation.CanGoBack gating it when no history
+is available (therefore no dead result). Widget Size's already-registered
+Options search entry now includes the phrase 'widget preview', leading
+to the real hoverable control without creating a duplicate setting.
+This adds no new search owner or storage. CI/source checks cover both.

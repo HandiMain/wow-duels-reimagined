@@ -121,6 +121,7 @@ class BurstFXInteractionPolishTests(unittest.TestCase):
         self.assertIn('function Feedback.RefreshWidgetPreview()', feedback)
         self.assertIn('if preview:IsShown() then PaintWidgetPreview() end', feedback)
         self.assertIn('ns.Feedback.RefreshWidgetPreview()', opts)
+        self.assertIn('hover to show a live widget preview', opts)
         self.assertNotIn('Settings.Set("widgetSize"', feedback)
 
     def test_back_navigation_runtime_only_doesnt_loop(self):
@@ -131,6 +132,8 @@ class BurstFXInteractionPolishTests(unittest.TestCase):
         self.assertIn('Select(previous.section, previous.page, false, false, true)', nav)
         self.assertIn('for i = #history, 1, -1 do history[i] = nil end', nav)
         self.assertIn('CanGoBack = function() return #history > 0 end', nav)
+        self.assertIn('ns.Search.Register("navigation:back", "Back", "Navigation",', nav)
+        self.assertIn('return ns.Navigation.CanGoBack()', nav)
         self.assertNotIn('navigationHistory', settings)
         self.assertNotIn('Settings.Set("navigationHistory"', nav)
 

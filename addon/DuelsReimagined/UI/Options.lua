@@ -257,7 +257,8 @@ widgetSize:SetPoint("TOPLEFT", accessCard, "TOPLEFT", 20, -131)
 widgetSize:SetPoint("TOPRIGHT", accessCard, "TOPRIGHT", -20, -131)
 MarkPosition(widgetSize, accessCard, -131)
 RegisterOption("widgetSize", "Widget size",
-    "Resize the floating access widget", "interface", widgetSize)
+    "Resize the floating access widget; hover to show a live widget preview",
+    "interface", widgetSize)
 
 local widgetTransparency = Widgets.SliderRow(accessCard, "Widget transparency",
     "Fade the floating widget when you are not hovering over it.",
