@@ -849,3 +849,31 @@ toggle EllesmereUI matchColors and change skin again; inspect color
 contrast (esp light backgrounds), tooltip and clicks, dropdown
 legibility, no UI errors, and unchanged original Ember; then send
 screenshots of actual window.
+
+## Premium skin experiment withdrawn — 2026-11-20
+
+USER DECISION: Scrap the multi-layout/premium-reskin experiment and return to
+the ORIGINAL FIVE RECOLOR-ONLY themes. The user reported the experiment
+felt broken and excessive. The approved restored code baseline is develop
+commit 60e472f03efb90de1b88c8d3079946cc40ff8d3f, predating premium
+skin commits f1a5e6c and 57a2439. Their implementation and test changes
+are REVERTED by restoring the original baseline Git blobs and removing
+the three new visual atlases, SkinDecor.lua and premium-only test.
+This is a NEW non-destructive rollback commit on develop (no forced ref
+reset and no main branch change). Earlier premium proposals and records
+above are historical and NO LONGER ACTIVE.
+
+PRESERVED intentionally: independent UIParent-owned DR minimap button
+compatibility with EllesmereUI, the fixed-color original DR/navigation
+icons, central Options, search, widget, animations, the approved layout,
+all existing color themes, optional EllesmereUI matching, and Obsidian &
+Ember as the default. Existing per-player saved theme selections remain.
+
+The active system is again Style.lua semantic token recoloring through
+Theme.lua; no SkinDecor module, premium image atlases, premium icon
+switching, or material backdrop changes. Validate a full WoW client
+restart, theme switching, all buttons and tooltips, minimap with
+EllesmereUI enabled, window scaling/reflow, /reload and input behavior.
+Status: SOURCE RESTORED; CI/in-game verification must be reported
+separately. This rollback follows player feedback, NOT a claim that
+the abandoned concept was verified.

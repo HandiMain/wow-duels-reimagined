@@ -62,7 +62,6 @@ local function Card(page, y, height)
     card:SetPoint("TOPRIGHT", page, "TOPRIGHT", -18, -y)
     card:SetHeight(height)
     Style.Skin(card, C.nav, { corner=11, edge=C.border, shine=0.25, shade=0.25 })
-    ns.SkinDecor.Attach(card, "card")
     card.scrollOwner, card.scrollTop = page.scrollOwner, y
     return card
 end
@@ -161,15 +160,15 @@ local function AddToggle(card, pageKey, key, name, detail, top, requiresEllesmer
     return row
 end
 
-local themeChoice = Widgets.ChoiceRow(appearanceCard, "Visual skin",
-    "Choose original themed artwork, materials, icons and frame styles.",
+local themeChoice = Widgets.ChoiceRow(appearanceCard, "Color theme",
+    "Recolor the whole addon, including panels, tabs, text and buttons.",
     function(key) Settings.Set("uiTheme", key) end,
     function() Settings.Reset("uiTheme") end, false)
 themeChoice:SetPoint("TOPLEFT", appearanceCard, "TOPLEFT", 20, -61)
 themeChoice:SetPoint("TOPRIGHT", appearanceCard, "TOPRIGHT", -20, -61)
 MarkPosition(themeChoice, appearanceCard, -61)
-RegisterOption("uiTheme", "Visual skin",
-    "Choose a Duels skin. EllesmereUI may separately match its colors.", "options", themeChoice)
+RegisterOption("uiTheme", "Color theme",
+    "Choose a Duels color theme when EllesmereUI color matching is off", "options", themeChoice)
 
 local matchColorsRow = AddToggle(appearanceCard, "options", "matchColors", "Match EllesmereUI colors",
     "Override all color roles with EllesmereUI's accent and panel palette.",
@@ -422,10 +421,10 @@ end
 function Options.Refresh()
     local ready = Theme.IsAvailable()
     local matchedColors = ready and Settings.Get("matchColors") == true
-    -- Visual skins remain selectable when EllesmereUI provides colors.
-    -- A visual identity is not the same preference as its palette.
-    themeChoice:SetChoices(Style.ThemeChoices(), Settings.Get("uiTheme"))
-    themeChoice:SetAvailable(true)
+    themeChoice:SetChoices(Style.ThemeChoices(), Settings.Get("uiTheme"),
+        matchedColors and "Managed by EllesmereUI" or nil)
+    themeChoice:SetAvailable(not matchedColors,
+        "Disable Match EllesmereUI colors to choose a Duels color theme.")
     themeChoice:SetModified(Settings.IsModified("uiTheme"))
     themeChoice.resetIcon:SetVertexColor(unpack(C.gold))
     local compartmentAvailable = AddonCompartmentFrame and
@@ -433,7 +432,7 @@ function Options.Refresh()
     if not ready then
         availability:SetText("Duels theme is active. EllesmereUI is unavailable, so its color and font matching are disabled.")
     elseif matchedColors then
-        availability:SetText("EllesmereUI provides the colors; choose any visual skin above for its artwork and layout details.")
+        availability:SetText("EllesmereUI controls the interface colors. Disable color matching below to choose a Duels theme.")
     else
         availability:SetText("Duels theme colors are active. Enable Match EllesmereUI colors below to use its palette instead.")
     end

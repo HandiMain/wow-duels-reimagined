@@ -31,10 +31,7 @@ class NavigationIconAtlasTests(unittest.TestCase):
             ("Options", "{ 0.5, 1,   0.5, 1 }"),
         ):
             self.assertIn(name + " " * (11 - len(name)) + "= " + coords, chrome)
-        self.assertIn("tex:SetTexCoord(unpack(NAV_ICON_UV[name]))", chrome)
-        self.assertIn("DuelsPremiumIconAtlas.png", chrome)
-        self.assertIn("local PREMIUM_ROWS = {ivory=0, verdant=1, slate=2, moonstone=3}", chrome)
-        self.assertIn("for tex, name in pairs(liveIcons) do PaintIcon(tex, name) end", chrome)
+        self.assertIn("tex:SetTexCoord(unpack(uv))", chrome)
         self.assertIn("tex:SetVertexColor(1, 1, 1, 1)", chrome)
         self.assertIn('local icon = Chrome.Icon(button, section.icon)', nav)
         self.assertNotIn("Style.TintedImage(icon", nav)

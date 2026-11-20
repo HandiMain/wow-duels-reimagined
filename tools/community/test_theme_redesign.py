@@ -31,7 +31,7 @@ class ThemeRedesignTests(unittest.TestCase):
         self.assertIn('if key == "uiTheme" then return "ember" end', settings)
         self.assertIn('db.uiTheme = Settings.Get("uiTheme")', settings)
         self.assertIn('Settings.Set("uiTheme", key)', opts)
-        self.assertIn('RegisterOption("uiTheme", "Visual skin"', opts)
+        self.assertIn('RegisterOption("uiTheme", "Color theme"', opts)
         self.assertIn('themeChoice:SetChoices(Style.ThemeChoices()', opts)
 
     def test_ellesmere_recolors_all_roles(self):

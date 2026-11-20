@@ -48,7 +48,6 @@ function Theme.Refresh()
         font = ns.Fonts.Resolve(Settings.Get("fontChoice"))
     end
     Style.ApplyTheme(accent, panel, font)
-    if ns.SkinDecor then ns.SkinDecor.Refresh() end
     if ns.Chrome then ns.Chrome.Refresh() end
     if ns.Window and ns.Window.RefreshTheme then ns.Window.RefreshTheme() end
     if ns.Navigation and ns.Navigation.RefreshSelection then

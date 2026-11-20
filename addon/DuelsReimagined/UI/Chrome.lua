@@ -33,41 +33,23 @@ end
 -- contain transparent glyphs only; no button backing or theme masks.
 -- Shared textures retain their own colors on any Duels/Ellesmere theme.
 local NAV_ICON_ATLAS = "Interface\\AddOns\\DuelsReimagined\\Media\\Icons\\DuelsNavigationAtlas.png"
--- Four theme-specific, professionally scaled glyph sets on one 256x256 atlas.
--- Obsidian & Ember uses the original approved navigation artwork unchanged.
-local PREMIUM_ICON_ATLAS = "Interface\\AddOns\\DuelsReimagined\\Media\\Skin\\DuelsPremiumIconAtlas.png"
-local PREMIUM_ROWS = {ivory=0, verdant=1, slate=2, moonstone=3}
-local NAV_COLUMNS = {Hall=0, Community=1, PatchNotes=2, Options=3}
-local liveIcons = setmetatable({}, {__mode = "k"})
 local NAV_ICON_UV = {
     Hall       = { 0,   0.5, 0,   0.5 },
     Community  = { 0.5, 1,   0,   0.5 },
     PatchNotes = { 0,   0.5, 0.5, 1 },
     Options    = { 0.5, 1,   0.5, 1 },
 }
-local function PaintIcon(tex, name)
-    local theme = ns.Settings and ns.Settings.Get("uiTheme")
-    local row, col = PREMIUM_ROWS[theme], NAV_COLUMNS[name]
-    if row and col then
-        tex:SetTexture(PREMIUM_ICON_ATLAS)
-        tex:SetTexCoord(col * 0.25, (col + 1) * 0.25,
-            row * 0.25, (row + 1) * 0.25)
-    elseif NAV_ICON_UV[name] then
-        tex:SetTexture(NAV_ICON_ATLAS)
-        tex:SetTexCoord(unpack(NAV_ICON_UV[name]))
-    else
-        tex:SetTexture(art .. "Icon" .. name .. ".png")
-        tex:SetTexCoord(0, 1, 0, 1)
-    end
-    -- Artwork has its own carefully balanced silver/gold highlights.
-    -- Do not tint it with themes or EllesmereUI's accent.
-    tex:SetVertexColor(1, 1, 1, 1)
-end
-
 function Chrome.Icon(parent, name)
     local tex = parent:CreateTexture(nil, "ARTWORK")
-    liveIcons[tex] = name
-    PaintIcon(tex, name)
+    local uv = NAV_ICON_UV[name]
+    if uv then
+        tex:SetTexture(NAV_ICON_ATLAS)
+        tex:SetTexCoord(unpack(uv))
+        tex:SetVertexColor(1, 1, 1, 1)
+    else
+        -- Preserve legacy fallback for future, as-yet unapproved icons.
+        tex:SetTexture(art .. "Icon" .. name .. ".png")
+    end
     return Chrome.Sharp(tex)
 end
 
@@ -167,7 +149,6 @@ function Chrome.Panel(parent, fill, opts)
     return Style.Skin(parent, fill or C.nav, opts)
 end
 function Chrome.Refresh()
-    for tex, name in pairs(liveIcons) do PaintIcon(tex, name) end
     for _, entry in ipairs(pixelDividers) do
         local pixels = Style.Pixel(entry.frame, 2)
         entry.left:SetHeight(pixels)

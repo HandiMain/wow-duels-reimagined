@@ -121,9 +121,9 @@ class ResponsiveSettingsTests(unittest.TestCase):
             "if not ready then",
             "elseif matchedColors then",
             "Duels theme is active. EllesmereUI is unavailable",
-            "EllesmereUI provides the colors; choose any visual skin",
+            "EllesmereUI controls the interface colors.",
             "Duels theme colors are active. Enable Match EllesmereUI colors",
-            "themeChoice:SetAvailable(true)",
+            "themeChoice:SetAvailable(not matchedColors,",
             "themeChoice:SetModified(Settings.IsModified(\"uiTheme\"))",
             "availability:SetTextColor(unpack(C.muted))",
         ):
@@ -159,9 +159,7 @@ class ResponsiveSettingsTests(unittest.TestCase):
         self.assertIn('local icon = Chrome.Icon(button, section.icon)', nav)
         self.assertNotIn('Style.Fill(icon, C.goldDim', nav)
         self.assertIn("DuelsNavigationAtlas.png", chrome)
-        self.assertIn("tex:SetTexCoord(unpack(NAV_ICON_UV[name]))", chrome)
-        self.assertIn("DuelsPremiumIconAtlas.png", chrome)
-        self.assertIn("for tex, name in pairs(liveIcons)", chrome)
+        self.assertIn("tex:SetTexCoord(unpack(uv))", chrome)
         self.assertIn("tex:SetVertexColor(1, 1, 1, 1)", chrome)
         self.assertIn('patchPulse:SetLooping("BOUNCE")', nav)
         self.assertIn('label:SetText("PATCH\\nNOTES")', nav)
