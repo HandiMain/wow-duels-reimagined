@@ -18,9 +18,14 @@ frame:SetMovable(true)
 frame:EnableMouse(true)
 frame:Hide()
 
--- The window's visible interior is inset from the decorative rim. The root
--- frame itself has NO backdrop, so dark pixels cannot bleed outside the metal.
-local inset = 8
+-- A rounded, theme-tinted shell closes the transparent gap previously
+-- visible between the metal perimeter and the inset header/footer. The
+-- interior is tucked INSIDE the masked corner radius: no square pixels
+-- extend beyond the outer edge when scaled or resized.
+Style.Skin(frame, C.window, {
+    corner=12, edge=C.shellEdge, shine=0.19, shade=0.27, rim=0.94,
+})
+local inset = 6
 local interior = CreateFrame("Frame", nil, frame)
 interior:SetPoint("TOPLEFT", frame, "TOPLEFT", inset, -inset)
 interior:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -inset, inset)
@@ -72,7 +77,7 @@ Style.Fill(body, C.window)
 local utility = CreateFrame("Frame", nil, body)
 utility:SetPoint("TOPLEFT", body, "TOPLEFT", 7, -7)
 utility:SetPoint("BOTTOMLEFT", body, "BOTTOMLEFT", 7, 7)
-utility:SetWidth(78)
+utility:SetWidth(98)
 Style.Skin(utility, C.rail, {
     corner=11, edge=C.goldDim, shine=0.24, shade=0.32, rim=0.85,
 })
@@ -343,8 +348,8 @@ function Window.RefreshTheme()
     scaleFill:SetColorTexture(unpack(C.gold))
     scaleTrack:SetColorTexture(unpack(C.track))
     scaleResetIcon:SetVertexColor(unpack(C.gold))
-    -- This authored artwork remains legible under optional EllesmereUI colors.
-    if Window.resizeGrip then Window.resizeGrip.icon:SetVertexColor(1, 1, 1) end
+    -- Raised grip tint is registered with Style.Skin and repaints
+    -- automatically for Duels themes and optional EllesmereUI matching.
 end
 
 Window.ApplyScale(Settings.Get("menuScale") or 1)
@@ -356,23 +361,40 @@ grip:SetSize(34, 34)
 grip:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -4, 4)
 grip:SetFrameLevel(frame:GetFrameLevel() + 45)
 grip:RegisterForClicks("RightButtonUp")
-local gripIcon = grip:CreateTexture(nil, "ARTWORK")
-gripIcon:SetAllPoints(grip)
--- The new corner supplies the always-visible grip artwork. This separate
--- glow layer provides responsive feedback without a second overlapping icon.
-gripIcon:SetColorTexture(0, 0, 0, 0)
--- The resize grip stays themeable, using drawn diagonal hairlines.
+-- The hit target stays in the same safe corner, behind Close.
+-- The grip is a small raised, tintable plate rather than three bare lines.
+-- All visual parts share Style.color; no painted skin or new animation driver.
+Style.Skin(grip, C.rail, {
+    corner=10, edge=C.goldDim, shine=0.34, shade=0.32, rim=0.76,
+})
+local gripGlow = Style.Skin(grip, C.tabActive, {
+    corner=10, edge=C.gold, shine=0.55, shade=0.16, rim=0.85,
+    alpha=0,
+})
+-- Engraved diagonals: dark offset underneath warm, bright metallic strokes.
+-- Three short equal-spaced strokes stay entirely within the 34-unit target.
 for i = 1, 3 do
-    local stroke = Style.Fill(grip, C.shellEdge, "ARTWORK")
-    stroke:ClearAllPoints()
-    stroke:SetPoint("BOTTOMRIGHT", grip, "BOTTOMRIGHT", -3 - i * 5, 3 + i * 5)
-    stroke:SetSize(12 + i * 3, 1.5)
-    if stroke.SetRotation then stroke:SetRotation(math.pi / 4) end
+    local length = 8 + (i - 1) * 4
+    local shadow = Style.Fill(grip, C.window, "ARTWORK")
+    shadow:ClearAllPoints()
+    shadow:SetSize(length, 2)
+    shadow:SetPoint("BOTTOMRIGHT", grip, "BOTTOMRIGHT",
+        -7 - (i - 1) * 5, 6 + (i - 1) * 5)
+    if shadow.SetRotation then shadow:SetRotation(-math.pi / 4) end
+    shadow:SetAlpha(0.64)
+
+    local line = Style.Fill(grip, C.gold, "OVERLAY")
+    line:ClearAllPoints()
+    line:SetSize(length, 1.6)
+    line:SetPoint("BOTTOMRIGHT", grip, "BOTTOMRIGHT",
+        -7 - (i - 1) * 5, 7 + (i - 1) * 5)
+    if line.SetRotation then line:SetRotation(-math.pi / 4) end
+    line:SetAlpha(0.92)
 end
-gripIcon:SetVertexColor(1, 1, 1)
-gripIcon:SetAlpha(0)
-Chrome.Sharp(gripIcon)
-grip.icon = gripIcon
+local function GripFeedback(alpha, duration)
+    Motion.Fade(gripGlow, alpha, duration)
+end
+grip.icon = gripGlow
 local sizing = false
 grip:SetScript("OnMouseDown", function(_, button)
     if button ~= "LeftButton" or (ns.Header and ns.Header.IsFolded()) then return end
@@ -382,6 +404,7 @@ grip:SetScript("OnMouseDown", function(_, button)
         frame:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", left, top)
     end
     sizing = true
+    GripFeedback(0.94, Motion.Duration("quick"))
     frame:StartSizing("BOTTOMRIGHT")
 end)
 grip:SetScript("OnMouseUp", function(_, button)
@@ -389,20 +412,22 @@ grip:SetScript("OnMouseUp", function(_, button)
     sizing = false
     frame:StopMovingOrSizing()
     Window.CommitResize()
+    GripFeedback(grip:IsMouseOver() and 0.52 or 0, Motion.Duration("quick"))
 end)
 grip:SetScript("OnClick", function(_, button)
     if button == "RightButton" then Window.ResetSize() end
 end)
 grip:SetScript("OnEnter", function()
-    Motion.Fade(gripIcon, 0.95, 0.12)
+    GripFeedback(sizing and 0.94 or 0.52, Motion.Duration("quick"))
 end)
 grip:SetScript("OnLeave", function()
-    Motion.Fade(gripIcon, 0, 0.18)
+    GripFeedback(sizing and 0.94 or 0, Motion.Duration("gentle"))
 end)
 ns.Tooltips.Bind(grip, { title = "Resize window",
     detail = "Drag the corner to resize. Right-click to restore default dimensions." })
 -- Preserve the shared tooltip OnHide cleanup installed with HookScript.
 grip:HookScript("OnHide", function()
+    Motion.Stop(gripGlow, 0)
     if sizing then
         sizing = false
         frame:StopMovingOrSizing()
@@ -410,6 +435,7 @@ grip:HookScript("OnHide", function()
 end)
 Window.resizeGrip = grip
 function Window.SetSizingEnabled(on)
+    if not on then Motion.Stop(gripGlow, 0) end
     if not on and sizing then
         sizing = false
         frame:StopMovingOrSizing()

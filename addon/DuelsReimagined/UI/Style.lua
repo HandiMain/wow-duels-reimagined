@@ -52,12 +52,38 @@ local schemes = {
         footerText="F2F3E9", footerMuted="CBD9CC",
         buttonText="FFFFFF", track="768D7D",
     },
+    ember = {
+        gold="DD9256", goldDim="9E7455", red="AC5436",
+        pale="F2D7BF", text="EEE2D5", muted="B8A99E",
+        window="16171B", rail="262328", nav="29292E",
+        body="202127", header="1F1D21", footer="1F1D21",
+        selected="573B35", hover="423535", button="85472F",
+        shellEdge="B78055", border="60524A",
+        tabActive="833F2A", tabText="FFF1E1", tabMuted="DDC7B2",
+        headerText="FFF0DE", headerMuted="CFBBAB",
+        footerText="F2E3D4", footerMuted="BEB0A4",
+        buttonText="FFFFFF", track="8D6D5B",
+    },
+    moonstone = {
+        gold="9684C7", goldDim="ADA0C5", red="7D5C9C",
+        pale="553F7D", text="423754", muted="766B82",
+        window="292638", rail="343044", nav="E9E5F2",
+        body="F5F1FA", header="302C42", footer="302C42",
+        selected="DAD1EB", hover="E5DDF1", button="715197",
+        shellEdge="9581B7", border="B5ABC8",
+        tabActive="6E4E92", tabText="FCF8FF", tabMuted="DBD3E8",
+        headerText="F9F5FF", headerMuted="D8CCE7",
+        footerText="F5EFFC", footerMuted="CFC3DF",
+        buttonText="FFFFFF", track="9187A6",
+    },
 }
 
 local choices = {
     { key = "ivory", label = "Ivory & Plum (Default)" },
     { key = "slate", label = "Midnight Slate" },
     { key = "verdant", label = "Forest & Ivory" },
+    { key = "ember", label = "Obsidian & Ember" },
+    { key = "moonstone", label = "Moonstone & Violet" },
 }
 function Style.ThemeChoices() return choices end
 function Style.IsTheme(key) return schemes[key] ~= nil end

@@ -145,7 +145,7 @@ themeChoice:SetPoint("TOPLEFT", appearanceCard, "TOPLEFT", 20, -90)
 themeChoice:SetPoint("TOPRIGHT", appearanceCard, "TOPRIGHT", -20, -90)
 MarkPosition(themeChoice, appearanceCard, -90)
 RegisterOption("uiTheme", "Color theme",
-    "Choose Ivory & Plum, Midnight Slate, or Forest & Ivory", "options", themeChoice)
+    "Choose a Duels color theme when EllesmereUI color matching is off", "options", themeChoice)
 
 AddToggle(appearanceCard, "options", "matchColors", "Match EllesmereUI colors",
     "Override all color roles with EllesmereUI's accent and panel palette.",
@@ -299,8 +299,11 @@ end
 
 function Options.Refresh()
     local ready = Theme.IsAvailable()
-    themeChoice:SetChoices(Style.ThemeChoices(), Settings.Get("uiTheme"))
-    themeChoice:SetAvailable(true)
+    local matchedColors = ready and Settings.Get("matchColors") == true
+    themeChoice:SetChoices(Style.ThemeChoices(), Settings.Get("uiTheme"),
+        matchedColors and "Managed by EllesmereUI" or nil)
+    themeChoice:SetAvailable(not matchedColors,
+        "Disable Match EllesmereUI colors to choose a Duels color theme.")
     themeChoice:SetModified(Settings.IsModified("uiTheme"))
     themeChoice.resetIcon:SetVertexColor(unpack(C.gold))
     local compartmentAvailable = AddonCompartmentFrame and

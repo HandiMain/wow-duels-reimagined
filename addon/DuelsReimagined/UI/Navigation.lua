@@ -137,7 +137,7 @@ for index, section in ipairs(sections) do
         button:SetPoint("LEFT", Window.rail, "LEFT", 24, 0)
     else
         utilityIndex = utilityIndex + 1
-        button:SetSize(70, 90)
+        button:SetSize(90, 90)
         button:SetPoint("TOP", Window.utility, "TOP",
             0, -12 - (utilityIndex - 1) * 98)
         if utilityIndex > 1 then
@@ -175,7 +175,7 @@ for index, section in ipairs(sections) do
     else
         icon:SetPoint("TOP", button, "TOP", 0, -12)
         label:SetPoint("TOP", icon, "BOTTOM", 0, -5)
-        label:SetWidth(68)
+        label:SetWidth(88)
         label:SetHeight(28)
         label:SetJustifyH("CENTER")
         label:SetJustifyV("TOP")

@@ -202,7 +202,7 @@ function Settings.Get(key)
     end
     if key == "uiTheme" then
         local value = db and db.uiTheme
-        if value == "ivory" or value == "slate" or value == "verdant" then
+        if ns.Style and ns.Style.IsTheme and ns.Style.IsTheme(value) then
             return value
         end
         return "ivory"
@@ -302,7 +302,7 @@ function Settings.Set(key, value)
         return
     end
     if key == "uiTheme" then
-        if value ~= "ivory" and value ~= "slate" and value ~= "verdant" then return end
+        if not (ns.Style and ns.Style.IsTheme and ns.Style.IsTheme(value)) then return end
         local db = WriteDB()
         if Settings.Get(key) == value then return end
         db.uiTheme = value
