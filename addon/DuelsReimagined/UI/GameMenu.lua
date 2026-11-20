@@ -178,83 +178,185 @@ local function EnsureButton(menu, template)
     return button
 end
 
--- The native pool identifies the section after Blizzard's Store button,
--- or after Options when the Store is unavailable on this client.
-local function NativeReference(menu)
-    if not menu.buttonPool or not menu.buttonPool.EnumerateActive then
-        return nil
-    end
-    local options, shop, nextIndex = nil, nil, nil
-    for b in menu.buttonPool:EnumerateActive() do
-        local name = b.GetText and b:GetText()
-        if name and name == _G.BLIZZARD_STORE then shop = b end
-        if name and name == _G.GAMEMENU_OPTIONS then options = b end
-    end
-    local after = shop or options
-    local index = after and after.layoutIndex
-    if type(index) ~= "number" then return nil end
-    nextIndex = index + 1
-    for b in menu.buttonPool:EnumerateActive() do
-        local i = b.layoutIndex
-        if type(i) == "number" and i > index and i < nextIndex then
-            nextIndex = i
+-- Reserve one native Layout slot, then use REAL visible geometry to find a
+-- non-overlapping position. Other addons may use layoutIndex, manual SetPoint,
+-- or delayed hooks. We do not touch their frames or assume any addon names.
+local placementState = "not-open"
+local pending = 0
+local function Number(v)
+    -- Check secrecy BEFORE any comparison; Midnight/Forever clients may
+    -- forbid branching or arithmetic on protected layout values in combat.
+    if issecretvalue and issecretvalue(v) then return false end
+    return type(v) == "number" and v == v and
+        v ~= math.huge and v ~= -math.huge
+end
+local function MenuButtons(menu)
+    local pool = menu and menu.buttonPool
+    if not (pool and pool.EnumerateActive) then return end
+    local shop, options, addons
+    for b in pool:EnumerateActive() do
+        if b.GetText then
+            local name = b:GetText()
+            if name == _G.BLIZZARD_STORE then shop = b end
+            if name == _G.GAMEMENU_OPTIONS then options = b end
+            if name == _G.ADDONS then addons = b end
         end
     end
-    return after, index, nextIndex
+    return shop or options, addons
 end
-local function EllesmereLast()
-    local root = _G.EllesmereUI
-    if type(root) ~= "table" or
-        (InCombatLockdown and InCombatLockdown()) then return end
-    local db = _G.EllesmereUIDB
-    local unlock = _G.EllesmereUI_UnlockMenuButton
-    if unlock and type(db) == "table" and
-        db.hideUnlockMenuButton == false then return unlock end
-    if _G.EllesmereUI_GameMenuButton and
-        not (type(db) == "table" and db.hideGameMenuButton) then
-        return _G.EllesmereUI_GameMenuButton
+local function FindSlot(menu, upper, addons)
+    local topIndex, bottomIndex = upper.layoutIndex, addons.layoutIndex
+    if not (Number(topIndex) and Number(bottomIndex) and
+        topIndex < bottomIndex) then return end
+    -- Inspect ALL menu children, including buttons from unknown addons. The
+    -- spacer is ours and gets ignored when choosing its own next index.
+    local lastIndex = topIndex
+    for _, child in ipairs({menu:GetChildren()}) do
+        if child ~= button and child ~= spacer and
+            child.IsShown and child:IsShown() and
+            Number(child.layoutIndex) and
+            child.layoutIndex > lastIndex and child.layoutIndex < bottomIndex then
+            lastIndex = child.layoutIndex
+        end
     end
+    return lastIndex + (bottomIndex - lastIndex) * 0.5
 end
-
-local function Place(menu)
-    if not Wanted() then HideOwn(); return end
-    local after, index, nextIndex = NativeReference(menu)
-    if not after then HideOwn(); return end
-    local template = type(menu.buttonTemplate) == "string"
-        and menu.buttonTemplate or "MainMenuFrameButtonTemplate"
+local function Reserve(menu)
+    if not Wanted() then HideOwn(); placementState="disabled"; return end
+    if InCombatLockdown and InCombatLockdown() then
+        HideOwn(); placementState="combat"; return
+    end
+    local upper, addons = MenuButtons(menu)
+    if not (upper and addons) then
+        HideOwn(); placementState="native-anchors-missing"; return
+    end
+    local index = FindSlot(menu, upper, addons)
+    if not index then
+        HideOwn(); placementState="native-layout-unsupported"; return
+    end
+    local template = type(menu.buttonTemplate) == "string" and
+        menu.buttonTemplate or "MainMenuFrameButtonTemplate"
     local b = EnsureButton(menu, template)
-    reference = after
-    -- Reserve the correct height BEFORE creating the spacer; a skinned
-    -- Ellesmere menu may use a taller Blizzard button than our template.
-    MatchAppearance(b, after)
-    local polestar = _G.PolestarGameMenuButton
-    local withPolestar = polestar and polestar:IsShown()
-    local lastEui = EllesmereLast()
-    local location = index + (nextIndex - index) * 0.75
+    reference = upper
+    MatchAppearance(b, upper)
+    -- Only the spacer participates in Blizzard Layout. Never give the button
+    -- a competing layoutIndex AND a manual anchor (old double-placement bug).
+    b.layoutIndex, b.topPadding = nil, nil
     b:ClearAllPoints()
-    if lastEui then
-        if not spacer then
-            spacer = CreateFrame("Frame", nil, UIParent)
-            spacer:SetParent(menu)
-        end
-        spacer:SetSize(1, b:GetHeight() + GAP)
-        spacer.layoutIndex = location
-        spacer.topPadding = nil
-        spacer:Show()
-        b.layoutIndex, b.topPadding = nil, nil
-        local anchor = withPolestar and polestar or lastEui
-        b:SetPoint("TOP", anchor, "BOTTOM", 0, -GAP)
-    else
-        if spacer then spacer:Hide() end
-        b.layoutIndex = location
-        b.topPadding = withPolestar and GAP or SECTION
+    b:Hide()
+    if not spacer then
+        spacer = CreateFrame("Frame", nil, UIParent)
+        spacer:SetParent(menu)
+        spacer:EnableMouse(false)
     end
-    b:Show()
+    spacer:ClearAllPoints()
+    spacer:SetSize(1, b:GetHeight() + GAP * 2)
+    spacer.layoutIndex, spacer.topPadding = index, GAP
+    spacer:Show()
+    placementState = "reserved"
 end
 
--- Pre-pool Forever/older clients have no dynamic InitButtons layout.
+-- All visible Menu Button CHILDREN are considered, not just Polestar/Horizon
+-- or Ellesmere. A button may be manually anchored and have no layoutIndex.
+-- Source: Horizon Suite's geometry-based approach, strengthened to refuse
+-- any slot that cannot accommodate our full button without intersection.
+local function FindGap(menu, b, upper, lower)
+    if not (upper and lower) then return end
+    local upperBottom, lowerTop = upper:GetBottom(), lower:GetTop()
+    local height = b:GetHeight()
+    if not (Number(upperBottom) and Number(lowerTop) and
+        Number(height) and height > 0 and upperBottom > lowerTop) then return end
+
+    local list = {upper, lower}
+    local upperTop = upper:GetTop()
+    local lowerBottom = lower:GetBottom()
+    if not (Number(upperTop) and Number(lowerBottom)) then return end
+    local left, right = lower:GetLeft(), lower:GetRight()
+    if not (Number(left) and Number(right)) then return end
+    for _, child in ipairs({menu:GetChildren()}) do
+        if child ~= b and child ~= upper and child ~= lower and
+            child.IsShown and child:IsShown() and
+            child.GetObjectType and child:GetObjectType() == "Button" then
+            local t, bottom = child:GetTop(), child:GetBottom()
+            local l, r = child:GetLeft(), child:GetRight()
+            if Number(t) and Number(bottom) and Number(l) and Number(r)
+                and t <= upperBottom + 1 and bottom >= lowerTop - 1
+                and l < right and r > left then
+                list[#list + 1] = child
+            end
+        end
+    end
+    table.sort(list, function(a, b)
+        return a:GetTop() > b:GetTop()
+    end)
+    -- Prefer the last available gap, immediately above native AddOns.
+    local bestAbove, bestGap
+    for i = 1, #list - 1 do
+        local above, below = list[i], list[i + 1]
+        local space = above:GetBottom() - below:GetTop()
+        if Number(space) and space >= height + GAP * 2 then
+            bestAbove, bestGap = above, space
+        end
+    end
+    return bestAbove, bestGap
+end
+
+local function Settle(menu)
+    if not Wanted() or not menu or not menu:IsShown() then return end
+    if InCombatLockdown and InCombatLockdown() then
+        HideOwn(); placementState="combat"; return
+    end
+    local upper, addons = MenuButtons(menu)
+    if not (button and spacer and spacer:IsShown() and upper and addons) then
+        HideOwn(); placementState="missing-slot"; return
+    end
+    -- Exclude our own button from the scan even if a skin briefly displayed it.
+    button:Hide()
+    MatchAppearance(button, upper)
+    local above, space = FindGap(menu, button, upper, addons)
+    if not above then
+        -- SAFETY: do not cover any other addon/Blizzard button. Leave the
+        -- reserved slot for this menu opening; reevaluate at the next opening.
+        placementState="crowded"
+        return
+    end
+    button:ClearAllPoints()
+    button:SetPoint("TOP", above, "BOTTOM", 0,
+        -(space - button:GetHeight()) * 0.5)
+    button:Show()
+    placementState="visible"
+end
+
+local function ScheduleSettle(menu)
+    pending = pending + 1
+    local token = pending
+    if not menu or not menu:IsShown() or not Wanted() then return end
+    -- Other addons may do their own Layout or C_Timer.After(0) positioning
+    -- after OnShow. Two one-shot deferrals let those settle. No polling loop.
+    if not (C_Timer and C_Timer.After) then
+        Settle(menu)
+        return
+    end
+    C_Timer.After(0, function()
+        if token ~= pending then return end
+        C_Timer.After(0.04, function()
+            if token ~= pending then return end
+            Settle(menu)
+            -- One last short verification catches addons which postpone their
+            -- own anchor moves after the initial OnShow/Layout callbacks.
+            C_Timer.After(0.12, function()
+                if token == pending then Settle(menu) end
+            end)
+        end)
+    end)
+end
+
+-- Fallback for clients without the dynamic Blizzard GameMenu layout. Keep a
+-- Blizzard-native button outside the bottom of the fixed menu, but fail closed
+-- if a visible menu button would occupy the same rectangle.
 local function Legacy(menu)
     if not Wanted() then HideOwn(); return end
+    if InCombatLockdown and InCombatLockdown() then return end
     local b = EnsureButton(menu, "UIPanelButtonTemplate")
     reference = _G.GameMenuButtonContinue
     b.layoutIndex, b.topPadding = nil, nil
@@ -262,13 +364,41 @@ local function Legacy(menu)
     b:SetPoint("TOP", menu, "BOTTOM", 0, -4)
     MatchAppearance(b, reference)
     b:Show()
+    local l, r, t, bottom = b:GetLeft(), b:GetRight(), b:GetTop(), b:GetBottom()
+    if not (Number(l) and Number(r) and Number(t) and Number(bottom)) then
+        b:Hide(); return
+    end
+    for _, child in ipairs({menu:GetChildren()}) do
+        if child ~= b and child.IsShown and child:IsShown() and
+            child.GetObjectType and child:GetObjectType() == "Button" then
+            local cl, cr, ct, cb = child:GetLeft(), child:GetRight(),
+                child:GetTop(), child:GetBottom()
+            if Number(cl) and Number(cr) and Number(ct) and Number(cb) and
+                l < cr and r > cl and t > cb and bottom < ct then
+                b:Hide()
+                placementState="legacy-crowded"
+                return
+            end
+        end
+    end
+    placementState="legacy-visible"
 end
 
+function GameMenu.GetPlacementStatus() return placementState end
 function GameMenu.Refresh()
+    pending = pending + 1
     local menu = _G.GameMenuFrame
-    if not Wanted() then HideOwn(); return end
+    if not Wanted() then
+        HideOwn(); placementState="disabled"; return
+    end
     if menu and menu:IsShown() then
-        if managed then Place(menu) else Legacy(menu) end
+        if managed then
+            -- Native Layout will recompute the spacer next opening. Avoid
+            -- calling menu:Layout() from addon settings (combat/taint risk).
+            if spacer and spacer:IsShown() then ScheduleSettle(menu) end
+        else
+            Legacy(menu)
+        end
     end
 end
 
@@ -278,24 +408,16 @@ local function Install()
     hooked = true
     if type(menu.InitButtons) == "function" then
         managed = true
-        -- Create the optional template early, outside combat, when possible.
-        if Wanted() then
-            local template = type(menu.buttonTemplate) == "string"
-                and menu.buttonTemplate or "MainMenuFrameButtonTemplate"
-            EnsureButton(menu, template)
-        end
-        hooksecurefunc(menu, "InitButtons", function(m) Place(m) end)
+        hooksecurefunc(menu, "InitButtons", function(m) Reserve(m) end)
         if type(menu.Layout) == "function" then
-            hooksecurefunc(menu, "Layout", function()
-                if button and button:IsShown() then
-                    MatchAppearance(button, reference)
-                end
+            hooksecurefunc(menu, "Layout", function(m)
+                if Wanted() then ScheduleSettle(m) end
             end)
         end
-        menu:HookScript("OnShow", function()
-            if button and button:IsShown() then
-                MatchAppearance(button, reference)
-            end
+        menu:HookScript("OnShow", function() ScheduleSettle(menu) end)
+        menu:HookScript("OnHide", function()
+            pending = pending + 1
+            if button then button:Hide() end
         end)
     else
         menu:HookScript("OnShow", Legacy)

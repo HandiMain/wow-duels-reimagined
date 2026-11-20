@@ -67,13 +67,16 @@ local function Card(page, y, height)
 end
 
 local appearance = Page(175)
-local interface = Page(540)
+local interface = Page(740)
 
--- Safe fallback geometry; LayoutPage immediately measures actual content.
+-- Every preference stays on the SAME Interface page and uses the existing
+-- whole-card responsive layout. No extra tab or separate settings owner.
 local appearanceCard = Card(appearance, 0, 165)
-local behaviorCard = Card(interface, 0, 160)
-local typographyCard = Card(interface, 168, 143)
-local accessCard = Card(interface, 319, 210)
+local behaviorCard = Card(interface, 0, 100)
+local gameAccessCard = Card(interface, 108, 100)
+local accessCard = Card(interface, 216, 174)
+local typographyCard = Card(interface, 398, 143)
+local notificationsCard = Card(interface, 549, 100)
 
 -- Polestar-inspired compact section headers: the heading remains visible,
 -- while its explanation is accessible through our existing tooltip owner.
@@ -104,15 +107,21 @@ local availability = Style.Text(appearanceCard, "", 12, C.muted)
 availability:SetJustifyH("LEFT")
 availability:SetWordWrap(true)
 availability:SetPoint("TOPLEFT", appearanceCard, "TOPLEFT", 20, -264)
-Section(behaviorCard, "Window behavior",
-    "Keep the world visible while the dueling hall is open.", -16,
+Section(behaviorCard, "Window & motion",
+    "Control how Duels moves, fades and responds while you play.", -16,
     "Hold the eye to Peek. Fold leaves the header visible.")
+Section(gameAccessCard, "Game access",
+    "Choose where to open Duels from Blizzard's interface.", -18,
+    "The Escape menu button uses Blizzard's normal look unless EllesmereUI skins it.")
+Section(accessCard, "Minimap & widget",
+    "Choose your minimap button or floating widget.", -18,
+    "Drag either icon to move it. If both are hidden, type /duels to open this window.")
 Section(typographyCard, "Typography",
     "Choose text appearance independently of window scale.", -18,
     "Font matching is controlled under Appearance.")
-Section(accessCard, "Minimap button",
-    "Choose your minimap button or floating widget.", -18,
-    "Drag either icon to move it. If both are hidden, type /duels to open this window.")
+Section(notificationsCard, "Notifications & help",
+    "Choose which hints and update reminders Duels shows.", -18,
+    "These controls do not change gameplay notifications.")
 
 local unavailable = "Enable EllesmereUI and its third-party skinning support to use this setting."
 local rows = {}
@@ -182,14 +191,14 @@ local autoPeekRow = AddToggle(behaviorCard, "interface", "autoPeekMoving", "Auto
     "Fade the window during movement; restore it when you stop.", -64, false)
 local reduceMotionRow = AddToggle(behaviorCard, "interface", "reduceMotion", "Reduce motion",
     "Shorten or skip UI animation while retaining visual feedback.", -119, false)
-local tooltipsRow = AddToggle(behaviorCard, "interface", "showTooltips", "Show addon tooltips",
-    "Show helpful descriptions when hovering over Duels controls.", -174, false)
-local reminderRow = AddToggle(behaviorCard, "interface", "patchNotesReminder", "New patch reminder",
+local tooltipsRow = AddToggle(notificationsCard, "interface", "showTooltips", "Show addon tooltips",
+    "Show helpful descriptions when hovering over Duels controls.", -64, false)
+local reminderRow = AddToggle(notificationsCard, "interface", "patchNotesReminder", "New patch reminder",
     "Show a subtle unread dot on Patch Notes when a new update is published.",
-    -229, false)
-local gameMenuRow = AddToggle(behaviorCard, "interface", "showGameMenuButton", "Show Escape menu button",
+    -119, false)
+local gameMenuRow = AddToggle(gameAccessCard, "interface", "showGameMenuButton", "Show Escape menu button",
     "Add Duels Reimagined to Blizzard's Escape menu. Uses Blizzard's normal look unless EllesmereUI skins that menu.",
-    -284, false)
+    -64, false)
 
 local fontChoice = Widgets.ChoiceRow(typographyCard, "Interface font",
     "Blizzard by default; includes fonts registered with SharedMedia.",
@@ -284,10 +293,10 @@ if ns.Feedback then
     ns.Feedback.NewBadge(widgetSize, "widget-preview-v1", true)
 end
 
-local compartmentToggle = AddToggle(accessCard, "interface",
+local compartmentToggle = AddToggle(gameAccessCard, "interface",
     "showInCompartment", "Show in AddOn Compartment",
     "Include Duels in Blizzard's AddOn Compartment list (requires /reload).",
-    -267, false)
+    -119, false)
 -- Not every WoW client provides the compartment. Hide the action in that
 -- case, and explain its unavailable state through the existing row tooltip.
 rows[#rows].needsCompartment = true
@@ -407,16 +416,13 @@ local appearanceGroups = {
 local interfaceGroups = {
     { card = behaviorCard, entries = {
         { widget = autoPeekRow }, { widget = reduceMotionRow },
-        { widget = tooltipsRow }, { widget = reminderRow },
-        { widget = gameMenuRow },
     }},
-    { card = typographyCard, entries = {
-        { widget = fontChoice }, { widget = fontScale },
-        { widget = fontOutline },
+    { card = gameAccessCard, entries = {
+        { widget = gameMenuRow }, { widget = compartmentToggle },
     }},
     { card = accessCard, entries = {
         { widget = iconMode }, { widget = widgetSize },
-        { widget = widgetTransparency }, { widget = compartmentToggle },
+        { widget = widgetTransparency },
     }, footer = function(card, sectionY, y, usable)
         local buttonY = y + 4
         resetAccess:ClearAllPoints()
@@ -425,6 +431,13 @@ local interfaceGroups = {
         resetAccess:SetWidth(math.min(190, usable))
         return buttonY + resetAccess:GetHeight()
     end },
+    { card = typographyCard, entries = {
+        { widget = fontChoice }, { widget = fontScale },
+        { widget = fontOutline },
+    }},
+    { card = notificationsCard, entries = {
+        { widget = tooltipsRow }, { widget = reminderRow },
+    }},
 }
 function appearance:Relayout(width) LayoutPage(self, appearanceGroups, width) end
 function interface:Relayout(width) LayoutPage(self, interfaceGroups, width) end

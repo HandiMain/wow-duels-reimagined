@@ -1103,3 +1103,52 @@ search discoverability, compact Options card reflow, no mouse/keyboard
 stealing and normal logo dragging. Do not call it in-game VERIFIED
 without actual game observation. Baseline develop
 dfc82ab7aa962f986ed2c65a026849d2113ff662.
+
+## Escape-menu collision re-audit + settings categories — 2026-11-20
+
+USER BUG EVIDENCE: Menu screenshots with EllesmereUI, Polestar and Horizon
+Suite showed Duels overlapping Polestar. With Ellesmere disabled, Duels
+shifted other menu buttons. The Interface settings screenshot showed
+unrelated options crowded into a single Window behavior card.
+
+SOURCES REVIEWED FIRST: Polestar addon/Polestar/UI/GameMenu.lua uses a
+Blizzard layoutIndex slot, with an Ellesmere-specific spacer/anchor.
+EllesmereUI v9.8.9 ZIP EllesmereUI/EllesmereUI.lua (4467-4680) manually
+anchors buttons after Shop and shifts Blizzard pooled buttons down.
+Horizon Suite v6.14.0 ZIP HorizonSuite/core/GameMenuButton.lua combines
+an indexed menu entry with a one-frame-later visual gap search.
+The different placement systems explain the collision: Duels used both
+a layout index and a manually anchored frame while guessing other
+addons' positions. Neither installed addon alone provides a universal
+spacing contract. No author source was copied verbatim.
+
+FIX: Duels now reserves ONE layout frame in Blizzard's vertical menu
+after all currently visible numeric layout entries above AddOns.
+Its real button has NO competing layoutIndex, and is positioned
+after layout using the actual rectangles of ALL shown GameMenu Button
+children (not named Polestar, EUI or Horizon globals). A suitable gap
+must fit the full button height plus spacing and overlap horizontally;
+otherwise our own button remains hidden instead of covering a third-
+party button. Two bounded one-shot post-layout rechecks catch delayed
+third-party anchors. No permanent polling. Our addon never writes to
+any other button nor calls GameMenuFrame:Layout in a settings handler.
+GameMenu.GetPlacementStatus distinguishes crowded/unsupported/visible
+for future diagnostics. This does not control UIParent-anchored addons
+outside the GameMenuFrame child tree and MUST be verified in actual WoW.
+
+OPTIONS: The SAME central Options > Interface area is split into five
+responsive whole-card sections (NOT new tabs/DBs): Window & motion
+(Auto Peek/Reduce Motion), Game access (Escape menu/compartment),
+Minimap & widget (mode/size/opacity/reset), Typography (font/size/
+outline), and Notifications & help (tooltips/update dot). All original
+preference IDs, option search registration, active SavedVariables,
+responsive height measurement and scroll targets remain unchanged.
+No new artwork, sound, gameplay/ranking/networking or theme changes.
+
+STATUS: IMPLEMENTED/UNTESTED, awaiting automated CI and actual in-game
+verification. Test with Duels alone, EUI on/off, Polestar, Horizon, all
+four simultaneously; observe buttons from Shop through Return to Game
+including Esc navigation. If the menu is too crowded Duels may be
+hidden intentionally rather than overlap. For Options test 100% scale,
+compact width, large fonts, Search, rows, and section scroll targets.
+Baseline develop: 87c8e3276efed02798c5fff45eb57fbb8475e808.

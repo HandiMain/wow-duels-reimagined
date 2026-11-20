@@ -61,10 +61,11 @@ class CompactPageDensityTests(unittest.TestCase):
 
     def test_interface_cards_do_not_overlap_and_search_scrolls(self):
         o = src("UI/Options.lua")
-        self.assertIn("local interface = Page(540)", o)
+        self.assertIn("local interface = Page(740)", o)
         for marker in (
-            "Card(interface, 0, 160)", "Card(interface, 168, 143)",
-            "Card(interface, 319, 210)",
+            "Card(interface, 0, 100)", "Card(interface, 108, 100)",
+            "Card(interface, 216, 174)", "Card(interface, 398, 143)",
+            "Card(interface, 549, 100)",
             "MarkPosition(fontScale, typographyCard, -131)",
             "MarkPosition(iconMode, accessCard, -64)",
             "MarkPosition(resetAccess, accessCard, -332)",
@@ -74,10 +75,11 @@ class CompactPageDensityTests(unittest.TestCase):
             "local contentHeight = sectionY + tallest + 6",
         ):
             self.assertIn(marker, o)
-        spans = [(0,160), (168,143), (319,210)]
+        spans = [(0,100), (108,100), (216,174),
+                 (398,143), (549,100)]
         for i in range(len(spans) - 1):
             self.assertLess(spans[i][0] + spans[i][1], spans[i+1][0])
-        self.assertLessEqual(319 + 210, 540)
+        self.assertLessEqual(549 + 100, 740)
         widgets = src("UI/Widgets.lua")
         for height in (54,66,64):
             self.assertIn(f"row:SetHeight({height})", widgets)
