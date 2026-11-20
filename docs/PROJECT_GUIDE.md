@@ -993,3 +993,61 @@ is available (therefore no dead result). Widget Size's already-registered
 Options search entry now includes the phrase 'widget preview', leading
 to the real hoverable control without creating a duplicate setting.
 This adds no new search owner or storage. CI/source checks cover both.
+
+## Window polish: logo shimmer, magnetic snap, restored page — 2026-11-20
+
+Explicitly approved after recolor-only baseline and BurstFX presentation
+polish: (4) one-shot hovered header logo light reflection, (5) magnetic
+screen-edge snap with temporary alignment guides, (8) restore the last real
+page and scroll offset across window close and /reload. Additional request:
+compact Back button in footer immediately LEFT of Close (not Hall rail);
+NEW feature labels auto-dismiss once the player has actually seen them
+(in account SavedVariables); action notification toasts appear immediately
+above the button that caused them, never centered over content.
+
+Reference-first: Polestar Theme/Anim.lua demonstrates one temporary motion
+driver and reduced-motion behavior; Polestar_Options/UI/Options.lua O.Flash
+uses short self-ending appearance cues, and the same module's Fold restores
+the previous top-left anchor. Narcissus MinimapButton.lua confirms the
+importance of separate frame ownership and guarded drag behavior.
+BurstFX presentation lessons already inspected in previous build. No
+reference source was copied verbatim. Existing approved skin/UI retained.
+
+Implementation ownership:
+- UI/Window.lua owns header logo mouse/drag and masked reflection, all
+  edge proximity calculations (14-unit gap, 24-unit snap range), Alt to
+  bypass, 2px visual guides while dragging, and a 0.13-second Motion.Value
+  snap. No idle polling. Window.CancelMagnet handles fold, scale, hide
+  safely. Unsupported mask APIs show NO unmasked light rectangle.
+- Core/Settings.lua is the ONLY account database owner for lastWorkspace
+  {section,page,scroll}; validates page-key string and finite/clamped
+  offset. No character data or page engine duplicated.
+- UI/Navigation.lua is the ONLY owner of page selection, ephemeral
+  bounded Back history, last-page resume on first actual window open, and
+  scroll snapshot on navigation, close and PLAYER_LOGOUT. Saved unknown
+  keys gracefully fall back to Hall. Importantly, no hidden Patch Notes
+  page is visited/read during ADDON_LOADED.
+- UI/Options.lua, UI/Community.lua and UI/PatchNotes.lua expose their
+  own Get/SetPageScroll APIs and clamp through their existing scrollbars;
+  Navigation only delegates to those owners.
+- UI/Feedback.lua keeps reusable toasts and discovery badges. Toast now
+  requires an actual visible action button and anchors just above it;
+  Footer sends its real Reset button, including when invoked by Search.
+  NEW badges auto-acknowledge after ~2 seconds of visible exposure, or
+  upon hovering the feature, and Settings keeps their acknowledgement.
+  Off-screen scroll rows do NOT auto-acknowledge. No new timer loop.
+- Window exposes its existing footer Close control as the anchor for
+  the 66x26 Back button, still owned by Navigation. Back tooltip/search/
+  first-use badge remain; no secondary page or settings store.
+- Neither audio nor premium reskins, gameplay/data, ranking, network,
+  minimap ownership, default theme, UI scale or icons were changed.
+
+Scope/verification: source + GitHub automation checks do NOT prove WoW
+behavior. Player must verify logo sweep and drag, Edge/Alt snap and guides,
+Fold/Peek/scale/resize including scaled UI, page restoration after close
+and /reload at nonzero scroll, search links and unread Patch Notes, Back
+beside Close, NEW disappearance/relog persistence, toast beside reset,
+EllesmereUI on/off, combat/chat input and no blocked buttons. Window drag
+position itself retains its previous session-only behavior; no new
+position-persistence preference is introduced. Status: IMPLEMENTED /
+IN-GAME UNTESTED. Baseline develop aa3aac6454ca0b911f2f339ba82541e8ea192f75.

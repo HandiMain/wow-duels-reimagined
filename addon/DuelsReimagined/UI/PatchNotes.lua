@@ -270,6 +270,17 @@ function PatchNotes.RefreshReminder()
     end
 end
 
+function PatchNotes.GetPageScroll(pageKey)
+    if not byKey[pageKey] then return 0 end
+    return scroll:GetVerticalScroll()
+end
+function PatchNotes.SetPageScroll(pageKey, offset)
+    if not byKey[pageKey] or type(offset) ~= "number" then return end
+    local limit = math.max(0, canvas:GetHeight() - scroll:GetHeight())
+    scroll:SetVerticalScroll(math.max(0, math.min(limit, offset)))
+    bar:Refresh()
+end
+
 function PatchNotes.Show(pageKey)
     local item = byKey[pageKey]
     root:SetShown(item ~= nil)

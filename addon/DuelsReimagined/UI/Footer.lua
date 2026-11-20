@@ -76,7 +76,7 @@ reset:SetPoint("LEFT", discord, "RIGHT", 24, 0)
 reset:SetScript("OnClick", function()
     if not Window.IsDefault() then
         Window.ResetWindow()
-        if ns.Feedback then ns.Feedback.Toast("Window layout restored") end
+        if ns.Feedback then ns.Feedback.Toast("Window layout restored", reset) end
     end
 end)
 
@@ -216,7 +216,7 @@ ns.Search.Register("footer:reset-window", "Reset window", "Footer",
     "Restore window dimensions and menu scale defaults", function()
         if reset:IsEnabled() then
             Window.ResetWindow()
-            if ns.Feedback then ns.Feedback.Toast("Window layout restored") end
+            if ns.Feedback then ns.Feedback.Toast("Window layout restored", reset) end
         end
     end, function() return reset:IsEnabled() end)
 ns.Search.Register("footer:reload-ui", "Reload UI", "Footer",

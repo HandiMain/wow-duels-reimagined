@@ -112,6 +112,7 @@ function Header.IsFolded()
 end
 
 function Header.Fold(value)
+    if Window.CancelMagnet then Window.CancelMagnet() end
     local want = value and true or false
     if want == folded then return end
     if want then

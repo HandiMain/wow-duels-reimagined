@@ -60,6 +60,41 @@ subtitleRule:SetPoint("TOPLEFT", Window.nav, "TOPLEFT", 19, -56)
 
 local currentSection, currentPage
 local history, backButton = {}, nil
+-- The last real page persists, but Back history stays session-only.
+-- Scroll ownership remains with the actual Options/Community/Patch Notes page.
+local workspaceReady = false
+local scrollMemory = {}
+local function ScrollOwner(page)
+    if not page then return nil end
+    if page.key == "options" or page.key == "interface" then return ns.Options end
+    if page.community then return ns.Community end
+    if page.patchNotes then return ns.PatchNotes end
+end
+local function PageId(sectionIndex, pageIndex)
+    local section = sections[sectionIndex]
+    local page = section and section.pages[pageIndex]
+    return section, page, section and page and (section.key .. ":" .. page.key)
+end
+local function CapturePage()
+    local section, page, id = PageId(currentSection, currentPage)
+    if not id then return end
+    local owner = ScrollOwner(page)
+    local offset = owner and owner.GetPageScroll and owner.GetPageScroll(page.key) or 0
+    if type(offset) ~= "number" or offset ~= offset then offset = 0 end
+    scrollMemory[id] = offset
+    if workspaceReady then
+        ns.Settings.SetWorkspace(section.key, page.key, offset)
+    end
+end
+local function RestoreScroll(sectionIndex, pageIndex)
+    local _, page, id = PageId(sectionIndex, pageIndex)
+    if not id then return end
+    local owner = ScrollOwner(page)
+    if owner and owner.SetPageScroll then
+        owner.SetPageScroll(page.key, scrollMemory[id] or 0)
+    end
+end
+
 -- Only the navigation owner moves this small selection indicator. The
 -- existing per-button hover/selection controls and their hitboxes stay put.
 local movingBar = Style.Fill(Window.nav, C.gold, "OVERLAY")
@@ -99,6 +134,7 @@ local function Select(sectionIndex, pageIndex, noMotion, repaintOnly, isBack)
     if not section or not section.pages[pageIndex] then return end
     local priorSection, priorPage = currentSection, currentPage
     local changed = priorSection ~= sectionIndex or priorPage ~= pageIndex
+    if not repaintOnly and priorSection then CapturePage() end
     if changed and not repaintOnly and not isBack and priorSection then
         if #history >= 12 then table.remove(history, 1) end
         history[#history + 1] = { section = priorSection, page = priorPage }
@@ -157,6 +193,12 @@ local function Select(sectionIndex, pageIndex, noMotion, repaintOnly, isBack)
     if ns.Footer and ns.Footer.ClosePopup then ns.Footer.ClosePopup() end
     if ns.Tooltips then ns.Tooltips.Hide(nil, true) end
     Window.ShowPage(page)
+    RestoreScroll(sectionIndex, pageIndex)
+    if workspaceReady then
+        local _, _, id = PageId(sectionIndex, pageIndex)
+        ns.Settings.SetWorkspace(section.key, page.key,
+            id and scrollMemory[id] or 0)
+    end
 end
 
 local function AddOverlay(button, primary)
@@ -335,11 +377,13 @@ for index, section in ipairs(sections) do
     subButtons[index] = pages
 end
 
--- Back belongs to the existing upper rail, not a second navigation engine.
--- It is visible only when an actual earlier page exists.
-backButton = Style.Action(Window.rail, "Back")
-backButton:SetSize(85, 34)
-backButton:SetPoint("LEFT", Window.rail, "LEFT", 193, 0)
+-- Compact Back control belongs to the footer beside Close, not the Hall rail.
+-- Navigation remains the sole owner of its state and history.
+backButton = Style.Action(Window.footer, "Back", "footer")
+backButton:SetSize(66, 26)
+backButton:SetPoint("RIGHT", Window.closeButton, "LEFT", -12, 0)
+ns.Tooltips.Bind(backButton, { title = "Back",
+    detail = "Return to the previous page. History clears when you close Duels." })
 backButton:SetScript("OnClick", function()
     local previous = table.remove(history)
     if not previous then return end
@@ -351,6 +395,7 @@ if ns.Feedback then
 end
 backButton:Hide()
 Window.frame:HookScript("OnHide", function()
+    if workspaceReady then CapturePage() end
     -- Back history is ephemeral presentation state, not SavedVariables.
     for i = #history, 1, -1 do history[i] = nil end
     backButton:Hide()
@@ -395,6 +440,27 @@ ns.Navigation = {
         return true
     end,
     CanGoBack = function() return #history > 0 end,
+    ResumeWorkspace = function()
+        -- ADDON_LOADED has already seeded SavedVariables when the player
+        -- opens Duels; don't mark a hidden Patch Notes page read on login.
+        if workspaceReady then return end
+        workspaceReady = true
+        local sectionKey, pageKey, offset = ns.Settings.GetWorkspace()
+        if sectionKey and pageKey then
+            for i, section in ipairs(sections) do
+                if section.key == sectionKey then
+                    for j, page in ipairs(section.pages) do
+                        if page.key == pageKey then
+                            scrollMemory[sectionKey .. ":" .. pageKey] = offset
+                            Select(i, j, true, false, true)
+                            return
+                        end
+                    end
+                end
+            end
+        end
+        Select(currentSection or 1, currentPage or 1, true, false, true)
+    end,
     SetPatchUnread = function(unread)
         if not patchDot then return end
         patchDot:SetShown(unread == true)
@@ -435,6 +501,14 @@ ns.Search.Register("navigation:back", "Back", "Navigation",
     end, function()
         return ns.Navigation.CanGoBack()
     end)
+
+-- Persist the current scroll on /reload/relog even if the user didn't
+-- navigate away or close the window before the interface was torn down.
+local logout = CreateFrame("Frame")
+logout:RegisterEvent("PLAYER_LOGOUT")
+logout:SetScript("OnEvent", function()
+    if workspaceReady then CapturePage() end
+end)
 
 -- Every visible page registers itself, so new pages join search automatically.
 for sectionIndex, section in ipairs(sections) do

@@ -189,6 +189,36 @@ function Settings.SetWindowSize(w, h)
     if ns.Footer and ns.Footer.Refresh then ns.Footer.Refresh() end
 end
 
+-- Only the most recent real page and its scroll offset persist. Navigation
+-- validates these stable page keys before ever displaying a saved destination.
+-- Missing/older SavedVariables are safely treated as the Hall default.
+local function WorkspaceKey(value)
+    return type(value) == "string" and #value > 0 and #value <= 64
+        and value:match("^[%w%-]+$") ~= nil
+end
+local function WorkspaceScroll(value)
+    if type(value) ~= "number" or value ~= value or
+        value == math.huge or value == -math.huge then return 0 end
+    return math.floor(math.max(0, math.min(60000, value)) + 0.5)
+end
+function Settings.GetWorkspace()
+    local db = ReadDB()
+    local state = db and db.lastWorkspace
+    if type(state) ~= "table" or
+        not WorkspaceKey(state.section) or
+        not WorkspaceKey(state.page) then return nil end
+    return state.section, state.page, WorkspaceScroll(state.scroll)
+end
+function Settings.SetWorkspace(section, page, scroll)
+    if not WorkspaceKey(section) or not WorkspaceKey(page) then return end
+    local offset = WorkspaceScroll(scroll)
+    local db = WriteDB()
+    local old = db.lastWorkspace
+    if type(old) == "table" and old.section == section and
+        old.page == page and old.scroll == offset then return end
+    db.lastWorkspace = { section = section, page = page, scroll = offset }
+end
+
 function Settings.Get(key)
     local db = ReadDB()
     if key == "menuScale" then

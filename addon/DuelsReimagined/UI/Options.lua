@@ -512,6 +512,26 @@ function Options.Refresh()
     interface.scrollBar:Refresh()
 end
 
+-- Navigation only requests positions; this module remains the single owner
+-- of both Options scroll frames, and clamps restored offsets after reflow.
+local function ScrollPage(key)
+    if key == "options" then return appearance end
+    if key == "interface" then return interface end
+end
+function Options.GetPageScroll(pageKey)
+    local page = ScrollPage(pageKey)
+    return page and page.scrollOwner:GetVerticalScroll() or 0
+end
+function Options.SetPageScroll(pageKey, offset)
+    local page = ScrollPage(pageKey)
+    if not page or type(offset) ~= "number" then return end
+    local owner = page.scrollOwner
+    page:Relayout(page:GetWidth())
+    local limit = math.max(0, page:GetHeight() - owner:GetHeight())
+    owner:SetVerticalScroll(math.max(0, math.min(limit, offset)))
+    page.scrollBar:Refresh()
+end
+
 function Options.Show(pageKey)
     Widgets.CloseChoices()
     appearance.scrollOwner:SetShown(pageKey == "options")

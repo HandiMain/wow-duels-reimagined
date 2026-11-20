@@ -78,22 +78,27 @@ end
 
 -- A single reusable, non-blocking toast inside the existing Duels window.
 local toast = CreateFrame("Frame", nil, Window.frame)
-toast:SetSize(284, 43)
-toast:SetPoint("TOP", Window.content, "TOP", 0, -88)
+toast:SetSize(218, 38)
+toast:SetClampedToScreen(true)
 toast:SetFrameLevel(Window.frame:GetFrameLevel() + 43)
 toast:EnableMouse(false)
 Style.Skin(toast, C.nav, { corner=9, edge=C.goldDim, shine=0.22, shade=0.24 })
 local toastLabel = Style.Text(toast, "", 13, C.text)
 toastLabel:SetPoint("CENTER")
-toastLabel:SetWidth(266)
+toastLabel:SetWidth(202)
 toastLabel:SetJustifyH("CENTER")
 toast:Hide()
 local toastToken = 0
-function Feedback.Toast(message)
-    if type(message) ~= "string" or message == "" or not Window.frame:IsShown() then return end
+function Feedback.Toast(message, button)
+    -- The notification belongs by the actual action, never in page center.
+    if type(message) ~= "string" or message == "" or
+        not button or not button:IsVisible() or
+        not Window.frame:IsShown() then return false end
     toastToken = toastToken + 1
     local token = toastToken
     toastLabel:SetText(message)
+    toast:ClearAllPoints()
+    toast:SetPoint("BOTTOMLEFT", button, "TOPLEFT", -2, 8)
     Motion.Stop(toast, 1)
     toast:Show()
     Later(1.8, function()
@@ -103,6 +108,7 @@ function Feedback.Toast(message)
             if token == toastToken then toast:Hide() end
         end)
     end)
+    return true
 end
 
 -- Action confirmation changes only the original real button's label.
@@ -138,6 +144,33 @@ function Feedback.NewBadge(parent, id, nearTitle)
     text:SetPoint("CENTER")
     text:SetJustifyH("CENTER")
     badges[id] = badge
+    -- A NEW marker is an introduction, not a permanent attention demand.
+    -- Acknowledge after a brief on-screen appearance or directly on hover.
+    local function Seen()
+        if Settings.HasSeenDiscovery(id) or not parent:IsVisible() or
+            not Window.frame:IsVisible() then return end
+        local owner = parent.optionsScroll
+        if owner and owner:IsVisible() then
+            local upper, lower = parent:GetTop(), parent:GetBottom()
+            local top, bottom = owner:GetTop(), owner:GetBottom()
+            if upper and lower and top and bottom and
+                (lower > top or upper < bottom) then return end
+        end
+        Feedback.Acknowledge(id)
+    end
+    badge:HookScript("OnShow", function(self)
+        self.duelsSeenToken = (self.duelsSeenToken or 0) + 1
+        local token = self.duelsSeenToken
+        Later(2.0, function()
+            if self.duelsSeenToken == token and self:IsVisible() then
+                Seen()
+            end
+        end)
+    end)
+    badge:HookScript("OnHide", function(self)
+        self.duelsSeenToken = (self.duelsSeenToken or 0) + 1
+    end)
+    parent:HookScript("OnEnter", Seen)
     badge:SetShown(not Settings.HasSeenDiscovery(id))
     return badge
 end

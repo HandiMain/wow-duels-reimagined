@@ -301,6 +301,18 @@ local function UpdateList(data)
     canvas:SetHeight(185 + h + 20)
 end
 
+function Community.GetPageScroll(key)
+    if key ~= "community" and not byKey[key] then return 0 end
+    return scroll:GetVerticalScroll()
+end
+function Community.SetPageScroll(key, offset)
+    if (key ~= "community" and not byKey[key]) or
+        type(offset) ~= "number" then return end
+    local limit = math.max(0, canvas:GetHeight() - scroll:GetHeight())
+    scroll:SetVerticalScroll(math.max(0, math.min(limit, offset)))
+    bar:Refresh()
+end
+
 function Community.Show(key)
     local active = type(key) == "string" and
         (key == "community" or byKey[key] ~= nil)

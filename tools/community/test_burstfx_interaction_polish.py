@@ -80,10 +80,10 @@ class BurstFXInteractionPolishTests(unittest.TestCase):
         feedback, footer = read("UI/Feedback.lua"), read("UI/Footer.lua")
         self.assertIn('local toast = CreateFrame("Frame", nil, Window.frame)', feedback)
         self.assertIn('toast:EnableMouse(false)', feedback)
-        self.assertIn('function Feedback.Toast(message)', feedback)
+        self.assertIn('function Feedback.Toast(message, button)', feedback)
         self.assertIn('if token ~= toastToken then return end', feedback)
         self.assertIn('Window.frame:HookScript("OnHide"', feedback)
-        self.assertIn('ns.Feedback.Toast("Window layout restored")', footer)
+        self.assertIn('ns.Feedback.Toast("Window layout restored", reset)', footer)
         self.assertNotIn('FULLSCREEN_DIALOG', feedback)
         self.assertNotIn('C_Timer.NewTicker', feedback)
 

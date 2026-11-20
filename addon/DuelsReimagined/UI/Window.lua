@@ -32,16 +32,112 @@ interior:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -inset, inset)
 Style.Fill(interior, C.window)
 Window.frame = frame
 
+-- Magnetic positioning is an enhancement to the ONE existing window drag
+-- owner. Guides and the temporary OnUpdate callback exist only while dragging.
+local MAGNET_GAP, MAGNET_RANGE = 14, 24
+local snapKey = {}
+local guideX = Style.Fill(UIParent, C.gold, "OVERLAY")
+guideX:SetSize(2, 96)
+guideX:Hide()
+local guideY = Style.Fill(UIParent, C.gold, "OVERLAY")
+guideY:SetSize(112, 2)
+guideY:Hide()
+local function HideGuides()
+    guideX:Hide()
+    guideY:Hide()
+end
+local function ValidCoordinate(n)
+    return type(n) == "number" and n == n and
+        n ~= math.huge and n ~= -math.huge and
+        (not issecretvalue or not issecretvalue(n))
+end
+local function MagnetOffset()
+    if IsAltKeyDown and IsAltKeyDown() then return nil, nil end
+    local l, r, t, b = frame:GetLeft(), frame:GetRight(),
+        frame:GetTop(), frame:GetBottom()
+    local pl, pr, pt, pb = UIParent:GetLeft(), UIParent:GetRight(),
+        UIParent:GetTop(), UIParent:GetBottom()
+    if not (ValidCoordinate(l) and ValidCoordinate(r) and
+        ValidCoordinate(t) and ValidCoordinate(b) and
+        ValidCoordinate(pl) and ValidCoordinate(pr) and
+        ValidCoordinate(pt) and ValidCoordinate(pb)) then return nil, nil end
+    local left, right = pl + MAGNET_GAP - l, pr - MAGNET_GAP - r
+    local top, bottom = pt - MAGNET_GAP - t, pb + MAGNET_GAP - b
+    local dx, dy, horizontal, vertical
+    if math.abs(left) <= MAGNET_RANGE and
+        (math.abs(left) <= math.abs(right) or
+        math.abs(right) > MAGNET_RANGE) then
+        dx, horizontal = left, "LEFT"
+    elseif math.abs(right) <= MAGNET_RANGE then
+        dx, horizontal = right, "RIGHT"
+    end
+    if math.abs(top) <= MAGNET_RANGE and
+        (math.abs(top) <= math.abs(bottom) or
+        math.abs(bottom) > MAGNET_RANGE) then
+        dy, vertical = top, "TOP"
+    elseif math.abs(bottom) <= MAGNET_RANGE then
+        dy, vertical = bottom, "BOTTOM"
+    end
+    return dx, dy, horizontal, vertical
+end
+local function DrawGuides()
+    local dx, dy, h, v = MagnetOffset()
+    guideX:SetShown(dx ~= nil)
+    guideY:SetShown(dy ~= nil)
+    if h then
+        guideX:ClearAllPoints()
+        guideX:SetPoint("CENTER", frame, h, dx, 0)
+    end
+    if v then
+        guideY:ClearAllPoints()
+        guideY:SetPoint("CENTER", frame, v, 0, dy)
+    end
+end
+local function FinishSnap()
+    HideGuides()
+    local dx, dy = MagnetOffset()
+    if dx == nil and dy == nil then return end
+    local cx, cy = frame:GetCenter()
+    local px, py = UIParent:GetCenter()
+    if not (ValidCoordinate(cx) and ValidCoordinate(cy) and
+        ValidCoordinate(px) and ValidCoordinate(py)) then return end
+    local x, y = cx - px, cy - py
+    Motion.Stop(snapKey)
+    Motion.Value(snapKey, 0, 1, 0.13, function(_, amount)
+        frame:ClearAllPoints()
+        frame:SetPoint("CENTER", UIParent, "CENTER",
+            x + (dx or 0) * amount, y + (dy or 0) * amount)
+    end)
+end
+function Window.CancelMagnet()
+    HideGuides()
+    Motion.Stop(snapKey)
+end
+
 local function Drag(handle)
     handle:EnableMouse(true)
     handle:RegisterForDrag("LeftButton")
-    handle:SetScript("OnDragStart", function()
+    handle:SetScript("OnDragStart", function(self)
+        Motion.Stop(snapKey)
+        HideGuides()
         frame:StartMoving()
+        self:SetScript("OnUpdate", function() DrawGuides() end)
     end)
-    handle:SetScript("OnDragStop", function()
+    handle:SetScript("OnDragStop", function(self)
+        self:SetScript("OnUpdate", nil)
         frame:StopMovingOrSizing()
+        FinishSnap()
+    end)
+    handle:HookScript("OnHide", function(self)
+        self:SetScript("OnUpdate", nil)
+        HideGuides()
+        Motion.Stop(snapKey)
     end)
 end
+frame:HookScript("OnHide", function()
+    HideGuides()
+    Motion.Stop(snapKey)
+end)
 
 -- These bands span the entire window, not individual navigation columns.
 local header = CreateFrame("Frame", nil, frame)
@@ -120,7 +216,9 @@ brandArea:SetPoint("LEFT", header, "LEFT", 20, 0)
 brandArea:EnableMouse(false)
 
 local brandLogo = CreateFrame("Frame", nil, brandArea)
-brandLogo:EnableMouse(false)
+-- The wordmark's rectangle is a hover target, but remains a working drag
+-- handle, so it never steals the original header's move interaction.
+Drag(brandLogo)
 -- Centered text-only wordmark; both letter bands remain palette-tintable.
 local BRAND_ASPECT = 4.65
 local BRAND_MAX_WIDTH, BRAND_MAX_HEIGHT = 312, 67
@@ -140,6 +238,53 @@ local function BrandLayer(color, top, bottom, yOffset)
 end
 BrandLayer(C.gold,       0,    0.25, -4) -- DUELS lettering
 BrandLayer(C.headerText, 0.25, 0.50, -4) -- REIMAGINED, aligned baseline
+
+-- One soft reflection travels across the LETTERS, not the header itself.
+-- Use the existing two alpha-mask bands, so the reflection doesn't paint a
+-- solid rectangle over the wordmark. Unsupported mask APIs fail closed.
+local shimmerKey, shimmerBands = {}, {}
+local function MakeShimmerBand(top, bottom, width, strength)
+    if not brandLogo.CreateMaskTexture then return end
+    local strip = brandLogo:CreateTexture(nil, "OVERLAY")
+    if not strip.AddMaskTexture then strip:Hide() return end
+    strip:SetColorTexture(1, 0.94, 0.77, 1)
+    strip:SetBlendMode("ADD")
+    strip:SetWidth(width)
+    strip:SetAlpha(0)
+    strip:Hide()
+    local mask = brandLogo:CreateMaskTexture()
+    mask:SetTexture(BRAND_ATLAS)
+    if not mask.SetTexCoord then strip:Hide() return end
+    mask:SetPoint("TOPLEFT", brandLogo, "TOPLEFT", 0, -4)
+    mask:SetPoint("BOTTOMRIGHT", brandLogo, "BOTTOMRIGHT", 0, -4)
+    mask:SetTexCoord(0, 1, top, bottom)
+    strip:AddMaskTexture(mask)
+    shimmerBands[#shimmerBands + 1] = { strip=strip, strength=strength }
+end
+MakeShimmerBand(0, 0.25, 24, 0.56)
+MakeShimmerBand(0.25, 0.50, 36, 0.38)
+local function HideBrandShimmer()
+    Motion.Stop(shimmerKey)
+    for _, band in ipairs(shimmerBands) do band.strip:Hide() end
+end
+brandLogo:SetScript("OnEnter", function()
+    if #shimmerBands == 0 or ns.Settings.Get("reduceMotion") then return end
+    Motion.Stop(shimmerKey)
+    for _, band in ipairs(shimmerBands) do band.strip:Show() end
+    Motion.Value(shimmerKey, 0, 1, 0.60, function(_, progress)
+        local x = -42 + (brandLogo:GetWidth() + 84) * progress
+        local fade = math.sin(progress * math.pi)
+        for _, band in ipairs(shimmerBands) do
+            band.strip:ClearAllPoints()
+            band.strip:SetSize(band.strip:GetWidth(), brandLogo:GetHeight())
+            band.strip:SetPoint("LEFT", brandLogo, "LEFT", x, -4)
+            band.strip:SetAlpha(band.strength * fade)
+            if progress >= 1 then band.strip:Hide() end
+        end
+    end)
+end)
+brandLogo:HookScript("OnDragStart", HideBrandShimmer)
+frame:HookScript("OnHide", HideBrandShimmer)
 
 -- Text-only branding: the two alpha-masked letter layers above are the
 -- entire logo. There is deliberately no underline, diamond or frame art.
@@ -310,6 +455,7 @@ function Window.IsDefault()
 end
 
 function Window.ApplyScale(value)
+    Window.CancelMagnet()
     local v = RoundScale(value)
     pendingScale = nil
     frame:SetScale(v)
@@ -464,6 +610,7 @@ close:SetSize(120, 30)
 -- Centered vertically, with safe padding from the actual interior boundary.
 close:SetPoint("RIGHT", footer, "RIGHT", -32, 0)
 close:SetScript("OnClick", function() frame:Hide() end)
+Window.closeButton = close -- Navigation anchors its compact Back beside Close.
 ns.Tooltips.Bind(close, { title = "Close Duels Reimagined",
     detail = "Hide this window without changing your settings." })
 
@@ -528,6 +675,10 @@ function Window.Toggle()
         frame:SetAlpha(0.25)
         frame:Show()
         frame:Raise()
+        -- Restore a verified real page only when Duels is actually opened.
+        if ns.Navigation and ns.Navigation.ResumeWorkspace then
+            ns.Navigation.ResumeWorkspace()
+        end
         Motion.Fade(frame, 1, 0.22)
     end
 end
