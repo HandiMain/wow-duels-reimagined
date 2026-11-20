@@ -20,7 +20,7 @@ frame:Hide()
 
 -- The window's visible interior is inset from the decorative rim. The root
 -- frame itself has NO backdrop, so dark pixels cannot bleed outside the metal.
-local inset = 10
+local inset = 8
 local interior = CreateFrame("Frame", nil, frame)
 interior:SetPoint("TOPLEFT", frame, "TOPLEFT", inset, -inset)
 interior:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -inset, inset)
@@ -40,7 +40,7 @@ end
 
 -- These bands span the entire window, not individual navigation columns.
 local header = CreateFrame("Frame", nil, frame)
-header:SetHeight(112)
+header:SetHeight(82)
 header:SetPoint("TOPLEFT", interior, "TOPLEFT")
 header:SetPoint("TOPRIGHT", interior, "TOPRIGHT")
 Style.Fill(header, C.header)
@@ -52,20 +52,24 @@ footer:SetPoint("BOTTOMLEFT", interior, "BOTTOMLEFT")
 footer:SetPoint("BOTTOMRIGHT", interior, "BOTTOMRIGHT")
 Style.Fill(footer, C.footer)
 
-local body = CreateFrame("Frame", nil, frame)
-body:SetPoint("TOPLEFT", header, "BOTTOMLEFT", 0, 0)
-body:SetPoint("BOTTOMRIGHT", footer, "TOPRIGHT", 0, 0)
-local rail = CreateFrame("Frame", nil, body)
-rail:SetPoint("TOPLEFT", body, "TOPLEFT", 0, 0)
-rail:SetPoint("BOTTOMLEFT", body, "BOTTOMLEFT", 0, 0)
-rail:SetWidth(88)
+-- Approved horizontal concept: command bar, full-width section tabs,
+-- light page sidebar + content, and a separate footer.
+local rail = CreateFrame("Frame", nil, frame)
+rail:SetHeight(57)
+rail:SetPoint("TOPLEFT", header, "BOTTOMLEFT", 0, 0)
+rail:SetPoint("TOPRIGHT", header, "BOTTOMRIGHT", 0, 0)
 Style.Fill(rail, C.rail)
 Window.rail = rail
 
+local body = CreateFrame("Frame", nil, frame)
+body:SetPoint("TOPLEFT", rail, "BOTTOMLEFT", 0, 0)
+body:SetPoint("BOTTOMRIGHT", footer, "TOPRIGHT", 0, 0)
+Style.Fill(body, C.body)
+
 local nav = CreateFrame("Frame", nil, body)
-nav:SetPoint("TOPLEFT", rail, "TOPRIGHT", 0, 0)
-nav:SetPoint("BOTTOMLEFT", rail, "BOTTOMRIGHT", 0, 0)
-nav:SetWidth(244)
+nav:SetPoint("TOPLEFT", body, "TOPLEFT", 0, 0)
+nav:SetPoint("BOTTOMLEFT", body, "BOTTOMLEFT", 0, 0)
+nav:SetWidth(250)
 Style.Fill(nav, C.nav)
 Window.nav = nav
 
@@ -89,13 +93,13 @@ Window.header, Window.footer, Window.body = header, footer, body
 -- 512x128 canvas, with the 420x102 visible logo at x=46, y=13.
 -- Keep this element constrained to the header space before Search.
 local brandArea = CreateFrame("Frame", nil, header)
-brandArea:SetSize(510, 106)
+brandArea:SetSize(440, 76)
 brandArea:SetPoint("LEFT", header, "LEFT", 20, 0)
 brandArea:EnableMouse(false)
 local brandLogo = brandArea:CreateTexture(nil, "ARTWORK")
 brandLogo:SetTexture("Interface\\AddOns\\DuelsReimagined\\Media\\Concept\\Option5HeaderLogo.png")
 local BRAND_ASPECT = 420 / 102
-local BRAND_MAX_WIDTH, BRAND_MAX_HEIGHT = 480, 96
+local BRAND_MAX_WIDTH, BRAND_MAX_HEIGHT = 340, 74
 brandLogo:SetSize(math.min(BRAND_MAX_WIDTH, BRAND_MAX_HEIGHT * BRAND_ASPECT),
     BRAND_MAX_HEIGHT)
 brandLogo:SetPoint("CENTER", brandArea, "CENTER")
@@ -115,12 +119,12 @@ function Window.PlaceBrandBefore(searchBox)
     brandArea:ClearAllPoints()
     brandArea:SetPoint("LEFT", header, "LEFT", 20, 0)
     brandArea:SetPoint("RIGHT", searchBox, "LEFT", -18, 0)
-    brandArea:SetHeight(106)
+    brandArea:SetHeight(76)
     FitBrand(brandArea, brandArea:GetWidth())
 end
 
 local Settings = ns.Settings
-local scaleCaption = Style.Text(header, "Menu Scale", 12, C.muted)
+local scaleCaption = Style.Text(header, "Menu Scale", 12, C.headerMuted)
 scaleCaption:SetPoint("RIGHT", header, "RIGHT", -223, 0)
 
 local scale = CreateFrame("Slider", nil, header)
@@ -133,7 +137,7 @@ scale:EnableMouseWheel(true)
 scale:SetPoint("LEFT", scaleCaption, "RIGHT", 15, 0)
 
 local scaleTrack = scale:CreateTexture(nil, "BACKGROUND")
-scaleTrack:SetColorTexture(0.23, 0.26, 0.30, 1)
+scaleTrack:SetColorTexture(unpack(C.track))
 scaleTrack:SetPoint("LEFT", scale, "LEFT")
 scaleTrack:SetPoint("RIGHT", scale, "RIGHT")
 scaleTrack:SetHeight(2)
@@ -149,7 +153,7 @@ scaleThumb:SetSize(14, 14)
 Chrome.Sharp(scaleThumb)
 scale:SetThumbTexture(scaleThumb)
 
-local scalePercent = Style.Text(header, "100%", 12, C.text)
+local scalePercent = Style.Text(header, "100%", 12, C.headerText)
 scalePercent:SetPoint("LEFT", scale, "RIGHT", 10, 0)
 Window.scaleCaption = scaleCaption
 Window.scaleSlider = scale
@@ -323,6 +327,7 @@ end)
 
 function Window.RefreshTheme()
     scaleFill:SetColorTexture(unpack(C.gold))
+    scaleTrack:SetColorTexture(unpack(C.track))
     scaleResetIcon:SetVertexColor(unpack(C.gold))
     -- This authored artwork remains legible under optional EllesmereUI colors.
     if Window.resizeGrip then Window.resizeGrip.icon:SetVertexColor(1, 1, 1) end
@@ -411,15 +416,15 @@ subtitle:SetPoint("TOP", titleRule, "BOTTOM", 0, -8)
 
 local watermark = content:CreateTexture(nil, "BORDER")
 watermark:SetTexture("Interface\\AddOns\\DuelsReimagined\\Media\\Concept\\Watermark.png")
-watermark:SetSize(242, 220)
-watermark:SetPoint("CENTER", content, "CENTER", 0, -3)
+watermark:SetSize(214, 196)
+watermark:SetPoint("CENTER", content, "CENTER", 0, -12)
 -- Trim uneven transparent padding without stretching the emblem.
 watermark:SetTexCoord(0.085, 0.98, 0.055, 0.975)
-watermark:SetAlpha(0.68)
+watermark:SetAlpha(0.54)
 watermark:EnableMouse(false)
 
 local emptyHeading = Style.Text(content, "No duels recorded yet", 20, C.pale)
-emptyHeading:SetPoint("BOTTOM", content, "BOTTOM", 0, 142)
+emptyHeading:SetPoint("TOP", watermark, "BOTTOM", 0, -8)
 local emptyDetail = Style.Text(content, "Your recent activity will appear here.", 13, C.muted)
 emptyDetail:SetPoint("TOP", emptyHeading, "BOTTOM", 0, -8)
 function Window.ShowPage(page)

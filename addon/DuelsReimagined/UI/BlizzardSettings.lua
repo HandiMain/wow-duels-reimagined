@@ -17,19 +17,8 @@ Style.Fill(surface, C.body)
 Style.Border(surface, C.goldDim, 1)
 
 local art = "Interface\\AddOns\\DuelsReimagined\\Media\\Concept\\"
-for _, corner in ipairs({
-    { "TOPLEFT", "CornerTL.png" },
-    { "TOPRIGHT", "CornerTR.png" },
-    { "BOTTOMLEFT", "CornerBL.png" },
-    { "BOTTOMRIGHT", "CornerBR.png" },
-}) do
-    local tx = surface:CreateTexture(nil, "ARTWORK")
-    tx:SetTexture(art .. "Frame\\" .. corner[2])
-    tx:SetSize(32, 32)
-    tx:SetPoint(corner[1], surface, corner[1])
-    tx:SetAlpha(0.76)
-    Chrome.Sharp(tx)
-end
+-- The original faction logo remains. Decorative outer edges are now drawn
+-- by the shared, recolorable Style.Border instead of fixed gold corner PNGs.
 
 local layout = CreateFrame("Frame", nil, surface)
 layout:SetSize(490, 405)

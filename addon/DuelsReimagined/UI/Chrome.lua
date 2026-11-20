@@ -1,73 +1,32 @@
 local _, ns = ...
 local Style, C = ns.Style, ns.Style.color
-
--- A single owner for decorative artwork and shared window separators.
 local Chrome = {}
 ns.Chrome = Chrome
 
+-- Apart from the established small icons / DR mark, our chrome is now made
+-- from inexpensive one-pixel UI textures. Every part follows Style tokens.
 local art = "Interface\\AddOns\\DuelsReimagined\\Media\\Concept\\"
-local metal = art .. "Frame\\"
-local textureNames = {
-    Selection = "Selection.png",
-    SelectionRail = "SelectionRail.png",
-    Button = "ButtonPrimary.png",
-    ButtonFooter = "ButtonFooter.png",
-}
-
-function Chrome.Sharp(texture)
-    if texture.SetSnapToPixelGrid then texture:SetSnapToPixelGrid(false) end
-    if texture.SetTexelSnappingBias then texture:SetTexelSnappingBias(0) end
-    return texture
+function Chrome.Sharp(tex)
+    if tex.SetSnapToPixelGrid then tex:SetSnapToPixelGrid(false) end
+    if tex.SetTexelSnappingBias then tex:SetTexelSnappingBias(0) end
+    return tex
 end
 
 function Chrome.Texture(parent, name, alpha, layer)
-    local file = textureNames[name]
-    if not file then return nil end
-    local tex = parent:CreateTexture(nil, layer or "BACKGROUND")
-    tex:SetTexture(art .. file)
-    tex:SetAllPoints(parent)
+    local color = name == "SelectionRail" and C.tabActive or
+        name == "Selection" and C.selected or
+        name == "Button" and C.button or
+        name == "ButtonFooter" and C.button or C.hover
+    local tex = Style.Fill(parent, color, layer or "BACKGROUND")
     tex:SetAlpha(alpha or 1)
-    return Chrome.Sharp(tex)
+    return tex
 end
 
--- Keep the original concept's gold corner artwork unstretched on wide buttons.
--- The source texture is 256x64. Fixed-width end caps follow button height;
--- only the long straight middle is stretched. No per-frame updates.
+-- Compatibility for old callers; no bitmap end caps or stretched graphics.
 function Chrome.SlicedButton(parent)
-    local texturePath = art .. textureNames.Button
-    local capU = 32 / 256
-
-    local left = parent:CreateTexture(nil, "ARTWORK")
-    left:SetTexture(texturePath)
-    left:SetTexCoord(0, capU, 0, 1)
-    left:SetPoint("TOPLEFT", parent, "TOPLEFT")
-    left:SetPoint("BOTTOMLEFT", parent, "BOTTOMLEFT")
-
-    local right = parent:CreateTexture(nil, "ARTWORK")
-    right:SetTexture(texturePath)
-    right:SetTexCoord(1 - capU, 1, 0, 1)
-    right:SetPoint("TOPRIGHT", parent, "TOPRIGHT")
-    right:SetPoint("BOTTOMRIGHT", parent, "BOTTOMRIGHT")
-
-    local middle = parent:CreateTexture(nil, "ARTWORK")
-    middle:SetTexture(texturePath)
-    middle:SetTexCoord(capU, 1 - capU, 0, 1)
-    middle:SetPoint("TOPLEFT", left, "TOPRIGHT")
-    middle:SetPoint("BOTTOMRIGHT", right, "BOTTOMLEFT")
-
-    Chrome.Sharp(left)
-    Chrome.Sharp(right)
-    Chrome.Sharp(middle)
-
-    local function FitCaps(self)
-        -- 32 source pixels at the original 64px height; no distorted bevels.
-        local cap = math.max(1, math.min(32, self:GetHeight() * 0.5))
-        left:SetWidth(cap)
-        right:SetWidth(cap)
-    end
-    parent:HookScript("OnSizeChanged", FitCaps)
-    FitCaps(parent)
-    return left, middle, right
+    local ground = Style.Fill(parent, C.button)
+    Style.Border(parent, C.gold, 1)
+    return ground
 end
 
 function Chrome.Icon(parent, name)
@@ -77,104 +36,69 @@ function Chrome.Icon(parent, name)
 end
 
 function Chrome.Divider(parent, width, height)
-    local tex = parent:CreateTexture(nil, "ARTWORK")
-    tex:SetTexture(art .. "Divider.png")
-    tex:SetSize(width or 220, height or 15)
-    return Chrome.Sharp(tex)
+    -- Shared line + diamond, assembled from 1px strips. No image required.
+    local f = CreateFrame("Frame", nil, parent)
+    f:SetSize(width or 220, height or 15)
+    local left = Style.Fill(f, C.goldDim, "ARTWORK")
+    left:ClearAllPoints()
+    left:SetPoint("LEFT", f, "LEFT")
+    left:SetPoint("RIGHT", f, "CENTER", -8, 0)
+    left:SetHeight(1)
+    local right = Style.Fill(f, C.goldDim, "ARTWORK")
+    right:ClearAllPoints()
+    right:SetPoint("LEFT", f, "CENTER", 8, 0)
+    right:SetPoint("RIGHT", f, "RIGHT")
+    right:SetHeight(1)
+    local stone = Style.Fill(f, C.gold, "OVERLAY")
+    stone:ClearAllPoints()
+    stone:SetSize(6,6)
+    stone:SetPoint("CENTER")
+    if stone.SetRotation then stone:SetRotation(math.pi/4) end
+    return f
 end
 
-local bottomRightCorner
-
 function Chrome.SetResizeCorner(available)
-    if bottomRightCorner then
-        bottomRightCorner:SetTexture(metal ..
-            (available and "CornerBRResize.png" or "CornerBR.png"))
-    end
+    -- The corner remains physically resizable through Window.resizeGrip.
+    -- No theme-locked corner texture is needed to switch its state.
 end
 
 function Chrome.Shell(frame, header, footer, rail, nav)
-    -- ONE outer rim, no additional drawn borders or backdrop-sized images.
-    -- It frames the inset content rather than lying on top of an oversized fill.
     local rim = CreateFrame("Frame", nil, frame)
     rim:SetAllPoints(frame)
     rim:SetFrameLevel(frame:GetFrameLevel() + 20)
     rim:EnableMouse(false)
-
-    local function Art(host, file, layer)
-        local tex = host:CreateTexture(nil, layer or "ARTWORK")
-        tex:SetTexture(metal .. file .. ".png")
-        return Chrome.Sharp(tex)
-    end
-
-    local function Strip(file, first, second, vertical)
-        local tex = Art(rim, file)
-        tex:SetPoint(first, rim, first)
-        tex:SetPoint(second, rim, second)
-        if vertical then tex:SetWidth(16) else tex:SetHeight(16) end
-    end
-
-    Strip("TrimTop", "TOPLEFT", "TOPRIGHT", false)
-    Strip("TrimBottom", "BOTTOMLEFT", "BOTTOMRIGHT", false)
-    Strip("TrimLeft", "TOPLEFT", "BOTTOMLEFT", true)
-    Strip("TrimRight", "TOPRIGHT", "BOTTOMRIGHT", true)
-
-    for _, corner in ipairs({
-        { "TL", "TOPLEFT" }, { "TR", "TOPRIGHT" },
-        { "BL", "BOTTOMLEFT" }, { "BR", "BOTTOMRIGHT" },
-    }) do
-        -- Only the bottom-right corner is reshaped to expose an actual
-        -- resize affordance. The other three approved corner assets stay.
-        local cornerArt = corner[1] == "BR" and "CornerBRResize" or
-            ("Corner" .. corner[1])
-        local tex = Art(rim, cornerArt, "OVERLAY")
-        tex:SetSize(64, 64)
-        if corner[1] == "BR" then bottomRightCorner = tex end
-        tex:SetPoint(corner[2], rim, corner[2])
-    end
-
-    -- A separate, thinner inset metallic divider set, still owned here.
-    -- All seams are rendered in one overlay so adjacent panel fills cannot
-    -- hide the ends of the strips or their joining diamonds.
+    Style.Border(rim, C.shellEdge, 2)
     local seams = CreateFrame("Frame", nil, frame)
     seams:SetAllPoints(frame)
     seams:SetFrameLevel(frame:GetFrameLevel() + 12)
     seams:EnableMouse(false)
 
-    local function Horizontal(host, edge)
-        local tex = Art(seams, "InnerDividerH")
-        local left = edge .. "LEFT"
-        local right = edge .. "RIGHT"
-        tex:SetPoint("LEFT", host, left)
-        tex:SetPoint("RIGHT", host, right)
-        tex:SetHeight(12)
+    local function Line(frame, parent, first, second, vertical, color)
+        local t = Style.Fill(frame, color or C.goldDim, "OVERLAY")
+        t:ClearAllPoints()
+        t:SetPoint(first, parent, first)
+        t:SetPoint(second, parent, second)
+        if vertical then t:SetWidth(1) else t:SetHeight(1) end
+        return t
     end
+    Line(seams, header, "BOTTOMLEFT", "BOTTOMRIGHT", false, C.shellEdge)
+    Line(seams, rail, "BOTTOMLEFT", "BOTTOMRIGHT", false, C.shellEdge)
+    Line(seams, footer, "TOPLEFT", "TOPRIGHT", false, C.shellEdge)
+    Line(seams, nav, "TOPRIGHT", "BOTTOMRIGHT", true, C.border)
 
-    local function Vertical(host)
-        local tex = Art(seams, "InnerDividerV")
-        tex:SetPoint("TOP", host, "TOPRIGHT")
-        tex:SetPoint("BOTTOM", host, "BOTTOMRIGHT")
-        tex:SetWidth(12)
-    end
-
-    Horizontal(header, "BOTTOM")
-    Horizontal(footer, "TOP")
-    Vertical(rail)
-    Vertical(nav)
-
-    -- Four shared junction pieces connect the header/footer seams to the
-    -- two navigation column dividers. No extra border owner or duplicate line.
-    for _, host in ipairs({ rail, nav }) do
-        for _, anchor in ipairs({ "TOPRIGHT", "BOTTOMRIGHT" }) do
-            local tex = Art(seams, "InnerJunction", "OVERLAY")
-            tex:SetSize(18, 18)
-            tex:SetPoint("CENTER", host, anchor)
-        end
+    -- Tiny corner insets suggest the selected concept without texture art.
+    for _, edge in ipairs({
+        {"TOPLEFT", 4, -4}, {"TOPRIGHT", -4, -4},
+        {"BOTTOMLEFT", 4, 4}, {"BOTTOMRIGHT", -4, 4},
+    }) do
+        local cap = Style.Fill(rim, C.gold, "OVERLAY")
+        cap:ClearAllPoints()
+        cap:SetSize(5,5)
+        cap:SetPoint(edge[1], rim, edge[1], edge[2], edge[3])
+        if cap.SetRotation then cap:SetRotation(math.pi/4) end
     end
     return seams
 end
 
--- Options already owns its background and single inner-panel outline.
 function Chrome.Panel() end
-
--- All main surfaces are Style.Fill regions and follow the central theme owner.
 function Chrome.Refresh() end

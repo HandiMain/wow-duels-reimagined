@@ -8,7 +8,7 @@ ns.Widgets = Widgets
 
 local texPath = "Interface\\AddOns\\DuelsReimagined\\Media\\Textures\\"
 local SLIDE_TIME = 0.16
-local OFF = { 0.31, 0.36, 0.42 }
+local OFF = { 0.60, 0.59, 0.62 }
 local DISABLED = { 0.30, 0.32, 0.35 }
 
 local function PaintToggle(key, position)
@@ -108,13 +108,13 @@ function Widgets.ToggleRow(parent, label, description, onToggle, onReset)
     row.description:SetJustifyH("LEFT")
 
     row.track = row:CreateTexture(nil, "ARTWORK")
-    row.track:SetTexture(texPath .. "ToggleTrack.tga")
+    row.track:SetColorTexture(1, 1, 1, 1)
     row.track:SetSize(43, 21)
     row.track:SetPoint("RIGHT", row, "RIGHT", -8, 0)
     Chrome.Sharp(row.track)
 
     row.thumb = row:CreateTexture(nil, "OVERLAY")
-    row.thumb:SetTexture(texPath .. "ToggleThumb.tga")
+    row.thumb:SetColorTexture(1, 1, 1, 1)
     row.thumb:SetSize(16, 16)
     Chrome.Sharp(row.thumb)
 
@@ -442,7 +442,7 @@ function Widgets.SliderRow(parent, caption, detail, minVal, maxVal, step, onComm
     slider:EnableMouseWheel(true)
     slider:SetPoint("RIGHT", row, "RIGHT", -55, 0)
     local track = slider:CreateTexture(nil, "BACKGROUND")
-    track:SetColorTexture(0.23, 0.26, 0.3, 1)
+    track:SetColorTexture(unpack(C.track))
     track:SetPoint("LEFT", slider, "LEFT")
     track:SetPoint("RIGHT", slider, "RIGHT")
     track:SetHeight(2)
@@ -530,6 +530,7 @@ function Widgets.SliderRow(parent, caption, detail, minVal, maxVal, step, onComm
     row.slider = slider
     row.fill = filled
     function row:RefreshColors()
+        track:SetColorTexture(unpack(C.track))
         filled:SetColorTexture(unpack(C.gold))
         self.resetIcon:SetVertexColor(unpack(C.gold))
     end
@@ -559,6 +560,7 @@ function Widgets.ScrollBar(parent, metrics, setOffset)
     local dragging, startY, startScroll = false, 0, 0
 
     function bar:Refresh()
+        thumb:SetColorTexture(unpack(C.gold))
         local view, content, offset = metrics()
         view, content, offset = math.max(0, view or 0),
             math.max(0, content or 0), math.max(0, offset or 0)

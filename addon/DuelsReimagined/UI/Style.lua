@@ -1,33 +1,74 @@
 local _, ns = ...
 
+-- ONE look owner for the entire addon. Every color is a semantic token;
+-- no page, theme or integration makes an independent paint engine.
 local Style = {}
 ns.Style = Style
 
-Style.color = {
-    gold = { 0.78, 0.61, 0.35, 1 },
-    goldDim = { 0.40, 0.31, 0.20, 1 },
-    red = { 0.63, 0.20, 0.20, 1 },
-    pale = { 0.95, 0.88, 0.73, 1 },
-    text = { 0.88, 0.86, 0.82, 1 },
-    muted = { 0.65, 0.65, 0.67, 1 },
-    window = { 0.038, 0.045, 0.057, 0.98 },
-    rail = { 0.057, 0.060, 0.071, 1 },
-    nav = { 0.069, 0.074, 0.086, 1 },
-    body = { 0.050, 0.057, 0.068, 1 },
-    header = { 0.065, 0.072, 0.086, 1 },
-    footer = { 0.065, 0.072, 0.086, 1 },
-    selected = { 0.25, 0.095, 0.10, 0.90 },
-    hover = { 0.16, 0.14, 0.14, 0.85 },
-    button = { 0.23, 0.105, 0.105, 1 },
+local function Hex(code)
+    return {
+        tonumber(code:sub(1, 2), 16) / 255,
+        tonumber(code:sub(3, 4), 16) / 255,
+        tonumber(code:sub(5, 6), 16) / 255, 1,
+    }
+end
+
+-- The approved in-game concept is our DEFAULT, not a loose inspiration.
+-- The other two are preview recolors of exactly the same interface.
+local schemes = {
+    ivory = {
+        gold="C39A65", goldDim="B4A39E", red="77334A",
+        pale="672540", text="42343C", muted="72686F",
+        window="272126", rail="30292E", nav="E7DDE1",
+        body="F0EAEB", header="29252A", footer="29252A",
+        selected="DDC9D2", hover="E5D6DC", button="783048",
+        shellEdge="B48C65", border="BAA9B0",
+        tabActive="6B3046", tabText="F5E9E7", tabMuted="E8DADB",
+        headerText="F4E8E4", headerMuted="CFBFC5",
+        footerText="F3E8E5", footerMuted="D1C2C9",
+        buttonText="FFFFFF", track="796D78",
+    },
+    slate = {
+        gold="A5B6D2", goldDim="657386", red="41658E",
+        pale="E4EAF5", text="E0E5EC", muted="A7B1C0",
+        window="121923", rail="1D2734", nav="293341",
+        body="222D3A", header="18212D", footer="18212D",
+        selected="3A536E", hover="34475A", button="3C648D",
+        shellEdge="778DA9", border="52687D",
+        tabActive="385575", tabText="F0F4FA", tabMuted="B7C5D3",
+        headerText="F4F6FB", headerMuted="BAC4D1",
+        footerText="EEF2F8", footerMuted="B5C2D2",
+        buttonText="FFFFFF", track="77879E",
+    },
+    verdant = {
+        gold="AD9869", goldDim="A49F8A", red="537665",
+        pale="29473B", text="354238", muted="6A746B",
+        window="203A31", rail="264239", nav="E8E7DC",
+        body="F3F0E4", header="20382F", footer="20382F",
+        selected="CDD9CC", hover="D9E4D7", button="416F58",
+        shellEdge="AE9A70", border="B4B8AA",
+        tabActive="416F58", tabText="F4F3E8", tabMuted="D9E4DA",
+        headerText="F2F3E9", headerMuted="CFDED1",
+        footerText="F2F3E9", footerMuted="CBD9CC",
+        buttonText="FFFFFF", track="768D7D",
+    },
 }
 
-local colorTextures = {}
-local fontStrings = {}
-local pixelEdges = {}
+local choices = {
+    { key = "ivory", label = "Ivory & Plum (Default)" },
+    { key = "slate", label = "Midnight Slate" },
+    { key = "verdant", label = "Forest & Ivory" },
+}
+function Style.ThemeChoices() return choices end
+function Style.IsTheme(key) return schemes[key] ~= nil end
 
--- BurstFX-style physical-pixel sizing, using the frame's effective scale.
--- Only plain line/border textures are tracked; the approved metal PNG rim
--- is deliberately not touched.
+-- Stable table identities are important. Registered widgets hold references
+-- to these colors and repaint in place on live look changes.
+Style.color = {}
+for token, code in pairs(schemes.ivory) do Style.color[token] = Hex(code) end
+local C = Style.color
+local colorTextures, fontStrings, pixelEdges = {}, {}, {}
+
 function Style.Pixel(region, physicalPixels)
     local scale = region and region.GetEffectiveScale and region:GetEffectiveScale() or 1
     if type(scale) ~= "number" or scale <= 0 then scale = 1 end
@@ -43,124 +84,108 @@ function Style.RefreshPixelEdges()
 end
 
 local function RegisterTexture(region, color)
-    for token, value in pairs(Style.color) do
+    for token, value in pairs(C) do
         if value == color then
-            colorTextures[#colorTextures + 1] = { region = region, token = token }
-            break
+            colorTextures[#colorTextures+1] = { region=region, token=token }
+            return
         end
     end
 end
 
 local function RegisterFont(label, size, color, outline)
     local token
-    for name, value in pairs(Style.color) do
-        if value == color then token = name; break end
-    end
-    fontStrings[#fontStrings + 1] = {
-        label = label, token = token, size = size, outline = outline
+    for name, value in pairs(C) do if value == color then token = name; break end end
+    fontStrings[#fontStrings+1] = {
+        label=label, token=token, size=size, outline=outline,
     }
 end
 
 function Style.Fill(parent, color, layer)
-    local texture = parent:CreateTexture(nil, layer or "BACKGROUND")
-    texture:SetAllPoints(parent)
-    texture:SetColorTexture(unpack(color))
-    RegisterTexture(texture, color)
-    return texture
+    local region = parent:CreateTexture(nil, layer or "BACKGROUND")
+    region:SetAllPoints(parent)
+    region:SetColorTexture(unpack(color))
+    RegisterTexture(region, color)
+    return region
 end
 
 function Style.Rule(parent, anchor1, relative, anchor2, width, height, color)
-    local texture = parent:CreateTexture(nil, "ARTWORK")
-    texture:SetColorTexture(unpack(color or Style.color.goldDim))
-    RegisterTexture(texture, color or Style.color.goldDim)
-    texture:SetPoint(anchor1, relative, anchor2)
-    texture:SetSize(width, height)
-    return texture
+    local region = parent:CreateTexture(nil, "ARTWORK")
+    local c = color or C.goldDim
+    region:SetColorTexture(unpack(c))
+    RegisterTexture(region, c)
+    region:SetPoint(anchor1, relative, anchor2)
+    region:SetSize(width, height)
+    return region
 end
 
 function Style.Border(parent, color, thickness)
-    local c = color or Style.color.goldDim
-    local physical = thickness or 1
+    local c, physical = color or C.border, thickness or 1
     local w = Style.Pixel(parent, physical)
-    local top = parent:CreateTexture(nil, "BORDER")
-    top:SetColorTexture(unpack(c))
-    RegisterTexture(top, c)
-    top:SetPoint("TOPLEFT", parent, "TOPLEFT", 0, 0)
-    top:SetPoint("TOPRIGHT", parent, "TOPRIGHT", 0, 0)
-    top:SetHeight(w)
-    local bottom = parent:CreateTexture(nil, "BORDER")
-    bottom:SetColorTexture(unpack(c))
-    RegisterTexture(bottom, c)
-    bottom:SetPoint("BOTTOMLEFT", parent, "BOTTOMLEFT", 0, 0)
-    bottom:SetPoint("BOTTOMRIGHT", parent, "BOTTOMRIGHT", 0, 0)
-    bottom:SetHeight(w)
-    local left = parent:CreateTexture(nil, "BORDER")
-    left:SetColorTexture(unpack(c))
-    RegisterTexture(left, c)
-    left:SetPoint("TOPLEFT", parent, "TOPLEFT", 0, 0)
-    left:SetPoint("BOTTOMLEFT", parent, "BOTTOMLEFT", 0, 0)
-    left:SetWidth(w)
-    local right = parent:CreateTexture(nil, "BORDER")
-    right:SetColorTexture(unpack(c))
-    RegisterTexture(right, c)
-    right:SetPoint("TOPRIGHT", parent, "TOPRIGHT", 0, 0)
-    right:SetPoint("BOTTOMRIGHT", parent, "BOTTOMRIGHT", 0, 0)
-    right:SetWidth(w)
-    pixelEdges[#pixelEdges + 1] = {
-        parent = parent, pixels = physical,
-        horizontal = { top, bottom }, vertical = { left, right },
+    local edges = {}
+    for _, spec in ipairs({
+        { "TOPLEFT", "TOPRIGHT", true },
+        { "BOTTOMLEFT", "BOTTOMRIGHT", true },
+        { "TOPLEFT", "BOTTOMLEFT", false },
+        { "TOPRIGHT", "BOTTOMRIGHT", false },
+    }) do
+        local edge = parent:CreateTexture(nil, "BORDER")
+        edge:SetColorTexture(unpack(c))
+        RegisterTexture(edge, c)
+        edge:SetPoint(spec[1], parent, spec[1])
+        edge:SetPoint(spec[2], parent, spec[2])
+        if spec[3] then edge:SetHeight(w) else edge:SetWidth(w) end
+        edges[#edges+1] = edge
+    end
+    pixelEdges[#pixelEdges+1] = {
+        parent=parent, pixels=physical,
+        horizontal={edges[1], edges[2]}, vertical={edges[3], edges[4]},
     }
 end
 
--- EditBoxes and other font-bearing controls use the same centralized
--- font repaint logic as FontStrings (including optional EllesmereUI fonts).
 function Style.BindFont(region, size, outline)
-    RegisterFont(region, size or 13, nil, outline)
+    -- EditBoxes are font-bearing controls too. Repaint their text contrast
+    -- when a saved skin or external EllesmereUI panel switches dark/light.
+    RegisterFont(region, size or 13, C.text, outline)
 end
 
 function Style.Text(parent, value, size, color, outline)
     local label = parent:CreateFontString(nil, "OVERLAY")
-    label:SetFont(STANDARD_TEXT_FONT or "Fonts\\FRIZQT__.TTF", size or 14, outline and "OUTLINE" or "")
-    local c = color or Style.color.text
+    label:SetFont(STANDARD_TEXT_FONT or "Fonts\\FRIZQT__.TTF",
+        size or 14, outline and "OUTLINE" or "")
+    local c = color or C.text
     label:SetTextColor(unpack(c))
     label:SetJustifyH("LEFT")
     label:SetJustifyV("MIDDLE")
     label:SetText(value or "")
-    RegisterFont(label, size or 14, color or Style.color.text, outline)
+    RegisterFont(label, size or 14, c, outline)
     return label
 end
 
+-- All real buttons use drawn fills + borders, never a baked button bitmap.
 function Style.Action(parent, caption, variant)
     local footer = variant == "footer"
     local community = variant == "community"
     local button = CreateFrame("Button", nil, parent)
     button:SetSize(footer and 112 or 204, footer and 32 or 36)
-
-    -- Only the two wide Community actions use properly proportioned end
-    -- caps. Keep all other button variants and their art unchanged.
-    local hover
-    if community then
-        ns.Chrome.SlicedButton(button)
-        hover = Style.Fill(button, Style.color.goldDim, "ARTWORK")
-        hover:ClearAllPoints()
-        hover:SetPoint("TOPLEFT", button, "TOPLEFT", 18, -8)
-        hover:SetPoint("BOTTOMRIGHT", button, "BOTTOMRIGHT", -18, 8)
-        hover:SetAlpha(0)
-    else
-        Style.Fill(button, footer and Style.color.footer or Style.color.button)
-
-        -- Render the approved button frame above its solid-color fallback.
-        ns.Chrome.Texture(button, footer and "ButtonFooter" or "Button",
-            1, "ARTWORK")
-        hover = ns.Chrome.Texture(button, "Selection", 0, "ARTWORK")
-    end
-    local label = Style.Text(button, caption, 15, Style.color.pale)
+    button:RegisterForClicks("LeftButtonUp")
+    Style.Fill(button, C.button)
+    Style.Border(button, C.gold, 1)
+    local glint = button:CreateTexture(nil, "ARTWORK")
+    glint:SetPoint("TOPLEFT", button, "TOPLEFT", 2, -2)
+    glint:SetPoint("TOPRIGHT", button, "TOPRIGHT", -2, -2)
+    glint:SetHeight(1)
+    glint:SetColorTexture(unpack(C.goldDim))
+    RegisterTexture(glint, C.goldDim)
+    glint:SetAlpha(0.52)
+    local hover = Style.Fill(button, C.gold, "ARTWORK")
+    hover:SetAlpha(0)
+    local label = Style.Text(button, caption, 15, C.buttonText)
     label:SetPoint("CENTER")
     button:SetScript("OnEnter", function()
-        ns.Motion.Fade(hover, footer and 0.14 or 0.21, 0.17)
+        ns.Motion.Fade(hover, 0.20, 0.16)
     end)
     button:SetScript("OnLeave", function()
-        ns.Motion.Fade(hover, 0, 0.21)
+        ns.Motion.Fade(hover, 0, 0.18)
     end)
     button:SetScript("OnMouseDown", function()
         label:ClearAllPoints()
@@ -173,7 +198,6 @@ function Style.Action(parent, caption, variant)
     if ns.Widgets and ns.Widgets.PressFeedback then
         ns.Widgets.PressFeedback(button, hover)
     end
-    -- Generic shared actions inherit hover help; callers may override details.
     if ns.Tooltips then
         ns.Tooltips.Bind(button, { title = caption,
             detail = "Click to activate this action." })
@@ -181,47 +205,80 @@ function Style.Action(parent, caption, variant)
     return button
 end
 
-
--- A single appearance owner repaints all shared UI primitives when themes change.
-local defaultColors = {}
-for name, value in pairs(Style.color) do defaultColors[name] = { unpack(value) } end
-
 local function SetColor(name, r, g, b, a)
-    local target = Style.color[name]
+    local target = C[name]
+    if not target then return end
     target[1], target[2], target[3], target[4] = r, g, b, a or 1
 end
+local function Mix(a, b, amount)
+    return {
+        a[1] * (1-amount) + b[1] * amount,
+        a[2] * (1-amount) + b[2] * amount,
+        a[3] * (1-amount) + b[3] * amount,
+    }
+end
+local function Luma(c)
+    return 0.2126*c[1] + 0.7152*c[2] + 0.0722*c[3]
+end
+local function Put(name, v)
+    SetColor(name, v[1], v[2], v[3], v[4])
+end
+local WHITE, BLACK = {1,1,1}, {0,0,0}
+local function FromTheme()
+    local selected = ns.Settings and ns.Settings.Get("uiTheme") or "ivory"
+    for name, hex in pairs(schemes[selected] or schemes.ivory) do
+        Put(name, Hex(hex))
+    end
+end
 
+-- A theme changes backgrounds, text, borders, tabs, controls and buttons.
+-- EllesmereUI's OPTIONAL public colors override those same roles rather
+-- than repainting only one or two lines. Contrast follows dark/light panels.
 function Style.ApplyTheme(accent, panel, fontPath)
-    for name, default in pairs(defaultColors) do SetColor(name, unpack(default)) end
-
-    if accent then
-        local r, g, b = unpack(accent)
-        SetColor("gold", r, g, b)
-        SetColor("goldDim", r * 0.5, g * 0.5, b * 0.5)
-    end
+    FromTheme()
     if panel then
-        local r, g, b = unpack(panel)
-        local luma = 0.2126 * r + 0.7152 * g + 0.0722 * b
-        local factor = luma > 0.16 and 0.16 / luma or 1
-        r, g, b = r * factor, g * factor, b * factor
-        SetColor("window", r * 0.80, g * 0.80, b * 0.80, 0.98)
-        SetColor("rail", r * 0.93, g * 0.93, b * 0.93)
-        SetColor("nav", r, g, b)
-        SetColor("body", r * 0.82, g * 0.82, b * 0.82)
-        SetColor("header", r * 1.04, g * 1.04, b * 1.04)
-        SetColor("footer", r * 1.04, g * 1.04, b * 1.04)
+        local light = Luma(panel) >= 0.48
+        local ink = light and {0.18,0.18,0.20} or {0.92,0.92,0.94}
+        local muted = light and {0.36,0.36,0.40} or {0.71,0.73,0.77}
+        local ground = Mix(panel, light and WHITE or BLACK, light and 0.045 or 0.06)
+        local alt = Mix(panel, light and BLACK or WHITE, light and 0.06 or 0.09)
+        for _, key in ipairs({ "window","header","footer","rail" }) do Put(key, ground) end
+        for _, key in ipairs({ "nav","body" }) do Put(key, alt) end
+        Put("text", ink)
+        Put("pale", ink)
+        Put("muted", muted)
+        Put("headerText", ink)
+        Put("footerText", ink)
+        Put("tabText", ink)
+        Put("tabMuted", muted)
+        Put("headerMuted", muted)
+        Put("footerMuted", muted)
+        Put("border", Mix(panel, ink, 0.22))
+        Put("goldDim", Mix(panel, ink, 0.27))
+        Put("selected", Mix(alt, ink, 0.11))
+        Put("hover", Mix(alt, ink, 0.075))
+        Put("track", Mix(panel, ink, 0.32))
     end
-
-    for _, item in ipairs(colorTextures) do
-        item.region:SetColorTexture(unpack(Style.color[item.token]))
+    if accent then
+        local a = Mix(accent, (Luma(accent) < 0.32 and WHITE or BLACK),
+            Luma(accent) < 0.32 and 0.14 or 0.06)
+        for _, key in ipairs({ "gold","red","button","tabActive" }) do Put(key, a) end
+        Put("shellEdge", Mix(a, C.header, 0.28))
+        -- Selected rows retain a readable surface, not full-strength accent.
+        Put("selected", Mix(C.body, a, 0.20))
+        Put("hover", Mix(C.body, a, 0.11))
+        Put("buttonText", Luma(a) >= 0.53 and BLACK or WHITE)
+    end
+    for _, entry in ipairs(colorTextures) do
+        entry.region:SetColorTexture(unpack(C[entry.token]))
     end
     local scale = ns.Settings and ns.Settings.Get("fontScale") or 1
     local mode = ns.Settings and ns.Settings.Get("fontOutline") or "default"
-    for _, item in ipairs(fontStrings) do
-        local fs = item.label
+    for _, entry in ipairs(fontStrings) do
+        local fs = entry.label
         local path = fontPath or STANDARD_TEXT_FONT or "Fonts\\FRIZQT__.TTF"
-        local size = item.size * scale
-        local outline = item.outline and "OUTLINE" or ""
+        local size = entry.size * scale
+        local outline = entry.outline and "OUTLINE" or ""
         if mode == "none" then outline = ""
         elseif mode == "outline" then outline = "OUTLINE"
         elseif mode == "thick" then outline = "THICKOUTLINE" end
@@ -229,6 +286,6 @@ function Style.ApplyTheme(accent, panel, fontPath)
         if not ok then
             fs:SetFont(STANDARD_TEXT_FONT or "Fonts\\FRIZQT__.TTF", size, outline)
         end
-        if item.token then fs:SetTextColor(unpack(Style.color[item.token])) end
+        if entry.token then fs:SetTextColor(unpack(C[entry.token])) end
     end
 end

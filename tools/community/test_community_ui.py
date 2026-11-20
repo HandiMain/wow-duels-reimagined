@@ -163,16 +163,16 @@ class CommunityUITests(unittest.TestCase):
         community = content("UI/Community.lua")
         self.assertIn("CommunityAllianceLion.png", community)
 
-    def test_community_buttons_are_proportional_and_have_one_click_target(self):
+    def test_community_buttons_are_coded_and_have_one_click_target(self):
         style = content("UI/Style.lua")
         chrome = content("UI/Chrome.lua")
         community = content("UI/Community.lua")
         self.assertIn('local community = variant == "community"', style)
-        self.assertIn('ns.Chrome.SlicedButton(button)', style)
+        self.assertIn('Style.Fill(button, C.button)', style)
+        self.assertIn('Style.Border(button, C.gold, 1)', style)
+        self.assertNotIn('ns.Chrome.SlicedButton(button)', style)
         self.assertIn('function Chrome.SlicedButton(parent)', chrome)
-        self.assertIn('local capU = 32 / 256', chrome)
-        self.assertIn('middle:SetTexCoord(capU, 1 - capU, 0, 1)', chrome)
-        self.assertIn('parent:HookScript("OnSizeChanged", FitCaps)', chrome)
+        self.assertNotIn('middle:SetTexCoord', chrome)
         self.assertIn('local btn = Style.Action(canvas, heading, "community")', community)
         self.assertEqual(community.count('btn:SetScript("OnClick"'), 1)
         self.assertNotIn('local copy = CreateFrame("Button"', community)
@@ -182,15 +182,15 @@ class CommunityUITests(unittest.TestCase):
         self.assertIn('local note = Style.Text(canvas, description, 12, C.muted)', community)
         self.assertIn('ns.Tooltips.Bind(btn, {', community)
 
-    def test_original_hall_navigation_restored(self):
+    def test_hall_horizontal_navigation_and_search_preserved(self):
         navigation = content("UI/Navigation.lua")
         chrome = content("UI/Chrome.lua")
         self.assertIn('key = "hall", label = "Hall", icon = "Hall", pages = {', navigation)
         self.assertNotIn('primary = true', navigation)
         self.assertNotIn('Chrome.PrimaryRail', navigation)
         self.assertNotIn('function Chrome.PrimaryRail', chrome)
-        self.assertIn('button:SetSize(86, 68)', navigation)
-        self.assertIn('button:SetPoint("TOP", Window.rail, "TOP", 0, -12)', navigation)
+        self.assertIn('button:SetSize(165, 44)', navigation)
+        self.assertIn('button:SetPoint("LEFT", Window.rail, "LEFT",', navigation)
         self.assertIn('selected, hover = AddOverlay(button, true)', navigation)
         self.assertIn('ns.Widgets.PressFeedback(button, hover)', navigation)
 

@@ -65,10 +65,10 @@ local function Card(page, y, height)
     return card
 end
 
-local appearance = Page(255)
+local appearance = Page(405)
 local interface = Page(1365)
 
-local appearanceCard = Card(appearance, 0, 245)
+local appearanceCard = Card(appearance, 0, 395)
 local behaviorCard = Card(interface, 0, 395)
 local typographyCard = Card(interface, 413, 397)
 local accessCard = Card(interface, 828, 495)
@@ -82,9 +82,9 @@ local function Section(card, title, subtitle, top)
 end
 
 local appearanceDescription = Section(appearanceCard, "Appearance",
-    "Choose how Duels Reimagined matches your interface.", -16)
+    "Choose a complete look, with optional EllesmereUI matching.", -16)
 local availability = Style.Text(appearanceCard, "", 12, C.muted)
-availability:SetPoint("TOPLEFT", appearanceDescription, "BOTTOMLEFT", 0, -17)
+availability:SetPoint("TOPLEFT", appearanceCard, "TOPLEFT", 20, -355)
 Section(behaviorCard, "Window behavior",
     "Keep the world visible while the dueling hall is open.", -16)
 Section(typographyCard, "Typography",
@@ -138,11 +138,21 @@ local function AddToggle(card, pageKey, key, name, detail, top, requiresEllesmer
     return row
 end
 
+local themeChoice = Widgets.ChoiceRow(appearanceCard, "Color theme",
+    "Recolor the whole addon, including panels, tabs, text and buttons.",
+    function(key) Settings.Set("uiTheme", key) end,
+    function() Settings.Reset("uiTheme") end, false)
+themeChoice:SetPoint("TOPLEFT", appearanceCard, "TOPLEFT", 20, -90)
+themeChoice:SetPoint("TOPRIGHT", appearanceCard, "TOPRIGHT", -20, -90)
+MarkPosition(themeChoice, appearanceCard, -90)
+RegisterOption("uiTheme", "Color theme",
+    "Choose Ivory & Plum, Midnight Slate, or Forest & Ivory", "options", themeChoice)
+
 AddToggle(appearanceCard, "options", "matchColors", "Match EllesmereUI colors",
-    "Use EllesmereUI's accent and panel colors, keeping our dueling identity.",
-    -93, true)
+    "Override all color roles with EllesmereUI's accent and panel palette.",
+    -184, true)
 AddToggle(appearanceCard, "options", "matchFont", "Match EllesmereUI font",
-    "Use your selected EllesmereUI interface font.", -153, true)
+    "Use your selected EllesmereUI interface font.", -255, true)
 AddToggle(behaviorCard, "interface", "autoPeekMoving", "Automatic Peek while moving",
     "Fade the window during movement; restore it when you stop.", -82, false)
 AddToggle(behaviorCard, "interface", "reduceMotion", "Reduce motion",
@@ -290,6 +300,10 @@ end
 
 function Options.Refresh()
     local ready = Theme.IsAvailable()
+    themeChoice:SetChoices(Style.ThemeChoices(), Settings.Get("uiTheme"))
+    themeChoice:SetAvailable(true)
+    themeChoice:SetModified(Settings.IsModified("uiTheme"))
+    themeChoice.resetIcon:SetVertexColor(unpack(C.gold))
     local compartmentAvailable = AddonCompartmentFrame and
         type(AddonCompartmentFrame.RegisterAddon) == "function"
     availability:SetText(ready and "EllesmereUI matching is available." or

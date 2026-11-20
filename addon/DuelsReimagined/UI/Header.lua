@@ -16,9 +16,7 @@ local function HeaderButton(name, title, detail)
     local b = CreateFrame("Button", nil, header)
     b:SetSize(24, 24)
     b:RegisterForClicks("LeftButtonUp")
-    local hover = b:CreateTexture(nil, "BACKGROUND")
-    hover:SetAllPoints(b)
-    hover:SetColorTexture(unpack(C.goldDim))
+    local hover = Style.Fill(b, C.goldDim, "BACKGROUND")
     hover:SetAlpha(0)
     local art = b:CreateTexture(nil, "ARTWORK")
     art:SetTexture(iconBase .. name .. ".png")
@@ -128,6 +126,7 @@ function Header.Fold(value)
         if Window.SetSizingEnabled then Window.SetSizingEnabled(false) end
         Header.CloseSearch(true)
         Window.body:Hide()
+        Window.rail:Hide()
         Window.footer:Hide()
         if Window.chromeSeams then Window.chromeSeams:Hide() end
         frame:SetHeight(header:GetHeight() + 20)
@@ -136,6 +135,7 @@ function Header.Fold(value)
         frame:SetHeight(expandedHeight)
         if Window.SetSizingEnabled then Window.SetSizingEnabled(true) end
         Window.body:Show()
+        Window.rail:Show()
         Window.footer:Show()
         if Window.chromeSeams then Window.chromeSeams:Show() end
     end
@@ -165,7 +165,7 @@ Window.scaleCaption:SetPoint("RIGHT", Window.scaleSlider, "LEFT", -9, 0)
 foldButton:SetPoint("RIGHT", Window.scaleReset, "LEFT", -10, 0)
 
 local searchBox = CreateFrame("Frame", nil, header)
-searchBox:SetSize(264, 29)
+searchBox:SetSize(254, 29)
 searchBox:SetPoint("RIGHT", peekButton, "LEFT", -15, 0)
 -- Center the approved brand in the real free space, not against the shell edge.
 -- This stays responsive to window resizing and preserves the search hit area.
@@ -209,9 +209,7 @@ for i = 1, PAGE_SIZE do
     local b = CreateFrame("Button", nil, dropdown)
     b:SetSize(278, 43)
     b:SetPoint("TOPLEFT", dropdown, "TOPLEFT", 8, -8 - (i - 1) * 43)
-    local hover = b:CreateTexture(nil, "BACKGROUND")
-    hover:SetAllPoints(b)
-    hover:SetColorTexture(unpack(C.goldDim))
+    local hover = Style.Fill(b, C.goldDim, "BACKGROUND")
     hover:SetAlpha(0)
     local title = Style.Text(b, "", 13, C.text)
     title:SetPoint("TOPLEFT", b, "TOPLEFT", 8, -5)

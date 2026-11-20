@@ -5,12 +5,12 @@ local Footer = {}
 ns.Footer = Footer
 local iconBase = "Interface\\AddOns\\DuelsReimagined\\Media\\Polestar\\"
 
-local version = Style.Text(footer, "Version Test Build", 11, C.muted)
+local version = Style.Text(footer, "Version Test Build", 11, C.footerMuted)
 version:SetPoint("LEFT", footer, "LEFT", 22, 0)
 local beta = CreateFrame("Frame", nil, footer)
 beta:SetSize(48, 22)
 beta:SetPoint("LEFT", version, "RIGHT", 9, 0)
-Style.Fill(beta, C.nav)
+Style.Fill(beta, C.header)
 Style.Border(beta, C.goldDim)
 local betaLabel = Style.Text(beta, "BETA", 11, C.gold)
 betaLabel:SetPoint("CENTER", beta, "CENTER")
@@ -50,7 +50,7 @@ local function FooterButton(label, width, detail)
     icon:SetTexture(iconBase .. "reset.tga")
     icon:SetPoint("LEFT", button, "LEFT", 4, 0)
     ns.Chrome.Sharp(icon)
-    local title = Style.Text(button, label, 12, C.text)
+    local title = Style.Text(button, label, 12, C.footerText)
     title:SetPoint("LEFT", icon, "RIGHT", 6, 0)
     button.icon, button.hover = icon, hover
     button:SetScript("OnEnter", function(self)

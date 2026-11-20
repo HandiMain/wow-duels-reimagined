@@ -87,27 +87,20 @@ banner:SetPoint("TOPLEFT", canvas, "TOPLEFT", 0, -3)
 banner:SetPoint("TOPRIGHT", canvas, "TOPRIGHT", -18, -3)
 banner:SetHeight(155)
 Style.Fill(banner, C.nav)
-local heroArt = banner:CreateTexture(nil, "BACKGROUND", nil, 1)
-heroArt:SetTexture(art .. "PatchNotesHero.tga")
-heroArt:SetAllPoints(banner)
-local heroDim = Style.Fill(banner, C.window, "ARTWORK")
-heroDim:SetPoint("TOPLEFT", banner, "TOPLEFT", 120, -35)
-heroDim:SetPoint("BOTTOMRIGHT", banner, "BOTTOMRIGHT", -120, 24)
-heroDim:SetAlpha(0.22)
+-- Code-painted banner; it belongs to the same theme palette as the
+-- rest of the UI. The small note symbols remain deliberately authored art.
 Style.Border(banner, C.goldDim, 1)
-local cornerPath = art .. "Frame\\"
-for _, item in ipairs({
-    { "TOPLEFT", "CornerTL.png", 0, 0 },
-    { "TOPRIGHT", "CornerTR.png", 0, 0 },
-    { "BOTTOMLEFT", "CornerBL.png", 0, 0 },
-    { "BOTTOMRIGHT", "CornerBR.png", 0, 0 },
-}) do
-    local ornament = banner:CreateTexture(nil, "ARTWORK")
-    ornament:SetTexture(cornerPath .. item[2])
-    ornament:SetSize(39, 39)
-    ornament:SetPoint(item[1], banner, item[1], item[3], item[4])
-    ornament:SetAlpha(0.82)
-end
+local bannerAccent = Style.Fill(banner, C.red, "ARTWORK")
+bannerAccent:ClearAllPoints()
+bannerAccent:SetPoint("TOPLEFT", banner, "TOPLEFT", 4, -4)
+bannerAccent:SetPoint("BOTTOMLEFT", banner, "BOTTOMLEFT", 4, 4)
+bannerAccent:SetWidth(4)
+local bannerLine = Style.Fill(banner, C.gold, "ARTWORK")
+bannerLine:ClearAllPoints()
+bannerLine:SetPoint("TOPLEFT", banner, "TOPLEFT", 13, -7)
+bannerLine:SetPoint("TOPRIGHT", banner, "TOPRIGHT", -13, -7)
+bannerLine:SetHeight(1)
+bannerLine:SetAlpha(0.56)
 
 local bannerTitle = Style.Text(banner, "", 25, C.pale, true)
 bannerTitle:SetPoint("TOPLEFT", banner, "TOPLEFT", 113, -48)
