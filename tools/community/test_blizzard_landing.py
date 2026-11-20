@@ -32,7 +32,7 @@ class BlizzardLandingTests(unittest.TestCase):
     def test_ellesmere_integration_and_duels_identity(self):
         s = read("UI/BlizzardSettings.lua")
         theme = read("UI/Theme.lua")
-        for token in ["Style.Fill(surface, C.body)", "Style.Border(surface, C.goldDim",
+        for token in ["Style.Skin(surface, C.body",
                       "Style.Text(layout,", "Style.Action(layout,", "ns.Theme.Refresh()",
                       "DuelsReimagined-HeaderLogoFlat.png", "ns.Tooltips.Bind(open",
                       "ns.Tooltips.Bind(community"]:

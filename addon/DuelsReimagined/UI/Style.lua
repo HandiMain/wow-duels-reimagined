@@ -83,10 +83,10 @@ function Style.RefreshPixelEdges()
     end
 end
 
-local function RegisterTexture(region, color)
+local function RegisterTexture(region, color, mode)
     for token, value in pairs(C) do
         if value == color then
-            colorTextures[#colorTextures+1] = { region=region, token=token }
+            colorTextures[#colorTextures+1] = { region=region, token=token, mode=mode }
             return
         end
     end
@@ -142,10 +142,136 @@ function Style.Border(parent, color, thickness)
     }
 end
 
-function Style.BindFont(region, size, outline)
-    -- EditBoxes are font-bearing controls too. Repaint their text contrast
-    -- when a saved skin or external EllesmereUI panel switches dark/light.
-    RegisterFont(region, size or 13, C.text, outline)
+
+-- Neutral 128x128 TGA atlas: four 64x64 alpha masks (solid, sheen,
+-- lower shade and beveled rim). All RGB is WHITE. These are geometry only:
+-- the theme owner supplies every color through vertex tint on each repaint.
+local SKIN_ATLAS = "Interface\\AddOns\\DuelsReimagined\\Media\\Skin\\NeutralMasks.tga"
+local masks = {
+    face = { 0, 0 }, shine = { 64, 0 },
+    shade = { 0, 64 }, rim = { 64, 64 },
+}
+local cuts = { 0, 16, 48, 64 }
+
+-- Nine-slice geometry keeps soft corners a constant physical UI size when
+-- a panel or tab grows. Every piece is a normal non-interactive texture on
+-- its existing owner, so no child frame can cover icons or mouse targets.
+function Style.SkinMask(parent, color, mask, layer, sublevel, corner, inset)
+    local origin = masks[mask]
+    assert(origin, "Unknown Duels skin mask: " .. tostring(mask))
+    corner = corner or 11
+    inset = inset or 0
+    local tiles = {}
+    for y = 1, 3 do
+        for x = 1, 3 do
+            local tex = parent:CreateTexture(nil, layer or "BACKGROUND", nil, sublevel or 1)
+            tex:SetTexture(SKIN_ATLAS)
+            tex:SetTexCoord(
+                (origin[1] + cuts[x]) / 128, (origin[1] + cuts[x + 1]) / 128,
+                (origin[2] + cuts[y]) / 128, (origin[2] + cuts[y + 1]) / 128)
+            tex:SetVertexColor(unpack(color))
+            RegisterTexture(tex, color, "vertex")
+            tiles[#tiles + 1] = tex
+        end
+    end
+    local tl, t, tr, l, m, r, bl, b, br = unpack(tiles)
+    tl:SetPoint("TOPLEFT", parent, "TOPLEFT", inset, -inset)
+    tl:SetSize(corner, corner)
+    tr:SetPoint("TOPRIGHT", parent, "TOPRIGHT", -inset, -inset)
+    tr:SetSize(corner, corner)
+    bl:SetPoint("BOTTOMLEFT", parent, "BOTTOMLEFT", inset, inset)
+    bl:SetSize(corner, corner)
+    br:SetPoint("BOTTOMRIGHT", parent, "BOTTOMRIGHT", -inset, inset)
+    br:SetSize(corner, corner)
+
+    t:SetPoint("TOPLEFT", tl, "TOPRIGHT")
+    t:SetPoint("TOPRIGHT", tr, "TOPLEFT")
+    t:SetHeight(corner)
+    b:SetPoint("BOTTOMLEFT", bl, "BOTTOMRIGHT")
+    b:SetPoint("BOTTOMRIGHT", br, "BOTTOMLEFT")
+    b:SetHeight(corner)
+    l:SetPoint("TOPLEFT", tl, "BOTTOMLEFT")
+    l:SetPoint("BOTTOMLEFT", bl, "TOPLEFT")
+    l:SetWidth(corner)
+    r:SetPoint("TOPRIGHT", tr, "BOTTOMRIGHT")
+    r:SetPoint("BOTTOMRIGHT", br, "TOPRIGHT")
+    r:SetWidth(corner)
+    m:SetPoint("TOPLEFT", tl, "BOTTOMRIGHT")
+    m:SetPoint("BOTTOMRIGHT", br, "TOPLEFT")
+
+    local group = { regions=tiles, alpha=1 }
+    function group:SetAlpha(alpha)
+        self.alpha = math.max(0, math.min(1, alpha or 0))
+        for _, tex in ipairs(self.regions) do tex:SetAlpha(self.alpha) end
+    end
+    function group:GetAlpha() return self.alpha end
+    return group
+end
+
+-- A single skin primitive for tab selections, action buttons, content
+-- surfaces, Options cards, Community cards and Patch Notes panels.
+-- It also exposes the standard GetAlpha/SetAlpha contract used by Motion,
+-- preserving existing hover, pressed and selected-state animations.
+function Style.Skin(parent, fill, opts)
+    opts = opts or {}
+    local corner, inset = opts.corner or 11, opts.inset or 0
+    local face = Style.SkinMask(parent, fill, "face", "BACKGROUND", 1, corner, inset)
+    local shine = Style.SkinMask(parent, opts.light or C.headerText,
+        "shine", "BACKGROUND", 2, corner, inset)
+    local shade = Style.SkinMask(parent, opts.dark or C.window,
+        "shade", "BACKGROUND", 3, corner, inset)
+    local rim = Style.SkinMask(parent, opts.edge or C.goldDim,
+        "rim", "BORDER", 0, corner, inset)
+    local strengths = {
+        1, opts.shine == nil and 0.40 or opts.shine,
+        opts.shade == nil and 0.28 or opts.shade,
+        opts.rim == nil and 0.8 or opts.rim,
+    }
+    local groups = { face, shine, shade, rim }
+    local skin = { alpha=1, groups=groups }
+    function skin:SetAlpha(a)
+        self.alpha = math.max(0, math.min(1, a or 0))
+        for i, part in ipairs(self.groups) do
+            part:SetAlpha(self.alpha * strengths[i])
+        end
+    end
+    function skin:GetAlpha() return self.alpha end
+    skin:SetAlpha(opts.alpha == nil and 1 or opts.alpha)
+    return skin
+end
+
+function Style.LitBand(parent, base, opts)
+    opts = opts or {}
+    Style.Fill(parent, base)
+    -- Short low-alpha strips are supported by both target clients and
+    -- repaint live. No permanent OnUpdate or client-specific gradient API.
+    local top = opts.light or C.headerText
+    for i = 1, 7 do
+        local strip = Style.Fill(parent, top)
+        strip:ClearAllPoints()
+        strip:SetPoint("TOPLEFT", parent, "TOPLEFT", 0, -((i - 1) * 5))
+        strip:SetPoint("TOPRIGHT", parent, "TOPRIGHT", 0, -((i - 1) * 5))
+        strip:SetHeight(5)
+        strip:SetAlpha((opts.brightness or 0.08) * (8 - i) / 7)
+    end
+    local bottom = Style.Fill(parent, opts.dark or C.window)
+    bottom:ClearAllPoints()
+    bottom:SetPoint("BOTTOMLEFT", parent, "BOTTOMLEFT")
+    bottom:SetPoint("BOTTOMRIGHT", parent, "BOTTOMRIGHT")
+    bottom:SetHeight(6)
+    bottom:SetAlpha(0.28)
+    local line = Style.Fill(parent, opts.edge or C.goldDim, "BORDER")
+    line:ClearAllPoints()
+    line:SetPoint("TOPLEFT", parent, "TOPLEFT", 0, 0)
+    line:SetPoint("TOPRIGHT", parent, "TOPRIGHT", 0, 0)
+    line:SetHeight(1)
+    line:SetAlpha(0.47)
+end
+
+function Style.BindFont(region, size, outline, color)
+    -- Explicit text role allows the dark header's search box to stay legible
+    -- even when EllesmereUI applies a light content-panel palette.
+    RegisterFont(region, size or 13, color or C.text, outline)
 end
 
 function Style.Text(parent, value, size, color, outline)
@@ -168,17 +294,14 @@ function Style.Action(parent, caption, variant)
     local button = CreateFrame("Button", nil, parent)
     button:SetSize(footer and 112 or 204, footer and 32 or 36)
     button:RegisterForClicks("LeftButtonUp")
-    Style.Fill(button, C.button)
-    Style.Border(button, C.gold, 1)
-    local glint = button:CreateTexture(nil, "ARTWORK")
-    glint:SetPoint("TOPLEFT", button, "TOPLEFT", 2, -2)
-    glint:SetPoint("TOPRIGHT", button, "TOPRIGHT", -2, -2)
-    glint:SetHeight(1)
-    glint:SetColorTexture(unpack(C.goldDim))
-    RegisterTexture(glint, C.goldDim)
-    glint:SetAlpha(0.52)
-    local hover = Style.Fill(button, C.gold, "ARTWORK")
-    hover:SetAlpha(0)
+    -- Raised, theme-tintable capsule. No pre-colored button artwork.
+    Style.Skin(button, C.button, {
+        corner=11, edge=C.gold, shine=0.60, shade=0.41, rim=0.92,
+    })
+    local hover = Style.Skin(button, C.gold, {
+        corner=11, edge=C.headerText, shine=0.36, shade=0.17, rim=0.74,
+        alpha=0,
+    })
     local label = Style.Text(button, caption, 15, C.buttonText)
     label:SetPoint("CENTER")
     button:SetScript("OnEnter", function()
@@ -270,7 +393,17 @@ function Style.ApplyTheme(accent, panel, fontPath)
         Put("buttonText", Luma(a) >= 0.53 and BLACK or WHITE)
     end
     for _, entry in ipairs(colorTextures) do
-        entry.region:SetColorTexture(unpack(C[entry.token]))
+        local value = C[entry.token]
+        -- WoW may overwrite a texture's alpha while changing its color.
+        -- Preserve transient hover/selected/gloss opacity across theme
+        -- changes, including palettes received from EllesmereUI.
+        local opacity = entry.region:GetAlpha()
+        if entry.mode == "vertex" then
+            entry.region:SetVertexColor(unpack(value))
+        else
+            entry.region:SetColorTexture(unpack(value))
+        end
+        entry.region:SetAlpha(opacity)
     end
     local scale = ns.Settings and ns.Settings.Get("fontScale") or 1
     local mode = ns.Settings and ns.Settings.Get("fontOutline") or "default"

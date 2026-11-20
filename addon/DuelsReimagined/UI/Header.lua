@@ -16,8 +16,9 @@ local function HeaderButton(name, title, detail)
     local b = CreateFrame("Button", nil, header)
     b:SetSize(24, 24)
     b:RegisterForClicks("LeftButtonUp")
-    local hover = Style.Fill(b, C.goldDim, "BACKGROUND")
-    hover:SetAlpha(0)
+    local hover = Style.Skin(b, C.goldDim, {
+        corner=9, edge=C.goldDim, shine=0.18, shade=0.25, alpha=0,
+    })
     local art = b:CreateTexture(nil, "ARTWORK")
     art:SetTexture(iconBase .. name .. ".png")
     art:SetSize(19, 19)
@@ -170,8 +171,9 @@ searchBox:SetPoint("RIGHT", peekButton, "LEFT", -15, 0)
 -- Center the approved brand in the real free space, not against the shell edge.
 -- This stays responsive to window resizing and preserves the search hit area.
 Window.PlaceBrandBefore(searchBox)
-Style.Fill(searchBox, C.nav)
-Style.Border(searchBox, C.goldDim, 1)
+Style.Skin(searchBox, C.window, {
+    corner=9, edge=C.goldDim, shine=0.28, shade=0.35, rim=0.8,
+})
 
 local glass = searchBox:CreateTexture(nil, "ARTWORK")
 glass:SetTexture(iconBase .. "Search.png")
@@ -182,14 +184,14 @@ ns.Chrome.Sharp(glass)
 local input = CreateFrame("EditBox", nil, searchBox)
 input:SetAutoFocus(false)
 input:SetFont(STANDARD_TEXT_FONT or "Fonts\\FRIZQT__.TTF", 13, "")
-Style.BindFont(input, 13)
-input:SetTextColor(unpack(C.text))
+Style.BindFont(input, 13, false, C.headerText)
+input:SetTextColor(unpack(C.headerText))
 input:SetHeight(25)
 input:SetPoint("LEFT", searchBox, "LEFT", 31, 0)
 input:SetPoint("RIGHT", searchBox, "RIGHT", -7, 0)
 input:SetMaxLetters(80)
 input:SetText("")
-local hint = Style.Text(searchBox, "Search pages and settings...", 12, C.muted)
+local hint = Style.Text(searchBox, "Search pages and settings...", 12, C.headerMuted)
 hint:SetPoint("LEFT", searchBox, "LEFT", 33, 0)
 hint:EnableMouse(false)
 
@@ -209,8 +211,9 @@ for i = 1, PAGE_SIZE do
     local b = CreateFrame("Button", nil, dropdown)
     b:SetSize(278, 43)
     b:SetPoint("TOPLEFT", dropdown, "TOPLEFT", 8, -8 - (i - 1) * 43)
-    local hover = Style.Fill(b, C.goldDim, "BACKGROUND")
-    hover:SetAlpha(0)
+    local hover = Style.Skin(b, C.goldDim, {
+        corner=9, edge=C.goldDim, shine=0.18, shade=0.25, alpha=0,
+    })
     local title = Style.Text(b, "", 13, C.text)
     title:SetPoint("TOPLEFT", b, "TOPLEFT", 8, -5)
     local where = Style.Text(b, "", 11, C.muted)

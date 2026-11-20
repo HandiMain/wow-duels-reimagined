@@ -13,8 +13,7 @@ Landing.panel = panel
 local surface = CreateFrame("Frame", nil, panel)
 surface:SetPoint("TOPLEFT", panel, "TOPLEFT", 12, -12)
 surface:SetPoint("BOTTOMRIGHT", panel, "BOTTOMRIGHT", -12, 12)
-Style.Fill(surface, C.body)
-Style.Border(surface, C.goldDim, 1)
+Style.Skin(surface, C.body, { corner=12, edge=C.border, shine=0.22, shade=0.20 })
 
 local art = "Interface\\AddOns\\DuelsReimagined\\Media\\Concept\\"
 -- The original faction logo remains. Decorative outer edges are now drawn

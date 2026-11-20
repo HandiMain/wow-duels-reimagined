@@ -46,10 +46,10 @@ class ThemeRedesignTests(unittest.TestCase):
     def test_major_chrome_is_drawn_in_code(self):
         chrome, style, patch = (src(p) for p in
             ("UI/Chrome.lua", "UI/Style.lua", "UI/PatchNotes.lua"))
-        self.assertIn('Style.Border(rim, C.shellEdge, 2)', chrome)
+        self.assertIn('Style.SkinMask(rim, C.shellEdge, "rim"', chrome)
         self.assertIn('function Chrome.Divider(', chrome)
         self.assertIn('Style.Fill(f, C.goldDim, "ARTWORK")', chrome)
-        self.assertIn('Style.Fill(button, C.button)', style)
+        self.assertIn('Style.Skin(button, C.button, {', style)
         self.assertNotIn('TrimTop', chrome)
         self.assertNotIn('PatchNotesHero.tga', patch)
         self.assertIn('Style.Fill(banner, C.red, "ARTWORK")', patch)

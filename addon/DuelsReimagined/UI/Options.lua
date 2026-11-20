@@ -59,8 +59,7 @@ local function Card(page, y, height)
     card:SetPoint("TOPLEFT", page, "TOPLEFT", 0, -y)
     card:SetPoint("TOPRIGHT", page, "TOPRIGHT", -18, -y)
     card:SetHeight(height)
-    Style.Fill(card, C.nav)
-    Style.Border(card, C.goldDim)
+    Style.Skin(card, C.nav, { corner=11, edge=C.border, shine=0.25, shade=0.25 })
     card.scrollOwner, card.scrollTop = page.scrollOwner, y
     return card
 end

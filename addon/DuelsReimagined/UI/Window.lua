@@ -43,14 +43,14 @@ local header = CreateFrame("Frame", nil, frame)
 header:SetHeight(82)
 header:SetPoint("TOPLEFT", interior, "TOPLEFT")
 header:SetPoint("TOPRIGHT", interior, "TOPRIGHT")
-Style.Fill(header, C.header)
+Style.LitBand(header, C.header, { brightness=0.12, edge=C.shellEdge })
 Drag(header)
 
 local footer = CreateFrame("Frame", nil, frame)
 footer:SetHeight(52)
 footer:SetPoint("BOTTOMLEFT", interior, "BOTTOMLEFT")
 footer:SetPoint("BOTTOMRIGHT", interior, "BOTTOMRIGHT")
-Style.Fill(footer, C.footer)
+Style.LitBand(footer, C.footer, { brightness=0.12, edge=C.goldDim })
 
 -- Approved horizontal concept: command bar, full-width section tabs,
 -- light page sidebar + content, and a separate footer.
@@ -58,29 +58,31 @@ local rail = CreateFrame("Frame", nil, frame)
 rail:SetHeight(57)
 rail:SetPoint("TOPLEFT", header, "BOTTOMLEFT", 0, 0)
 rail:SetPoint("TOPRIGHT", header, "BOTTOMRIGHT", 0, 0)
-Style.Fill(rail, C.rail)
+Style.LitBand(rail, C.rail, { brightness=0.09, edge=C.goldDim })
 Window.rail = rail
 
 local body = CreateFrame("Frame", nil, frame)
 body:SetPoint("TOPLEFT", rail, "BOTTOMLEFT", 0, 0)
 body:SetPoint("BOTTOMRIGHT", footer, "TOPRIGHT", 0, 0)
-Style.Fill(body, C.body)
+Style.Fill(body, C.window)
 
 local nav = CreateFrame("Frame", nil, body)
-nav:SetPoint("TOPLEFT", body, "TOPLEFT", 0, 0)
-nav:SetPoint("BOTTOMLEFT", body, "BOTTOMLEFT", 0, 0)
+nav:SetPoint("TOPLEFT", body, "TOPLEFT", 7, -7)
+nav:SetPoint("BOTTOMLEFT", body, "BOTTOMLEFT", 7, 7)
 nav:SetWidth(250)
-Style.Fill(nav, C.nav)
+Style.Skin(nav, C.nav, { corner=12, edge=C.border, shine=0.22, shade=0.28 })
 Window.nav = nav
 
 local main = CreateFrame("Frame", nil, body)
-main:SetPoint("TOPLEFT", nav, "TOPRIGHT", 0, 0)
-main:SetPoint("BOTTOMRIGHT", body, "BOTTOMRIGHT", 0, 0)
+main:SetPoint("TOPLEFT", nav, "TOPRIGHT", 9, 0)
+main:SetPoint("BOTTOMRIGHT", body, "BOTTOMRIGHT", -7, 7)
 Window.main = main
 
 local content = CreateFrame("Frame", nil, main)
 content:SetAllPoints(main)
-Style.Fill(content, C.body)
+Style.Skin(content, C.body, {
+    corner=12, edge=C.border, shine=0.20, shade=0.19, rim=0.74,
+})
 Window.content = content
 
 Window.chromeSeams = Chrome.Shell(frame, header, footer, rail, nav, content)
@@ -346,7 +348,15 @@ local gripIcon = grip:CreateTexture(nil, "ARTWORK")
 gripIcon:SetAllPoints(grip)
 -- The new corner supplies the always-visible grip artwork. This separate
 -- glow layer provides responsive feedback without a second overlapping icon.
-gripIcon:SetTexture("Interface\\AddOns\\DuelsReimagined\\Media\\Concept\\Frame\\ResizeGripHighlight.png")
+gripIcon:SetColorTexture(0, 0, 0, 0)
+-- The resize grip stays themeable, using drawn diagonal hairlines.
+for i = 1, 3 do
+    local stroke = Style.Fill(grip, C.shellEdge, "ARTWORK")
+    stroke:ClearAllPoints()
+    stroke:SetPoint("BOTTOMRIGHT", grip, "BOTTOMRIGHT", -3 - i * 5, 3 + i * 5)
+    stroke:SetSize(12 + i * 3, 1.5)
+    if stroke.SetRotation then stroke:SetRotation(math.pi / 4) end
+end
 gripIcon:SetVertexColor(1, 1, 1)
 gripIcon:SetAlpha(0)
 Chrome.Sharp(gripIcon)
@@ -407,7 +417,7 @@ close:SetScript("OnClick", function() frame:Hide() end)
 ns.Tooltips.Bind(close, { title = "Close Duels Reimagined",
     detail = "Hide this window without changing your settings." })
 
-local title = Style.Text(content, "Welcome to the Hall", 25, C.pale, true)
+local title = Style.Text(content, "Welcome to the Hall", 25, C.pale)
 title:SetPoint("TOP", content, "TOP", 0, -27)
 local titleRule = Chrome.Divider(content, 346, 16)
 titleRule:SetPoint("TOP", title, "BOTTOM", 0, -7)

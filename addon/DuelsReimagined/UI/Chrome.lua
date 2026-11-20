@@ -67,7 +67,8 @@ function Chrome.Shell(frame, header, footer, rail, nav)
     rim:SetAllPoints(frame)
     rim:SetFrameLevel(frame:GetFrameLevel() + 20)
     rim:EnableMouse(false)
-    Style.Border(rim, C.shellEdge, 2)
+    Style.SkinMask(rim, C.shellEdge, "rim", "ARTWORK", 1, 12, 0)
+    Style.SkinMask(rim, C.headerText, "shine", "ARTWORK", 0, 12, 2):SetAlpha(0.10)
     local seams = CreateFrame("Frame", nil, frame)
     seams:SetAllPoints(frame)
     seams:SetFrameLevel(frame:GetFrameLevel() + 12)
@@ -100,5 +101,7 @@ function Chrome.Shell(frame, header, footer, rail, nav)
     return seams
 end
 
-function Chrome.Panel() end
+function Chrome.Panel(parent, fill, opts)
+    return Style.Skin(parent, fill or C.nav, opts)
+end
 function Chrome.Refresh() end

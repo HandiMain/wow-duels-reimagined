@@ -49,7 +49,7 @@ end
 
 local railButtons, subButtons = {}, {}
 local patchDot, patchPulse
-local sectionTitle = Style.Text(Window.nav, "HALL", 18, C.pale, true)
+local sectionTitle = Style.Text(Window.nav, "HALL", 18, C.pale)
 sectionTitle:SetPoint("TOPLEFT", Window.nav, "TOPLEFT", 20, -24)
 local subtitleRule = Chrome.Divider(Window.nav, 201, 12)
 subtitleRule:SetPoint("TOPLEFT", Window.nav, "TOPLEFT", 19, -56)
@@ -106,12 +106,14 @@ local function Select(sectionIndex, pageIndex, noMotion, repaintOnly)
 end
 
 local function AddOverlay(button, rail)
-    -- No stretched selection art: every tab and row is recolorable in code.
-    local selected = Style.Fill(button, rail and C.tabActive or C.selected, "BACKGROUND")
-    selected:SetAlpha(0)
-    local hover = Style.Fill(button, rail and C.gold or C.hover, "ARTWORK")
-    hover:SetAlpha(0)
-    if rail then Style.Border(button, C.goldDim, 1) end
+    -- Skin groups implement Motion's existing GetAlpha/SetAlpha contract.
+    local selected = Style.Skin(button, rail and C.tabActive or C.selected, {
+        corner=11, edge=rail and C.gold or C.red,
+        shine=rail and 0.58 or 0.23, shade=0.40, rim=0.92, alpha=0,
+    })
+    local hover = Style.Skin(button, rail and C.gold or C.hover, {
+        corner=11, edge=C.goldDim, shine=0.22, shade=0.22, rim=0.56, alpha=0,
+    })
     return selected, hover
 end
 
@@ -119,6 +121,13 @@ for index, section in ipairs(sections) do
     local button = CreateFrame("Button", nil, Window.rail)
     button:SetSize(165, 44)
     button:SetPoint("LEFT", Window.rail, "LEFT", 25 + (index - 1) * 183, 0)
+    if index > 1 then
+        local separator = Style.Fill(button, C.goldDim, "ARTWORK")
+        separator:ClearAllPoints()
+        separator:SetPoint("LEFT", button, "LEFT", -10, 0)
+        separator:SetSize(1, 24)
+        separator:SetAlpha(0.35)
+    end
     local selected, hover = AddOverlay(button, true)
     local bar = button:CreateTexture(nil, "OVERLAY")
     bar:SetColorTexture(unpack(C.gold))
@@ -130,7 +139,7 @@ for index, section in ipairs(sections) do
     -- Each 128px square asset has the same transparent margin; none is stretched.
     icon:SetSize(27, 27)
     icon:SetPoint("LEFT", button, "LEFT", 19, 0)
-    local label = Style.Text(button, string.upper(section.label), 14, C.tabMuted, true)
+    local label = Style.Text(button, string.upper(section.label), 14, C.tabMuted)
     label:SetPoint("LEFT", icon, "RIGHT", 11, 0)
     label:SetJustifyH("LEFT")
     if section.key == "patchnotes" then
