@@ -34,9 +34,12 @@ class BlizzardLandingTests(unittest.TestCase):
         theme = read("UI/Theme.lua")
         for token in ["Style.Skin(surface, C.body",
                       "Style.Text(layout,", "Style.Action(layout,", "ns.Theme.Refresh()",
-                      "DuelsReimagined-HeaderLogoFlat.png", "ns.Tooltips.Bind(open",
+                      "HeaderOption5TintAtlas.png", "ns.Tooltips.Bind(open",
                       "ns.Tooltips.Bind(community"]:
             self.assertIn(token, s)
+        self.assertIn("LogoBand(C.gold, 0, 0.25)", s)
+        self.assertIn("LogoBand(C.headerText, 0.25, 0.50)", s)
+        self.assertNotIn("DuelsReimagined-HeaderLogoFlat.png", s)
         self.assertEqual(s.count("outsideWindow = true"), 2)
         self.assertIn('pcall(eui.RegisterSkin, "DuelsReimagined"', theme)
         self.assertNotIn("RegisterSkin(", s)
