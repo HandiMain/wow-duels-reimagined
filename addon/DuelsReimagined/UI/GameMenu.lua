@@ -6,7 +6,7 @@ local GameMenu = {}
 ns.GameMenu = GameMenu
 local Settings = ns.Settings
 
-local button, reference
+local button, spacer, reference
 local look, nativeTextures, nativeFont
 local hooked, managed = false, false
 local SECTION, GAP = 20, 4
@@ -16,6 +16,10 @@ local function Wanted()
 end
 local function HideOwn()
     if button then button:Hide() end
+    if spacer then
+        spacer:Hide()
+        spacer.layoutIndex, spacer.topPadding = nil, nil
+    end
 end
 local function MenuSkinActive()
     local addons = _G.C_AddOns
@@ -177,9 +181,10 @@ local function EnsureButton(menu, template)
     return button
 end
 
--- Use Blizzard's native Layout only when no manually positioned menu
--- buttons are present. Otherwise occupy a real free gap without reserving
--- additional room or moving another addon's controls.
+-- Native Blizzard layout is the default. When another visible menu button
+-- is manually anchored, reserve exactly one layout slot for our own button
+-- before manually placing it. This works without relying on unrelated addons
+-- to leave a gap. Other buttons, their indices, and the menu are untouched.
 local placementState = "not-open"
 local manualMode = false
 
@@ -248,6 +253,25 @@ local function HasManualButtons(menu)
     return false
 end
 
+-- In manual mode we still need to allocate OUR button's vertical space.
+-- Use a separate invisible layout child, as the Polestar/EllesmereUI
+-- combination does, so the manually positioned button itself is not also
+-- laid out by Blizzard. Place this slot after all existing addon slots.
+local function ManualSlot(menu, upper, addons)
+    local first, last = upper.layoutIndex, addons.layoutIndex
+    if not (Number(first) and Number(last) and first < last) then return end
+    local occupied = first
+    for _, child in ipairs({menu:GetChildren()}) do
+        local idx = child.layoutIndex
+        if child ~= button and child ~= spacer and child.IsShown
+            and child:IsShown() and Number(idx)
+            and idx > occupied and idx < last then
+            occupied = idx
+        end
+    end
+    return occupied + (last - occupied) * 0.5
+end
+
 local function Reserve(menu)
     manualMode = false
     if not Wanted() then HideOwn(); placementState = "disabled"; return end
@@ -267,15 +291,29 @@ local function Reserve(menu)
 
     manualMode = HasManualButtons(menu)
     if manualMode then
-        -- Another addon already creates the extra room. Do not add an
-        -- invisible spacer or another button to Blizzard's Layout list.
-        -- Place ours into real free space on OnShow, after skinning/layout.
+        local index = ManualSlot(menu, upper, addons)
+        if not index then
+            HideOwn(); placementState = "manual-slot-unavailable"; return
+        end
+        if not spacer then
+            spacer = CreateFrame("Frame", nil, UIParent)
+            spacer:SetParent(menu)
+            spacer:EnableMouse(false)
+        end
+        -- One and only one reserved slot, matching our visible button's height.
+        spacer:SetSize(1, b:GetHeight() + GAP)
+        spacer.layoutIndex, spacer.topPadding = index, nil
+        spacer:Show()
         b.layoutIndex, b.topPadding = nil, nil
         b:Hide()
-        placementState = "manual-pending"
+        placementState = "manual-reserved"
         return
     end
 
+    if spacer then
+        spacer:Hide()
+        spacer.layoutIndex, spacer.topPadding = nil, nil
+    end
     local index = FindSlot(menu, upper, addons)
     if not index then
         HideOwn(); placementState = "native-layout-unsupported"; return
@@ -330,7 +368,7 @@ end
 
 local function PlaceManual(menu)
     if not manualMode or not Wanted() or not menu or not menu:IsShown()
-        or not button then return end
+        or not button or not spacer or not spacer:IsShown() then return end
     if InCombatLockdown and InCombatLockdown() then
         HideOwn(); placementState = "combat"; return
     end
@@ -344,9 +382,9 @@ local function PlaceManual(menu)
     local aboveBottom = above and above:GetBottom()
     if not (above and Number(space) and Number(menuTop)
         and Number(aboveBottom)) then
-        -- Fail closed. Because our button has no native layoutIndex in this
-        -- mode, hiding it leaves NO reserved gap.
-        button:Hide()
+        -- No safe spot even after reserving room: never cover another addon.
+        -- Hide the reservation as well so the next menu opening starts clean.
+        HideOwn()
         placementState = "crowded"
         return
     end
@@ -357,7 +395,7 @@ local function PlaceManual(menu)
     local targetTop = aboveBottom - GAP
     local offset = menuTop - targetTop
     if not Number(offset) then
-        button:Hide(); placementState = "invalid-geometry"; return
+        HideOwn(); placementState = "invalid-geometry"; return
     end
     button:ClearAllPoints()
     button:SetPoint("TOP", menu, "TOP", 0, -offset)
