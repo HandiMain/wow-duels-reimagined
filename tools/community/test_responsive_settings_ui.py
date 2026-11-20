@@ -121,7 +121,7 @@ class ResponsiveSettingsTests(unittest.TestCase):
             "if not ready then",
             "elseif matchedColors then",
             "Duels theme is active. EllesmereUI is unavailable",
-            "EllesmereUI controls the interface colors.",
+            "EllesmereUI provides the colors; choose any visual skin",
             "Duels theme colors are active. Enable Match EllesmereUI colors",
             "themeChoice:SetAvailable(true)",
             "themeChoice:SetModified(Settings.IsModified(\"uiTheme\"))",
