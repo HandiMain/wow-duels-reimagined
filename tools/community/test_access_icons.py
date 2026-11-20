@@ -28,7 +28,7 @@ class AccessIconsTests(unittest.TestCase):
     def test_selected_icon_wow_asset_uses_128_png_with_transparency(self):
         import struct
         raw = (ADDON / "Media" / "Icons" / "DuelsDRIcon.png").read_bytes()
-        self.assertEqual(raw[:8], b"\\x89PNG\\r\\n\\x1a\\n")
+        self.assertEqual(raw[:8], b"\x89PNG\r\n\x1a\n")
         width, height, depth, color_type = struct.unpack(">IIBB", raw[16:26])
         self.assertEqual((width, height), (128, 128))
         self.assertEqual((depth, color_type), (8, 3))
