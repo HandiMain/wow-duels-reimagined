@@ -32,6 +32,7 @@ local boolDefaults = {
     reduceMotion = false,
     showTooltips = true,
     patchNotesReminder = true,
+    showGameMenuButton = true,
     -- This is our membership in Blizzard's addon compartment, NOT the
     -- visibility of Blizzard's own compartment button.
     showInCompartment = true,
@@ -392,6 +393,10 @@ function Settings.Set(key, value)
         if ns.Options and ns.Options.Refresh then ns.Options.Refresh() end
     elseif key == "showTooltips" then
         if not value and ns.Tooltips then ns.Tooltips.Hide(nil, true) end
+        if ns.Options and ns.Options.Refresh then ns.Options.Refresh() end
+    elseif key == "showGameMenuButton" then
+        -- GameMenu owns the native button. A hidden menu refreshes on next open.
+        if ns.GameMenu and ns.GameMenu.Refresh then ns.GameMenu.Refresh() end
         if ns.Options and ns.Options.Refresh then ns.Options.Refresh() end
     elseif key == "showInCompartment" then
         -- Registration is applied on PLAYER_LOGIN after /reload. The footer

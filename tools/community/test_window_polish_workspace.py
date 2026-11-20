@@ -10,20 +10,15 @@ def read(path):
     return (ROOT / path).read_text(encoding="utf-8")
 
 class WindowPolishWorkspaceTests(unittest.TestCase):
-    def test_logo_shimmer_is_one_hover_only_and_respects_original_brand(self):
+    def test_logo_is_static_again_but_original_brand_and_drag_remain(self):
         w = read("UI/Window.lua")
         self.assertIn("BrandLayer(C.gold,       0,    0.25, -4)", w)
         self.assertIn("BrandLayer(C.headerText, 0.25, 0.50, -4)", w)
         self.assertIn("Drag(brandLogo)", w)
-        self.assertIn('brandLogo:SetScript("OnEnter", function()', w)
-        self.assertIn('brandLogo:HookScript("OnDragStart", HideBrandShimmer)', w)
-        self.assertIn('if not brandLogo.CreateMaskTexture then return end', w)
-        self.assertIn('if not mask.SetTexCoord then strip:Hide() return end', w)
-        self.assertIn('mask:SetTexCoord(0, 1, top, bottom)', w)
-        self.assertIn('Motion.Value(shimmerKey, 0, 1, 0.60', w)
-        self.assertIn('ns.Settings.Get("reduceMotion")', w)
-        self.assertIn('frame:HookScript("OnHide", HideBrandShimmer)', w)
-        self.assertNotIn('CreateAnimationGroup()', w)
+        self.assertNotIn('brandLogo:SetScript("OnEnter"', w)
+        self.assertNotIn("MakeShimmerBand", w)
+        self.assertNotIn("HideBrandShimmer", w)
+        self.assertNotIn("shimmerKey", w)
 
     def test_magnet_snap_with_opt_out_and_alignment_guides(self):
         w = read("UI/Window.lua")

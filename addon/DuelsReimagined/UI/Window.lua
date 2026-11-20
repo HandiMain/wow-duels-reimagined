@@ -239,52 +239,8 @@ end
 BrandLayer(C.gold,       0,    0.25, -4) -- DUELS lettering
 BrandLayer(C.headerText, 0.25, 0.50, -4) -- REIMAGINED, aligned baseline
 
--- One soft reflection travels across the LETTERS, not the header itself.
--- Use the existing two alpha-mask bands, so the reflection doesn't paint a
--- solid rectangle over the wordmark. Unsupported mask APIs fail closed.
-local shimmerKey, shimmerBands = {}, {}
-local function MakeShimmerBand(top, bottom, width, strength)
-    if not brandLogo.CreateMaskTexture then return end
-    local strip = brandLogo:CreateTexture(nil, "OVERLAY")
-    if not strip.AddMaskTexture then strip:Hide() return end
-    strip:SetColorTexture(1, 0.94, 0.77, 1)
-    strip:SetBlendMode("ADD")
-    strip:SetWidth(width)
-    strip:SetAlpha(0)
-    strip:Hide()
-    local mask = brandLogo:CreateMaskTexture()
-    mask:SetTexture(BRAND_ATLAS)
-    if not mask.SetTexCoord then strip:Hide() return end
-    mask:SetPoint("TOPLEFT", brandLogo, "TOPLEFT", 0, -4)
-    mask:SetPoint("BOTTOMRIGHT", brandLogo, "BOTTOMRIGHT", 0, -4)
-    mask:SetTexCoord(0, 1, top, bottom)
-    strip:AddMaskTexture(mask)
-    shimmerBands[#shimmerBands + 1] = { strip=strip, strength=strength }
-end
-MakeShimmerBand(0, 0.25, 24, 0.56)
-MakeShimmerBand(0.25, 0.50, 36, 0.38)
-local function HideBrandShimmer()
-    Motion.Stop(shimmerKey)
-    for _, band in ipairs(shimmerBands) do band.strip:Hide() end
-end
-brandLogo:SetScript("OnEnter", function()
-    if #shimmerBands == 0 or ns.Settings.Get("reduceMotion") then return end
-    Motion.Stop(shimmerKey)
-    for _, band in ipairs(shimmerBands) do band.strip:Show() end
-    Motion.Value(shimmerKey, 0, 1, 0.60, function(_, progress)
-        local x = -42 + (brandLogo:GetWidth() + 84) * progress
-        local fade = math.sin(progress * math.pi)
-        for _, band in ipairs(shimmerBands) do
-            band.strip:ClearAllPoints()
-            band.strip:SetSize(band.strip:GetWidth(), brandLogo:GetHeight())
-            band.strip:SetPoint("LEFT", brandLogo, "LEFT", x, -4)
-            band.strip:SetAlpha(band.strength * fade)
-            if progress >= 1 then band.strip:Hide() end
-        end
-    end)
-end)
-brandLogo:HookScript("OnDragStart", HideBrandShimmer)
-frame:HookScript("OnHide", HideBrandShimmer)
+-- The logo is deliberately static. Preserve brandLogo as a draggable
+-- part of the header; no hover reflection or extra animation textures.
 
 -- Text-only branding: the two alpha-masked letter layers above are the
 -- entire logo. There is deliberately no underline, diamond or frame art.

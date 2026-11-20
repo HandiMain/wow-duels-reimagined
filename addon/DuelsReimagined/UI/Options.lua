@@ -187,6 +187,9 @@ local tooltipsRow = AddToggle(behaviorCard, "interface", "showTooltips", "Show a
 local reminderRow = AddToggle(behaviorCard, "interface", "patchNotesReminder", "New patch reminder",
     "Show a subtle unread dot on Patch Notes when a new update is published.",
     -229, false)
+local gameMenuRow = AddToggle(behaviorCard, "interface", "showGameMenuButton", "Show Escape menu button",
+    "Add Duels Reimagined to Blizzard's Escape menu. Uses Blizzard's normal look unless EllesmereUI skins that menu.",
+    -284, false)
 
 local fontChoice = Widgets.ChoiceRow(typographyCard, "Interface font",
     "Blizzard by default; includes fonts registered with SharedMedia.",
@@ -405,6 +408,7 @@ local interfaceGroups = {
     { card = behaviorCard, entries = {
         { widget = autoPeekRow }, { widget = reduceMotionRow },
         { widget = tooltipsRow }, { widget = reminderRow },
+        { widget = gameMenuRow },
     }},
     { card = typographyCard, entries = {
         { widget = fontChoice }, { widget = fontScale },

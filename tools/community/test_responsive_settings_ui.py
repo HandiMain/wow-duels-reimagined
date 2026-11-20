@@ -69,6 +69,7 @@ class ResponsiveSettingsTests(unittest.TestCase):
             self.assertIn("{ card = "+name+", entries = {", src)
         for name in ("themeChoice", "availability", "matchColorsRow", "matchFontRow",
                      "autoPeekRow", "reduceMotionRow", "tooltipsRow", "reminderRow",
+                     "gameMenuRow",
                      "fontChoice", "fontScale", "fontOutline", "iconMode", "widgetSize",
                      "widgetTransparency", "compartmentToggle"):
             self.assertIn("{ widget = "+name, src)

@@ -1,0 +1,124 @@
+"""Escape menu integration contracts, source-only; in-game testing still required."""
+from pathlib import Path
+import unittest
+
+ROOT = Path(__file__).resolve().parents[2] / "addon" / "DuelsReimagined"
+def src(name):
+    return (ROOT / name).read_text(encoding="utf-8")
+
+class DuelsEscapeMenuTests(unittest.TestCase):
+    def test_native_button_is_optional_and_loaded_after_ui_owners(self):
+        toc = src("DuelsReimagined.toc")
+        self.assertEqual(toc.count("UI\\GameMenu.lua"), 1)
+        for file in ("UI\\Window.lua", "UI\\Theme.lua", "UI\\Options.lua",
+                     "UI\\Footer.lua"):
+            self.assertLess(toc.index(file), toc.index("UI\\GameMenu.lua"))
+        s = src("Core/Settings.lua")
+        self.assertIn('showGameMenuButton = true', s)
+        self.assertIn('elseif key == "showGameMenuButton" then', s)
+        self.assertIn('ns.GameMenu.Refresh()', s)
+        self.assertIn('for key, default in pairs(boolDefaults)', s)
+
+    def test_setting_is_searchable_in_central_options_and_reflows(self):
+        o = src("UI/Options.lua")
+        self.assertIn('AddToggle(behaviorCard, "interface", "showGameMenuButton"', o)
+        self.assertIn('"Show Escape menu button"', o)
+        self.assertIn('{ widget = gameMenuRow }', o)
+        self.assertIn('RegisterOption(key, name, detail, pageKey, row)', o)
+        self.assertIn('function LayoutPage(page, groups, width)', o)
+        self.assertIn('card:SetHeight(cardHeight)', o)
+        self.assertNotIn('Settings.RegisterReloadRequired("showGameMenuButton")', o)
+
+    def test_uses_native_blizzard_button_in_default_and_no_eui_mode(self):
+        gm = src("UI/GameMenu.lua")
+        self.assertIn('menu.buttonTemplate', gm)
+        self.assertIn('"MainMenuFrameButtonTemplate"', gm)
+        self.assertIn('"UIPanelButtonTemplate"', gm)
+        self.assertIn('b:SetText("Duels Reimagined")', gm)
+        self.assertIn('if not skinned then', gm)
+        self.assertIn('for tex, opacity in pairs(nativeTextures)', gm)
+        self.assertIn('tex:SetAlpha(skinned and 0 or opacity)', gm)
+        self.assertIn('if look then look.frame:Hide(); look.highlight:Hide() end', gm)
+        self.assertNotIn('ns.Style', gm)
+        self.assertNotIn('ns.Theme', gm)
+        self.assertNotIn('C.gold', gm)
+        self.assertNotIn('ns.Settings.Get("uiTheme")', gm)
+
+    def test_matches_ellesmere_only_when_pause_menu_skin_is_active(self):
+        gm = src("UI/GameMenu.lua")
+        self.assertIn('"EllesmereUIBlizzardSkin"', gm)
+        self.assertIn('db.reskinGameMenu == false', gm)
+        self.assertIn('local skinned = MenuSkinActive()', gm)
+        self.assertIn('_getPopupMenuButtonTextColor', gm)
+        self.assertIn('_applyBlizzardConfiguredBorder', gm)
+        self.assertIn('"popupMenuButton"', gm)
+        self.assertIn('popupMenuButtonBackgroundColor', gm)
+        self.assertIn('_G.EllesmereUI_GameMenuButton', gm)
+        self.assertIn('PaintFont(b, referenceFont)', gm)
+        self.assertIn('rgb .. "Duels|r |cffffffffReimagined|r"', gm)
+        self.assertNotIn('EllesmereUIDB =', gm)
+
+    def test_preserves_other_addon_button_and_dynamic_layout(self):
+        gm = src("UI/GameMenu.lua")
+        self.assertIn('menu.buttonPool.EnumerateActive', gm)
+        self.assertIn('name == _G.BLIZZARD_STORE', gm)
+        self.assertIn('name == _G.GAMEMENU_OPTIONS', gm)
+        self.assertIn('local polestar = _G.PolestarGameMenuButton', gm)
+        self.assertIn('local lastEui = EllesmereLast()', gm)
+        self.assertIn('location = index + (nextIndex - index) * 0.75', gm)
+        self.assertIn('spacer.layoutIndex = location', gm)
+        self.assertIn('b.layoutIndex = location', gm)
+        self.assertIn('spacer:SetSize(1, b:GetHeight() + GAP)', gm)
+        self.assertIn('hooksecurefunc(menu, "InitButtons"', gm)
+        self.assertIn('hooksecurefunc(menu, "Layout"', gm)
+        self.assertNotIn('menuBtn:SetPoint(', gm)
+        self.assertNotIn('menu:SetHeight(', gm)
+        self.assertNotIn('menu:ClearAllPoints()', gm)
+
+    def test_click_closes_escape_menu_then_opens_not_toggles_away(self):
+        gm = src("UI/GameMenu.lua")
+        self.assertIn('"DuelsReimaginedGameMenuButton"', gm)
+        self.assertIn('button:RegisterForClicks("LeftButtonUp")', gm)
+        self.assertIn('if menu:IsShown() then', gm)
+        self.assertIn('_G.HideUIPanel(menu)', gm)
+        self.assertIn('if not window.frame:IsShown() then window.Toggle()', gm)
+        self.assertIn('else window.frame:Raise() end', gm)
+        self.assertNotIn('PlaySound(', gm)
+        self.assertNotIn('SetScript("OnUpdate"', gm)
+
+    def test_runtime_toggle_hides_only_our_controls_and_no_force_reload(self):
+        gm = src("UI/GameMenu.lua")
+        self.assertIn('function GameMenu.Refresh()', gm)
+        self.assertIn('if not Wanted() then HideOwn(); return end', gm)
+        self.assertIn('if button then button:Hide() end', gm)
+        self.assertIn('if spacer then spacer:Hide() end', gm)
+        self.assertIn('menu:HookScript("OnShow"', gm)
+        self.assertIn('load:RegisterEvent("PLAYER_LOGIN")', gm)
+        self.assertIn('load:RegisterEvent("ADDON_LOADED")', gm)
+        self.assertIn('if hooked then self:UnregisterAllEvents() end', gm)
+        self.assertIn('if not Wanted() then HideOwn(); return end', gm)
+
+    def test_combat_input_and_legacy_guarded_without_replacing_blizzard_ui(self):
+        gm = src("UI/GameMenu.lua")
+        self.assertIn('if not menu or hooked then return end', gm)
+        self.assertIn('InCombatLockdown and InCombatLockdown()', gm)
+        self.assertIn('local function Legacy(menu)', gm)
+        self.assertIn('if not menu.buttonPool or not menu.buttonPool.EnumerateActive', gm)
+        self.assertIn('button:SetParent(menu)', gm)
+        self.assertIn('local function HideOwn()', gm)
+        self.assertNotIn('hooksecurefunc("GameMenuFrame", "OnKeyDown"', gm)
+        self.assertNotIn('SetAttribute("type"', gm)
+
+    def test_requested_logo_hover_animation_is_completely_gone(self):
+        win = src("UI/Window.lua")
+        for forbidden in ('MakeShimmerBand', 'shimmerBands', 'shimmerKey',
+                          'HideBrandShimmer', 'brandLogo:SetScript("OnEnter"',
+                          'brandLogo.CreateMaskTexture'):
+            self.assertNotIn(forbidden, win)
+        self.assertIn('Drag(brandLogo)', win)
+        self.assertIn('BrandLayer(C.gold,       0,    0.25, -4)', win)
+        self.assertIn('BrandLayer(C.headerText, 0.25, 0.50, -4)', win)
+        self.assertIn('function Window.PlaceBrandBefore(searchBox)', win)
+
+if __name__ == "__main__":
+    unittest.main()

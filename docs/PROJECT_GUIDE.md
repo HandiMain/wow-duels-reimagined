@@ -1051,3 +1051,55 @@ EllesmereUI on/off, combat/chat input and no blocked buttons. Window drag
 position itself retains its previous session-only behavior; no new
 position-persistence preference is introduced. Status: IMPLEMENTED /
 IN-GAME UNTESTED. Baseline develop aa3aac6454ca0b911f2f339ba82541e8ea192f75.
+
+## Escape menu entry + removal of logo hover shimmer — 2026-11-20
+
+USER REQUEST: remove the earlier header-logo hover reflection entirely,
+retain its original wordmark and drag. Add "Duels Reimagined" to Blizzard's
+Escape menu and an enabled-by-default "Show Escape menu button" switch in
+Options > Interface, searchable and saved account-wide by Core/Settings.lua.
+
+Reference-first (code actually inspected, not inferred): Polestar
+addon/Polestar/UI/GameMenu.lua uses the native GameMenu button template,
+reads the menu's buttonPool layoutIndex instead of modifying Blizzard pool
+buttons, inserts its own section/spacer after Shop/Options, handles
+Ellesmere's external buttons, and has a legacy fallback. Polestar's
+Theme/Anim.lua and game-menu helper also informed no-poll lifecycle and
+safe button ownership. EllesmereUI v9.8.9 ZIP inspected directly:
+EllesmereUI/EllesmereUI.lua lines 4466-4680 adds its custom buttons below
+Shop and uses branded inline color text plus optional menu skinning;
+EllesmereUIBlizzardSkin/EUI_BlizzardSkin_Dialogs.lua and
+EUI_BlizzardSkin_TooltipSkin.lua supply the live popup menu text color,
+background and border controls. Unlike Ellesmere's own menu integration,
+Duels never rewrites/reshuffles Blizzard's pooled button anchors or
+menu height, nor skins the full GameMenuFrame.
+
+Only our UI/GameMenu.lua owns its own native button + optional spacer.
+If EllesmereUIBlizzardSkin is loaded AND reskinGameMenu is on, the button
+hides its native template textures, adopts the current EUI flat inset,
+configured menu background/border/font, and draws "Duels" using the
+Ellesmere-configured popup-element color and "Reimagined" in white
+with a two-tone Blizzard font string. If EUI is disabled, the optional
+skin module is absent, or the specific pause-menu reskin is off, our
+button is exactly Blizzard-native: no Duels theme colors or custom art,
+and no custom label tint. No dependency on matching Duels theme colors.
+
+For compatibility with Polestar already installed, Duels reserves a
+separate layoutIndex after Polestar's slot when the native menu lays
+out sections. When EUI is active, it anchors under EUI's last menu
+button (or Polestar's button if present) and holds its own layout
+space. It creates nothing when disabled; clicks close Escape and open
+or raise the existing addon window; hidden windows still restore their
+last page through Window.Toggle. No new sounds, gameplay hooks, data
+owners, version/TOC bump, custom menu art, or permanent polling.
+
+Verification status: IMPLEMENTED/UNTESTED until CI and in-game testing.
+Check Forever and Retail: addon enabled alone gives plain native
+Blizzard button; with EllesmereUI BlizzardSkin on gives EUI-aligned
+background/border, color-coded 'Duels' and matching font; EUI menu
+reskin off falls back to native; Polestar + EUI both installed shows all
+buttons without overlaps; combat and ESC close; setting on/off, /reload,
+search discoverability, compact Options card reflow, no mouse/keyboard
+stealing and normal logo dragging. Do not call it in-game VERIFIED
+without actual game observation. Baseline develop
+dfc82ab7aa962f986ed2c65a026849d2113ff662.
