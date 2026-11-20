@@ -119,6 +119,24 @@ function Settings.GetPatchNotesSeenId()
     return type(id) == "string" and #id <= 128 and id or nil
 end
 
+-- Feature discovery acknowledgements are account-wide and owned by this
+-- storage module. Only actual, installed controls may use these stable IDs.
+local discoveries = { ["navigation-back-v1"] = true, ["widget-preview-v1"] = true }
+function Settings.HasSeenDiscovery(id)
+    if not discoveries[id] then return true end
+    local db = ReadDB()
+    return type(db and db.discoverySeen) == "table" and db.discoverySeen[id] == true or false
+end
+function Settings.MarkDiscoverySeen(id)
+    if not discoveries[id] then return false end
+    local db = WriteDB()
+    if type(db.discoverySeen) ~= "table" then db.discoverySeen = {} end
+    if db.discoverySeen[id] then return false end
+    db.discoverySeen[id] = true
+    if ns.Feedback then ns.Feedback.RefreshDiscovery() end
+    return true
+end
+
 function Settings.MarkPatchNotesSeen(id)
     if type(id) ~= "string" or #id < 1 or #id > 128 then return end
     local db = WriteDB()
@@ -397,6 +415,13 @@ loader:SetScript("OnEvent", function(self, _, loadedName)
             math.abs(position.x) <= 10000 and math.abs(position.y) <= 10000
         if not valid then db.widgetPosition = nil end
     end
+    if type(db.discoverySeen) ~= "table" then
+        db.discoverySeen = {}
+    else
+        for id, seen in pairs(db.discoverySeen) do
+            if not discoveries[id] or seen ~= true then db.discoverySeen[id] = nil end
+        end
+    end
     if not Settings.HasWindowSize() then db.windowSize = nil end
     for key in pairs(reloadRequired) do loadValues[key] = Settings.Get(key) end
     if ns.Window and ns.Window.ApplyScale then
@@ -412,4 +437,5 @@ loader:SetScript("OnEvent", function(self, _, loadedName)
     if ns.PatchNotes and ns.PatchNotes.RefreshReminder then
         ns.PatchNotes.RefreshReminder()
     end
+    if ns.Feedback then ns.Feedback.RefreshDiscovery() end
 end)

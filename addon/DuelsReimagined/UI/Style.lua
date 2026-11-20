@@ -377,6 +377,7 @@ function Style.Action(parent, caption, variant, palette)
         ns.Tooltips.Bind(button, { title = caption,
             detail = "Click to activate this action." })
     end
+    button.label = label
     return button
 end
 

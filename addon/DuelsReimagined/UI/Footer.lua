@@ -74,7 +74,10 @@ local reset = FooterButton("Reset window", 132,
     "Restore default dimensions and 100% Menu Scale.")
 reset:SetPoint("LEFT", discord, "RIGHT", 24, 0)
 reset:SetScript("OnClick", function()
-    if not Window.IsDefault() then Window.ResetWindow() end
+    if not Window.IsDefault() then
+        Window.ResetWindow()
+        if ns.Feedback then ns.Feedback.Toast("Window layout restored") end
+    end
 end)
 
 local reload = FooterButton("Reload UI", 110, "Apply a setting that requires a reload.")
@@ -211,7 +214,10 @@ ns.Search.Register("footer:discord", "Discord community", "Footer",
     "Open the Coming Soon community dialog", Footer.ShowPopup)
 ns.Search.Register("footer:reset-window", "Reset window", "Footer",
     "Restore window dimensions and menu scale defaults", function()
-        if reset:IsEnabled() then Window.ResetWindow() end
+        if reset:IsEnabled() then
+            Window.ResetWindow()
+            if ns.Feedback then ns.Feedback.Toast("Window layout restored") end
+        end
     end, function() return reset:IsEnabled() end)
 ns.Search.Register("footer:reload-ui", "Reload UI", "Footer",
     "Reload only when a setting needs it", function()

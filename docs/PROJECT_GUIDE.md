@@ -917,3 +917,59 @@ search, widget, tooltips and layout remain unchanged.
 
 Status: IMPLEMENTED/UNTESTED before CI and in-game evidence.
 Rollback baseline develop 9abba02e9ed7b52fa15abe374a02396ff552698b.
+
+## BurstFX presentation polish — 9 approved ideas (no audio) — 2026-11-20
+
+USER AUTHORIZATION: implement nine BurstFX Build 1004 UI details together
+except ALL UI sounds. The user explicitly requested the combined change,
+but the existing premium-skin experiment remains abandoned. Preserve the
+five recolor-only themes (Ember default), compact Hall, icon atlas,
+independent Ellesmere-safe minimap launchers, real Blizzard chat
+focus/combat restrictions, and current Settings/Search/Page ownership.
+SOURCE REVIEW: Polestar Theme/Anim.lua (single idle motion driver,
+reduced-motion snap), UI/WhatsNew.lua (versioned feature awareness),
+UI/Toasts.lua (nonblocking feedback), then the actual Library ZIP
+Handi's BurstFX v0.1.0 Build 1004bugfix.zip:
+UI/UIMotion.lua (MoveSelectionIndicator, PlayPageTransition,
+ShowContextPreview, ShowToast, FlashActionButton), UI/CustomSettings.lua
+(PulseNavigationTarget, runtime return stack), UI/SettingsPolish.lua
+(persistent discovery), UI/MinimapPersonality.lua (PlayNotificationBling).
+Relevant current Duels modules independently cross-checked.
+
+Implementation responsibilities and limits:
+1. Patch Notes -> Search registered setting -> Options scroll/2-pulse
+   gold outline, cancellation and reduced-motion static alternative.
+2. One moving selection marker, still using Navigation as sole page owner.
+3. Short horizontal divider glint ONLY on real page transitions.
+4. NEW tags on NEW Back and widget-preview controls, with acknowledged
+   account IDs owned centrally by Settings (not another DB).
+5. One reused in-window toast on actual window layout reset.
+6. Temporary confirmation on the existing reset-icon-positions action.
+7. UI sounds deliberately EXCLUDED; no sound preferences or assets.
+8. One ring ping on an actual unread Patch Notes update, respecting
+   reduced motion and preserving UIParent-owned minimap/button opacity.
+9. Hover mini-preview of real DR widget settings; never mutates them.
+10. Runtime-only bounded Back stack (12 entries), hidden on close, never
+    exposed or persisted as gameplay/history, no extra navigation engine.
+
+New UI/Feedback.lua owns transient visual effects and optional feature
+tags; it is loaded AFTER Style, Motion and Window and BEFORE Navigation,
+Options and Footer. It has NO OnUpdate, networking, profile database
+access, permanent polling or unrelated gameplay events. C_Timer.After
+is one-shot with generation tokens for transient label/notice cleanup.
+All animation values use the same existing UI/Motion.lua driver.
+
+Verification: CI/static source contracts are not a live WoW PASS.
+Live checks required in Forever/Retail: every Patch Notes link points to
+the correct visible target, pulses twice, cancels old pulse; navigate
+Community/Options/Patch Notes and Back; Search/keyboard/Enter/Escape;
+NEW tags disappear only on first use and stay gone after /reload;
+window reset toast and icon-reset confirmation; minimap ping doesn't
+steal collector opacity (test EllesmereUI on/off); preview does not
+steal mouse from a slider or render outside compact windows; theme
+switch during animation, reduced motion, resizing, fold, Peek,
+drag, combat restrictions, error states, tooltip stacking.
+Source labels remain DEMO for Patch Notes; don't invent real releases.
+Scope: UI only, no TOC version bump or new media. Status:
+IMPLEMENTED/UNTESTED pending CI and player's in-game verification.
+Baseline commit: 11b7beaf751774271a7cb5a4e32deadc4e46abc9.

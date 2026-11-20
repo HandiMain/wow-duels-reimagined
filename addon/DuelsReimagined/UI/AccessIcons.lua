@@ -19,6 +19,7 @@ local miniButton, widgetButton
 local draggingMinimap, pendingMinimapAngle
 local placedX, placedY
 local compartmentRegistered = false
+local pendingPatchPing, patchPingPlayed = false, false
 
 local SHAPE = {
     ROUND = {true,true,true,true},
@@ -428,6 +429,26 @@ function Access.Refresh()
         (iconMode == "widget" or iconMode == "both"))
     if miniWanted then IdleMinimap() end
     WidgetOpacity()
+    if pendingPatchPing then Access.NotifyPatchNotes(true) end
+end
+
+-- Optional one-shot update animation on our independent DR button or widget.
+-- Never touch its root alpha/parent: EllesmereUI compatibility stays intact.
+function Access.NotifyPatchNotes(unread)
+    pendingPatchPing = unread == true
+    if not pendingPatchPing or patchPingPlayed or not loginReady or
+        Settings.Get("reduceMotion") then return end
+    local target = miniButton:IsShown() and miniButton or
+        (widgetButton:IsShown() and widgetButton or nil)
+    if not target or not target.duelsFace then return end
+    patchPingPlayed = true
+    local ring = target.duelsFace.ring
+    Motion.Stop(ring, 0.10)
+    Motion.Value(ring, 0, 1, 1.0, function(region, progress)
+        -- Two quick warm pulses, then exactly the previous idle ring alpha.
+        region:SetAlpha(0.10 + 0.37 * math.sin(progress * math.pi * 2)^2)
+        if progress >= 1 then region:SetAlpha(0.10) end
+    end)
 end
 
 function Access.ResetPositions()

@@ -16,6 +16,7 @@ UI\Chrome.lua
 UI\Widgets.lua
 UI\Theme.lua
 UI\Window.lua
+UI\Feedback.lua
 UI\Search.lua
 UI\Header.lua
 UI\PatchNotesData.lua

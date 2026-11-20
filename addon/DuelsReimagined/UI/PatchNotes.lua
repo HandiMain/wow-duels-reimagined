@@ -265,6 +265,9 @@ function PatchNotes.RefreshReminder()
     if ns.Navigation and ns.Navigation.SetPatchUnread then
         ns.Navigation.SetPatchUnread(unread)
     end
+    if ns.AccessIcons and ns.AccessIcons.NotifyPatchNotes then
+        ns.AccessIcons.NotifyPatchNotes(unread)
+    end
 end
 
 function PatchNotes.Show(pageKey)

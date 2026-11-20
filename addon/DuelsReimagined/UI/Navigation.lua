@@ -59,14 +59,52 @@ local subtitleRule = Chrome.Divider(Window.nav, 166, 12)
 subtitleRule:SetPoint("TOPLEFT", Window.nav, "TOPLEFT", 19, -56)
 
 local currentSection, currentPage
+local history, backButton = {}, nil
+-- Only the navigation owner moves this small selection indicator. The
+-- existing per-button hover/selection controls and their hitboxes stay put.
+local movingBar = Style.Fill(Window.nav, C.gold, "OVERLAY")
+movingBar:ClearAllPoints()
+movingBar:SetSize(4, 27)
+movingBar:Hide()
+local movingIndex
+local function PlaceBar(_, index)
+    movingBar:ClearAllPoints()
+    movingBar:SetPoint("TOPLEFT", Window.nav, "TOPLEFT",
+        12, -(84 + (index - 1) * 41))
+end
+local sweep = Style.Fill(Window.nav, C.gold, "OVERLAY")
+sweep:ClearAllPoints()
+sweep:SetSize(48, 2)
+sweep:Hide()
+local function SweepPage()
+    if ns.Settings.Get("reduceMotion") or not Window.frame:IsShown() then return end
+    Motion.Stop(sweep, 0)
+    sweep:Show()
+    Motion.Value(sweep, 0, 1, 0.39, function(region, progress)
+        region:ClearAllPoints()
+        region:SetPoint("TOPLEFT", Window.nav, "TOPLEFT",
+            19 + progress * math.max(40, Window.nav:GetWidth() - 90), -56)
+        region:SetAlpha(math.sin(math.pi * progress) * 0.70)
+        if progress >= 1 then region:Hide() end
+    end)
+end
 
 local function FadeSelection(item, active)
     Motion.Fade(item.selected, active and (item.activeAlpha or 0.94) or 0, 0.18)
     Motion.Fade(item.hover, 0, 0.13)
 end
 
-local function Select(sectionIndex, pageIndex, noMotion, repaintOnly)
+local function Select(sectionIndex, pageIndex, noMotion, repaintOnly, isBack)
+    local section = sections[sectionIndex]
+    if not section or not section.pages[pageIndex] then return end
+    local priorSection, priorPage = currentSection, currentPage
+    local changed = priorSection ~= sectionIndex or priorPage ~= pageIndex
+    if changed and not repaintOnly and not isBack and priorSection then
+        if #history >= 12 then table.remove(history, 1) end
+        history[#history + 1] = { section = priorSection, page = priorPage }
+    end
     currentSection, currentPage = sectionIndex, pageIndex
+    if backButton then backButton:SetShown(#history > 0) end
     -- A theme repaint must NOT close Search, modal dialogs or reset pages.
     if not repaintOnly and ns.Header and ns.Header.CloseSearch then
         ns.Header.CloseSearch(true)
@@ -103,7 +141,19 @@ local function Select(sectionIndex, pageIndex, noMotion, repaintOnly)
             item.label:SetTextColor(unpack(active and C.tabText or C.text))
         end
     end
+    -- Animate on genuine page changes only, never for theme repaints or
+    -- initial loading. Switching a section snaps the bar into its new list.
+    if changed or not movingIndex then
+        local duration = (not noMotion and priorSection == sectionIndex)
+            and 0.19 or 0
+        Motion.Value(movingBar, movingIndex or pageIndex, pageIndex,
+            duration, PlaceBar)
+        movingIndex = pageIndex
+    end
+    movingBar:SetShown(#section.pages > 0)
     if repaintOnly then return end
+    if changed and not noMotion then SweepPage() end
+    if ns.Feedback then ns.Feedback.HidePreview() end
     if ns.Footer and ns.Footer.ClosePopup then ns.Footer.ClosePopup() end
     if ns.Tooltips then ns.Tooltips.Hide(nil, true) end
     Window.ShowPage(page)
@@ -285,6 +335,30 @@ for index, section in ipairs(sections) do
     subButtons[index] = pages
 end
 
+-- Back belongs to the existing upper rail, not a second navigation engine.
+-- It is visible only when an actual earlier page exists.
+backButton = Style.Action(Window.rail, "Back")
+backButton:SetSize(85, 34)
+backButton:SetPoint("LEFT", Window.rail, "LEFT", 193, 0)
+backButton:SetScript("OnClick", function()
+    local previous = table.remove(history)
+    if not previous then return end
+    Select(previous.section, previous.page, false, false, true)
+    if ns.Feedback then ns.Feedback.Acknowledge("navigation-back-v1") end
+end)
+if ns.Feedback then
+    ns.Feedback.NewBadge(backButton, "navigation-back-v1")
+end
+backButton:Hide()
+Window.frame:HookScript("OnHide", function()
+    -- Back history is ephemeral presentation state, not SavedVariables.
+    for i = #history, 1, -1 do history[i] = nil end
+    backButton:Hide()
+    Motion.Stop(movingBar)
+    Motion.Stop(sweep, 0)
+    sweep:Hide()
+end)
+
 -- Only primary gameplay tabs occupy the expandable horizontal strip.
 -- Secondary utility rail buttons never consume primary navigation space.
 -- When real future gameplay sections are registered as primary, this
@@ -313,6 +387,14 @@ Window.rail:SetScript("OnSizeChanged", FitTabs)
 FitTabs(Window.rail, Window.rail:GetWidth())
 
 ns.Navigation = {
+    Back = function()
+        if #history == 0 then return false end
+        local previous = table.remove(history)
+        Select(previous.section, previous.page, false, false, true)
+        if ns.Feedback then ns.Feedback.Acknowledge("navigation-back-v1") end
+        return true
+    end,
+    CanGoBack = function() return #history > 0 end,
     SetPatchUnread = function(unread)
         if not patchDot then return end
         patchDot:SetShown(unread == true)

@@ -145,6 +145,9 @@ local function RegisterOption(key, name, detail, pageKey, widget)
                     Motion.Fade(widget.hover, 0, 0.72)
                 end
             end
+            -- BurstFX's 2-pulse destination outline: it follows the same
+            -- real widget/search target and cancels the previous pulse.
+            if widget and ns.Feedback then ns.Feedback.PulseTarget(widget) end
         end)
 end
 
@@ -269,6 +272,13 @@ widgetTransparency:SetPoint("TOPRIGHT", accessCard, "TOPRIGHT", -20, -200)
 MarkPosition(widgetTransparency, accessCard, -200)
 RegisterOption("widgetTransparency", "Widget transparency",
     "Set idle opacity of the floating access icon", "interface", widgetTransparency)
+-- Miniatures are anchored to our own window, without changing any setting
+-- or intercepting the live slider. Both rows can show the same preview.
+if ns.Feedback then
+    ns.Feedback.BindWidgetPreview(widgetSize)
+    ns.Feedback.BindWidgetPreview(widgetTransparency)
+    ns.Feedback.NewBadge(widgetSize, "widget-preview-v1", true)
+end
 
 local compartmentToggle = AddToggle(accessCard, "interface",
     "showInCompartment", "Show in AddOn Compartment",
@@ -281,7 +291,12 @@ rows[#rows].needsCompartment = true
 local resetAccess = Style.Action(accessCard, "Reset icon positions")
 resetAccess:SetSize(200, 34)
 resetAccess:SetPoint("BOTTOMRIGHT", accessCard, "BOTTOMRIGHT", -22, 16)
-resetAccess:SetScript("OnClick", function() Settings.ResetAccessPositions() end)
+resetAccess:SetScript("OnClick", function()
+    Settings.ResetAccessPositions()
+    if ns.Feedback then
+        ns.Feedback.ConfirmAction(resetAccess, "Positions restored")
+    end
+end)
 ns.Tooltips.Bind(resetAccess, {
     title = "Reset icon positions",
     detail = "Restore the minimap button angle and the floating widget's position."
