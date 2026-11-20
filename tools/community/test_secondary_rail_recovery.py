@@ -44,18 +44,18 @@ class SecondaryRailRecoveryTests(unittest.TestCase):
         nav = text("UI/Navigation.lua")
         for marker in (
             'button:SetSize(90, 90)',
-            'icon:SetSize(isPrimary and 29 or 43, isPrimary and 29 or 43)',
-            'isPrimary and 16 or 11, C.tabMuted',
-            'icon:SetPoint("TOP", button, "TOP", 0, -7)',
-            'label:SetPoint("TOP", icon, "BOTTOM", 0, -2)',
-            'label:SetHeight(32)',
+            'icon:SetSize(isPrimary and 34 or 50, isPrimary and 34 or 50)',
+            'isPrimary and 18 or 12, C.tabMuted',
+            'icon:SetPoint("TOP", button, "TOP", 0, -4)',
+            'label:SetPoint("TOP", icon, "BOTTOM", 0, 0)',
+            'label:SetHeight(30)',
             'label:SetJustifyH("CENTER")',
             'label:SetJustifyV("MIDDLE")',
             'label:SetText("PATCH\\nNOTES")',
         ):
             self.assertIn(marker, nav)
-        # Top margin 7, glyph 43, gap 2, label box 32, bottom margin 6.
-        self.assertLessEqual(7 + 43 + 2 + 32, 90)
+        # Top margin 4, glyph 50, gap 0, label box 30, bottom margin 6.
+        self.assertLessEqual(4 + 50 + 0 + 30, 90)
 
     def test_center_diamond_removed_and_rules_are_mirrored(self):
         window = text("UI/Window.lua")

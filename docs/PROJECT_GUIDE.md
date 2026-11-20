@@ -608,3 +608,36 @@ drag, tooltips, hover, idle, icon visibility modes, live opacity/size sliders,
 collector ownership, combat safety and /reload/relog. Source parser,
 runtime and regression CI results do not prove visual clarity in WoW.
 Rollback baseline develop 507f33c09800cbff17373d8a9ef42b826e5838c5.
+
+## Navigation icon set replaced — 2026-11-20
+
+User chose the 4-symbol icon-board screenshot (Hall crossed swords,
+Community three people, Patch Notes scroll, Options gear) and explicitly
+authorized applying its artwork inside the existing navigation buttons.
+Source is the user's selected concept image, NOT Polestar/Blizzard art.
+Icons were extracted from that image, backgrounds discarded, and packed
+into a 128x128 power-of-two indexed RGBA PNG atlas, with four 64x64 cells.
+A thin baked dark edge is retained for readability on bright themes.
+Original proportions and fixed gold/ivory colors are retained; no theme
+tinting or reskinned icon backgrounds.
+
+Polestar-first source inspected: Polestar/Theme/Widgets.lua icon button
+and media ownership; Polestar_Options/UI/Controls.lua W.Button. Principle:
+a single icon renderer, button/hover behavior separate from decorative art.
+Our Chrome.Icon owns atlas UVs, Navigation.lua owns icon+label geometry,
+selection, motion, Search, Patch Notes unread status and button handlers.
+No new settings, SavedVariables, gameplay, polling or TOC bump.
+
+Only existing button contents change: utilities remain 90x90 with 50-unit
+icon and 12-point label, 4-unit top pad and 30-unit label box. Hall remains
+216x44 with 34-unit icon and 18-point label, anchored around the center
+and still hides the icon when the header becomes too narrow. Colors of
+buttons/borders/selection remain themeable; decorative glyphs remain fixed.
+The older themed Patch Notes line renderer is removed.
+
+Status: IMPLEMENTED / IN-GAME UNTESTED until reviewed in WoW. Test four
+icons at compact/wide layouts, Ivory/Slate/Verdant/Ember/Moonstone and
+EllesmereUI, including hover/selection/click, click hit areas, Patch Notes
+unread badge, Search navigation, Fold/Peek, text scaling and /reload.
+Potential risk: 12pt long "COMMUNITY" label with large UI font scales.
+Rollback baseline: develop 4ae969deca1f83761cf8bc2634302829ac9b59c4.

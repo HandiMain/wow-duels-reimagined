@@ -169,54 +169,26 @@ for index, section in ipairs(sections) do
         bar:SetWidth(2)
     end
 
-    local icon
-    if section.key == "patchnotes" then
-        -- One gold line-art scroll, built with the same recolorable style
-        -- tokens as the other utility glyphs; not the former atlas tile.
-        icon = CreateFrame("Frame", nil, button)
-        local parchment = Style.Fill(icon, C.goldDim, "ARTWORK")
-        parchment:ClearAllPoints()
-        parchment:SetPoint("TOPLEFT", icon, "TOPLEFT", 11, -9)
-        parchment:SetPoint("BOTTOMRIGHT", icon, "BOTTOMRIGHT", -11, 9)
-        parchment:SetAlpha(0.30)
-        -- Draw just the parchment edges, not a square button border.
-        for _, x in ipairs({ 11, 32 }) do
-            local side = Style.Fill(icon, C.gold, "ARTWORK")
-            side:ClearAllPoints()
-            side:SetPoint("TOPLEFT", icon, "TOPLEFT", x, -8)
-            side:SetSize(2, 30)
-            side:SetAlpha(0.85)
-        end
-        for _, y in ipairs({ -13, -19, -25 }) do
-            local stroke = Style.Fill(icon, C.gold, "OVERLAY")
-            stroke:ClearAllPoints()
-            stroke:SetPoint("TOPLEFT", icon, "TOPLEFT", 14, y)
-            stroke:SetPoint("TOPRIGHT", icon, "TOPRIGHT", -14, y)
-            stroke:SetHeight(2)
-            stroke:SetAlpha(0.8)
-        end
-        for _, y in ipairs({ -7, -36 }) do
-            local roll = Style.Fill(icon, C.gold, "OVERLAY")
-            roll:ClearAllPoints()
-            roll:SetPoint("TOPLEFT", icon, "TOPLEFT", 8, y)
-            roll:SetPoint("TOPRIGHT", icon, "TOPRIGHT", -8, y)
-            roll:SetHeight(3)
-        end
-    else
-        icon = Chrome.Icon(button, section.icon)
-    end
-    icon:SetSize(isPrimary and 29 or 43, isPrimary and 29 or 43)
+    -- All navigation glyphs use the same untinted icon atlas. This removes
+    -- Patch Notes' individually colored Lua strokes and preserves the four
+    -- original icon meanings while theme skins remain on the buttons.
+    local icon = Chrome.Icon(button, section.icon)
+    icon:SetSize(isPrimary and 34 or 50, isPrimary and 34 or 50)
     local label = Style.Text(button, string.upper(section.label),
-        isPrimary and 16 or 11, C.tabMuted)
+        isPrimary and 18 or 12, C.tabMuted)
     if isPrimary then
-        icon:SetPoint("LEFT", button, "LEFT", 37, 0)
-        label:SetPoint("LEFT", icon, "RIGHT", 14, 0)
+        -- Anchor the icon/text pair around the button center regardless of
+        -- width; FitTabs still hides only the icon on very narrow windows.
+        icon:SetPoint("RIGHT", button, "CENTER", -11, 0)
+        label:SetPoint("LEFT", icon, "RIGHT", 12, 0)
         label:SetJustifyH("LEFT")
     else
-        icon:SetPoint("TOP", button, "TOP", 0, -7)
-        label:SetPoint("TOP", icon, "BOTTOM", 0, -2)
-        label:SetWidth(86)
-        label:SetHeight(32)
+        -- 4 + 50 + 0 + 30 = 84 of the existing 90-unit button.
+        -- Larger art and label remain fully inside the hit area.
+        icon:SetPoint("TOP", button, "TOP", 0, -4)
+        label:SetPoint("TOP", icon, "BOTTOM", 0, 0)
+        label:SetWidth(88)
+        label:SetHeight(30)
         label:SetJustifyH("CENTER")
         label:SetJustifyV("MIDDLE")
     end
@@ -318,7 +290,7 @@ local function FitTabs(self, width)
         if tiny then
             item.label:SetPoint("CENTER", item.button, "CENTER")
         else
-            item.label:SetPoint("LEFT", item.icon, "RIGHT", 14, 0)
+            item.label:SetPoint("LEFT", item.icon, "RIGHT", 12, 0)
         end
     end
 end

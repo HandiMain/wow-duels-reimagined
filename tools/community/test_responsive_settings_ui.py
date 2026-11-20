@@ -153,13 +153,15 @@ class ResponsiveSettingsTests(unittest.TestCase):
         self.assertIn("ns.Widgets.PressFeedback(button, hover)", nav)
         self.assertIn("local primaryKeys = { hall = true }", nav)
 
-    def test_patch_icon_is_drawn_with_shared_theme_tokens(self):
+    def test_all_nav_icons_use_fixed_artwork_not_theme_recolored_shapes(self):
         nav = read("UI/Navigation.lua")
-        self.assertNotIn("PatchNotesAtlas.tga", nav)
-        self.assertIn('local parchment = Style.Fill(icon, C.goldDim, "ARTWORK")', nav)
-        self.assertIn("for _, x in ipairs({ 11, 32 }) do", nav)
-        self.assertIn("for _, y in ipairs({ -13, -19, -25 }) do", nav)
-        self.assertIn("patchPulse:SetLooping(\"BOUNCE\")", nav)
+        chrome = read("UI/Chrome.lua")
+        self.assertIn('local icon = Chrome.Icon(button, section.icon)', nav)
+        self.assertNotIn('Style.Fill(icon, C.goldDim', nav)
+        self.assertIn("DuelsNavigationAtlas.png", chrome)
+        self.assertIn("tex:SetTexCoord(unpack(uv))", chrome)
+        self.assertIn("tex:SetVertexColor(1, 1, 1, 1)", chrome)
+        self.assertIn('patchPulse:SetLooping("BOUNCE")', nav)
         self.assertIn('label:SetText("PATCH\\nNOTES")', nav)
         self.assertIn("if item.icon.SetVertexColor then", nav)
 

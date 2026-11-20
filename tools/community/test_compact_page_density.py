@@ -33,10 +33,10 @@ class CompactPageDensityTests(unittest.TestCase):
         n = src("UI/Navigation.lua")
         for marker in (
             "button:SetSize(90, 90)",
-            "icon:SetSize(isPrimary and 29 or 43",
-            "isPrimary and 16 or 11, C.tabMuted",
-            "label:SetWidth(86)",
-            "label:SetHeight(32)",
+            "icon:SetSize(isPrimary and 34 or 50",
+            "isPrimary and 18 or 12, C.tabMuted",
+            "label:SetWidth(88)",
+            "label:SetHeight(30)",
             'label:SetJustifyH("CENTER")',
             'label:SetJustifyV("MIDDLE")',
             "item.label:SetTextColor(unpack(active and C.tabText or C.text))",

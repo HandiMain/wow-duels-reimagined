@@ -29,9 +29,27 @@ function Chrome.SlicedButton(parent)
     return ground
 end
 
+-- Fixed-color, user-approved icon artwork. The four 64px atlas cells
+-- contain transparent glyphs only; no button backing or theme masks.
+-- Shared textures retain their own colors on any Duels/Ellesmere theme.
+local NAV_ICON_ATLAS = "Interface\\AddOns\\DuelsReimagined\\Media\\Icons\\DuelsNavigationAtlas.png"
+local NAV_ICON_UV = {
+    Hall       = { 0,   0.5, 0,   0.5 },
+    Community  = { 0.5, 1,   0,   0.5 },
+    PatchNotes = { 0,   0.5, 0.5, 1 },
+    Options    = { 0.5, 1,   0.5, 1 },
+}
 function Chrome.Icon(parent, name)
     local tex = parent:CreateTexture(nil, "ARTWORK")
-    tex:SetTexture(art .. "Icon" .. name .. ".png")
+    local uv = NAV_ICON_UV[name]
+    if uv then
+        tex:SetTexture(NAV_ICON_ATLAS)
+        tex:SetTexCoord(unpack(uv))
+        tex:SetVertexColor(1, 1, 1, 1)
+    else
+        -- Preserve legacy fallback for future, as-yet unapproved icons.
+        tex:SetTexture(art .. "Icon" .. name .. ".png")
+    end
     return Chrome.Sharp(tex)
 end
 
