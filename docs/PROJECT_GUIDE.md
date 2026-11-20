@@ -555,3 +555,27 @@ enabled/disabled: background and letter colors stay identical; text legible;
 buttons still work, tooltip remains accessible, no clipping at small sizes;
 main header continues theming; /reload/Enter/Escape unaffected.
 Source baseline: develop 37e0e9af6db1aa1ec3b3bbc74c03adf292affe00.
+
+## Landing buttons locked to brand gold — 2026-11-20
+
+The user observed in-game that the now-fixed charcoal landing and original
+wordmark were working, but both launcher buttons were still turning blue
+from their active theme. Explicit decision: both landing actions have one
+fixed muted-gold fill EXACTLY matching the "DUELS" letters, and dark ink
+text for contrast. Preserve their names, placement, clicks, tooltips, hover
+and press animations; leave theme-aware buttons elsewhere untouched.
+
+Polestar-first reference: Polestar_Options/UI/Controls.lua has a centralized
+button constructor (W.Button) and uses separate appearance tokens. Our
+shared Style.Action remains the one behavior owner. Its optional private
+palette overrides EVERY fixed paint role (fill/edge/light/dark/hover/text)
+so neither Duels Theme.Refresh nor optional EllesmereUI recolors these two
+buttons. No global skin override, duplicate action handler, additional
+SavedVariables, new media, TOC bump, or unrelated minimap changes.
+
+Status: IMPLEMENTED / IN-GAME UNTESTED. Test all five UI color themes,
+Ellesmere color matching on/off; both buttons should retain identical
+gold fill and dark legible text while other addon buttons remain themeable.
+Hover, click, tooltip, Blizzard Settings handoff, keyboard chat behavior,
+and /reload require live verification.
+Rollback point: develop fb67017c4c1a309a1491875cafc4e55fc841fa66.

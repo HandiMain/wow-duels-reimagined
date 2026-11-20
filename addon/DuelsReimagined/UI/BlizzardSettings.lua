@@ -19,6 +19,14 @@ local LANDING_GOLD = { 195/255, 154/255, 101/255, 1 }
 local LANDING_PALE = { 244/255, 232/255, 228/255, 1 }
 local LANDING_TEXT = { 239/255, 228/255, 225/255, 1 }
 local LANDING_MUTED = { 197/255, 182/255, 185/255, 1 }
+-- Identical gold to DUELS lettering, with dark ink for readable button text.
+-- This is a local palette, never a new global theme or stored preference.
+local LANDING_BUTTONS = {
+    fill = LANDING_GOLD, edge = LANDING_PALE,
+    light = LANDING_PALE, dark = LANDING_BG,
+    hover = { 231/255, 190/255, 131/255, 1 },
+    text = LANDING_BG,
+}
 
 local surface = CreateFrame("Frame", nil, panel)
 surface:SetPoint("TOPLEFT", panel, "TOPLEFT", 12, -12)
@@ -61,10 +69,12 @@ subtitle:SetJustifyV("MIDDLE")
 local divider = Chrome.Divider(layout, 304, 15)
 divider:SetPoint("TOP", subtitle, "BOTTOM", 0, -7)
 
-local open = Style.Action(layout, "Open Duels Reimagined", "community")
+local open = Style.Action(layout, "Open Duels Reimagined", "community",
+    LANDING_BUTTONS)
 open:SetSize(360, 46)
 open:SetPoint("TOP", divider, "BOTTOM", 0, -12)
-local community = Style.Action(layout, "View Community", "footer")
+local community = Style.Action(layout, "View Community", "footer",
+    LANDING_BUTTONS)
 community:SetSize(230, 38)
 community:SetPoint("TOP", open, "BOTTOM", 0, -12)
 

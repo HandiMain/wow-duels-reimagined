@@ -323,21 +323,39 @@ function Style.Text(parent, value, size, color, outline)
 end
 
 -- All real buttons use drawn fills + borders, never a baked button bitmap.
-function Style.Action(parent, caption, variant)
+-- Optional fixed-brand palette keeps a specific action independent of theme
+-- recoloring while reusing this shared button's input/motion/tooltip owner.
+function Style.Action(parent, caption, variant, palette)
     local footer = variant == "footer"
     local community = variant == "community"
     local button = CreateFrame("Button", nil, parent)
     button:SetSize(footer and 112 or 204, footer and 32 or 36)
     button:RegisterForClicks("LeftButtonUp")
-    -- Raised, theme-tintable capsule. No pre-colored button artwork.
-    Style.Skin(button, C.button, {
-        corner=11, edge=C.gold, shine=0.60, shade=0.41, rim=0.92,
-    })
-    local hover = Style.Skin(button, C.gold, {
-        corner=11, edge=C.headerText, shine=0.36, shade=0.17, rim=0.74,
-        alpha=0,
-    })
-    local label = Style.Text(button, caption, 15, C.buttonText)
+    -- Raised, theme-tintable capsule by default. A private landing palette
+    -- passes ALL paint roles explicitly, including the hidden gloss/shade,
+    -- so EllesmereUI and theme refresh cannot silently recolor the buttons.
+    local hover
+    if palette then
+        Style.Skin(button, palette.fill, {
+            corner=11, edge=palette.edge, light=palette.light,
+            dark=palette.dark, shine=0.28, shade=0.20, rim=0.88,
+        })
+        hover = Style.Skin(button, palette.hover, {
+            corner=11, edge=palette.edge, light=palette.light,
+            dark=palette.dark, shine=0.20, shade=0.10, rim=0.70,
+            alpha=0,
+        })
+    else
+        Style.Skin(button, C.button, {
+            corner=11, edge=C.gold, shine=0.60, shade=0.41, rim=0.92,
+        })
+        hover = Style.Skin(button, C.gold, {
+            corner=11, edge=C.headerText, shine=0.36, shade=0.17, rim=0.74,
+            alpha=0,
+        })
+    end
+    local label = Style.Text(button, caption, 15,
+        palette and palette.text or C.buttonText)
     label:SetPoint("CENTER")
     button:SetScript("OnEnter", function()
         ns.Motion.Fade(hover, 0.20, 0.16)

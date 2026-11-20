@@ -21,6 +21,26 @@ class BlizzardLandingTests(unittest.TestCase):
         self.assertIn("ns.Window.Toggle()", s)
         self.assertNotIn("DuelsReimaginedDB", s)
         self.assertNotIn("v0.9.2", s)
+    def test_landing_actions_share_fixed_brand_gold_with_original_wordmark(self):
+        landing = read("UI/BlizzardSettings.lua")
+        style = read("UI/Style.lua")
+        self.assertIn("fill = LANDING_GOLD, edge = LANDING_PALE", landing)
+        self.assertIn("text = LANDING_BG", landing)
+        self.assertIn("LockedBrandBand(LANDING_GOLD, 0, 0.25)", landing)
+        self.assertEqual(landing.count("    LANDING_BUTTONS)"), 2)
+        self.assertIn("function Style.Action(parent, caption, variant, palette)", style)
+        self.assertIn("if palette then", style)
+        self.assertIn("Style.Skin(button, palette.fill, {", style)
+        self.assertIn("edge=palette.edge, light=palette.light", style)
+        self.assertIn("dark=palette.dark, shine=0.28", style)
+        self.assertIn("hover = Style.Skin(button, palette.hover, {", style)
+        self.assertIn("palette and palette.text or C.buttonText", style)
+        # The default shared action stays theme-aware for all other pages.
+        self.assertIn("Style.Skin(button, C.button, {", style)
+        self.assertIn("hover = Style.Skin(button, C.gold, {", style)
+        self.assertIn('ns.Motion.Fade(hover, 0.20, 0.16)', style)
+        self.assertIn('ns.Widgets.PressFeedback(button, hover)', style)
+
     def test_native_api_and_safe_handoff(self):
         s = read("UI/BlizzardSettings.lua")
         for token in ["RegisterCanvasLayoutCategory", "RegisterAddOnCategory",
