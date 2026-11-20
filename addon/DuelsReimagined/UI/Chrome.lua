@@ -35,25 +35,51 @@ function Chrome.Icon(parent, name)
     return Chrome.Sharp(tex)
 end
 
+-- All thin decorative rules share one pixel-stable renderer. A historical
+-- 1-UI-unit SetColorTexture line would become sub-pixel at fractional window
+-- positions, blinking while dragging a resize corner. Use two *physical*
+-- pixels with softer alpha and snap the white-tinted rule to the pixel grid.
+-- The same theme tokens (C.goldDim/C.gold) drive the divider under all
+-- titles and inside Community cards / sidebar.
+local pixelDividers = {}
+local HAIRLINE_IMAGE = "Interface\\Buttons\\WHITE8X8"
+
+local function PixelAlign(tex)
+    if tex.SetSnapToPixelGrid then tex:SetSnapToPixelGrid(true) end
+    if tex.SetTexelSnappingBias then tex:SetTexelSnappingBias(0) end
+end
+
 function Chrome.Divider(parent, width, height)
-    -- Shared line + diamond, assembled from 1px strips. No image required.
     local f = CreateFrame("Frame", nil, parent)
     f:SetSize(width or 220, height or 15)
-    local left = Style.Fill(f, C.goldDim, "ARTWORK")
-    left:ClearAllPoints()
+
+    local left = Style.TintedImage(f, HAIRLINE_IMAGE, C.goldDim, "ARTWORK")
     left:SetPoint("LEFT", f, "LEFT")
     left:SetPoint("RIGHT", f, "CENTER", -8, 0)
-    left:SetHeight(1)
-    local right = Style.Fill(f, C.goldDim, "ARTWORK")
-    right:ClearAllPoints()
+    left:SetAlpha(0.66)
+    PixelAlign(left)
+    local right = Style.TintedImage(f, HAIRLINE_IMAGE, C.goldDim, "ARTWORK")
     right:SetPoint("LEFT", f, "CENTER", 8, 0)
     right:SetPoint("RIGHT", f, "RIGHT")
-    right:SetHeight(1)
+    right:SetAlpha(0.66)
+    PixelAlign(right)
+
     local stone = Style.Fill(f, C.gold, "OVERLAY")
     stone:ClearAllPoints()
-    stone:SetSize(6,6)
+    stone:SetSize(6, 6)
     stone:SetPoint("CENTER")
-    if stone.SetRotation then stone:SetRotation(math.pi/4) end
+    if stone.SetRotation then stone:SetRotation(math.pi / 4) end
+
+    local entry = {frame=f, left=left, right=right}
+    pixelDividers[#pixelDividers + 1] = entry
+    local function SyncThickness()
+        local px = Style.Pixel(f, 2)
+        left:SetHeight(px)
+        right:SetHeight(px)
+    end
+    SyncThickness()
+    -- No OnUpdate: the Window scale / theme refresh explicitly repaints
+    -- physical pixel thickness; the two lines automatically follow points.
     return f
 end
 
@@ -104,4 +130,10 @@ end
 function Chrome.Panel(parent, fill, opts)
     return Style.Skin(parent, fill or C.nav, opts)
 end
-function Chrome.Refresh() end
+function Chrome.Refresh()
+    for _, entry in ipairs(pixelDividers) do
+        local pixels = Style.Pixel(entry.frame, 2)
+        entry.left:SetHeight(pixels)
+        entry.right:SetHeight(pixels)
+    end
+end

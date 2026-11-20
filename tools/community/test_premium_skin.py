@@ -78,7 +78,7 @@ class PremiumSkinTests(unittest.TestCase):
             for token in tokens:
                 self.assertIn(token, src(p))
         self.assertIn("local function WriteDB()", src("Core/Settings.lua"))
-        self.assertIn("Option5HeaderLogo.png", src("UI/Window.lua"))
+        self.assertIn("HeaderOption5TintAtlas.png", src("UI/Window.lua"))
         self.assertIn("DuelsReimagined-HeaderLogoFlat.png", src("UI/BlizzardSettings.lua"))
         for p in ("UI/Style.lua","UI/Chrome.lua","UI/Navigation.lua"):
             self.assertNotIn('SetScript("OnUpdate"', src(p))

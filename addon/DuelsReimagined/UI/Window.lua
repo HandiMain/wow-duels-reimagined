@@ -105,29 +105,42 @@ Window.content = content
 Window.chromeSeams = Chrome.Shell(frame, header, footer, rail, nav, content)
 Window.header, Window.footer, Window.body = header, footer, body
 
--- Approved Option 5: metallic DR monogram, gold divider, and the
--- two-line DUELS REIMAGINED wordmark. Preserve the previous Alliance/Horde
--- logo independently on the Blizzard Settings landing page.
--- Artwork was isolated from the approved concept into a power-of-two
--- 512x128 canvas, with the 420x102 visible logo at x=46, y=13.
--- Keep this element constrained to the header space before Search.
+-- Approved NEW Option 5 from the five-logo concept sheet (2026-11-20):
+-- a single-line DUELS (gold) / REIMAGINED (pale) premium serif wordmark,
+-- with a fine angular underline and centered diamond. No DR monogram.
+--
+-- A single neutral indexed PNG atlas has three independent alpha layers.
+-- Their colors are driven by Style's palette and therefore live-update with
+-- all five themes and optional EllesmereUI. The Blizzard Settings landing
+-- keeps its distinct legacy faction logo; no copied logo engines.
 local brandArea = CreateFrame("Frame", nil, header)
 brandArea:SetSize(440, 76)
 brandArea:SetPoint("LEFT", header, "LEFT", 20, 0)
 brandArea:EnableMouse(false)
-local brandLogo = brandArea:CreateTexture(nil, "ARTWORK")
-brandLogo:SetTexture("Interface\\AddOns\\DuelsReimagined\\Media\\Concept\\Option5HeaderLogo.png")
-local BRAND_ASPECT = 420 / 102
-local BRAND_MAX_WIDTH, BRAND_MAX_HEIGHT = 340, 74
-brandLogo:SetSize(math.min(BRAND_MAX_WIDTH, BRAND_MAX_HEIGHT * BRAND_ASPECT),
-    BRAND_MAX_HEIGHT)
-brandLogo:SetPoint("CENTER", brandArea, "CENTER")
-brandLogo:SetTexCoord(46 / 512, 466 / 512, 13 / 128, 115 / 128)
-Chrome.Sharp(brandLogo)
+
+local brandLogo = CreateFrame("Frame", nil, brandArea)
+brandLogo:EnableMouse(false)
+local BRAND_ASPECT = 256 / 64
+local BRAND_MAX_WIDTH, BRAND_MAX_HEIGHT = 280, 70
+brandLogo:SetSize(BRAND_MAX_WIDTH, BRAND_MAX_HEIGHT)
+brandLogo:SetPoint("LEFT", brandArea, "LEFT", 32, 0)
+
+local BRAND_ATLAS = "Interface\\AddOns\\DuelsReimagined\\Media\\Skin\\HeaderOption5TintAtlas.png"
+local function BrandLayer(color, top, bottom)
+    local tex = Style.TintedImage(brandLogo, BRAND_ATLAS, color, "ARTWORK")
+    tex:SetAllPoints(brandLogo)
+    tex:SetTexCoord(0, 1, top, bottom)
+    Chrome.Sharp(tex)
+    return tex
+end
+BrandLayer(C.gold,       0,    0.25) -- DUELS lettering
+BrandLayer(C.headerText, 0.25, 0.50) -- REIMAGINED lettering
+BrandLayer(C.gold,       0.50, 0.75) -- angular underline and diamond
+
 local function FitBrand(_, width)
-    -- Fill the available brand area without stretching or overlapping Search.
-    -- Only repaint on size changes, never poll during gameplay.
-    local availableWidth = math.max(1, (width or brandArea:GetWidth()) - 12)
+    -- Full artwork scales uniformly and never overlaps the search field.
+    -- Anchor on the LEFT like the approved concept, not in the page center.
+    local availableWidth = math.max(1, (width or brandArea:GetWidth()) - 44)
     local w = math.min(BRAND_MAX_WIDTH, BRAND_MAX_HEIGHT * BRAND_ASPECT,
         availableWidth)
     brandLogo:SetSize(w, w / BRAND_ASPECT)
@@ -295,6 +308,7 @@ function Window.ApplyScale(value)
     frame:SetScale(v)
     FitWindowToScreen(v)
     if Style.RefreshPixelEdges then Style.RefreshPixelEdges() end
+    if ns.Chrome and ns.Chrome.Refresh then ns.Chrome.Refresh() end
     if ns.Header and ns.Header.AfterWindowResized then
         ns.Header.AfterWindowResized()
     end

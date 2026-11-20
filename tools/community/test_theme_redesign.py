@@ -50,7 +50,7 @@ class ThemeRedesignTests(unittest.TestCase):
             ("UI/Chrome.lua", "UI/Style.lua", "UI/PatchNotes.lua"))
         self.assertIn('Style.SkinMask(rim, C.shellEdge, "rim"', chrome)
         self.assertIn('function Chrome.Divider(', chrome)
-        self.assertIn('Style.Fill(f, C.goldDim, "ARTWORK")', chrome)
+        self.assertIn('Style.TintedImage(f, HAIRLINE_IMAGE, C.goldDim, "ARTWORK")', chrome)
         self.assertIn('Style.Skin(button, C.button, {', style)
         self.assertNotIn('TrimTop', chrome)
         self.assertNotIn('PatchNotesHero.tga', patch)
