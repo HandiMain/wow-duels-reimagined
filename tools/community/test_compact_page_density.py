@@ -18,7 +18,9 @@ class CompactPageDensityTests(unittest.TestCase):
             'brandLogo:SetPoint("LEFT", brandArea, "LEFT", 24, -3)',
             'BrandLayer(C.gold,       0,    0.25, -4)',
             'BrandLayer(C.headerText, 0.25, 0.50, -4)',
-            'BrandLayer(C.gold,       0.50, 0.75, 3)',
+            'local underline = CreateFrame("Frame", nil, brandLogo)',
+            'leftRule:SetPoint("RIGHT", underline, "CENTER", -9, 0)',
+            'rightRule:SetPoint("LEFT", underline, "CENTER", 9, 0)',
             'brandArea:SetPoint("RIGHT", searchBox, "LEFT", -18, 0)',
         ):
             self.assertIn(marker, w)
@@ -29,12 +31,12 @@ class CompactPageDensityTests(unittest.TestCase):
         n = src("UI/Navigation.lua")
         for marker in (
             "button:SetSize(90, 90)",
-            "icon:SetSize(isPrimary and 29 or 35",
-            "isPrimary and 16 or 12, C.tabMuted",
+            "icon:SetSize(isPrimary and 29 or 43",
+            "isPrimary and 16 or 11, C.tabMuted",
             "label:SetWidth(86)",
-            "label:SetHeight(36)",
+            "label:SetHeight(32)",
             'label:SetJustifyH("CENTER")',
-            'label:SetJustifyV("CENTER")',
+            'label:SetJustifyV("MIDDLE")',
             "item.label:SetTextColor(unpack(active and C.tabText or C.text))",
             "sub:SetSize(230, 38)",
             "-(79 + (pageIndex - 1) * 41)",

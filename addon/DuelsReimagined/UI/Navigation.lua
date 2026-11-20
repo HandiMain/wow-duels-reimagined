@@ -165,20 +165,20 @@ for index, section in ipairs(sections) do
 
     local icon = section.key == "patchnotes" and
         button:CreateTexture(nil, "ARTWORK") or Chrome.Icon(button, section.icon)
-    icon:SetSize(isPrimary and 29 or 35, isPrimary and 29 or 35)
+    icon:SetSize(isPrimary and 29 or 43, isPrimary and 29 or 43)
     local label = Style.Text(button, string.upper(section.label),
-        isPrimary and 16 or 12, C.tabMuted)
+        isPrimary and 16 or 11, C.tabMuted)
     if isPrimary then
         icon:SetPoint("LEFT", button, "LEFT", 37, 0)
         label:SetPoint("LEFT", icon, "RIGHT", 14, 0)
         label:SetJustifyH("LEFT")
     else
-        icon:SetPoint("TOP", button, "TOP", 0, -10)
-        label:SetPoint("TOP", icon, "BOTTOM", 0, -5)
+        icon:SetPoint("TOP", button, "TOP", 0, -7)
+        label:SetPoint("TOP", icon, "BOTTOM", 0, -2)
         label:SetWidth(86)
-        label:SetHeight(36)
+        label:SetHeight(32)
         label:SetJustifyH("CENTER")
-        label:SetJustifyV("CENTER")
+        label:SetJustifyV("MIDDLE")
     end
 
     if section.key == "patchnotes" then

@@ -105,12 +105,13 @@ Window.content = content
 Window.chromeSeams = Chrome.Shell(frame, header, footer, rail, nav, content)
 Window.header, Window.footer, Window.body = header, footer, body
 
--- Approved NEW Option 5 from the five-logo concept sheet (2026-11-20):
--- a single-line DUELS (gold) / REIMAGINED (pale) premium serif wordmark,
--- with a fine angular underline and centered diamond. No DR monogram.
+-- Approved NEW Option 5 wordmark, refined from in-game feedback:
+-- DUELS (gold) / REIMAGINED (pale), centered lettering and two balanced,
+-- code-drawn horizontal underlines. No center diamond or bent end caps.
 --
--- A single neutral indexed PNG atlas has three independent alpha layers.
--- Their colors are driven by Style's palette and therefore live-update with
+-- The original neutral PNG atlas still supplies the TWO letter alpha masks;
+-- the ornament is drawn with Style.Fill so it is perfectly symmetrical and
+-- does not retain the old third-band diamond. The palette live-updates with
 -- all five themes and optional EllesmereUI. The Blizzard Settings landing
 -- keeps its distinct legacy faction logo; no copied logo engines.
 local brandArea = CreateFrame("Frame", nil, header)
@@ -129,8 +130,8 @@ brandLogo:SetPoint("LEFT", brandArea, "LEFT", 24, -3)
 local BRAND_ATLAS = "Interface\\AddOns\\DuelsReimagined\\Media\\Skin\\HeaderOption5TintAtlas.png"
 local function BrandLayer(color, top, bottom, yOffset)
     local tex = Style.TintedImage(brandLogo, BRAND_ATLAS, color, "ARTWORK")
-    -- Each atlas band has a different amount of empty vertical padding.
-    -- Center the lettering independently, and tuck the diamond just below.
+    -- Both letter masks share one visual baseline; keep them vertically
+    -- centered and never move the letters when tuning the underline.
     tex:SetPoint("TOPLEFT", brandLogo, "TOPLEFT", 0, yOffset)
     tex:SetPoint("BOTTOMRIGHT", brandLogo, "BOTTOMRIGHT", 0, yOffset)
     tex:SetTexCoord(0, 1, top, bottom)
@@ -139,7 +140,26 @@ local function BrandLayer(color, top, bottom, yOffset)
 end
 BrandLayer(C.gold,       0,    0.25, -4) -- DUELS lettering
 BrandLayer(C.headerText, 0.25, 0.50, -4) -- REIMAGINED, aligned baseline
-BrandLayer(C.gold,       0.50, 0.75, 3) -- underline/diamond lifted slightly
+
+-- The old atlas ornament had an off-center diamond and asymmetric bends.
+-- Use two equal-length, theme-colored strokes instead: zero extra media,
+-- a consistent gap, and identical ends regardless of header width.
+local underline = CreateFrame("Frame", nil, brandLogo)
+underline:SetPoint("BOTTOMLEFT", brandLogo, "BOTTOMLEFT", 12, -3)
+underline:SetPoint("BOTTOMRIGHT", brandLogo, "BOTTOMRIGHT", -12, -3)
+underline:SetHeight(10)
+local leftRule = Style.Fill(underline, C.gold, "ARTWORK")
+leftRule:ClearAllPoints()
+leftRule:SetPoint("LEFT", underline, "LEFT")
+leftRule:SetPoint("RIGHT", underline, "CENTER", -9, 0)
+leftRule:SetHeight(2)
+leftRule:SetAlpha(0.66)
+local rightRule = Style.Fill(underline, C.gold, "ARTWORK")
+rightRule:ClearAllPoints()
+rightRule:SetPoint("LEFT", underline, "CENTER", 9, 0)
+rightRule:SetPoint("RIGHT", underline, "RIGHT")
+rightRule:SetHeight(2)
+rightRule:SetAlpha(0.66)
 
 local function FitBrand(_, width)
     -- Full artwork scales uniformly and never overlaps the search field.

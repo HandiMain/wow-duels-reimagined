@@ -28,7 +28,9 @@ class OptionFiveBrandingTests(unittest.TestCase):
         self.assertIn("BRAND_MAX_WIDTH, BRAND_MAX_HEIGHT = 312, 67", window)
         self.assertIn("BrandLayer(C.gold,       0,    0.25, -4)", window)
         self.assertIn("BrandLayer(C.headerText, 0.25, 0.50, -4)", window)
-        self.assertIn("BrandLayer(C.gold,       0.50, 0.75, 3)", window)
+        self.assertNotIn("BrandLayer(C.gold,       0.50, 0.75, 3)", window)
+        self.assertIn('local leftRule = Style.Fill(underline, C.gold, "ARTWORK")', window)
+        self.assertIn('local rightRule = Style.Fill(underline, C.gold, "ARTWORK")', window)
 
     def test_existing_responsive_header_contracts_unchanged(self):
         window = (ADDON / "UI" / "Window.lua").read_text()
