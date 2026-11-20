@@ -198,7 +198,7 @@ class CommunityUITests(unittest.TestCase):
     def test_shared_components_and_no_network_in_wow(self):
         source = content("UI/Community.lua")
         for marker in ("Widgets.ScrollBar(", "ns.Tooltips.Bind(",
-                       "Style.Action(", "Style.Border(", "Style.Text(",
+                       "Style.Action(", "Style.Skin(", "Style.Text(",
                        "ns.CommunityCredits"):
             self.assertIn(marker, source)
         for banned in ("C_HTTP", "SendAddonMessage", "HTTPGet",
