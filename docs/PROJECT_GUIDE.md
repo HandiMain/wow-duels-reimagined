@@ -764,3 +764,49 @@ Actions are separate evidence, not live verification. In-game checks:
 5) new/Reset theme uses Obsidian & Ember, existing valid saved theme is
    retained, Ivory/other 3 choices remain, matchColors on/off still works.
 Previous baseline develop 4d162f9786a4e7b3692e47d832f298c58367e9d6.
+
+## Premium visual skin families — 2026-11-20
+
+Approved concept targets: Forest & Ivory, Ivory & Plum, Midnight Slate
+and Moonstone & Violet are to become distinct premium skins, with
+Obsidian & Ember preserved as the default. Architecture follows
+Option B: two distinct *visual* shell families (crafted hall and sharp
+arena steel) sharing the existing real navigation/resize/search/option
+geometry and behavior, rather than two separate addon interfaces.
+
+References inspected FIRST: Polestar Theme/Theme.lua built-in skin
+palettes, Theme/Widgets.lua shared painting and the Polestar design
+system; then EllesmereUI 9.8.9 Skin API; existing Duels Style,
+Chrome, Window, Navigation, Options, Theme, and test fixtures.
+The matchColors/matchFont public EllesmereUI integration remains the
+single optional appearance adapter; matchColors recolors shared
+semantic tokens and keeps each skin's own motif and frame geometry,
+while user/third-party font selections override built-in heading styles.
+
+Implementation: UI/SkinDecor.lua owns one 4-cell original transparent
+RGBA motif atlas (one per non-Ember skin), individual role-specific
+trim, seal, and background watermark treatment, and a skin-family
+corner-radius resolver. Style.SkinMask adds a safe SetCorner operation
+to existing 9-slice regions, not a second skin engine. All chrome,
+navigation, card, and content surfaces attach visual-only decorations
+that don't create buttons or intercept input. Theme.Refresh repaints
+existing decorations without rebuilding any page. Options' existing
+searchable 'Color theme' entry is renamed to 'Visual skin'; choices
+and saved keys stay unchanged. No new settings, state, async drivers,
+data or gameplay machinery.
+
+Source images from user-approved visual concepts are REFERENCES, not
+shipped screenshots or copied media. Artwork is newly authored and
+small. The original Ember profile has uv=nil, radius=1, and shows
+none of the new decorations, preserving its established appearance.
+All pages, compact whole-card reflow, Search, Tooltip, Patch Notes,
+Community and EUI color/font settings have ONE existing owner.
+
+Status: IMPLEMENTED/UNTESTED until automated CI and in-game review.
+Testing required: every theme Appearance/Interface/Hall/Community/
+Patch Notes at compact and resized widths, folded/search/Peek/drag,
+hover/selection, popup, /reload, EUI matching on/off, custom font,
+no interception of clicks or combat restrictions, and confirm the
+Ember default before/after is visually unchanged. Source-only checks
+do NOT prove full concept-art fidelity. Do not add unapproved motion
+or independent navigation owners. Baseline commit: 60e472f03efb90de1b88c8d3079946cc40ff8d3f.

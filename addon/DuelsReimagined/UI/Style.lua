@@ -239,6 +239,21 @@ function Style.SkinMask(parent, color, mask, layer, sublevel, corner, inset)
         for _, tex in ipairs(self.regions) do tex:SetAlpha(self.alpha) end
     end
     function group:GetAlpha() return self.alpha end
+    -- Refit existing nine-slice tiles. Live skin changes never rebuild controls.
+    function group:SetCorner(radius)
+        local size = math.max(4, radius or corner)
+        tl:SetSize(size, size)
+        tr:SetSize(size, size)
+        bl:SetSize(size, size)
+        br:SetSize(size, size)
+        t:SetHeight(size)
+        b:SetHeight(size)
+        l:SetWidth(size)
+        r:SetWidth(size)
+    end
+    if ns.SkinDecor and ns.SkinDecor.RegisterMask then
+        ns.SkinDecor.RegisterMask(group, corner)
+    end
     return group
 end
 
@@ -461,7 +476,9 @@ function Style.ApplyTheme(accent, panel, fontPath)
     local mode = ns.Settings and ns.Settings.Get("fontOutline") or "default"
     for _, entry in ipairs(fontStrings) do
         local fs = entry.label
-        local path = fontPath or STANDARD_TEXT_FONT or "Fonts\\FRIZQT__.TTF"
+        local skinFont = ns.SkinDecor and ns.SkinDecor.HeadingFont
+            and ns.SkinDecor.HeadingFont(entry.size)
+        local path = fontPath or skinFont or STANDARD_TEXT_FONT or "Fonts\\FRIZQT__.TTF"
         local size = entry.size * scale
         local outline = entry.outline and "OUTLINE" or ""
         if mode == "none" then outline = ""

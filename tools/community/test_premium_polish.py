@@ -89,7 +89,7 @@ class PremiumPolishTests(unittest.TestCase):
         self.assertIn('local matchedColors = ready and Settings.Get("matchColors") == true', opt)
         self.assertIn('matchedColors and "Managed by EllesmereUI" or nil', opt)
         self.assertIn('themeChoice:SetAvailable(not matchedColors,', opt)
-        self.assertIn('Disable Match EllesmereUI colors to choose a Duels color theme.', opt)
+        self.assertIn('Disable Match EllesmereUI colors to choose another visual skin.', opt)
         self.assertIn('themeChoice:SetModified(Settings.IsModified("uiTheme"))', opt)
         self.assertIn('if Settings.Get("matchColors") then', theme)
         self.assertIn('Style.ApplyTheme(accent, panel, font)', theme)

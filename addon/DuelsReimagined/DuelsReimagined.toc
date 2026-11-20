@@ -10,6 +10,7 @@
 Core\Settings.lua
 UI\Fonts.lua
 UI\Style.lua
+UI\SkinDecor.lua
 UI\Motion.lua
 UI\Tooltips.lua
 UI\Chrome.lua

@@ -25,6 +25,7 @@ frame:Hide()
 Style.Skin(frame, C.window, {
     corner=12, edge=C.shellEdge, shine=0.19, shade=0.27, rim=0.94,
 })
+ns.SkinDecor.Attach(frame, "shell")
 local inset = 6
 local interior = CreateFrame("Frame", nil, frame)
 interior:SetPoint("TOPLEFT", frame, "TOPLEFT", inset, -inset)
@@ -49,6 +50,7 @@ header:SetHeight(82)
 header:SetPoint("TOPLEFT", interior, "TOPLEFT")
 header:SetPoint("TOPRIGHT", interior, "TOPRIGHT")
 Style.LitBand(header, C.header, { brightness=0.12, edge=C.shellEdge })
+ns.SkinDecor.Attach(header, "header")
 Drag(header)
 
 local footer = CreateFrame("Frame", nil, frame)
@@ -64,6 +66,7 @@ rail:SetHeight(57)
 rail:SetPoint("TOPLEFT", header, "BOTTOMLEFT", 0, 0)
 rail:SetPoint("TOPRIGHT", header, "BOTTOMRIGHT", 0, 0)
 Style.LitBand(rail, C.rail, { brightness=0.09, edge=C.goldDim })
+ns.SkinDecor.Attach(rail, "rail")
 Window.rail = rail
 
 local body = CreateFrame("Frame", nil, frame)
@@ -81,6 +84,7 @@ utility:SetWidth(98)
 Style.Skin(utility, C.rail, {
     corner=11, edge=C.goldDim, shine=0.24, shade=0.32, rim=0.85,
 })
+ns.SkinDecor.Attach(utility, "utility")
 Window.utility = utility
 
 local nav = CreateFrame("Frame", nil, body)
@@ -88,6 +92,7 @@ nav:SetPoint("TOPLEFT", utility, "TOPRIGHT", 8, 0)
 nav:SetPoint("BOTTOMLEFT", utility, "BOTTOMRIGHT", 8, 0)
 nav:SetWidth(210)
 Style.Skin(nav, C.nav, { corner=12, edge=C.border, shine=0.22, shade=0.28 })
+ns.SkinDecor.Attach(nav, "nav")
 Window.nav = nav
 
 local main = CreateFrame("Frame", nil, body)
@@ -100,6 +105,7 @@ content:SetAllPoints(main)
 Style.Skin(content, C.body, {
     corner=12, edge=C.border, shine=0.20, shade=0.19, rim=0.74,
 })
+ns.SkinDecor.Attach(content, "content")
 Window.content = content
 
 Window.chromeSeams = Chrome.Shell(frame, header, footer, rail, nav, content)

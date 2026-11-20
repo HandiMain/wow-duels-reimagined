@@ -157,6 +157,7 @@ for index, section in ipairs(sections) do
         })
     end
     local selected, hover = AddOverlay(button, isPrimary)
+    ns.SkinDecor.Attach(button, "navButton")
     local bar = button:CreateTexture(nil, "OVERLAY")
     bar:SetColorTexture(unpack(C.gold))
     if isPrimary then
