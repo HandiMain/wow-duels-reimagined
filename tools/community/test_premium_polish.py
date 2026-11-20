@@ -32,11 +32,14 @@ class PremiumPolishTests(unittest.TestCase):
         self.assertIn('Style.SkinMask(rim, C.shellEdge, "rim"', c)
         self.assertNotIn("local inset = 8", w)
 
-    def test_grip_uses_premium_skin_and_existing_motion_engine(self):
+    def test_grip_uses_compact_themeable_glyph_and_existing_motion_engine(self):
         w = get("UI/Window.lua")
-        self.assertIn('Style.Skin(grip, C.rail, {', w)
-        self.assertIn('local gripGlow = Style.Skin(grip, C.tabActive', w)
-        self.assertIn('Style.Fill(grip, C.gold, "OVERLAY")', w)
+        self.assertNotIn('Style.Skin(grip, C.rail, {', w)
+        self.assertIn('plate:SetSize(26, 26)', w)
+        self.assertIn('local gripGlow = Style.Skin(plate, C.tabActive', w)
+        self.assertIn('local gripGlyph = Style.TintedImage(plate,', w)
+        self.assertIn('ResizeGlyph.tga', w)
+        self.assertIn('gripGlyph:SetAlpha(0.74)', w)
         self.assertIn('Motion.Fade(gripGlow, alpha, duration)', w)
         self.assertIn('GripFeedback(0.94, Motion.Duration("quick"))', w)
         self.assertIn('grip:SetScript("OnMouseDown"', w)
@@ -47,7 +50,7 @@ class PremiumPolishTests(unittest.TestCase):
         self.assertIn('frame:StartSizing("BOTTOMRIGHT")', w)
         self.assertIn('Window.CommitResize()', w)
         self.assertIn('Window.ResetSize()', w)
-        self.assertIn('if not on then Motion.Stop(gripGlow, 0)', w)
+        self.assertIn('Motion.Stop(gripGlyph, 0.74)', w)
         self.assertNotIn("ResizeGripHighlight.png", w)
         self.assertNotIn('SetScript("OnUpdate"', w)
 

@@ -127,7 +127,7 @@ end
 FactionMark(true)
 FactionMark(false)
 
-local title = Style.Text(canvas, "THE DUELIST'S CIRCLE", 25, C.pale, true)
+local title = Style.Text(canvas, "THE DUELIST'S CIRCLE", 25, C.pale)
 title:SetPoint("TOPLEFT", canvas, "TOPLEFT", 22, -18)
 title:SetPoint("TOPRIGHT", canvas, "TOPRIGHT", -22, -18)
 title:SetJustifyH("CENTER")

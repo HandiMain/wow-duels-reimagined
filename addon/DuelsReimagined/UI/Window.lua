@@ -361,40 +361,27 @@ grip:SetSize(34, 34)
 grip:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -4, 4)
 grip:SetFrameLevel(frame:GetFrameLevel() + 45)
 grip:RegisterForClicks("RightButtonUp")
--- The hit target stays in the same safe corner, behind Close.
--- The grip is a small raised, tintable plate rather than three bare lines.
--- All visual parts share Style.color; no painted skin or new animation driver.
-Style.Skin(grip, C.rail, {
-    corner=10, edge=C.goldDim, shine=0.34, shade=0.32, rim=0.76,
-})
-local gripGlow = Style.Skin(grip, C.tabActive, {
-    corner=10, edge=C.gold, shine=0.55, shade=0.16, rim=0.85,
+-- The 34px button is an INVISIBLE drag target. A small engraved symbol
+-- fits the existing window corner; only hover/press creates a faint halo.
+-- Its neutral artwork is tinted by Duels themes and EllesmereUI colors.
+local plate = CreateFrame("Frame", nil, grip)
+plate:SetSize(26, 26)
+plate:SetPoint("BOTTOMRIGHT", grip, "BOTTOMRIGHT", -3, 3)
+plate:EnableMouse(false)
+local gripGlow = Style.Skin(plate, C.tabActive, {
+    corner=8, edge=C.goldDim, shine=0.22, shade=0.13, rim=0.35,
     alpha=0,
 })
--- Engraved diagonals: dark offset underneath warm, bright metallic strokes.
--- Three short equal-spaced strokes stay entirely within the 34-unit target.
-for i = 1, 3 do
-    local length = 8 + (i - 1) * 4
-    local shadow = Style.Fill(grip, C.window, "ARTWORK")
-    shadow:ClearAllPoints()
-    shadow:SetSize(length, 2)
-    shadow:SetPoint("BOTTOMRIGHT", grip, "BOTTOMRIGHT",
-        -7 - (i - 1) * 5, 6 + (i - 1) * 5)
-    if shadow.SetRotation then shadow:SetRotation(-math.pi / 4) end
-    shadow:SetAlpha(0.64)
-
-    local line = Style.Fill(grip, C.gold, "OVERLAY")
-    line:ClearAllPoints()
-    line:SetSize(length, 1.6)
-    line:SetPoint("BOTTOMRIGHT", grip, "BOTTOMRIGHT",
-        -7 - (i - 1) * 5, 7 + (i - 1) * 5)
-    if line.SetRotation then line:SetRotation(-math.pi / 4) end
-    line:SetAlpha(0.92)
-end
+local gripGlyph = Style.TintedImage(plate,
+    "Interface\\AddOns\\DuelsReimagined\\Media\\Skin\\ResizeGlyph.tga",
+    C.gold, "OVERLAY")
+gripGlyph:SetAllPoints(plate)
+gripGlyph:SetAlpha(0.74)
 local function GripFeedback(alpha, duration)
     Motion.Fade(gripGlow, alpha, duration)
+    Motion.Fade(gripGlyph, alpha > 0 and 1 or 0.74, duration)
 end
-grip.icon = gripGlow
+grip.icon = gripGlyph
 local sizing = false
 grip:SetScript("OnMouseDown", function(_, button)
     if button ~= "LeftButton" or (ns.Header and ns.Header.IsFolded()) then return end
@@ -428,6 +415,7 @@ ns.Tooltips.Bind(grip, { title = "Resize window",
 -- Preserve the shared tooltip OnHide cleanup installed with HookScript.
 grip:HookScript("OnHide", function()
     Motion.Stop(gripGlow, 0)
+    Motion.Stop(gripGlyph, 0.74)
     if sizing then
         sizing = false
         frame:StopMovingOrSizing()
@@ -435,7 +423,10 @@ grip:HookScript("OnHide", function()
 end)
 Window.resizeGrip = grip
 function Window.SetSizingEnabled(on)
-    if not on then Motion.Stop(gripGlow, 0) end
+    if not on then
+        Motion.Stop(gripGlow, 0)
+        Motion.Stop(gripGlyph, 0.74)
+    end
     if not on and sizing then
         sizing = false
         frame:StopMovingOrSizing()

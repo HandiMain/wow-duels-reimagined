@@ -19,7 +19,7 @@ tip:SetSize(WIDTH, 48)
 Style.Fill(tip, C.nav)
 Style.Border(tip, C.goldDim, 1)
 
-local heading = Style.Text(tip, "", 15, C.pale, true)
+local heading = Style.Text(tip, "", 15, C.pale)
 heading:SetPoint("TOPLEFT", tip, "TOPLEFT", PAD, -PAD)
 heading:SetWidth(WIDTH - PAD * 2)
 heading:SetJustifyH("LEFT")

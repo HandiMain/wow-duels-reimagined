@@ -134,6 +134,15 @@ function Style.Fill(parent, color, layer)
     return region
 end
 
+-- A tiny neutral icon shares the same live tint registry as all other skins.
+function Style.TintedImage(parent, path, color, layer)
+    local tex = parent:CreateTexture(nil, layer or "ARTWORK")
+    tex:SetTexture(path)
+    tex:SetVertexColor(unpack(color))
+    RegisterTexture(tex, color, "vertex")
+    return tex
+end
+
 function Style.Rule(parent, anchor1, relative, anchor2, width, height, color)
     local region = parent:CreateTexture(nil, "ARTWORK")
     local c = color or C.goldDim
