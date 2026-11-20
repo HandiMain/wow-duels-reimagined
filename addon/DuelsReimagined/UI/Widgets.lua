@@ -160,9 +160,9 @@ function Widgets.ToggleRow(parent, label, description, onToggle, onReset)
     function row:LayoutForWidth(width, compact)
         -- Polestar-like dense compact rows: title and toggle are always
         -- visible, while its full explanation remains available on hover.
-        self:SetHeight(compact and 34 or 54)
+        self:SetHeight(compact and 28 or 54)
         self.name:ClearAllPoints()
-        self.name:SetPoint("TOPLEFT", self, "TOPLEFT", 1, compact and -9 or -7)
+        self.name:SetPoint("TOPLEFT", self, "TOPLEFT", 1, compact and -6 or -7)
         self.name:SetWidth(math.max(70, width - (compact and 66 or 93)))
         self.description:ClearAllPoints()
         self.description:SetPoint("TOPLEFT", self.name, "BOTTOMLEFT", 0, -3)
@@ -436,10 +436,10 @@ function Widgets.ChoiceRow(parent, caption, detail, onChoose, onReset, above)
     row.popup = popup
     function row:LayoutForWidth(width, compact)
         self.compact = compact
-        self:SetHeight(compact and 38 or 66)
+        self:SetHeight(compact and 32 or 66)
         self.name:ClearAllPoints()
         self.name:SetPoint("TOPLEFT", self, "TOPLEFT",
-            1, compact and -10 or -7)
+            1, compact and -7 or -7)
         self.name:SetWidth(math.max(76, width - (compact and 167 or 10)))
         self.description:ClearAllPoints()
         self.description:SetPoint("TOPLEFT", self.name, "BOTTOMLEFT", 0, -3)
@@ -560,7 +560,7 @@ function Widgets.SliderRow(parent, caption, detail, minVal, maxVal, step, onComm
                 ". Drag or use the mouse wheel to adjust.",
             anchor = "LEFT" }
     end)
-    -- Compact compact rows hide long descriptions; hovering the row itself
+    -- Compact rows hide long descriptions; hovering the row itself
     -- still reveals the full text using the existing addon tooltip owner.
     row:EnableMouse(true)
     row:SetScript("OnEnter", function(self)
@@ -580,10 +580,10 @@ function Widgets.SliderRow(parent, caption, detail, minVal, maxVal, step, onComm
     end
     function row:LayoutForWidth(width, compact)
         self.compact = compact
-        self:SetHeight(compact and 38 or 64)
+        self:SetHeight(compact and 32 or 64)
         self.name:ClearAllPoints()
         self.name:SetPoint("TOPLEFT", self, "TOPLEFT",
-            1, compact and -10 or -8)
+            1, compact and -7 or -8)
         self.name:SetWidth(math.max(76, width - (compact and 185 or 10)))
         self.description:ClearAllPoints()
         self.description:SetPoint("TOPLEFT", self.name, "BOTTOMLEFT", 0, -3)

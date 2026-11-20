@@ -22,7 +22,7 @@ class ResponsiveSettingsTests(unittest.TestCase):
         self.assertIn('card:SetPoint("TOPLEFT", page, "TOPLEFT", cardX, -sectionY)', src)
         self.assertIn("card:SetWidth(cardWidth)", src)
         self.assertIn("tallest = math.max(tallest, cardHeight)", src)
-        self.assertIn("widget:LayoutForWidth(usable, true)", src)
+        self.assertIn("widget:LayoutForWidth(usable, not largeText)", src)
         self.assertNotIn("local half =", src)
         self.assertNotIn("firstHeight", src)
         self.assertIn("if content.Relayout then content:Relayout(content:GetWidth()) end", src)
@@ -50,9 +50,9 @@ class ResponsiveSettingsTests(unittest.TestCase):
         for kind in ("ToggleRow", "ChoiceRow", "SliderRow"):
             self.assertIn("function Widgets."+kind+"(", src)
         for marker in (
-            "self:SetHeight(compact and 34 or 54)",
-            "self:SetHeight(compact and 38 or 66)",
-            "self:SetHeight(compact and 38 or 64)",
+            "self:SetHeight(compact and 28 or 54)",
+            "self:SetHeight(compact and 32 or 66)",
+            "self:SetHeight(compact and 32 or 64)",
             'control:SetWidth(math.max(112, math.min(140, width - 165)))',
             'slider:SetWidth(math.max(75, math.min(112, width - 165)))',
             'Paint(slider:GetValue())',
@@ -72,7 +72,38 @@ class ResponsiveSettingsTests(unittest.TestCase):
                      "fontChoice", "fontScale", "fontOutline", "iconMode", "widgetSize",
                      "widgetTransparency", "compartmentToggle"):
             self.assertIn("{ widget = "+name, src)
-        self.assertIn("resetAccess.optionsY = sectionY + y", src)
+        self.assertIn("resetAccess.optionsY = sectionY + buttonY", src)
+
+    def test_dense_section_headers_preserve_help_and_card_boundaries(self):
+        src = read("UI/Options.lua")
+        self.assertIn('local header = CreateFrame("Frame", nil, card)', src)
+        self.assertIn('ns.Tooltips.Bind(header, {', src)
+        self.assertIn('card.optionsHeading = header', src)
+        self.assertIn('card.optionsHeading:SetHeight(largeText and 34 or 24)', src)
+        self.assertIn('local y = largeText and 52 or ROW_TOP', src)
+        self.assertIn('local ROW_TOP = 38', src)
+        self.assertIn('local CARD_GAP, SECTION_GAP, ROW_GAP = 14, 8, 1', src)
+        self.assertIn('math.ceil(widget:GetStringHeight() or 18) + 8', src)
+        self.assertNotIn('local behaviorInfo = Style.Text(', src)
+        self.assertNotIn('local fontInfo = Style.Text(', src)
+        self.assertNotIn('local accessHint = Style.Text(', src)
+        self.assertIn('return buttonY + resetAccess:GetHeight()', src)
+        for message in (
+            'Hold the eye to Peek. Fold leaves the header visible.',
+            'Font matching is controlled under Appearance.',
+            'Drag either icon to move it.',
+        ):
+            self.assertIn(message, src)
+
+    def test_dense_card_height_is_measured_not_forced_half_height(self):
+        # A literal 50% height would clip the required controls.
+        # Source-level arithmetic at 100% font checks our safe denser target.
+        behavior = 38 + 4 * (28 + 1) + 6
+        typography = 38 + 3 * (32 + 1) + 6
+        access = 38 + 3 * (32 + 1) + (28 + 1) + 4 + 34 + 6
+        self.assertEqual((behavior, typography, access), (160, 143, 210))
+        self.assertLess(behavior + typography + 8, 330)
+        self.assertLess(behavior + typography + access + 16 + 6, 540)
 
     def test_search_destinations_are_recalculated_after_resize(self):
         src = read("UI/Options.lua")

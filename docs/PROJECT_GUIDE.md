@@ -454,3 +454,41 @@ Search jump/reflow, wheel/scrollbar, reload persistence, Peek/Fold/Enter/
 Escape, and both Forever and Retail. Source contract tests updated; do not
 interpret them as live-WoW proof. Baseline before this repair: develop
 5bd0477cec2811d6185a62dea801679c9d250843.
+
+## Extra-dense settings cards — requested live trial, 2026-11-20
+
+The user verified that whole-section card reflow works, but supplied narrow and
+wide in-game screenshots showing cards still taller than desired, asking for
+roughly twice the visual density. Exact 50% card height is NOT possible without
+clipping four actual controls plus a header/reset action. This conservative
+experimental change keeps every control inside its original card, reduces
+visible spacing significantly, and keeps two complete small cards in the
+default viewport.
+
+Polestar-first reference checked: Polestar_Options/UI/Options.lua
+layoutSections/layoutRows and Polestar_Options/UI/Controls.lua SectionCard.
+The useful principle is a compact header and measured rows/cards; no upstream
+source was copied. Duels' shared Widgets retains Settings, reset, live slider,
+dropdown, animations, tooltips, Search, theme, access-icon and compartment
+contracts. Toggle rows shrink from 34 to 28; dropdown/slider rows 38 to 32.
+A 38-unit heading area replaces the former two-line title/subtitle block;
+secondary section descriptions and previously redundant footer hints remain
+accessible on the section-header tooltip via existing Tooltips.Bind. The
+EllesmereUI color explanation stays visible and grows with its actual string
+height. The minimap Reset icon positions action remains visible in the same
+card, with normal 34-unit click height. Card/row gaps and bottom margins tighten.
+At fonts >120%, the original multi-line descriptive rows return to avoid
+unreadable text. Full cards remain single-column at compact width and two-card
+columns at wide width. No additional settings, assets or gameplay machinery.
+
+Estimated 100%-font card heights: behavior ~160 (formerly 231), typography
+~143 (formerly 206), minimap ~210 (formerly 289); the full narrow page is
+about 535 tall vs ~756. This is NOT literal half dimensions; the visual target
+is approximately two first cards visible together rather than only one.
+Status: IMPLEMENTED/UNTESTED IN WOW. After pulling develop /reload: check
+headers and hover explanation, toggle click targets, disabled reasons, choices,
+sliders, icon reset, entire-card wide reflow, Search jumps after resize,
+scrollbars, font 75/100/150%, all themes, Ellesmere ON/OFF, minimap and widget
+live settings, Fold/Peek/Enter/Escape and combat. Neither mock/static checks
+nor screenshots can substitute for live testing. Prior rollback baseline:
+develop 241abcacbee92f4d9d14cb5d9c57c22939a94e85.

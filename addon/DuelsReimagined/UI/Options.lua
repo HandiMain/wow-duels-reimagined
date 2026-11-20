@@ -66,22 +66,36 @@ local function Card(page, y, height)
     return card
 end
 
-local appearance = Page(240)
-local interface = Page(765)
+local appearance = Page(175)
+local interface = Page(540)
 
--- Initial geometry is only a safe fallback until the single LayoutPage
--- owner sizes all complete cards using the actual scroll-child width.
-local appearanceCard = Card(appearance, 0, 222)
-local behaviorCard = Card(interface, 0, 231)
-local typographyCard = Card(interface, 243, 206)
-local accessCard = Card(interface, 461, 293)
+-- Safe fallback geometry; LayoutPage immediately measures actual content.
+local appearanceCard = Card(appearance, 0, 165)
+local behaviorCard = Card(interface, 0, 160)
+local typographyCard = Card(interface, 168, 143)
+local accessCard = Card(interface, 319, 210)
 
-local function Section(card, title, subtitle, top)
-    local heading = Style.Text(card, title, 18, C.pale)
-    heading:SetPoint("TOPLEFT", card, "TOPLEFT", 20, top)
-    local detail = Style.Text(card, subtitle, 12, C.muted)
-    detail:SetPoint("TOPLEFT", heading, "BOTTOMLEFT", 0, -5)
-    return detail
+-- Polestar-inspired compact section headers: the heading remains visible,
+-- while its explanation is accessible through our existing tooltip owner.
+-- Header hover must not cover the first clickable settings row.
+local function Section(card, title, subtitle, top, extra)
+    local header = CreateFrame("Frame", nil, card)
+    header:SetPoint("TOPLEFT", card, "TOPLEFT", 20, top + 6)
+    header:SetPoint("TOPRIGHT", card, "TOPRIGHT", -20, top + 6)
+    header:SetHeight(24)
+    header:EnableMouse(true)
+    local heading = Style.Text(header, title, 17, C.pale)
+    heading:SetPoint("LEFT", header, "LEFT", 0, 0)
+    heading:SetPoint("RIGHT", header, "RIGHT", 0, 0)
+    heading:SetJustifyH("LEFT")
+    heading:SetWordWrap(false)
+    ns.Tooltips.Bind(header, {
+        title = title,
+        detail = subtitle .. (extra and (" " .. extra) or ""),
+        anchor = "RIGHT",
+    })
+    card.optionsHeading = header
+    return header
 end
 
 local appearanceDescription = Section(appearanceCard, "Appearance",
@@ -91,11 +105,14 @@ availability:SetJustifyH("LEFT")
 availability:SetWordWrap(true)
 availability:SetPoint("TOPLEFT", appearanceCard, "TOPLEFT", 20, -264)
 Section(behaviorCard, "Window behavior",
-    "Keep the world visible while the dueling hall is open.", -16)
+    "Keep the world visible while the dueling hall is open.", -16,
+    "Hold the eye to Peek. Fold leaves the header visible.")
 Section(typographyCard, "Typography",
-    "Choose text appearance independently of window scale.", -18)
+    "Choose text appearance independently of window scale.", -18,
+    "Font matching is controlled under Appearance.")
 Section(accessCard, "Minimap button",
-    "Choose your minimap button or floating widget.", -18)
+    "Choose your minimap button or floating widget.", -18,
+    "Drag either icon to move it. If both are hidden, type /duels to open this window.")
 
 local unavailable = "Enable EllesmereUI and its third-party skinning support to use this setting."
 local rows = {}
@@ -273,29 +290,6 @@ RegisterOption("resetIconPositions", "Reset icon positions",
     "Return the minimap and floating widget to their default locations",
     "interface", resetAccess)
 MarkPosition(resetAccess, accessCard, -332)
-local accessHint = Style.Text(accessCard,
-    "Drag either icon to move it. If both are hidden, type /duels to open this window.",
-    12, C.muted)
-accessHint:SetPoint("BOTTOMLEFT", accessCard, "BOTTOMLEFT", 20, 20)
-accessHint:SetPoint("RIGHT", resetAccess, "LEFT", -18, 0)
-accessHint:SetJustifyH("LEFT")
-
--- Interaction help belongs directly beneath its Window behavior controls.
-local behaviorInfo = Style.Text(behaviorCard,
-    "Hold the eye to Peek. Fold leaves the header visible.",
-    12, C.muted)
-behaviorInfo:SetPoint("TOPLEFT", behaviorCard, "TOPLEFT", 20, -297)
-behaviorInfo:SetPoint("RIGHT", behaviorCard, "RIGHT", -20, 0)
-behaviorInfo:SetJustifyH("LEFT")
-
--- The font-matching hint stays with the font choices, not with Peek/Fold.
-local fontInfo = Style.Text(typographyCard,
-    "Font matching is controlled under Appearance.",
-    12, C.muted)
-fontInfo:SetPoint("TOPLEFT", typographyCard, "TOPLEFT", 20, -281)
-fontInfo:SetPoint("RIGHT", typographyCard, "RIGHT", -20, 0)
-fontInfo:SetJustifyH("LEFT")
-
 -- One responsive card-layout owner. Keep all controls inside their original
 -- section card; change the number of CARDS per row, never the settings order
 -- inside a card. At compact widths stack complete cards. At wider widths,
@@ -303,8 +297,8 @@ fontInfo:SetJustifyH("LEFT")
 -- Polestar's section-height measurement informed this approach; no source
 -- copied, and all Settings/Search/scroll/tooltip owners remain unchanged.
 local CARD_BREAKPOINT = 930
-local CARD_GAP, SECTION_GAP, ROW_GAP = 14, 12, 3
-local ROW_TOP = 55
+local CARD_GAP, SECTION_GAP, ROW_GAP = 14, 8, 1
+local ROW_TOP = 38
 
 local function LayoutPage(page, groups, width)
     width = math.max(1, width or page:GetWidth())
@@ -320,6 +314,7 @@ local function LayoutPage(page, groups, width)
         math.floor((fullWidth - CARD_GAP) / 2) or fullWidth
     local usable = math.max(1, cardWidth - 40)
     local sectionY, tallest = 0, 0
+    local rowGap = largeText and 4 or ROW_GAP
 
     for index, group in ipairs(groups) do
         local column = (index - 1) % columns
@@ -332,17 +327,26 @@ local function LayoutPage(page, groups, width)
         card:ClearAllPoints()
         card:SetPoint("TOPLEFT", page, "TOPLEFT", cardX, -sectionY)
         card:SetWidth(cardWidth)
+        -- At 125-150% text, trade density for fully readable rows.
+        if card.optionsHeading then
+            card.optionsHeading:SetHeight(largeText and 34 or 24)
+        end
 
-        local y = ROW_TOP
+        local y = largeText and 52 or ROW_TOP
         for _, entry in ipairs(group.entries) do
             local widget = entry.widget
             widget:ClearAllPoints()
             widget:SetPoint("TOPLEFT", card, "TOPLEFT", 20, -y)
             widget:SetWidth(usable)
-            -- Single-line compact controls at BOTH window widths. Never
-            -- turn a card's children into separate columns.
+            -- Appearance's multi-line theme explanation grows with font size.
+            if widget == availability then
+                entry.height = math.max(26,
+                    math.ceil(widget:GetStringHeight() or 18) + 8)
+            end
+            -- Keep one setting per line in each intact card. Large fonts
+            -- fall back to the original descriptive row layout.
             if widget.LayoutForWidth then
-                widget:LayoutForWidth(usable, true)
+                widget:LayoutForWidth(usable, not largeText)
             elseif entry.height then
                 widget:SetHeight(entry.height)
             end
@@ -350,10 +354,10 @@ local function LayoutPage(page, groups, width)
                 -- Search follows the card into its new grid row on resize.
                 widget.optionsY = sectionY + y
             end
-            y = y + (entry.height or widget:GetHeight()) + ROW_GAP
+            y = y + (entry.height or widget:GetHeight()) + rowGap
         end
         if group.footer then y = group.footer(card, sectionY, y, usable) end
-        local cardHeight = y + 8
+        local cardHeight = y + 6
         card:SetHeight(cardHeight)
         tallest = math.max(tallest, cardHeight)
     end
@@ -373,19 +377,10 @@ local function LayoutPage(page, groups, width)
     page.scrollBar:Refresh()
 end
 
-local function FooterNote(label, card, y, width)
-    label:ClearAllPoints()
-    label:SetPoint("TOPLEFT", card, "TOPLEFT", 20, -y)
-    label:SetWidth(width)
-    label:SetHeight(18)
-    return y + 20
-end
-
 local appearanceGroups = {
     { card = appearanceCard, entries = {
         { widget = themeChoice },
-        -- The EllesmereUI explanation is always within Appearance.
-        { widget = availability, height = 38 },
+        { widget = availability, height = 26 },
         { widget = matchColorsRow },
         { widget = matchFontRow },
     }},
@@ -394,28 +389,21 @@ local interfaceGroups = {
     { card = behaviorCard, entries = {
         { widget = autoPeekRow }, { widget = reduceMotionRow },
         { widget = tooltipsRow }, { widget = reminderRow },
-    }, footer = function(card, _, y, usable)
-        return FooterNote(behaviorInfo, card, y, usable)
-    end },
+    }},
     { card = typographyCard, entries = {
         { widget = fontChoice }, { widget = fontScale },
         { widget = fontOutline },
-    }, footer = function(card, _, y, usable)
-        return FooterNote(fontInfo, card, y, usable)
-    end },
+    }},
     { card = accessCard, entries = {
         { widget = iconMode }, { widget = widgetSize },
         { widget = widgetTransparency }, { widget = compartmentToggle },
     }, footer = function(card, sectionY, y, usable)
+        local buttonY = y + 4
         resetAccess:ClearAllPoints()
-        resetAccess:SetPoint("TOPRIGHT", card, "TOPRIGHT", -20, -y)
-        resetAccess.optionsY = sectionY + y
+        resetAccess:SetPoint("TOPRIGHT", card, "TOPRIGHT", -20, -buttonY)
+        resetAccess.optionsY = sectionY + buttonY
         resetAccess:SetWidth(math.min(190, usable))
-        accessHint:ClearAllPoints()
-        accessHint:SetPoint("TOPLEFT", card, "TOPLEFT", 20, -(y + 36))
-        accessHint:SetWidth(usable)
-        accessHint:SetHeight(28)
-        return y + 66
+        return buttonY + resetAccess:GetHeight()
     end },
 }
 function appearance:Relayout(width) LayoutPage(self, appearanceGroups, width) end
