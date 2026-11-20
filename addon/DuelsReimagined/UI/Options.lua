@@ -162,7 +162,7 @@ local function AddToggle(card, pageKey, key, name, detail, top, requiresEllesmer
 end
 
 local themeChoice = Widgets.ChoiceRow(appearanceCard, "Visual skin",
-    "Recolor the whole addon, including panels, tabs, text and buttons.",
+    "Choose original themed artwork, materials, icons and frame styles.",
     function(key) Settings.Set("uiTheme", key) end,
     function() Settings.Reset("uiTheme") end, false)
 themeChoice:SetPoint("TOPLEFT", appearanceCard, "TOPLEFT", 20, -61)
@@ -422,10 +422,10 @@ end
 function Options.Refresh()
     local ready = Theme.IsAvailable()
     local matchedColors = ready and Settings.Get("matchColors") == true
-    themeChoice:SetChoices(Style.ThemeChoices(), Settings.Get("uiTheme"),
-        matchedColors and "Managed by EllesmereUI" or nil)
-    themeChoice:SetAvailable(not matchedColors,
-        "Disable Match EllesmereUI colors to choose another visual skin.")
+    -- Visual skins remain selectable when EllesmereUI provides colors.
+    -- A visual identity is not the same preference as its palette.
+    themeChoice:SetChoices(Style.ThemeChoices(), Settings.Get("uiTheme"))
+    themeChoice:SetAvailable(true)
     themeChoice:SetModified(Settings.IsModified("uiTheme"))
     themeChoice.resetIcon:SetVertexColor(unpack(C.gold))
     local compartmentAvailable = AddonCompartmentFrame and
@@ -433,7 +433,7 @@ function Options.Refresh()
     if not ready then
         availability:SetText("Duels theme is active. EllesmereUI is unavailable, so its color and font matching are disabled.")
     elseif matchedColors then
-        availability:SetText("EllesmereUI controls the interface colors. Your skin details stay active.")
+        availability:SetText("EllesmereUI provides the colors; choose any visual skin above for its artwork and layout details.")
     else
         availability:SetText("Duels theme colors are active. Enable Match EllesmereUI colors below to use its palette instead.")
     end

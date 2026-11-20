@@ -156,8 +156,10 @@ for index, section in ipairs(sections) do
             corner=11, edge=C.goldDim, shine=0.22, shade=0.26, rim=0.82,
         })
     end
-    local selected, hover = AddOverlay(button, isPrimary)
+    -- Theme-specific resting artwork belongs underneath the existing
+    -- selected/hover overlays; avoid masking their motion/selection state.
     ns.SkinDecor.Attach(button, "navButton")
+    local selected, hover = AddOverlay(button, isPrimary)
     local bar = button:CreateTexture(nil, "OVERLAY")
     bar:SetColorTexture(unpack(C.gold))
     if isPrimary then

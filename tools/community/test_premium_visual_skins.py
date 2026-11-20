@@ -47,6 +47,28 @@ class PremiumVisualSkinsTests(unittest.TestCase):
             self.assertIn(uv,decor)
         self.assertIn('motif:SetTexCoord(unpack(p.uv))', decor)
 
+    def test_distinct_material_surfaces_and_icon_sets_repaint_live(self):
+        decor, chrome, theme = (src(p) for p in
+            ("UI/SkinDecor.lua", "UI/Chrome.lua", "UI/Theme.lua"))
+        for name, wh in (("DuelsPremiumIconAtlas.png", (128,128)),
+                         ("DuelsPremiumMaterialAtlas.png", (128,256))):
+            payload = (BASE / "Media" / "Skin" / name).read_bytes()
+            self.assertEqual(payload[:8], b"\x89PNG\r\n\x1a\n")
+            self.assertEqual(struct.unpack(">II",payload[16:24]),wh)
+            self.assertLess(len(payload),6000)
+        self.assertIn('materialRows = {ivory=0, verdant=1, slate=2, moonstone=3}',decor)
+        self.assertIn('material:SetTexture(materialAtlas)',decor)
+        self.assertIn('material:SetTexCoord(x, x+0.5, y, y+0.25)',decor)
+        self.assertIn('material:SetAlpha(p.material * visibleAlpha)',decor)
+        self.assertIn('frameEdges[#frameEdges + 1] = t',decor)
+        self.assertIn('if material then material:Hide() end',decor)
+        self.assertIn('if rest then rest:SetAlpha(0) end',decor)
+        self.assertIn('DuelsPremiumIconAtlas.png',chrome)
+        self.assertIn('local PREMIUM_ROWS = {ivory=0, verdant=1, slate=2, moonstone=3}',chrome)
+        self.assertIn('for tex, name in pairs(liveIcons) do PaintIcon(tex, name) end',chrome)
+        self.assertIn('elseif NAV_ICON_UV[name] then',chrome)
+        self.assertIn('if ns.Chrome then ns.Chrome.Refresh() end',theme)
+
     def test_theme_switch_repaints_and_reforms_existing_masks(self):
         st, decor, th = (src(p) for p in
             ("UI/Style.lua","UI/SkinDecor.lua","UI/Theme.lua"))
@@ -71,7 +93,9 @@ class PremiumVisualSkinsTests(unittest.TestCase):
         self.assertIn('button:SetSize(216, 44)',nav)
         self.assertIn('RegisterOption("uiTheme", "Visual skin"',options)
         self.assertIn('themeChoice:SetChoices(Style.ThemeChoices()',options)
-        self.assertIn('themeChoice:SetAvailable(not matchedColors,',options)
+        self.assertIn('themeChoice:SetAvailable(true)', options)
+        self.assertIn('themeChoice:SetChoices(Style.ThemeChoices()', options)
+        self.assertNotIn('themeChoice:SetAvailable(not matchedColors,', options)
 
     def test_no_duplicate_state_or_forever_polling(self):
         decor=src("UI/SkinDecor.lua")

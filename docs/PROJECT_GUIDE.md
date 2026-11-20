@@ -810,3 +810,42 @@ no interception of clicks or combat restrictions, and confirm the
 Ember default before/after is visually unchanged. Source-only checks
 do NOT prove full concept-art fidelity. Do not add unapproved motion
 or independent navigation owners. Baseline commit: 60e472f03efb90de1b88c8d3079946cc40ff8d3f.
+
+## Premium skins visibility correction — 2026-11-20
+
+IN-GAME REPORT from the player: initial premium visual skin build f1a5e6c
+produced only mild changes and did not resemble the approved concept
+screenshots. This is a real failed visual acceptance test despite the green
+GitHub checks. Root-cause audit: each non-default theme had only one
+low-opacity 64px motif (0.16-0.21) and a 1px line; surfaces still used
+plain semantic palette fills, and Chrome.Icon used exactly one fixed-color
+gold atlas for ALL themes. Also, the EUI color matching control disabled
+the entire Visual skin picker even though EUI should own only colors.
+
+Now each premium profile has a distinct surface material (original
+compact 2x4 atlas: parchment, forest paper, etched steel, violet arcana),
+raised perimeter framing, visible motifs and an original 4x4 theme/nav
+icon atlas, with dynamic in-place repaint through the existing
+Chrome.Refresh. The nav button idle face now belongs to SkinDecor,
+attached BEFORE existing selected/hover layers. EUI still supplies
+semantic colors and fonts through its existing API; when matchColors is
+enabled, material opacity is reduced so its selected panel palette
+remains dominant, but the Visual skin selector stays usable. Ember has
+nil UV, no materials or additional resting faces/edges, and preserves
+the original icon atlas. No extra gameplay, network or settings owner.
+
+The new textures are custom compact PNGs, no concept screenshot assets.
+Visual fidelity is still subject to in-game test; screen-level concepts
+contain detailed illustrations not trivially reproduced by 64px tiles.
+Regression tests guard new source/atlas paths, modes, layering order,
+Ember fallback and picker interaction. Tests do NOT independently
+prove visual completeness, client rendering, or absence of clipping.
+
+Status: IMPLEMENTED / IN-GAME UNTESTED, CI results separate.
+Test: update develop; full client restart for new texture assets,
+check all 4 premium skins vs original Ember, content/secondary nav,
+4 utility icons + Hall, selected/unselected/hover and resizing;
+toggle EllesmereUI matchColors and change skin again; inspect color
+contrast (esp light backgrounds), tooltip and clicks, dropdown
+legibility, no UI errors, and unchanged original Ember; then send
+screenshots of actual window.

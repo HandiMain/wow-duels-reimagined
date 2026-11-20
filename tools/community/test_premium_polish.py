@@ -83,13 +83,13 @@ class PremiumPolishTests(unittest.TestCase):
         self.assertIn('db.uiTheme = Settings.Get("uiTheme")', settings)
         self.assertNotIn('value == "slate" or value == "verdant"', settings)
 
-    def test_ellesmere_color_match_disables_picker_and_restores_manual_pick(self):
+    def test_ellesmere_color_match_preserves_access_to_premium_skins(self):
         opt, theme, settings = (get(path) for path in (
             "UI/Options.lua", "UI/Theme.lua", "Core/Settings.lua"))
         self.assertIn('local matchedColors = ready and Settings.Get("matchColors") == true', opt)
-        self.assertIn('matchedColors and "Managed by EllesmereUI" or nil', opt)
-        self.assertIn('themeChoice:SetAvailable(not matchedColors,', opt)
-        self.assertIn('Disable Match EllesmereUI colors to choose another visual skin.', opt)
+        self.assertIn('themeChoice:SetAvailable(true)', opt)
+        self.assertIn('EllesmereUI provides the colors; choose any visual skin', opt)
+        self.assertNotIn('themeChoice:SetAvailable(not matchedColors,', opt)
         self.assertIn('themeChoice:SetModified(Settings.IsModified("uiTheme"))', opt)
         self.assertIn('if Settings.Get("matchColors") then', theme)
         self.assertIn('Style.ApplyTheme(accent, panel, font)', theme)
