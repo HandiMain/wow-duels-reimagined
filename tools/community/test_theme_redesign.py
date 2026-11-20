@@ -12,9 +12,11 @@ class ThemeRedesignTests(unittest.TestCase):
         for fragment in ('header:SetHeight(82)', 'rail:SetHeight(57)',
                          'rail:SetPoint("TOPLEFT", header, "BOTTOMLEFT"',
                          'body:SetPoint("TOPLEFT", rail, "BOTTOMLEFT"',
-                         'nav:SetWidth(250)'):
+                         'nav:SetWidth(210)'):
             self.assertIn(fragment, w)
-        self.assertIn('button:SetSize(165, 44)', n)
+        self.assertIn('button:SetSize(216, 44)', n)
+        self.assertIn('button:SetSize(70, 90)', n)
+        self.assertIn('Window.utility', w)
         self.assertNotIn('button:SetSize(86, 68)', n)
         self.assertIn("Window.rail:Hide()", h)
         self.assertIn("Window.rail:Show()", h)

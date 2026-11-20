@@ -49,7 +49,7 @@ class PremiumSkinTests(unittest.TestCase):
             ("UI/Window.lua", "Style.Skin(content, C.body"),
             ("UI/Window.lua", "Style.LitBand(header, C.header"),
             ("UI/Window.lua", "Style.Skin(nav, C.nav"),
-            ("UI/Navigation.lua", "Style.Skin(button, rail and C.tabActive or C.selected"),
+            ("UI/Navigation.lua", "Style.Skin(button, C.tabActive"),
             ("UI/Header.lua", "Style.Skin(searchBox, C.window"),
             ("UI/Footer.lua", "Style.Skin(button, C.goldDim"),
             ("UI/Options.lua", "Style.Skin(card, C.nav"),

@@ -47,17 +47,21 @@ for _, section in ipairs(sections) do
     end
 end
 
-local railButtons, subButtons = {}, {}
+-- Only primary gameplay destinations live in the expandable upper strip.
+-- Secondary utility sections remain in the narrow left rail. New gameplay
+-- sections can be promoted here only when their real pages are implemented.
+local primaryKeys = { hall = true }
+local railButtons, primaryButtons, subButtons = {}, {}, {}
 local patchDot, patchPulse
 local sectionTitle = Style.Text(Window.nav, "HALL", 18, C.pale)
 sectionTitle:SetPoint("TOPLEFT", Window.nav, "TOPLEFT", 20, -24)
-local subtitleRule = Chrome.Divider(Window.nav, 201, 12)
+local subtitleRule = Chrome.Divider(Window.nav, 166, 12)
 subtitleRule:SetPoint("TOPLEFT", Window.nav, "TOPLEFT", 19, -56)
 
 local currentSection, currentPage
 
 local function FadeSelection(item, active)
-    Motion.Fade(item.selected, active and 0.94 or 0, 0.18)
+    Motion.Fade(item.selected, active and (item.activeAlpha or 0.94) or 0, 0.18)
     Motion.Fade(item.hover, 0, 0.13)
 end
 
@@ -73,11 +77,11 @@ local function Select(sectionIndex, pageIndex, noMotion, repaintOnly)
     for i, item in ipairs(railButtons) do
         local on = i == sectionIndex
         if noMotion then
-            item.selected:SetAlpha(on and 0.94 or 0)
+            item.selected:SetAlpha(on and (item.activeAlpha or 0.94) or 0)
         else
             FadeSelection(item, on)
         end
-        item.bar:SetColorTexture(unpack(C.gold))
+        item.bar:SetColorTexture(unpack(item.primary and C.gold or C.goldDim))
         item.bar:SetShown(on)
         item.label:SetTextColor(unpack(on and C.tabText or C.tabMuted))
         -- Keep the Hall's blue/red faction accents intact.
@@ -105,56 +109,87 @@ local function Select(sectionIndex, pageIndex, noMotion, repaintOnly)
     Window.ShowPage(page)
 end
 
-local function AddOverlay(button, rail)
-    -- Skin groups implement Motion's existing GetAlpha/SetAlpha contract.
-    local selected = Style.Skin(button, rail and C.tabActive or C.selected, {
-        corner=11, edge=rail and C.gold or C.red,
-        shine=rail and 0.58 or 0.23, shade=0.40, rim=0.92, alpha=0,
+local function AddOverlay(button, primary)
+    -- Both types use the same tintable premium masks and Motion engine.
+    local selected = Style.Skin(button, C.tabActive, {
+        corner=primary and 11 or 9,
+        edge=primary and C.gold or C.goldDim,
+        shine=primary and 0.58 or 0.30,
+        shade=0.40, rim=0.92, alpha=0,
     })
-    local hover = Style.Skin(button, rail and C.gold or C.hover, {
-        corner=11, edge=C.goldDim, shine=0.22, shade=0.22, rim=0.56, alpha=0,
+    local hover = Style.Skin(button, C.tabActive, {
+        corner=primary and 11 or 9, edge=C.goldDim,
+        shine=0.22, shade=0.22, rim=0.56, alpha=0,
     })
     return selected, hover
 end
 
+local utilityIndex = 0
 for index, section in ipairs(sections) do
-    local button = CreateFrame("Button", nil, Window.rail)
-    button:SetSize(165, 44)
-    button:SetPoint("LEFT", Window.rail, "LEFT", 25 + (index - 1) * 183, 0)
-    if index > 1 then
-        local separator = Style.Fill(button, C.goldDim, "ARTWORK")
-        separator:ClearAllPoints()
-        separator:SetPoint("LEFT", button, "LEFT", -10, 0)
-        separator:SetSize(1, 24)
-        separator:SetAlpha(0.35)
+    local isPrimary = primaryKeys[section.key] == true
+    local parent = isPrimary and Window.rail or Window.utility
+    local button = CreateFrame("Button", nil, parent)
+
+    if isPrimary then
+        -- Hall is the sole primary tab for now; leave the rest of this row
+        -- available for real dueling, ranking or tournament features later.
+        button:SetSize(216, 44)
+        button:SetPoint("LEFT", Window.rail, "LEFT", 24, 0)
+    else
+        utilityIndex = utilityIndex + 1
+        button:SetSize(70, 90)
+        button:SetPoint("TOP", Window.utility, "TOP",
+            0, -12 - (utilityIndex - 1) * 98)
+        if utilityIndex > 1 then
+            local separator = Chrome.Divider(Window.utility, 44, 8)
+            separator:SetPoint("TOP", Window.utility, "TOP",
+                0, -6 - (utilityIndex - 1) * 98)
+            separator:SetAlpha(0.50)
+        end
     end
-    local selected, hover = AddOverlay(button, true)
+
+    -- Keep the same atlas-based premium skin and shared theme color roles.
+    -- No flat replacement buttons or independent theme renderer.
+    local selected, hover = AddOverlay(button, isPrimary)
     local bar = button:CreateTexture(nil, "OVERLAY")
     bar:SetColorTexture(unpack(C.gold))
-    bar:SetPoint("BOTTOMLEFT", button, "BOTTOMLEFT", 3, 0)
-    bar:SetPoint("BOTTOMRIGHT", button, "BOTTOMRIGHT", -3, 0)
-    bar:SetHeight(3)
+    if isPrimary then
+        bar:SetPoint("BOTTOMLEFT", button, "BOTTOMLEFT", 3, 0)
+        bar:SetPoint("BOTTOMRIGHT", button, "BOTTOMRIGHT", -3, 0)
+        bar:SetHeight(3)
+    else
+        bar:SetPoint("TOPLEFT", button, "TOPLEFT", 1, -12)
+        bar:SetPoint("BOTTOMLEFT", button, "BOTTOMLEFT", 1, 12)
+        bar:SetWidth(2)
+    end
+
     local icon = section.key == "patchnotes" and
         button:CreateTexture(nil, "ARTWORK") or Chrome.Icon(button, section.icon)
-    -- Each 128px square asset has the same transparent margin; none is stretched.
-    icon:SetSize(27, 27)
-    icon:SetPoint("LEFT", button, "LEFT", 19, 0)
-    local label = Style.Text(button, string.upper(section.label), 14, C.tabMuted)
-    label:SetPoint("LEFT", icon, "RIGHT", 11, 0)
-    label:SetJustifyH("LEFT")
+    icon:SetSize(isPrimary and 29 or 27, isPrimary and 29 or 27)
+    local label = Style.Text(button, string.upper(section.label),
+        isPrimary and 16 or 10, C.tabMuted)
+    if isPrimary then
+        icon:SetPoint("LEFT", button, "LEFT", 37, 0)
+        label:SetPoint("LEFT", icon, "RIGHT", 14, 0)
+        label:SetJustifyH("LEFT")
+    else
+        icon:SetPoint("TOP", button, "TOP", 0, -12)
+        label:SetPoint("TOP", icon, "BOTTOM", 0, -5)
+        label:SetWidth(68)
+        label:SetHeight(28)
+        label:SetJustifyH("CENTER")
+        label:SetJustifyV("TOP")
+    end
+
     if section.key == "patchnotes" then
-        -- Matching original Duels artwork, not a generic Blizzard item icon.
-        -- The upper-left atlas quadrant is the authored gold scroll crest.
+        -- Preserve the authored scroll icon and unread reminder animation.
         icon:SetTexture("Interface\\AddOns\\DuelsReimagined\\Media\\Concept\\PatchNotesAtlas.tga")
         icon:SetTexCoord(0, 0.5, 0, 0.5)
-        icon:SetSize(27, 27)
-        icon:ClearAllPoints()
-        icon:SetPoint("LEFT", button, "LEFT", 19, 0)
-        label:SetText("PATCH")
+        label:SetText("PATCH\nNOTES")
         patchDot = CreateFrame("Frame", nil, button)
         patchDot:SetSize(9, 9)
-        patchDot:SetPoint("TOPRIGHT", button, "TOPRIGHT", -8, -3)
-        local jewel = Style.Fill(patchDot, C.gold, "OVERLAY")
+        patchDot:SetPoint("TOPRIGHT", button, "TOPRIGHT", -6, -5)
+        Style.Fill(patchDot, C.gold, "OVERLAY")
         patchPulse = patchDot:CreateAnimationGroup()
         patchPulse:SetLooping("BOUNCE")
         local breathe = patchPulse:CreateAnimation("Alpha")
@@ -175,6 +210,7 @@ for index, section in ipairs(sections) do
         end)
         patchDot:Hide()
     end
+
     button:SetScript("OnClick", function() Select(index, 1) end)
     button:SetScript("OnEnter", function()
         if currentSection ~= index then Motion.Fade(hover, 0.58, 0.17) end
@@ -183,10 +219,14 @@ for index, section in ipairs(sections) do
     ns.Widgets.PressFeedback(button, hover)
     ns.Tooltips.Bind(button, { title = section.label,
         detail = "Open the " .. section.label .. " section." })
-    railButtons[index] = {
-        button = button,
-        selected = selected, hover = hover, bar = bar, icon = icon, label = label
+
+    local item = {
+        button = button, primary = isPrimary,
+        activeAlpha = isPrimary and 0.94 or 0.56,
+        selected = selected, hover = hover, bar = bar, icon = icon, label = label,
     }
+    railButtons[index] = item
+    if isPrimary then primaryButtons[#primaryButtons + 1] = item end
 
     local pages = {}
     for pageIndex, page in ipairs(section.pages) do
@@ -221,24 +261,26 @@ for index, section in ipairs(sections) do
     subButtons[index] = pages
 end
 
--- Responsive tabs keep all four destinations usable even if the player
--- scales or resizes below the standard 1050-unit layout. No polling.
+-- Only primary gameplay tabs occupy the expandable horizontal strip.
+-- Secondary utility rail buttons never consume primary navigation space.
+-- When real future gameplay sections are registered as primary, this
+-- geometry automatically shares the available width without polling.
 local function FitTabs(self, width)
     local w = (type(width) == "number" and width > 0) and width or self:GetWidth()
-    if not w or w <= 0 then return end
-    local pad = 25
-    local slot = math.min(183, math.max(105, (w - pad * 2) / #railButtons))
-    for i, item in ipairs(railButtons) do
+    if not w or w <= 0 or #primaryButtons == 0 then return end
+    local pad, gutter = 24, 12
+    local slot = math.min(232, math.max(112, (w - 2 * pad) / #primaryButtons))
+    for i, item in ipairs(primaryButtons) do
         item.button:ClearAllPoints()
         item.button:SetPoint("LEFT", self, "LEFT", pad + (i - 1) * slot, 0)
-        item.button:SetWidth(slot - 16)
-        local tiny = slot < 155
+        item.button:SetWidth(slot - gutter)
+        local tiny = slot < 160
         item.icon:SetShown(not tiny)
         item.label:ClearAllPoints()
         if tiny then
             item.label:SetPoint("CENTER", item.button, "CENTER")
         else
-            item.label:SetPoint("LEFT", item.icon, "RIGHT", 11, 0)
+            item.label:SetPoint("LEFT", item.icon, "RIGHT", 14, 0)
         end
     end
 end

@@ -66,10 +66,22 @@ body:SetPoint("TOPLEFT", rail, "BOTTOMLEFT", 0, 0)
 body:SetPoint("BOTTOMRIGHT", footer, "TOPRIGHT", 0, 0)
 Style.Fill(body, C.window)
 
+-- Secondary destinations have their own narrow premium utility rail.
+-- The horizontal strip above belongs to Hall and future primary gameplay.
+-- This is a visual split only; Navigation.lua remains the sole navigation owner.
+local utility = CreateFrame("Frame", nil, body)
+utility:SetPoint("TOPLEFT", body, "TOPLEFT", 7, -7)
+utility:SetPoint("BOTTOMLEFT", body, "BOTTOMLEFT", 7, 7)
+utility:SetWidth(78)
+Style.Skin(utility, C.rail, {
+    corner=11, edge=C.goldDim, shine=0.24, shade=0.32, rim=0.85,
+})
+Window.utility = utility
+
 local nav = CreateFrame("Frame", nil, body)
-nav:SetPoint("TOPLEFT", body, "TOPLEFT", 7, -7)
-nav:SetPoint("BOTTOMLEFT", body, "BOTTOMLEFT", 7, 7)
-nav:SetWidth(250)
+nav:SetPoint("TOPLEFT", utility, "TOPRIGHT", 8, 0)
+nav:SetPoint("BOTTOMLEFT", utility, "BOTTOMRIGHT", 8, 0)
+nav:SetWidth(210)
 Style.Skin(nav, C.nav, { corner=12, edge=C.border, shine=0.22, shade=0.28 })
 Window.nav = nav
 
