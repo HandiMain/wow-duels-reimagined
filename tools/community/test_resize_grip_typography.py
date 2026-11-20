@@ -44,7 +44,11 @@ class GripTypographyTests(unittest.TestCase):
                        'grip:SetScript("OnEnter"', 'grip:SetScript("OnLeave"',
                        'grip:HookScript("OnHide"'):
             self.assertIn(needle, win)
-        self.assertNotIn('SetScript("OnUpdate"', win)
+        # The new magnetic guide uses temporary per-handle updates, not
+        # permanent resize or window-wide polling.
+        self.assertIn('self:SetScript("OnUpdate", function() DrawGuides() end)', win)
+        self.assertIn('self:SetScript("OnUpdate", nil)', win)
+        self.assertNotIn('frame:SetScript("OnUpdate"', win)
 
     def test_new_glyph_uses_existing_theme_tint_registry(self):
         style = source("UI/Style.lua")

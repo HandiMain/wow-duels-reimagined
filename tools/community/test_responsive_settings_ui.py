@@ -176,7 +176,14 @@ class ResponsiveSettingsTests(unittest.TestCase):
                      "UI/Navigation.lua", "UI/BlizzardSettings.lua"):
             text = read(file)
             self.assertNotIn("_G.DuelsReimaginedDB =", text)
-            self.assertNotIn('SetScript("OnUpdate"', text)
+            if file == "UI/Window.lua":
+                # Only the approved drag proximity guide can update, and
+                # its OnUpdate handler is removed on stop/hide.
+                self.assertIn('self:SetScript("OnUpdate", function() DrawGuides() end)', text)
+                self.assertIn('self:SetScript("OnUpdate", nil)', text)
+                self.assertNotIn('frame:SetScript("OnUpdate"', text)
+            else:
+                self.assertNotIn('SetScript("OnUpdate"', text)
 
 if __name__ == "__main__":
     unittest.main()

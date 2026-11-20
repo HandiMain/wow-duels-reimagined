@@ -54,7 +54,11 @@ class PremiumPolishTests(unittest.TestCase):
         self.assertIn('Window.ResetSize()', w)
         self.assertIn('Motion.Stop(gripGlyph, 0.74)', w)
         self.assertNotIn("ResizeGripHighlight.png", w)
-        self.assertNotIn('SetScript("OnUpdate"', w)
+        # Drag-edge guides may update ONLY while dragging. They self-disarm
+        # at drag stop and hide; a permanent window polling loop is forbidden.
+        self.assertIn('self:SetScript("OnUpdate", function() DrawGuides() end)', w)
+        self.assertIn('self:SetScript("OnUpdate", nil)', w)
+        self.assertNotIn('frame:SetScript("OnUpdate"', w)
 
     def test_five_complete_consistent_theme_palettes(self):
         s = get("UI/Style.lua")
