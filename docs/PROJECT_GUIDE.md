@@ -579,3 +579,32 @@ gold fill and dark legible text while other addon buttons remain themeable.
 Hover, click, tooltip, Blizzard Settings handoff, keyboard chat behavior,
 and /reload require live verification.
 Rollback point: develop fb67017c4c1a309a1491875cafc4e55fc841fa66.
+
+## Approved small-icon DR badge — 2026-11-20
+
+The user chose the GOLD DR overlapping-letter rounded-square emblem from
+five original minimap icon concepts, explicitly authorized the icon's
+implementation for minimap, floating widget, and AddOns-list icon. This is
+a specific visual choice, NOT permission to touch landing branding again.
+
+Polestar-first check: Polestar.toc uses ## IconTexture for the addon-list icon.
+Duels existing UI/AccessIcons.lua already supplies ONE shared texture path for
+minimap, widget and AddOn Compartment; its movement/collector/hover/press/idle
+lifecycle remains untouched. WoW-compatible explicit .png file path for both
+the shared ICON and ## IconTexture. Selected source concept image contained a
+dark studio backdrop; this was isolated away via its real gold frame silhouette,
+preserving the same gold/DR/plum design, and scaled to an optimized transparent
+128x128 indexed PNG at Media/Icons/DuelsDRIcon.png. Small-resolution previews
+were inspected at 16/24/32/42/64/128 px. Prior assets remain committed for
+rollback, but are not referenced by the minimap/TOC after this update.
+Theme-color choices, landing buttons/wordmark, saved settings, gameplay,
+frame ownership, and animation logic were not changed; no TOC version bump.
+
+Status IMPLEMENTED / IN-GAME UNTESTED. Full WoW client restart is recommended
+after pulling develop because the TOC IconTexture changed and new art was
+added. Test gold DR badge around the minimap, at widget sizes 24/42/128,
+and in AddOns list; verify the AddOn Compartment entry icon, left click,
+drag, tooltips, hover, idle, icon visibility modes, live opacity/size sliders,
+collector ownership, combat safety and /reload/relog. Source parser,
+runtime and regression CI results do not prove visual clarity in WoW.
+Rollback baseline develop 507f33c09800cbff17373d8a9ef42b826e5838c5.

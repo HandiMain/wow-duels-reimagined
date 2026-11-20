@@ -5,7 +5,7 @@
 ## Category: PvP
 ## OptionalDeps: EllesmereUI, LibSharedMedia-3.0, SharedMedia
 ## SavedVariables: DuelsReimaginedDB
-## IconTexture: Interface\AddOns\DuelsReimagined\Media\Icons\DuelsReimagined-AddonIcon.blp
+## IconTexture: Interface\AddOns\DuelsReimagined\Media\Icons\DuelsDRIcon.png
 
 Core\Settings.lua
 UI\Fonts.lua

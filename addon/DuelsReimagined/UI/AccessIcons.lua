@@ -7,9 +7,10 @@ local Settings, Motion, Tooltips = ns.Settings, ns.Motion, ns.Tooltips
 local Access = {}
 ns.AccessIcons = Access
 
--- The approved fixed-color DR crest is shared by minimap and floating
--- widget. Keep all existing access, drag, tooltip and motion machinery.
-local ICON = "Interface\\AddOns\\DuelsReimagined\\Media\\Icons\\DuelsCrestIcon.png"
+-- One user-approved gold DR badge, shared by minimap, floating widget,
+-- AddOn Compartment, and TOC AddOns-list icon. Fixed color (not theme-tinted).
+-- Preserve the existing access, drag, tooltip and motion machinery.
+local ICON = "Interface\\AddOns\\DuelsReimagined\\Media\\Icons\\DuelsDRIcon.png"
 local EDGE, MINIMAP_SIZE = 8, 36
 local IDLE_DELAY, IDLE_ALPHA = 4, 0.60
 local loginReady = false
