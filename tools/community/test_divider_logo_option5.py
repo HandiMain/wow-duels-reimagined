@@ -57,7 +57,7 @@ class DividerAndWordmarkTests(unittest.TestCase):
         self.assertIn('brandArea:SetScript("OnSizeChanged", FitBrand)',window)
         self.assertIn('function Window.PlaceBrandBefore(searchBox)',window)
         self.assertIn('brandArea:SetPoint("RIGHT", searchBox, "LEFT", -18, 0)',window)
-        self.assertIn('DuelsLandingEmblem.png',landing)
+        self.assertIn('HeaderOption5TintAtlas.png',landing)
         self.assertNotIn('DuelsReimagined-HeaderLogoFlat.png',landing)
         self.assertIn('function Window.ResetWindow()',window)
 

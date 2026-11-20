@@ -77,7 +77,7 @@ class UtilityRailTests(unittest.TestCase):
         self.assertIn('pcall(eui.RegisterSkin, "DuelsReimagined"',
                       read("UI/Theme.lua"))
         self.assertIn("Window.ResetWindow()", read("UI/Footer.lua"))
-        self.assertIn('Style.Skin(surface, C.body', read("UI/BlizzardSettings.lua"))
+        self.assertIn('Style.Skin(surface, LANDING_BG', read("UI/BlizzardSettings.lua"))
 
 
 if __name__ == "__main__":

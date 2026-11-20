@@ -32,13 +32,21 @@ class BlizzardLandingTests(unittest.TestCase):
     def test_ellesmere_integration_and_duels_identity(self):
         s = read("UI/BlizzardSettings.lua")
         theme = read("UI/Theme.lua")
-        for token in ["Style.Skin(surface, C.body",
+        for token in ["Style.Skin(surface, LANDING_BG",
                       "Style.Text(layout,", "Style.Action(layout,", "ns.Theme.Refresh()",
-                      "DuelsLandingEmblem.png", "ns.Tooltips.Bind(open",
+                      "HeaderOption5TintAtlas.png", "ns.Tooltips.Bind(open",
                       "ns.Tooltips.Bind(community"]:
             self.assertIn(token, s)
-        self.assertNotIn("LogoBand(", s)
-        self.assertIn('logo:SetTexCoord(0, 1, 0.10, 0.90)', s)
+        self.assertIn('LockedBrandBand(LANDING_GOLD, 0, 0.25)', s)
+        self.assertIn('LockedBrandBand(LANDING_PALE, 0.25, 0.50)', s)
+        self.assertIn('logo:SetSize(380, 380 / 4.65)', s)
+        self.assertIn('Style.Skin(surface, LANDING_BG', s)
+        self.assertIn('shine=0, shade=0', s)
+        self.assertNotIn('DuelsLandingEmblem.png', s)
+        self.assertNotIn('Style.TintedImage(logo', s)
+        self.assertNotIn('C.body', s)
+        self.assertNotIn('C.text', s)
+        self.assertNotIn('C.muted', s)
         self.assertNotIn("DuelsReimagined-HeaderLogoFlat.png", s)
         self.assertNotIn("Style.TintedImage(logo", s)
         self.assertEqual(s.count("outsideWindow = true"), 2)

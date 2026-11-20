@@ -59,7 +59,7 @@ class PremiumSkinTests(unittest.TestCase):
             ("UI/PatchNotes.lua", "Style.Skin(row, C.nav"),
             ("UI/Widgets.lua", "Style.Skin(control, C.body"),
             ("UI/Widgets.lua", "Style.Skin(popup, C.nav"),
-            ("UI/BlizzardSettings.lua", "Style.Skin(surface, C.body")):
+            ("UI/BlizzardSettings.lua", "Style.Skin(surface, LANDING_BG")):
             self.assertIn(expected, src(p), p)
 
     def test_features_still_have_their_owners(self):
@@ -79,7 +79,7 @@ class PremiumSkinTests(unittest.TestCase):
                 self.assertIn(token, src(p))
         self.assertIn("local function WriteDB()", src("Core/Settings.lua"))
         self.assertIn("HeaderOption5TintAtlas.png", src("UI/Window.lua"))
-        self.assertIn("DuelsLandingEmblem.png", src("UI/BlizzardSettings.lua"))
+        self.assertIn("HeaderOption5TintAtlas.png", src("UI/BlizzardSettings.lua"))
         for p in ("UI/Style.lua","UI/Chrome.lua","UI/Navigation.lua"):
             self.assertNotIn('SetScript("OnUpdate"', src(p))
 

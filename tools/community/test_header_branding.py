@@ -16,7 +16,7 @@ class OptionFiveBrandingTests(unittest.TestCase):
         # opaque rectangle over our customizable Duels header.
         self.assertIn(b"tRNS", data)
 
-    def test_separate_approved_rgba_brand_art_is_power_of_two(self):
+    def test_prior_rgba_art_retained_for_rollback(self):
         for path, expected in (
             ("Media/Brand/DuelsLandingEmblem.png", (512, 256)),
             ("Media/Icons/DuelsCrestIcon.png", (128, 128)),
@@ -36,8 +36,8 @@ class OptionFiveBrandingTests(unittest.TestCase):
         self.assertIn("HeaderOption5TintAtlas.png", window)
         self.assertNotIn("Option5HeaderLogo.png", window)
         self.assertNotIn("DuelsReimagined-HeaderLogoFlat.png", window)
-        self.assertNotIn("HeaderOption5TintAtlas.png", landing)
-        self.assertIn("DuelsLandingEmblem.png", landing)
+        self.assertIn("HeaderOption5TintAtlas.png", landing)
+        self.assertNotIn("DuelsLandingEmblem.png", landing)
         self.assertNotIn("DuelsReimagined-HeaderLogoFlat.png", landing)
         self.assertIn("local BRAND_ASPECT = 4.65", window)
         self.assertIn("BRAND_MAX_WIDTH, BRAND_MAX_HEIGHT = 312, 67", window)
@@ -45,7 +45,9 @@ class OptionFiveBrandingTests(unittest.TestCase):
         self.assertIn("BrandLayer(C.headerText, 0.25, 0.50, -4)", window)
         self.assertNotIn("BrandLayer(C.gold,       0.50, 0.75, 3)", window)
         self.assertNotIn('local underline = CreateFrame(', window)
-        self.assertNotIn('LogoBand(', landing)
+        self.assertIn('LockedBrandBand(LANDING_GOLD, 0, 0.25)', landing)
+        self.assertIn('LockedBrandBand(LANDING_PALE, 0.25, 0.50)', landing)
+        self.assertIn('Style.Skin(surface, LANDING_BG', landing)
         self.assertNotIn('Style.TintedImage(logo', landing)
 
     def test_existing_responsive_header_contracts_unchanged(self):

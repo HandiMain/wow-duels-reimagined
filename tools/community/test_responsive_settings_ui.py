@@ -135,11 +135,14 @@ class ResponsiveSettingsTests(unittest.TestCase):
         win, land = read("UI/Window.lua"), read("UI/BlizzardSettings.lua")
         self.assertIn("BrandLayer(C.gold,       0,    0.25, -4)", win)
         self.assertIn("BrandLayer(C.headerText, 0.25, 0.50, -4)", win)
-        self.assertIn("DuelsLandingEmblem.png", land)
-        self.assertNotIn("LogoBand(", land)
+        self.assertIn("HeaderOption5TintAtlas.png", land)
+        self.assertIn("LockedBrandBand(LANDING_GOLD, 0, 0.25)", land)
+        self.assertIn("LockedBrandBand(LANDING_PALE, 0.25, 0.50)", land)
+        self.assertIn("Style.Skin(surface, LANDING_BG", land)
         self.assertNotIn("local underline = CreateFrame(", win)
         self.assertNotIn("DuelsReimagined-HeaderLogoFlat.png", land)
         self.assertNotIn("Style.TintedImage(logo, brandAtlas", land)
+        self.assertNotIn("DuelsLandingEmblem.png", land)
         self.assertIn('function Window.PlaceBrandBefore(searchBox)', win)
 
     def test_hall_has_idle_skin_and_click_feedback(self):

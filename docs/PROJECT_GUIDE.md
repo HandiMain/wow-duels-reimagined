@@ -524,3 +524,34 @@ Blizzard landing logo fit/readability at native and reduced screen sizes,
 both buttons, minimap crest clarity and hover/drag/collector, widget
 24/42/128 size and opacity, /reload, focus and combat, Forever/Retail.
 Rollback baseline: develop 6811448019612b7084e1bb7dee2ade5d7de73670.
+
+## Approved landing background and original wordmark — 2026-11-20
+
+The detailed DR-crest landing graphic failed live readability checks; the
+user then rejected the new flat-assets color choices and explicitly selected
+the ORIGINAL two-word header logo on the Blizzard AddOns landing instead,
+with the header's dark charcoal-plum background as a single permanent color.
+The screenshot's solid base sample is approximately #302B30; minor gradient
+variations were intentionally not carried into this single-color decision.
+
+Read-only Polestar-first reference: Polestar/Theme/Theme.lua keeps brand
+identity outside its regular scheme recoloring, and tests contrast roles.
+Duels' implementation reuses the EXACT HeaderOption5TintAtlas.png mask and
+the same two UV bands as UI/Window.lua (gold DUELS; pale REIMAGINED), but
+uses LOCAL fixed RGB tables rather than Style.color tokens, so changing
+Color Themes or EllesmereUI never recolors the landing panel or its logo.
+The landing subtitle and footer also receive fixed pale inks so they
+remain legible on the permanent dark background. The existing two action
+buttons and shared divider/tooltip/motion behavior remain theme-driven,
+unchanged. The main-window header still follows its existing themes.
+No new image files, architecture, settings, SavedVariables, or TOC bump.
+
+The earlier crest files remain in Media for rollback only and are not used
+on the landing page. The previously approved small minimap/widget icon and
+the TOC AddOns-list icon are NOT changed by this targeted landing revision.
+Status: IMPLEMENTED / IN-GAME UNTESTED. Verify with Ivory, Midnight Slate,
+Forest & Ivory, Obsidian & Ember, Moonstone, and EllesmereUI matching
+enabled/disabled: background and letter colors stay identical; text legible;
+buttons still work, tooltip remains accessible, no clipping at small sizes;
+main header continues theming; /reload/Enter/Escape unaffected.
+Source baseline: develop 37e0e9af6db1aa1ec3b3bbc74c03adf292affe00.

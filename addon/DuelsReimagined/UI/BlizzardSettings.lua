@@ -1,6 +1,5 @@
 local _, ns = ...
 local Style, Chrome, Motion = ns.Style, ns.Chrome, ns.Motion
-local C = Style.color
 
 -- Launcher only. The main Duels window remains the sole settings owner.
 local Landing = {}
@@ -10,29 +9,49 @@ panel.name = "Duels Reimagined"
 panel:Hide()
 Landing.panel = panel
 
+-- The landing page is our one fixed charcoal-plum brand surface. These
+-- private colors deliberately do NOT use Style.color, so changing Duels
+-- themes or EllesmereUI cannot recolor the background, logo or page copy.
+-- Sampled from the approved main-window header: #302B30.
+local LANDING_BG = { 48/255, 43/255, 48/255, 1 }
+local LANDING_EDGE = { 111/255, 95/255, 92/255, 1 }
+local LANDING_GOLD = { 195/255, 154/255, 101/255, 1 }
+local LANDING_PALE = { 244/255, 232/255, 228/255, 1 }
+local LANDING_TEXT = { 239/255, 228/255, 225/255, 1 }
+local LANDING_MUTED = { 197/255, 182/255, 185/255, 1 }
+
 local surface = CreateFrame("Frame", nil, panel)
 surface:SetPoint("TOPLEFT", panel, "TOPLEFT", 12, -12)
 surface:SetPoint("BOTTOMRIGHT", panel, "BOTTOMRIGHT", -12, 12)
-Style.Skin(surface, C.body, { corner=12, edge=C.border, shine=0.22, shade=0.20 })
+Style.Skin(surface, LANDING_BG, {
+    corner=12, edge=LANDING_EDGE, shine=0, shade=0, rim=0.70,
+})
 
--- This approved DR crest and nameplate are fixed-color identity artwork.
--- The surrounding panel/buttons continue to use the shared Duels theme.
--- Do NOT tint this image: it must remain legible on ivory, dark and
--- third-party EllesmereUI panel colors.
+-- Use the EXACT same two letter masks/UVs as the main window header,
+-- without theme registration. This is the ORIGINAL wordmark, not another
+-- raster recreation or the deprecated detailed crest asset.
 local layout = CreateFrame("Frame", nil, surface)
 layout:SetSize(490, 405)
 layout:SetPoint("CENTER", surface, "CENTER", 0, 6)
-local logo = layout:CreateTexture(nil, "ARTWORK")
-logo:SetSize(430, 172)
-logo:SetPoint("TOP", layout, "TOP", 0, -2)
-logo:SetTexture("Interface\\AddOns\\DuelsReimagined\\Media\\Brand\\DuelsLandingEmblem.png")
--- Transparent power-of-two art; crop only unused padded vertical space.
-logo:SetTexCoord(0, 1, 0.10, 0.90)
-Chrome.Sharp(logo)
+local logo = CreateFrame("Frame", nil, layout)
+logo:SetSize(380, 380 / 4.65)
+logo:SetPoint("TOP", layout, "TOP", 0, -70)
+local BRAND_ATLAS = "Interface\\AddOns\\DuelsReimagined\\Media\\Skin\\HeaderOption5TintAtlas.png"
+local function LockedBrandBand(color, top, bottom)
+    local tex = logo:CreateTexture(nil, "ARTWORK")
+    tex:SetTexture(BRAND_ATLAS)
+    tex:SetVertexColor(unpack(color))
+    tex:SetPoint("TOPLEFT", logo, "TOPLEFT", 0, -4)
+    tex:SetPoint("BOTTOMRIGHT", logo, "BOTTOMRIGHT", 0, -4)
+    tex:SetTexCoord(0, 1, top, bottom)
+    Chrome.Sharp(tex)
+end
+LockedBrandBand(LANDING_GOLD, 0, 0.25)
+LockedBrandBand(LANDING_PALE, 0.25, 0.50)
 
 local subtitle = Style.Text(layout,
-    "Your dueling companion in World of Warcraft.", 14, C.text)
-subtitle:SetPoint("TOP", logo, "BOTTOM", 0, -4)
+    "Your dueling companion in World of Warcraft.", 14, LANDING_TEXT)
+subtitle:SetPoint("TOP", logo, "BOTTOM", 0, -16)
 subtitle:SetPoint("LEFT", layout, "LEFT", 18, 0)
 subtitle:SetPoint("RIGHT", layout, "RIGHT", -18, 0)
 subtitle:SetHeight(42)
@@ -50,7 +69,7 @@ community:SetSize(230, 38)
 community:SetPoint("TOP", open, "BOTTOM", 0, -12)
 
 -- The screenshot's example version number is not an actual release.
-local build = Style.Text(surface, "Duels Reimagined  |  Test Build", 11, C.muted)
+local build = Style.Text(surface, "Duels Reimagined  |  Test Build", 11, LANDING_MUTED)
 build:SetPoint("BOTTOM", surface, "BOTTOM", 0, 23)
 build:SetJustifyH("CENTER")
 

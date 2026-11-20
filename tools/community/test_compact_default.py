@@ -53,7 +53,7 @@ class CompactDefaultWindowTests(unittest.TestCase):
         self.assertIn("BRAND_MAX_WIDTH, BRAND_MAX_HEIGHT = 312, 67", window)
         self.assertIn("HeaderOption5TintAtlas.png", window)
         self.assertIn("brandArea:SetPoint(\"RIGHT\", searchBox,", window)
-        self.assertIn("DuelsLandingEmblem.png", landing)
+        self.assertIn("HeaderOption5TintAtlas.png", landing)
         self.assertNotIn("Option5HeaderLogo.png", landing)
 
 if __name__ == "__main__":

@@ -63,7 +63,7 @@ class SecondaryRailRecoveryTests(unittest.TestCase):
         self.assertIn('BrandLayer(C.headerText, 0.25, 0.50, -4)', window)
         self.assertNotIn('BrandLayer(C.gold,       0.50, 0.75, 3)', window)
         self.assertNotIn('local underline = CreateFrame(', window)
-        self.assertIn('DuelsLandingEmblem.png', text("UI/BlizzardSettings.lua"))
+        self.assertIn('HeaderOption5TintAtlas.png', text("UI/BlizzardSettings.lua"))
 
     def test_unchanged_button_and_theme_owners(self):
         nav = text("UI/Navigation.lua")
