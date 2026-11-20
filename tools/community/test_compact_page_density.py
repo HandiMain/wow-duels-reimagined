@@ -49,15 +49,29 @@ class CompactPageDensityTests(unittest.TestCase):
 
     def test_appearance_fits_compact_window_viewport(self):
         o = src("UI/Options.lua")
-        self.assertIn('Window.content, "TOPLEFT", 26, -98', o)
+        self.assertIn('Window.content, "TOPLEFT", 26, -112', o)
         self.assertIn('Window.content, "BOTTOMRIGHT", -26, 17', o)
         self.assertIn("local appearance = Page(175)", o)
         self.assertIn("Card(appearance, 0, 165)", o)
         visible = 650 - 12 - 82 - 57 - 52 - 14
-        viewport = visible - 98 - 17
+        viewport = visible - 112 - 17
         self.assertGreaterEqual(viewport, 175)
         self.assertIn("local ROW_TOP = 38", o)
         self.assertIn("local cardHeight = y + 6", o)
+
+    def test_pill_switch_uses_existing_rounded_assets_and_preserves_behavior(self):
+        w = src("UI/Widgets.lua")
+        self.assertIn("local TOGGLE_W, TOGGLE_H, TOGGLE_KNOB, TOGGLE_PAD = 40, 20, 16, 2", w)
+        self.assertIn('row.track:SetTexture(texPath .. "ToggleTrack.tga")', w)
+        self.assertIn('row.thumb:SetTexture(texPath .. "ToggleThumb.tga")', w)
+        self.assertIn("local travel = TOGGLE_W - TOGGLE_KNOB - TOGGLE_PAD * 2", w)
+        self.assertIn("TOGGLE_PAD + travel * p", w)
+        self.assertIn("Motion.Value(self.slideKey, self.progress or 0, dest,", w)
+        self.assertIn("if self.available and self.onToggle then self.onToggle(not self.checked) end", w)
+        self.assertIn("self.resetButton:SetEnabled(self.modified and self.available)", w)
+        self.assertIn("function methods:RefreshColors()", w)
+        self.assertTrue((BASE / "Media/Textures/ToggleTrack.tga").is_file())
+        self.assertTrue((BASE / "Media/Textures/ToggleThumb.tga").is_file())
 
     def test_interface_cards_do_not_overlap_and_search_scrolls(self):
         o = src("UI/Options.lua")

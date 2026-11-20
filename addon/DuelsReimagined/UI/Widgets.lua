@@ -8,6 +8,9 @@ ns.Widgets = Widgets
 
 local texPath = "Interface\\AddOns\\DuelsReimagined\\Media\\Textures\\"
 local SLIDE_TIME = 0.16
+-- Rounded 2:1 track and circular knob use our existing RGBA artwork.
+-- Shared by every settings toggle, including EllesmereUI matching controls.
+local TOGGLE_W, TOGGLE_H, TOGGLE_KNOB, TOGGLE_PAD = 40, 20, 16, 2
 local OFF = { 0.60, 0.59, 0.62 }
 local DISABLED = { 0.30, 0.32, 0.35 }
 
@@ -27,7 +30,8 @@ local function PaintToggle(key, position)
     row.thumb:SetVertexColor(thumbTone, thumbTone, thumbTone, 1)
 
     row.thumb:ClearAllPoints()
-    row.thumb:SetPoint("LEFT", row.track, "LEFT", 3 + 21 * p, 0)
+    local travel = TOGGLE_W - TOGGLE_KNOB - TOGGLE_PAD * 2
+    row.thumb:SetPoint("LEFT", row.track, "LEFT", TOGGLE_PAD + travel * p, 0)
 end
 
 local methods = {}
@@ -108,14 +112,14 @@ function Widgets.ToggleRow(parent, label, description, onToggle, onReset)
     row.description:SetJustifyH("LEFT")
 
     row.track = row:CreateTexture(nil, "ARTWORK")
-    row.track:SetColorTexture(1, 1, 1, 1)
-    row.track:SetSize(43, 21)
+    row.track:SetTexture(texPath .. "ToggleTrack.tga")
+    row.track:SetSize(TOGGLE_W, TOGGLE_H)
     row.track:SetPoint("RIGHT", row, "RIGHT", -8, 0)
     Chrome.Sharp(row.track)
 
     row.thumb = row:CreateTexture(nil, "OVERLAY")
-    row.thumb:SetColorTexture(1, 1, 1, 1)
-    row.thumb:SetSize(16, 16)
+    row.thumb:SetTexture(texPath .. "ToggleThumb.tga")
+    row.thumb:SetSize(TOGGLE_KNOB, TOGGLE_KNOB)
     Chrome.Sharp(row.thumb)
 
     row.modDot = Style.Text(row, "•", 14, C.gold)

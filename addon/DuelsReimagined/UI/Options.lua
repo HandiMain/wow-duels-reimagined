@@ -11,7 +11,8 @@ ns.Options = Options
 -- one giant panel. The same shared thumb supports smaller window sizes.
 local function Page(contentHeight)
     local scroll = CreateFrame("ScrollFrame", nil, Window.content)
-    scroll:SetPoint("TOPLEFT", Window.content, "TOPLEFT", 26, -98)
+    -- Leave a comfortable gap below the page subtitle, even with a short card.
+    scroll:SetPoint("TOPLEFT", Window.content, "TOPLEFT", 26, -112)
     scroll:SetPoint("BOTTOMRIGHT", Window.content, "BOTTOMRIGHT", -26, 17)
     scroll:EnableMouseWheel(true)
     local content = CreateFrame("Frame", nil, scroll)
