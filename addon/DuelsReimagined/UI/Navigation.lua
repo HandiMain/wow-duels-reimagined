@@ -100,7 +100,7 @@ local function Select(sectionIndex, pageIndex, noMotion, repaintOnly)
             end
             item.bar:SetColorTexture(unpack(C.red))
             item.bar:SetShown(active)
-            item.label:SetTextColor(unpack(active and C.pale or C.text))
+            item.label:SetTextColor(unpack(active and C.tabText or C.text))
         end
     end
     if repaintOnly then return end
@@ -165,20 +165,20 @@ for index, section in ipairs(sections) do
 
     local icon = section.key == "patchnotes" and
         button:CreateTexture(nil, "ARTWORK") or Chrome.Icon(button, section.icon)
-    icon:SetSize(isPrimary and 29 or 27, isPrimary and 29 or 27)
+    icon:SetSize(isPrimary and 29 or 35, isPrimary and 29 or 35)
     local label = Style.Text(button, string.upper(section.label),
-        isPrimary and 16 or 10, C.tabMuted)
+        isPrimary and 16 or 12, C.tabMuted)
     if isPrimary then
         icon:SetPoint("LEFT", button, "LEFT", 37, 0)
         label:SetPoint("LEFT", icon, "RIGHT", 14, 0)
         label:SetJustifyH("LEFT")
     else
-        icon:SetPoint("TOP", button, "TOP", 0, -12)
+        icon:SetPoint("TOP", button, "TOP", 0, -10)
         label:SetPoint("TOP", icon, "BOTTOM", 0, -5)
-        label:SetWidth(88)
-        label:SetHeight(28)
+        label:SetWidth(86)
+        label:SetHeight(36)
         label:SetJustifyH("CENTER")
-        label:SetJustifyV("TOP")
+        label:SetJustifyV("CENTER")
     end
 
     if section.key == "patchnotes" then
@@ -231,8 +231,8 @@ for index, section in ipairs(sections) do
     local pages = {}
     for pageIndex, page in ipairs(section.pages) do
         local sub = CreateFrame("Button", nil, Window.nav)
-        sub:SetSize(230, 43)
-        sub:SetPoint("TOPLEFT", Window.nav, "TOPLEFT", 12, -(82 + (pageIndex - 1) * 46))
+        sub:SetSize(230, 38)
+        sub:SetPoint("TOPLEFT", Window.nav, "TOPLEFT", 12, -(79 + (pageIndex - 1) * 41))
         sub:SetPoint("RIGHT", Window.nav, "RIGHT", -12, 0)
         local subSelected, subHover = AddOverlay(sub, false)
         local subBar = sub:CreateTexture(nil, "OVERLAY")
@@ -240,7 +240,7 @@ for index, section in ipairs(sections) do
         subBar:SetPoint("TOPLEFT", sub, "TOPLEFT", 0, -5)
         subBar:SetPoint("BOTTOMLEFT", sub, "BOTTOMLEFT", 0, 5)
         subBar:SetWidth(3)
-        local text = Style.Text(sub, page.label, 15, C.text)
+        local text = Style.Text(sub, page.label, 14, C.text)
         text:SetPoint("LEFT", sub, "LEFT", 16, 0)
         sub:SetScript("OnClick", function() Select(index, pageIndex) end)
         sub:SetScript("OnEnter", function()

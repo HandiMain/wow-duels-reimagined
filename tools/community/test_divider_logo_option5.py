@@ -38,11 +38,11 @@ class DividerAndWordmarkTests(unittest.TestCase):
         self.assertEqual(struct.unpack(">II",data[16:24]),(256,256))
         self.assertIn(b"tRNS",data)
         window=src("UI/Window.lua")
-        self.assertIn('BrandLayer(C.gold,       0,    0.25)',window)
-        self.assertIn('BrandLayer(C.headerText, 0.25, 0.50)',window)
-        self.assertIn('BrandLayer(C.gold,       0.50, 0.75)',window)
-        self.assertIn('local BRAND_ASPECT = 256 / 64',window)
-        self.assertIn('brandLogo:SetPoint("LEFT", brandArea, "LEFT", 32, 0)',window)
+        self.assertIn('BrandLayer(C.gold,       0,    0.25, -4)',window)
+        self.assertIn('BrandLayer(C.headerText, 0.25, 0.50, -4)',window)
+        self.assertIn('BrandLayer(C.gold,       0.50, 0.75, 3)',window)
+        self.assertIn('local BRAND_ASPECT = 4.65',window)
+        self.assertIn('brandLogo:SetPoint("LEFT", brandArea, "LEFT", 24, -3)',window)
         self.assertNotIn('Option5HeaderLogo.png',window)
 
     def test_tints_and_previous_controls_still_work(self):

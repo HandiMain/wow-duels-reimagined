@@ -52,7 +52,7 @@ class PatchNotesUITests(unittest.TestCase):
         self.assertIn('label:SetText("PATCH\\nNOTES")', nav)
         self.assertIn('PatchNotesAtlas.tga', nav)
         self.assertIn("Style.Text(button, string.upper(section.label),", nav)
-        self.assertIn("isPrimary and 16 or 10, C.tabMuted)", nav)
+        self.assertIn("isPrimary and 16 or 12, C.tabMuted)", nav)
         self.assertIn("Style.Text(root,", page)
         self.assertIn("Widgets.ScrollBar(scroll,", page)
         self.assertIn("Motion.Fade(canvas,", page)

@@ -120,22 +120,26 @@ brandArea:EnableMouse(false)
 
 local brandLogo = CreateFrame("Frame", nil, brandArea)
 brandLogo:EnableMouse(false)
-local BRAND_ASPECT = 256 / 64
-local BRAND_MAX_WIDTH, BRAND_MAX_HEIGHT = 280, 70
+-- Wider wordmark with independently positioned lettering and ornament.
+local BRAND_ASPECT = 4.65
+local BRAND_MAX_WIDTH, BRAND_MAX_HEIGHT = 312, 67
 brandLogo:SetSize(BRAND_MAX_WIDTH, BRAND_MAX_HEIGHT)
-brandLogo:SetPoint("LEFT", brandArea, "LEFT", 32, 0)
+brandLogo:SetPoint("LEFT", brandArea, "LEFT", 24, -3)
 
 local BRAND_ATLAS = "Interface\\AddOns\\DuelsReimagined\\Media\\Skin\\HeaderOption5TintAtlas.png"
-local function BrandLayer(color, top, bottom)
+local function BrandLayer(color, top, bottom, yOffset)
     local tex = Style.TintedImage(brandLogo, BRAND_ATLAS, color, "ARTWORK")
-    tex:SetAllPoints(brandLogo)
+    -- Each atlas band has a different amount of empty vertical padding.
+    -- Center the lettering independently, and tuck the diamond just below.
+    tex:SetPoint("TOPLEFT", brandLogo, "TOPLEFT", 0, yOffset)
+    tex:SetPoint("BOTTOMRIGHT", brandLogo, "BOTTOMRIGHT", 0, yOffset)
     tex:SetTexCoord(0, 1, top, bottom)
     Chrome.Sharp(tex)
     return tex
 end
-BrandLayer(C.gold,       0,    0.25) -- DUELS lettering
-BrandLayer(C.headerText, 0.25, 0.50) -- REIMAGINED lettering
-BrandLayer(C.gold,       0.50, 0.75) -- angular underline and diamond
+BrandLayer(C.gold,       0,    0.25, -4) -- DUELS lettering
+BrandLayer(C.headerText, 0.25, 0.50, -4) -- REIMAGINED, aligned baseline
+BrandLayer(C.gold,       0.50, 0.75, 3) -- underline/diamond lifted slightly
 
 local function FitBrand(_, width)
     -- Full artwork scales uniformly and never overlaps the search field.

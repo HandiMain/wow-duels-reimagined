@@ -24,11 +24,11 @@ class OptionFiveBrandingTests(unittest.TestCase):
         self.assertNotIn("DuelsReimagined-HeaderLogoFlat.png", window)
         self.assertNotIn("HeaderOption5TintAtlas.png", landing)
         self.assertIn("DuelsReimagined-HeaderLogoFlat.png", landing)
-        self.assertIn("local BRAND_ASPECT = 256 / 64", window)
-        self.assertIn("BRAND_MAX_WIDTH, BRAND_MAX_HEIGHT = 280, 70", window)
-        self.assertIn("BrandLayer(C.gold,       0,    0.25)", window)
-        self.assertIn("BrandLayer(C.headerText, 0.25, 0.50)", window)
-        self.assertIn("BrandLayer(C.gold,       0.50, 0.75)", window)
+        self.assertIn("local BRAND_ASPECT = 4.65", window)
+        self.assertIn("BRAND_MAX_WIDTH, BRAND_MAX_HEIGHT = 312, 67", window)
+        self.assertIn("BrandLayer(C.gold,       0,    0.25, -4)", window)
+        self.assertIn("BrandLayer(C.headerText, 0.25, 0.50, -4)", window)
+        self.assertIn("BrandLayer(C.gold,       0.50, 0.75, 3)", window)
 
     def test_existing_responsive_header_contracts_unchanged(self):
         window = (ADDON / "UI" / "Window.lua").read_text()

@@ -58,9 +58,9 @@ class GripTypographyTests(unittest.TestCase):
             contents = source(file)
             self.assertNotIn('C.pale, true)', contents, file)
             self.assertNotIn('C.gold, true)', contents, file)
-        self.assertIn('Style.Text(root, "Patch Notes", 29, C.pale)',
+        self.assertIn('Style.Text(root, "Patch Notes", 23, C.pale)',
                       source("UI/PatchNotes.lua"))
-        self.assertIn('Style.Text(row, "", 17, C.pale)',
+        self.assertIn('Style.Text(row, "", 16, C.pale)',
                       source("UI/PatchNotes.lua"))
         self.assertIn('Style.Text(tip, "", 15, C.pale)',
                       source("UI/Tooltips.lua"))

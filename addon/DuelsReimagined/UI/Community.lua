@@ -61,7 +61,7 @@ scroll:SetPoint("TOPLEFT", root, "TOPLEFT", 19, -10)
 scroll:SetPoint("BOTTOMRIGHT", root, "BOTTOMRIGHT", -22, 16)
 scroll:EnableMouseWheel(true)
 local canvas = CreateFrame("Frame", nil, scroll)
-canvas:SetSize(900, 717)
+canvas:SetSize(900, 532)
 scroll:SetScrollChild(canvas)
 
 local bar = Widgets.ScrollBar(scroll, function()
@@ -108,7 +108,7 @@ local function ConceptSymbol(parent, slot, size)
 end
 local function FactionMark(left)
     local tex = canvas:CreateTexture(nil, "BACKGROUND")
-    tex:SetSize(229, 229)
+    tex:SetSize(192, 192)
     if left then
         tex:SetTexture(allianceArt)
         tex:SetTexCoord(0, 1, 0, 1)
@@ -127,11 +127,11 @@ end
 FactionMark(true)
 FactionMark(false)
 
-local title = Style.Text(canvas, "THE DUELIST'S CIRCLE", 25, C.pale)
-title:SetPoint("TOPLEFT", canvas, "TOPLEFT", 22, -18)
-title:SetPoint("TOPRIGHT", canvas, "TOPRIGHT", -22, -18)
+local title = Style.Text(canvas, "THE DUELIST'S CIRCLE", 23, C.pale)
+title:SetPoint("TOPLEFT", canvas, "TOPLEFT", 22, -15)
+title:SetPoint("TOPRIGHT", canvas, "TOPRIGHT", -22, -15)
 title:SetJustifyH("CENTER")
-local ornament = Chrome.Divider(canvas, 320, 14)
+local ornament = Chrome.Divider(canvas, 298, 12)
 ornament:SetPoint("TOP", title, "BOTTOM", 0, -5)
 local subtitle = Style.Text(canvas, "The people shaping Duels Reimagined.", 13, C.muted)
 subtitle:SetPoint("TOP", ornament, "BOTTOM", 0, -3)
@@ -145,12 +145,12 @@ end
 
 local function Action(kind, heading, xOffset)
     local btn = Style.Action(canvas, heading, "community")
-    btn:SetSize(270, 43)
-    btn:SetPoint("TOP", canvas, "TOP", xOffset, -112)
+    btn:SetSize(246, 37)
+    btn:SetPoint("TOP", canvas, "TOP", xOffset, -98)
     btn:SetScript("OnClick", function() SelectableURL(kind) end)
-    local actionIcon = ConceptSymbol(btn, kind == "bug" and 8 or 9, 34)
+    local actionIcon = ConceptSymbol(btn, kind == "bug" and 8 or 9, 29)
     actionIcon:SetPoint("LEFT", btn, "LEFT", 10, 0)
-    local githubIcon = ConceptSymbol(btn, 10, 31)
+    local githubIcon = ConceptSymbol(btn, 10, 26)
     githubIcon:SetPoint("RIGHT", btn, "RIGHT", -7, 0)
     ns.Tooltips.Bind(btn, {
         title = heading,
@@ -162,25 +162,25 @@ local function Action(kind, heading, xOffset)
         and "Get a link to report a bug on GitHub."
         or "Get a link to suggest an improvement."
     local note = Style.Text(canvas, description, 12, C.muted)
-    note:SetPoint("TOP", btn, "BOTTOM", 0, -4)
-    note:SetWidth(308)
-    note:SetHeight(32)
+    note:SetPoint("TOP", btn, "BOTTOM", 0, -3)
+    note:SetWidth(284)
+    note:SetHeight(25)
     note:SetJustifyH("CENTER")
     note:SetWordWrap(true)
     return btn
 end
 
-Action("bug", "REPORT A BUG", -163)
-Action("idea", "SUGGEST AN IDEA", 163)
+Action("bug", "REPORT A BUG", -151)
+Action("idea", "SUGGEST AN IDEA", 151)
 
 local cards = {}
 local function PreviewCard(data, index)
     local card = CreateFrame("Button", nil, canvas)
     card:RegisterForClicks("LeftButtonUp")
-    card:SetHeight(214)
+    card:SetHeight(155)
     local upper = index <= 2
     local left = index == 1 or index == 3
-    local y = upper and -215 or -447
+    local y = upper and -175 or -345
     if left then
         card:SetPoint("TOPLEFT", canvas, "TOPLEFT", 22, y)
         card:SetPoint("TOPRIGHT", canvas, "TOP", -9, y)
@@ -197,35 +197,35 @@ local function PreviewCard(data, index)
     Widgets.PressFeedback(card, hover)
     ns.Tooltips.Bind(card, { title = data.title,
         detail = "Open the full " .. data.title:lower() .. " list." })
-    local titleIcon = ConceptSymbol(card, index - 1, 50)
-    titleIcon:SetPoint("TOPLEFT", card, "TOPLEFT", 13, -11)
-    local heading = Style.Text(card, data.title, 17, C.gold)
-    heading:SetPoint("TOPLEFT", card, "TOPLEFT", 73, -16)
-    local hint = Style.Text(card, data.hint, 12, C.muted)
-    hint:SetPoint("TOPLEFT", heading, "BOTTOMLEFT", 0, -4)
+    local titleIcon = ConceptSymbol(card, index - 1, 40)
+    titleIcon:SetPoint("TOPLEFT", card, "TOPLEFT", 12, -10)
+    local heading = Style.Text(card, data.title, 16, C.gold)
+    heading:SetPoint("TOPLEFT", card, "TOPLEFT", 61, -12)
+    local hint = Style.Text(card, data.hint, 11, C.muted)
+    hint:SetPoint("TOPLEFT", heading, "BOTTOMLEFT", 0, -3)
     hint:SetPoint("RIGHT", card, "RIGHT", -20, 0)
-    local rule = Chrome.Divider(card, 265, 12)
-    rule:SetPoint("TOP", card, "TOP", 0, -67)
+    local rule = Chrome.Divider(card, 224, 10)
+    rule:SetPoint("TOP", card, "TOP", 0, -55)
 
-    local emptyIcon = ConceptSymbol(card, index + 3, 59)
-    emptyIcon:SetPoint("TOP", card, "TOP", 0, -82)
+    local emptyIcon = ConceptSymbol(card, index + 3, 42)
+    emptyIcon:SetPoint("TOP", card, "TOP", 0, -68)
     emptyIcon:SetAlpha(0.88)
     local emptyLabel = Style.Text(card, data.empty, 13, C.muted)
-    emptyLabel:SetPoint("TOPLEFT", card, "TOPLEFT", 13, -151)
-    emptyLabel:SetPoint("TOPRIGHT", card, "TOPRIGHT", -13, -151)
+    emptyLabel:SetPoint("TOPLEFT", card, "TOPLEFT", 13, -117)
+    emptyLabel:SetPoint("TOPRIGHT", card, "TOPRIGHT", -13, -117)
     emptyLabel:SetJustifyH("CENTER")
     local preview = {}
     for i = 1, 3 do
         local n = Style.Text(card, "", 14, C.text)
-        n:SetPoint("TOPLEFT", card, "TOPLEFT", 22, -85 - (i - 1) * 30)
+        n:SetPoint("TOPLEFT", card, "TOPLEFT", 22, -75 - (i - 1) * 23)
         n:SetPoint("RIGHT", card, "RIGHT", -95, 0)
         local v = Style.Text(card, "", 12, C.muted)
         v:SetPoint("RIGHT", card, "RIGHT", -22, 0)
-        v:SetPoint("TOP", card, "TOP", 0, -85 - (i - 1) * 30)
+        v:SetPoint("TOP", card, "TOP", 0, -75 - (i - 1) * 23)
         preview[#preview + 1] = { name = n, value = v }
     end
     local more = Style.Text(card, "", 12, C.gold)
-    more:SetPoint("BOTTOM", card, "BOTTOM", 0, 12)
+    more:SetPoint("BOTTOM", card, "BOTTOM", 0, 8)
     card:SetScript("OnClick", function()
         if ns.Navigation then ns.Navigation.SelectKey("community", data.key) end
     end)
@@ -239,27 +239,27 @@ for i, item in ipairs(definitions) do PreviewCard(item, i) end
 
 -- A single reusable detail list, rather than creating four separate panels.
 local listing = CreateFrame("Frame", nil, canvas)
-listing:SetPoint("TOPLEFT", canvas, "TOPLEFT", 22, -215)
-listing:SetPoint("TOPRIGHT", canvas, "TOPRIGHT", -22, -215)
-listing:SetHeight(310)
+listing:SetPoint("TOPLEFT", canvas, "TOPLEFT", 22, -175)
+listing:SetPoint("TOPRIGHT", canvas, "TOPRIGHT", -22, -175)
+listing:SetHeight(245)
 Style.Skin(listing, C.nav, { corner=11, edge=C.border, shine=0.25, shade=0.26 })
 local listTitle = Style.Text(listing, "", 19, C.gold)
-listTitle:SetPoint("TOPLEFT", listing, "TOPLEFT", 22, -20)
+listTitle:SetPoint("TOPLEFT", listing, "TOPLEFT", 20, -15)
 local listHint = Style.Text(listing, "", 13, C.muted)
 listHint:SetPoint("TOPLEFT", listTitle, "BOTTOMLEFT", 0, -5)
-local listRule = Chrome.Divider(listing, 315, 14)
-listRule:SetPoint("TOP", listing, "TOP", 0, -78)
+local listRule = Chrome.Divider(listing, 285, 12)
+listRule:SetPoint("TOP", listing, "TOP", 0, -60)
 local listEmpty = Style.Text(listing, "", 14, C.muted)
-listEmpty:SetPoint("TOP", listing, "TOP", 0, -165)
+listEmpty:SetPoint("TOP", listing, "TOP", 0, -133)
 listEmpty:SetJustifyH("CENTER")
 local rows = {}
 local function Row(i)
     if rows[i] then return rows[i] end
     local name = Style.Text(listing, "", 14, C.text)
-    name:SetPoint("TOPLEFT", listing, "TOPLEFT", 25, -102 - (i - 1) * 34)
+    name:SetPoint("TOPLEFT", listing, "TOPLEFT", 25, -88 - (i - 1) * 30)
     name:SetPoint("RIGHT", listing, "RIGHT", -113, 0)
     local count = Style.Text(listing, "", 12, C.muted)
-    count:SetPoint("TOPRIGHT", listing, "TOPRIGHT", -25, -102 - (i - 1) * 34)
+    count:SetPoint("TOPRIGHT", listing, "TOPRIGHT", -25, -88 - (i - 1) * 30)
     rows[i] = { name = name, value = count }
     return rows[i]
 end
@@ -296,9 +296,9 @@ local function UpdateList(data)
         r.name:SetShown(name ~= nil)
         r.value:SetShown(name ~= nil and value ~= nil)
     end
-    local h = math.max(310, 130 + #entries * 34)
+    local h = math.max(245, 116 + #entries * 30)
     listing:SetHeight(h)
-    canvas:SetHeight(239 + h + 24)
+    canvas:SetHeight(185 + h + 20)
 end
 
 function Community.Show(key)
@@ -311,7 +311,7 @@ function Community.Show(key)
     listing:SetShown(not overview)
     if overview then
         UpdateOverview()
-        canvas:SetHeight(694)
+        canvas:SetHeight(523)
     else
         UpdateList(byKey[key])
     end

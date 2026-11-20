@@ -11,8 +11,8 @@ ns.Options = Options
 -- one giant panel. The same shared thumb supports smaller window sizes.
 local function Page(contentHeight)
     local scroll = CreateFrame("ScrollFrame", nil, Window.content)
-    scroll:SetPoint("TOPLEFT", Window.content, "TOPLEFT", 34, -112)
-    scroll:SetPoint("BOTTOMRIGHT", Window.content, "BOTTOMRIGHT", -34, 27)
+    scroll:SetPoint("TOPLEFT", Window.content, "TOPLEFT", 26, -98)
+    scroll:SetPoint("BOTTOMRIGHT", Window.content, "BOTTOMRIGHT", -26, 17)
     scroll:EnableMouseWheel(true)
     local content = CreateFrame("Frame", nil, scroll)
     content:SetSize(690, contentHeight)
@@ -64,13 +64,13 @@ local function Card(page, y, height)
     return card
 end
 
-local appearance = Page(405)
-local interface = Page(1365)
+local appearance = Page(303)
+local interface = Page(1055)
 
-local appearanceCard = Card(appearance, 0, 395)
-local behaviorCard = Card(interface, 0, 395)
-local typographyCard = Card(interface, 413, 397)
-local accessCard = Card(interface, 828, 495)
+local appearanceCard = Card(appearance, 0, 292)
+local behaviorCard = Card(interface, 0, 325)
+local typographyCard = Card(interface, 339, 306)
+local accessCard = Card(interface, 659, 382)
 
 local function Section(card, title, subtitle, top)
     local heading = Style.Text(card, title, 18, C.pale)
@@ -83,7 +83,7 @@ end
 local appearanceDescription = Section(appearanceCard, "Appearance",
     "Choose a complete look, with optional EllesmereUI matching.", -16)
 local availability = Style.Text(appearanceCard, "", 12, C.muted)
-availability:SetPoint("TOPLEFT", appearanceCard, "TOPLEFT", 20, -355)
+availability:SetPoint("TOPLEFT", appearanceCard, "TOPLEFT", 20, -264)
 Section(behaviorCard, "Window behavior",
     "Keep the world visible while the dueling hall is open.", -16)
 Section(typographyCard, "Typography",
@@ -141,34 +141,34 @@ local themeChoice = Widgets.ChoiceRow(appearanceCard, "Color theme",
     "Recolor the whole addon, including panels, tabs, text and buttons.",
     function(key) Settings.Set("uiTheme", key) end,
     function() Settings.Reset("uiTheme") end, false)
-themeChoice:SetPoint("TOPLEFT", appearanceCard, "TOPLEFT", 20, -90)
-themeChoice:SetPoint("TOPRIGHT", appearanceCard, "TOPRIGHT", -20, -90)
-MarkPosition(themeChoice, appearanceCard, -90)
+themeChoice:SetPoint("TOPLEFT", appearanceCard, "TOPLEFT", 20, -61
+themeChoice:SetPoint("TOPRIGHT", appearanceCard, "TOPRIGHT", -20, -61
+MarkPosition(themeChoice, appearanceCard, -61)
 RegisterOption("uiTheme", "Color theme",
     "Choose a Duels color theme when EllesmereUI color matching is off", "options", themeChoice)
 
 AddToggle(appearanceCard, "options", "matchColors", "Match EllesmereUI colors",
     "Override all color roles with EllesmereUI's accent and panel palette.",
-    -184, true)
+    -131, true)
 AddToggle(appearanceCard, "options", "matchFont", "Match EllesmereUI font",
-    "Use your selected EllesmereUI interface font.", -255, true)
+    "Use your selected EllesmereUI interface font.", -191, true)
 AddToggle(behaviorCard, "interface", "autoPeekMoving", "Automatic Peek while moving",
-    "Fade the window during movement; restore it when you stop.", -82, false)
+    "Fade the window during movement; restore it when you stop.", -64, false)
 AddToggle(behaviorCard, "interface", "reduceMotion", "Reduce motion",
-    "Shorten or skip UI animation while retaining visual feedback.", -148, false)
+    "Shorten or skip UI animation while retaining visual feedback.", -119, false)
 AddToggle(behaviorCard, "interface", "showTooltips", "Show addon tooltips",
-    "Show helpful descriptions when hovering over Duels controls.", -214, false)
+    "Show helpful descriptions when hovering over Duels controls.", -174, false)
 AddToggle(behaviorCard, "interface", "patchNotesReminder", "New patch reminder",
     "Show a subtle unread dot on Patch Notes when a new update is published.",
-    -280, false)
+    -229, false)
 
 local fontChoice = Widgets.ChoiceRow(typographyCard, "Interface font",
     "Blizzard by default; includes fonts registered with SharedMedia.",
     function(key) Settings.Set("fontChoice", key) end,
     function() Settings.Reset("fontChoice") end, false)
-fontChoice:SetPoint("TOPLEFT", typographyCard, "TOPLEFT", 20, -88)
-fontChoice:SetPoint("TOPRIGHT", typographyCard, "TOPRIGHT", -20, -88)
-MarkPosition(fontChoice, typographyCard, -88)
+fontChoice:SetPoint("TOPLEFT", typographyCard, "TOPLEFT", 20, -64)
+fontChoice:SetPoint("TOPRIGHT", typographyCard, "TOPRIGHT", -20, -64)
+MarkPosition(fontChoice, typographyCard, -64)
 RegisterOption("fontChoice", "Interface font",
     "Choose a Blizzard or LibSharedMedia font for the addon", "interface", fontChoice)
 
@@ -177,9 +177,9 @@ local fontScale = Widgets.SliderRow(typographyCard, "Text size",
     Settings.MIN_FONT_SCALE, Settings.MAX_FONT_SCALE, Settings.FONT_SCALE_STEP,
     function(v) Settings.Set("fontScale", v) end,
     function() Settings.Reset("fontScale") end)
-fontScale:SetPoint("TOPLEFT", typographyCard, "TOPLEFT", 20, -174)
-fontScale:SetPoint("TOPRIGHT", typographyCard, "TOPRIGHT", -20, -174)
-MarkPosition(fontScale, typographyCard, -174)
+fontScale:SetPoint("TOPLEFT", typographyCard, "TOPLEFT", 20, -131)
+fontScale:SetPoint("TOPRIGHT", typographyCard, "TOPRIGHT", -20, -131)
+MarkPosition(fontScale, typographyCard, -131)
 RegisterOption("fontScale", "Text size",
     "Change interface font scale between 75 and 150 percent", "interface", fontScale)
 
@@ -193,9 +193,9 @@ local fontOutline = Widgets.ChoiceRow(typographyCard, "Text outline",
     "Use the original style, or choose a clearer outline.",
     function(key) Settings.Set("fontOutline", key) end,
     function() Settings.Reset("fontOutline") end, true)
-fontOutline:SetPoint("TOPLEFT", typographyCard, "TOPLEFT", 20, -258)
-fontOutline:SetPoint("TOPRIGHT", typographyCard, "TOPRIGHT", -20, -258)
-MarkPosition(fontOutline, typographyCard, -258)
+fontOutline:SetPoint("TOPLEFT", typographyCard, "TOPLEFT", 20, -202)
+fontOutline:SetPoint("TOPRIGHT", typographyCard, "TOPRIGHT", -20, -202)
+MarkPosition(fontOutline, typographyCard, -202)
 RegisterOption("fontOutline", "Text outline",
     "Choose default, none, outline or thick outline", "interface", fontOutline)
 
@@ -210,9 +210,9 @@ local iconMode = Widgets.ChoiceRow(accessCard, "Icon mode",
     "Show a minimap button, movable widget, both, or neither.",
     function(value) Settings.Set("iconMode", value) end,
     function() Settings.Reset("iconMode") end, true)
-iconMode:SetPoint("TOPLEFT", accessCard, "TOPLEFT", 20, -82)
-iconMode:SetPoint("TOPRIGHT", accessCard, "TOPRIGHT", -20, -82)
-MarkPosition(iconMode, accessCard, -82)
+iconMode:SetPoint("TOPLEFT", accessCard, "TOPLEFT", 20, -64)
+iconMode:SetPoint("TOPRIGHT", accessCard, "TOPRIGHT", -20, -64)
+MarkPosition(iconMode, accessCard, -64)
 RegisterOption("iconMode", "Icon mode",
     "Choose minimap, floating widget, both, or hidden", "interface", iconMode)
 RegisterOption("minimapButton", "Minimap button",
@@ -227,9 +227,9 @@ local widgetSize = Widgets.SliderRow(accessCard, "Widget size",
         if ns.Options and ns.Options.Refresh then ns.Options.Refresh() end
     end,
     function(value) return math.floor(value + 0.5) .. " px" end, true)
-widgetSize:SetPoint("TOPLEFT", accessCard, "TOPLEFT", 20, -164)
-widgetSize:SetPoint("TOPRIGHT", accessCard, "TOPRIGHT", -20, -164)
-MarkPosition(widgetSize, accessCard, -164)
+widgetSize:SetPoint("TOPLEFT", accessCard, "TOPLEFT", 20, -131)
+widgetSize:SetPoint("TOPRIGHT", accessCard, "TOPRIGHT", -20, -131)
+MarkPosition(widgetSize, accessCard, -131)
 RegisterOption("widgetSize", "Widget size",
     "Resize the floating access widget", "interface", widgetSize)
 
@@ -241,23 +241,23 @@ local widgetTransparency = Widgets.SliderRow(accessCard, "Widget transparency",
         Settings.Reset("widgetTransparency")
         if ns.Options and ns.Options.Refresh then ns.Options.Refresh() end
     end, nil, true)
-widgetTransparency:SetPoint("TOPLEFT", accessCard, "TOPLEFT", 20, -243)
-widgetTransparency:SetPoint("TOPRIGHT", accessCard, "TOPRIGHT", -20, -243)
-MarkPosition(widgetTransparency, accessCard, -243)
+widgetTransparency:SetPoint("TOPLEFT", accessCard, "TOPLEFT", 20, -200)
+widgetTransparency:SetPoint("TOPRIGHT", accessCard, "TOPRIGHT", -20, -200)
+MarkPosition(widgetTransparency, accessCard, -200)
 RegisterOption("widgetTransparency", "Widget transparency",
     "Set idle opacity of the floating access icon", "interface", widgetTransparency)
 
 local compartmentToggle = AddToggle(accessCard, "interface",
     "showInCompartment", "Show in AddOn Compartment",
     "Include Duels in Blizzard's AddOn Compartment list (requires /reload).",
-    -320, false)
+    -267, false)
 -- Not every WoW client provides the compartment. Hide the action in that
 -- case, and explain its unavailable state through the existing row tooltip.
 rows[#rows].needsCompartment = true
 
 local resetAccess = Style.Action(accessCard, "Reset icon positions")
 resetAccess:SetSize(200, 34)
-resetAccess:SetPoint("BOTTOMRIGHT", accessCard, "BOTTOMRIGHT", -28, 20)
+resetAccess:SetPoint("BOTTOMRIGHT", accessCard, "BOTTOMRIGHT", -22, 16)
 resetAccess:SetScript("OnClick", function() Settings.ResetAccessPositions() end)
 ns.Tooltips.Bind(resetAccess, {
     title = "Reset icon positions",
@@ -266,11 +266,11 @@ ns.Tooltips.Bind(resetAccess, {
 RegisterOption("resetIconPositions", "Reset icon positions",
     "Return the minimap and floating widget to their default locations",
     "interface", resetAccess)
-MarkPosition(resetAccess, accessCard, -323)
+MarkPosition(resetAccess, accessCard, -332)
 local accessHint = Style.Text(accessCard,
     "Drag either icon to move it. If both are hidden, type /duels to open this window.",
     12, C.muted)
-accessHint:SetPoint("BOTTOMLEFT", accessCard, "BOTTOMLEFT", 20, 26)
+accessHint:SetPoint("BOTTOMLEFT", accessCard, "BOTTOMLEFT", 20, 20)
 accessHint:SetPoint("RIGHT", resetAccess, "LEFT", -18, 0)
 accessHint:SetJustifyH("LEFT")
 
@@ -278,7 +278,7 @@ accessHint:SetJustifyH("LEFT")
 local behaviorInfo = Style.Text(behaviorCard,
     "Hold the eye to Peek. Fold leaves the header visible.",
     12, C.muted)
-behaviorInfo:SetPoint("TOPLEFT", behaviorCard, "TOPLEFT", 20, -359)
+behaviorInfo:SetPoint("TOPLEFT", behaviorCard, "TOPLEFT", 20, -297)
 behaviorInfo:SetPoint("RIGHT", behaviorCard, "RIGHT", -20, 0)
 behaviorInfo:SetJustifyH("LEFT")
 
@@ -286,7 +286,7 @@ behaviorInfo:SetJustifyH("LEFT")
 local fontInfo = Style.Text(typographyCard,
     "Font matching is controlled under Appearance.",
     12, C.muted)
-fontInfo:SetPoint("TOPLEFT", typographyCard, "TOPLEFT", 20, -355)
+fontInfo:SetPoint("TOPLEFT", typographyCard, "TOPLEFT", 20, -281)
 fontInfo:SetPoint("RIGHT", typographyCard, "RIGHT", -20, 0)
 fontInfo:SetJustifyH("LEFT")
 

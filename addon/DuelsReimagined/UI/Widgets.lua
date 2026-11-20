@@ -85,7 +85,7 @@ end
 
 function Widgets.ToggleRow(parent, label, description, onToggle, onReset)
     local row = CreateFrame("Button", nil, parent)
-    row:SetHeight(56)
+    row:SetHeight(54)
     row:RegisterForClicks("LeftButtonUp")
     row.available = true
     row.checked = false
@@ -236,7 +236,7 @@ end
 -- Popup rows scroll rather than opening hundreds of Blizzard dropdown frames.
 function Widgets.ChoiceRow(parent, caption, detail, onChoose, onReset, above)
     local row = CreateFrame("Frame", nil, parent)
-    row:SetHeight(74)
+    row:SetHeight(66)
     row.available = true
     row.name = Style.Text(row, caption, 15, C.text)
     row.name:SetPoint("TOPLEFT", row, "TOPLEFT", 1, -9)
@@ -424,7 +424,7 @@ end
 
 function Widgets.SliderRow(parent, caption, detail, minVal, maxVal, step, onCommit, onReset, formatValue, live)
     local row = CreateFrame("Frame", nil, parent)
-    row:SetHeight(72)
+    row:SetHeight(64)
     row.available = true
     row.name = Style.Text(row, caption, 15, C.text)
     row.name:SetPoint("TOPLEFT", row, "TOPLEFT", 1, -10)
