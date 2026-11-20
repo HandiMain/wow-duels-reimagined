@@ -719,3 +719,48 @@ scale, icon drag, tooltip, hover, and AddOn Compartment. If still missing
 with grouped AND ungrouped, STOP and inspect EUI's cached _addonVisible
 and button parent in game before further edits, avoiding timer hacks.
 Rollback baseline: develop 9102a772a1f20b6373e4b472942a56a0c866dca0.
+
+## Minimap independent placement + Ember default — 2026-11-20
+
+The user verified repeated failed attempts to restore the minimap DR icon
+with EllesmereUI enabled (though it works without EllesmereUI).
+Previous commits 9102a77 and 4d162f9 did not resolve the in-game issue.
+Before touching code again, reviewed:
+- Polestar/Maps/MinimapButton.lua, direct Minimap child + collector handoff
+- EllesmereUI 9.8.9 EUI_Minimap_Buttons.lua first discovery
+  (GatherMinimapButtons collects named direct Minimap/flyout children,
+  hides/alpha-zeroes them) and lifecycle
+- Narcissus MinimapButton.lua SetIndependent (UIParent-owned container,
+  but anchored to Minimap) and old BurstFX's verified independent approach.
+
+Approved direction: DuelsReimaginedMinimapButton now has UIParent as its
+frame parent. Its CENTER anchor still follows Minimap shape/angle/size and
+drag retains Settings.SetMinimapAngle; the icon is not a direct child that
+EllesmereUI sweeps into a button flyout. Access.Refresh owns visibility:
+mode minimap/both and Minimap:IsShown; explicit Minimap OnHide/OnShow hooks
+restore that state because UIParent parenting does not inherit map hiding.
+The AddOn Compartment registration, widget mode/size/transparency,
+click/tooltip/motion, and saved angle are otherwise unchanged. No private
+Ellesmere calls or permanent polling. Independent means the DR icon will
+appear beside the minimap, NOT inside EllesmereUI's grouped flyout.
+
+The user also explicitly approved **Obsidian & Ember** as the default
+theme. Settings.GetDefault(uiTheme), fallback of invalid saved values,
+initial Style.color palette, Style.FromTheme fallback and the Options
+choice label/order now all use "ember"; Ivory & Plum remains an ordinary
+selectable theme. A VALID EXISTING SAVED theme (including ivory from
+previous versions) is preserved; it cannot be safely distinguished from
+a deliberate choice. New installs and Reset choose Ember. The existing
+optional EllesmereUI color matching still overrides the visible palette
+when enabled; the fixed charcoal landing branding stays independent.
+
+Status: IMPLEMENTED / IN-GAME UNTESTED. Automated tests and GitHub
+Actions are separate evidence, not live verification. In-game checks:
+1) With EllesmereUI enabled, restart WoW, icon mode Minimap, ensure DR icon
+   is immediately next to map and does NOT need collecting/dragging;
+2) /reload, login, minimap show/hide, minimap resize and drag persist;
+3) without EllesmereUI, same tests; test Widget, Both, None;
+4) check Options + Search + tooltips + AddOn Compartment and no Lua errors;
+5) new/Reset theme uses Obsidian & Ember, existing valid saved theme is
+   retained, Ivory/other 3 choices remain, matchColors on/off still works.
+Previous baseline develop 4d162f9786a4e7b3692e47d832f298c58367e9d6.

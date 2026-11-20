@@ -25,10 +25,10 @@ class ThemeRedesignTests(unittest.TestCase):
         style, settings, opts = (src(p) for p in
             ("UI/Style.lua", "Core/Settings.lua", "UI/Options.lua"))
         for fragment in ('ivory = {', 'slate = {', 'verdant = {',
-                         'Ivory & Plum (Default)', 'function Style.ApplyTheme',
+                         'Obsidian & Ember (Default)', 'function Style.ApplyTheme',
                          'function Style.ThemeChoices()'):
             self.assertIn(fragment, style)
-        self.assertIn('if key == "uiTheme" then return "ivory" end', settings)
+        self.assertIn('if key == "uiTheme" then return "ember" end', settings)
         self.assertIn('db.uiTheme = Settings.Get("uiTheme")', settings)
         self.assertIn('Settings.Set("uiTheme", key)', opts)
         self.assertIn('RegisterOption("uiTheme", "Color theme"', opts)

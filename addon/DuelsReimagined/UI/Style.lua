@@ -13,8 +13,7 @@ local function Hex(code)
     }
 end
 
--- The approved in-game concept is our DEFAULT, not a loose inspiration.
--- The other two are preview recolors of exactly the same interface.
+-- Obsidian & Ember is the new default; all existing themes remain selectable.
 local schemes = {
     ivory = {
         gold="C39A65", goldDim="B4A39E", red="77334A",
@@ -79,10 +78,10 @@ local schemes = {
 }
 
 local choices = {
-    { key = "ivory", label = "Ivory & Plum (Default)" },
+    { key = "ember", label = "Obsidian & Ember (Default)" },
+    { key = "ivory", label = "Ivory & Plum" },
     { key = "slate", label = "Midnight Slate" },
     { key = "verdant", label = "Forest & Ivory" },
-    { key = "ember", label = "Obsidian & Ember" },
     { key = "moonstone", label = "Moonstone & Violet" },
 }
 function Style.ThemeChoices() return choices end
@@ -91,7 +90,7 @@ function Style.IsTheme(key) return schemes[key] ~= nil end
 -- Stable table identities are important. Registered widgets hold references
 -- to these colors and repaint in place on live look changes.
 Style.color = {}
-for token, code in pairs(schemes.ivory) do Style.color[token] = Hex(code) end
+for token, code in pairs(schemes.ember) do Style.color[token] = Hex(code) end
 local C = Style.color
 local colorTextures, fontStrings, pixelEdges = {}, {}, {}
 
@@ -401,8 +400,8 @@ local function Put(name, v)
 end
 local WHITE, BLACK = {1,1,1}, {0,0,0}
 local function FromTheme()
-    local selected = ns.Settings and ns.Settings.Get("uiTheme") or "ivory"
-    for name, hex in pairs(schemes[selected] or schemes.ivory) do
+    local selected = ns.Settings and ns.Settings.Get("uiTheme") or "ember"
+    for name, hex in pairs(schemes[selected] or schemes.ember) do
         Put(name, Hex(hex))
     end
 end

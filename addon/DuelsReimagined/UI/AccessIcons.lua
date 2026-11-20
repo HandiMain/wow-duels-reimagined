@@ -18,7 +18,6 @@ local iconMode
 local miniButton, widgetButton
 local draggingMinimap, pendingMinimapAngle
 local placedX, placedY
-local lastMiniWanted = false
 local compartmentRegistered = false
 
 local SHAPE = {
@@ -257,20 +256,16 @@ local function ConnectClick(button, isWidget)
     end)
 end
 
--- Polestar/Ellesmere collector interoperability: minimap addons discover
--- named Button children of Minimap and may adopt them into their own flyout.
--- When adopted, Duels must stop owning placement/visibility. This replaces
--- BurstFX's separate UIParent container only for the minimap button.
-miniButton = CreateFrame("Button", "DuelsReimaginedMinimapButton", Minimap or UIParent)
+-- Independent minimap icon (Narcissus/BurstFX): UIParent owns the
+-- frame and Minimap only anchors its position. EllesmereUI collects
+-- direct Minimap children and cannot sweep this button into its flyout.
+miniButton = CreateFrame("Button", "DuelsReimaginedMinimapButton", UIParent)
 miniButton:SetSize(MINIMAP_SIZE, MINIMAP_SIZE)
 miniButton:SetFrameStrata("MEDIUM")
 miniButton:SetFrameLevel((Minimap and Minimap:GetFrameLevel() or 1) + 8)
 miniButton.duelsFace = BuildFace(miniButton)
 ConnectClick(miniButton, false)
--- Do NOT pre-hide here. EllesmereUI can scan named Minimap buttons before
--- PLAYER_LOGIN; an initial Hide would make its first IsShown() snapshot
--- remember this enabled button as disabled. Apply the saved mode below,
--- after PositionMinimap is defined, before addons receive ADDON_LOADED.
+-- Initial display state is set after PositionMinimap is defined.
 
 -- The movable access widget can be shown instead of, or alongside, Minimap.
 widgetButton = CreateFrame("Button", "DuelsReimaginedAccessWidget", UIParent)
@@ -294,7 +289,7 @@ local function RoundedQuadrant(shape, c, s)
 end
 
 local function OwnsMinimapPlacement()
-    if not Minimap or miniButton:GetParent() ~= Minimap then return false end
+    if not Minimap or miniButton:GetParent() ~= UIParent then return false end
     if placedX == nil then return true end
     local point, relative, relativePoint, x, y = miniButton:GetPoint(1)
     return point == "CENTER" and relative == Minimap and
@@ -329,14 +324,12 @@ local function PositionMinimap(angle)
     placedX, placedY = x, y
 end
 
--- Expose the saved, player-intended minimap visibility at ADDON_LOADED time.
--- Polestar similarly constructs/shows its button in its first enabled pass.
--- EllesmereUI's first scan records child:IsShown() into _addonVisible, so a
--- default-hidden frame cannot reliably be recovered by a later login Show.
--- Position it first; this does NOT change the player's saved mode or angle.
+-- Independent UIParent children don't auto-hide when Minimap is hidden.
+-- Access.Refresh owns visibility after login; initialize from the same intent.
 PositionMinimap()
 local initialMode = Mode()
-miniButton:SetShown(initialMode == "minimap" or initialMode == "both")
+miniButton:SetShown(Minimap and Minimap:IsShown() and
+    (initialMode == "minimap" or initialMode == "both"))
 
 local function WidgetPosition()
     local x, y = Settings.GetWidgetPosition()
@@ -427,20 +420,10 @@ function Access.Refresh()
     widgetButton.duelsFace.Size(Settings.Get("widgetSize"))
     PositionMinimap()
     WidgetPosition()
-    -- The minimap itself can be hidden at login, on mouseover, or by a
-    -- visibility rule. It already hides its children visually. Explicitly
-    -- Hide()ing this button as well told collectors that the addon disabled
-    -- it and could make it disappear from their row/flyout until dragged.
-    local miniWanted = loginReady and Minimap and
+    -- Independent visibility owner; no collector handshake or polling.
+    local miniWanted = loginReady and Minimap and Minimap:IsShown() and
         (iconMode == "minimap" or iconMode == "both")
-    if not miniWanted then
-        if lastMiniWanted or miniButton:IsShown() then miniButton:Hide() end
-    elseif not lastMiniWanted then
-        -- Only show when the user selects minimap mode. Do not repeatedly
-        -- show a button that a collector intentionally hid for its flyout.
-        miniButton:Show()
-    end
-    lastMiniWanted = miniWanted and true or false
+    miniButton:SetShown(miniWanted and true or false)
     widgetButton:SetShown(loginReady and
         (iconMode == "widget" or iconMode == "both"))
     if miniWanted then IdleMinimap() end
@@ -461,6 +444,7 @@ function Access.GetRuntimeState()
         animationOwner = "UI/Motion.lua", leftClick = "Window.Toggle",
         rightClickMenu = false, patchNotes = false,
         collectorOwned = Minimap and not OwnsMinimapPlacement() or false,
+        placementMode = "independent",
         compartmentEnabled = Settings.Get("showInCompartment"),
         compartmentRegistered = compartmentRegistered,
     }
@@ -484,9 +468,8 @@ local function RegisterCompartment()
 end
 
 if Minimap and Minimap.HookScript then
-    -- No minimap OnHide -> miniButton:Hide() hook: parent visibility already
-    -- handles descendants. An explicit Hide would be interpreted by addon
-    -- button collectors as the player disabling the button.
+    -- A UIParent-owned button must follow the map's real visibility state.
+    Minimap:HookScript("OnHide", function() if loginReady then Access.Refresh() end end)
     Minimap:HookScript("OnShow", function() if loginReady then Access.Refresh() end end)
     Minimap:HookScript("OnSizeChanged", function()
         if loginReady and not draggingMinimap then PositionMinimap() end

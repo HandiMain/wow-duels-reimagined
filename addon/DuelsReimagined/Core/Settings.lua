@@ -55,7 +55,7 @@ end
 
 function Settings.GetDefault(key)
     if key == "menuScale" then return 1 end
-    if key == "uiTheme" then return "ivory" end
+    if key == "uiTheme" then return "ember" end
     if key == "fontChoice" then return "default" end
     if key == "fontScale" then return 1 end
     if key == "fontOutline" then return "default" end
@@ -205,7 +205,7 @@ function Settings.Get(key)
         if ns.Style and ns.Style.IsTheme and ns.Style.IsTheme(value) then
             return value
         end
-        return "ivory"
+        return "ember"
     end
     if key == "fontChoice" then
         local value = db and db.fontChoice

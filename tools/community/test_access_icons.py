@@ -110,41 +110,34 @@ class AccessIconsTests(unittest.TestCase):
         self.assertIn('end, nil, true)', o)
         self.assertIn('RegisterOption("minimapButton"', o)
 
-    def test_enabled_minimap_is_shown_before_collector_initial_scan(self):
-        # EUI_Minimap_Buttons.lua (EllesmereUI 9.8.9) snapshots
-        # child:IsShown() into _addonVisible on the first scan, and its
-        # HideMinimapChild() leaves that initial false flag unchanged.
-        # Expose the saved intent before our ADDON_LOADED event can fire.
+    def test_independent_minimap_avoids_ellesmere_collection(self):
+        # EllesmereUI 9.8.9 only scans direct Minimap/flyout children.
+        # Narcissus can keep its button independent under UIParent.
         a = read("UI/AccessIcons.lua")
-        self.assertNotIn('ConnectClick(miniButton, false)\nminiButton:Hide()', a)
-        self.assertIn('PositionMinimap()\nlocal initialMode = Mode()', a)
-        self.assertIn('miniButton:SetShown(initialMode == "minimap" or initialMode == "both")', a)
-        self.assertLess(a.index('local function PositionMinimap(angle)'),
-                        a.index('local initialMode = Mode()'))
-        self.assertLess(a.index('miniButton:SetShown(initialMode'),
-                        a.index('events:RegisterEvent("PLAYER_LOGIN")'))
-        self.assertIn('widgetButton:Hide()', a)
-        self.assertIn('miniButton:Show()', a)  # Still reasserts on mode transition
-        self.assertIn('miniButton:Hide()', a)  # Still hides when mode disabled
-        for mode, expected in (
-            ("minimap", True), ("both", True),
-            ("widget", False), ("none", False),
-        ):
-            # Source predicate documented above; independent baseline model.
-            self.assertEqual(mode in ("minimap", "both"), expected)
+        self.assertIn('CreateFrame("Button", "DuelsReimaginedMinimapButton", UIParent)', a)
+        self.assertIn('miniButton:GetParent() ~= UIParent', a)
+        self.assertIn('miniButton:SetPoint("CENTER", Minimap, "CENTER", x, y)', a)
+        self.assertIn('Minimap:HookScript("OnHide"', a)
+        self.assertIn('Minimap:HookScript("OnShow"', a)
+        self.assertIn('Minimap:HookScript("OnSizeChanged"', a)
+        self.assertIn('miniButton:SetShown(miniWanted and true or false)', a)
+        self.assertIn('placementMode = "independent"', a)
+        self.assertNotIn('lastMiniWanted', a)
+        self.assertIn('if not OwnsMinimapPlacement() then return end', a)
+        self.assertIn('Settings.SetMinimapAngle(pendingMinimapAngle)', a)
+        self.assertNotIn('C_Timer.NewTicker', a)
 
-    def test_temporary_minimap_hide_does_not_disable_collected_button(self):
+    def test_independent_visibility_tracks_minimap_and_mode(self):
         a = read("UI/AccessIcons.lua")
-        # The parent can be hidden by EllesmereUI visibility modes, Edit Mode,
-        # zone loading or mouseover without changing the user's icon preference.
-        self.assertIn("local miniWanted = loginReady and Minimap and", a)
-        self.assertNotIn('Minimap:IsShown()', a)
-        self.assertNotIn('Minimap:HookScript("OnHide"', a)
-        self.assertIn('if not miniWanted then', a)
-        self.assertIn('if lastMiniWanted or miniButton:IsShown() then miniButton:Hide() end', a)
-        self.assertIn('elseif not lastMiniWanted then', a)
-        self.assertIn('lastMiniWanted = miniWanted and true or false', a)
-        self.assertIn('if miniWanted then IdleMinimap() end', a)
+        self.assertIn('local initialMode = Mode()', a)
+        self.assertIn('miniButton:SetShown(Minimap and Minimap:IsShown() and', a)
+        self.assertIn('(initialMode == "minimap" or initialMode == "both"))', a)
+        self.assertIn('local miniWanted = loginReady and Minimap and Minimap:IsShown() and', a)
+        self.assertIn('miniButton:SetShown(miniWanted and true or false)', a)
+        self.assertIn('widgetButton:SetShown(loginReady and', a)
+        for mode, expected in (("minimap", True), ("both", True),
+                               ("widget", False), ("none", False)):
+            self.assertEqual(mode in ("minimap", "both"), expected)
 
     def test_collector_controls_minimap_root_alpha_not_our_idle_effect(self):
         a = read("UI/AccessIcons.lua")
@@ -154,7 +147,7 @@ class AccessIconsTests(unittest.TestCase):
         self.assertIn('if isWidget then\n            Motion.Stop(self, 1)\n        else\n            Motion.Stop(face.icon, 1)', a)
         self.assertIn('Motion.Fade(button, target, 0.18)', a) # floating-widget settings still live
         self.assertIn('if not OwnsMinimapPlacement()', a) # drag respects collector ownership
-        self.assertIn('miniButton:GetParent() ~= Minimap', a)
+        self.assertIn('miniButton:GetParent() ~= UIParent', a)
         self.assertNotIn('C_Timer.NewTicker', a)
         self.assertIn('Minimap:HookScript("OnShow"', a)
         self.assertIn('Minimap:HookScript("OnSizeChanged"', a)
@@ -166,11 +159,11 @@ class AccessIconsTests(unittest.TestCase):
         self.assertIn('not Settings.Get("showInCompartment")', a)
         self.assertIn('"showInCompartment", "Show in AddOn Compartment"', o)
         self.assertIn("needsCompartment", o)
-        self.assertIn('CreateFrame("Button", "DuelsReimaginedMinimapButton", Minimap or UIParent)', a)
+        self.assertIn('CreateFrame("Button", "DuelsReimaginedMinimapButton", UIParent)', a)
         self.assertIn('local function OwnsMinimapPlacement()', a)
-        self.assertIn('elseif not lastMiniWanted then', a)
+        self.assertIn('miniButton:SetShown(miniWanted and true or false)', a)
         self.assertNotIn('elseif OwnsMinimapPlacement() then', a)
-        self.assertIn('miniButton:GetParent() ~= Minimap', a)
+        self.assertIn('miniButton:GetParent() ~= UIParent', a)
         self.assertIn('Settings.NeedsReload()', read("UI/Footer.lua"))
 
     def test_hall_revert_and_unrelated_sections(self):

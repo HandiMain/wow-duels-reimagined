@@ -71,14 +71,14 @@ class PremiumPolishTests(unittest.TestCase):
             self.assertIn('key = "' + name + '"', s)
         for name in expected[1:]:
             self.assertEqual(role_sets["ivory"], role_sets[name])
-        self.assertIn('label = "Obsidian & Ember"', s)
+        self.assertIn('label = "Obsidian & Ember (Default)"', s)
         self.assertIn('label = "Moonstone & Violet"', s)
         self.assertIn('entry.region:SetVertexColor(unpack(value))', s)
 
     def test_saved_theme_validation_uses_single_style_registry(self):
         settings = get("Core/Settings.lua")
         self.assertIn('ns.Style.IsTheme(value)', settings)
-        self.assertIn('if key == "uiTheme" then return "ivory" end', settings)
+        self.assertIn('if key == "uiTheme" then return "ember" end', settings)
         self.assertIn('db.uiTheme = value', settings)
         self.assertIn('db.uiTheme = Settings.Get("uiTheme")', settings)
         self.assertNotIn('value == "slate" or value == "verdant"', settings)
