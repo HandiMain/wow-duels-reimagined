@@ -157,18 +157,18 @@ function Widgets.ToggleRow(parent, label, description, onToggle, onReset)
     end)
     -- Layout changes only the presentation; the toggle remains the same
     -- full-row click target, SavedVariables owner and animation.
-    function row:LayoutForWidth(width, paired)
-        -- Polestar-like dense paired rows: title and toggle are always
+    function row:LayoutForWidth(width, compact)
+        -- Polestar-like dense compact rows: title and toggle are always
         -- visible, while its full explanation remains available on hover.
-        self:SetHeight(54)
+        self:SetHeight(compact and 34 or 54)
         self.name:ClearAllPoints()
-        self.name:SetPoint("TOPLEFT", self, "TOPLEFT", 1, paired and -15 or -7)
-        self.name:SetWidth(math.max(70, width - (paired and 66 or 93)))
+        self.name:SetPoint("TOPLEFT", self, "TOPLEFT", 1, compact and -9 or -7)
+        self.name:SetWidth(math.max(70, width - (compact and 66 or 93)))
         self.description:ClearAllPoints()
         self.description:SetPoint("TOPLEFT", self.name, "BOTTOMLEFT", 0, -3)
         self.description:SetWidth(math.max(70, width - 93))
         self.description:SetHeight(29)
-        self.description:SetShown(not paired)
+        self.description:SetShown(not compact)
     end
     row:RefreshColors()
     row:SetModified(false)
@@ -422,7 +422,7 @@ function Widgets.ChoiceRow(parent, caption, detail, onChoose, onReset, above)
     row:EnableMouse(true)
     -- The parent receives hover events when a disabled dropdown cannot.
     row:SetScript("OnEnter", function(self)
-        if not self.available or self.paired then
+        if not self.available or self.compact then
             ns.Tooltips.Show(self, {
                 title = caption,
                 detail = not self.available and (self.disabledReason or detail) or detail,
@@ -434,20 +434,20 @@ function Widgets.ChoiceRow(parent, caption, detail, onChoose, onReset, above)
     row:HookScript("OnHide", function(self) ns.Tooltips.Hide(self, true) end)
     row.control = control
     row.popup = popup
-    function row:LayoutForWidth(width, paired)
-        self.paired = paired
-        self:SetHeight(paired and 56 or 66)
+    function row:LayoutForWidth(width, compact)
+        self.compact = compact
+        self:SetHeight(compact and 38 or 66)
         self.name:ClearAllPoints()
         self.name:SetPoint("TOPLEFT", self, "TOPLEFT",
-            1, paired and -17 or -7)
-        self.name:SetWidth(math.max(76, width - (paired and 160 or 10)))
+            1, compact and -10 or -7)
+        self.name:SetWidth(math.max(76, width - (compact and 167 or 10)))
         self.description:ClearAllPoints()
         self.description:SetPoint("TOPLEFT", self.name, "BOTTOMLEFT", 0, -3)
         self.description:SetWidth(math.max(70, width - 262))
         self.description:SetHeight(30)
-        self.description:SetShown(not paired)
+        self.description:SetShown(not compact)
         control:ClearAllPoints()
-        if paired then
+        if compact then
             control:SetWidth(math.max(112, math.min(140, width - 165)))
         else
             control:SetWidth(226)
@@ -554,18 +554,19 @@ function Widgets.SliderRow(parent, caption, detail, minVal, maxVal, step, onComm
     end
     ns.Tooltips.Bind(slider, function()
         return { title = caption,
-            detail = (detail or "") .. " Current: " ..
+            detail = (row.description:GetText() or detail or "") .. " Current: " ..
                 (formatValue and formatValue(slider:GetValue()) or
                     (math.floor((slider:GetValue() or 1) * 100 + 0.5) .. "%")) ..
                 ". Drag or use the mouse wheel to adjust.",
             anchor = "LEFT" }
     end)
-    -- Compact paired rows hide long descriptions; hovering the row itself
+    -- Compact compact rows hide long descriptions; hovering the row itself
     -- still reveals the full text using the existing addon tooltip owner.
     row:EnableMouse(true)
     row:SetScript("OnEnter", function(self)
-        if self.paired then
-            ns.Tooltips.Show(self, { title = caption, detail = detail, anchor = "RIGHT" })
+        if self.compact then
+            ns.Tooltips.Show(self, { title = caption,
+                detail = self.description:GetText() or detail, anchor = "RIGHT" })
         end
     end)
     row:SetScript("OnLeave", function(self) ns.Tooltips.Hide(self) end)
@@ -577,20 +578,20 @@ function Widgets.SliderRow(parent, caption, detail, minVal, maxVal, step, onComm
         filled:SetColorTexture(unpack(C.gold))
         self.resetIcon:SetVertexColor(unpack(C.gold))
     end
-    function row:LayoutForWidth(width, paired)
-        self.paired = paired
-        self:SetHeight(paired and 56 or 64)
+    function row:LayoutForWidth(width, compact)
+        self.compact = compact
+        self:SetHeight(compact and 38 or 64)
         self.name:ClearAllPoints()
         self.name:SetPoint("TOPLEFT", self, "TOPLEFT",
-            1, paired and -17 or -8)
-        self.name:SetWidth(math.max(76, width - (paired and 177 or 10)))
+            1, compact and -10 or -8)
+        self.name:SetWidth(math.max(76, width - (compact and 185 or 10)))
         self.description:ClearAllPoints()
         self.description:SetPoint("TOPLEFT", self.name, "BOTTOMLEFT", 0, -3)
         self.description:SetWidth(math.max(70, width - 262))
         self.description:SetHeight(29)
-        self.description:SetShown(not paired)
+        self.description:SetShown(not compact)
         slider:ClearAllPoints()
-        if paired then
+        if compact then
             slider:SetWidth(math.max(75, math.min(112, width - 165)))
         else
             slider:SetWidth(172)

@@ -66,13 +66,15 @@ local function Card(page, y, height)
     return card
 end
 
-local appearance = Page(303)
-local interface = Page(1055)
+local appearance = Page(240)
+local interface = Page(765)
 
-local appearanceCard = Card(appearance, 0, 292)
-local behaviorCard = Card(interface, 0, 325)
-local typographyCard = Card(interface, 339, 306)
-local accessCard = Card(interface, 659, 382)
+-- Initial geometry is only a safe fallback until the single LayoutPage
+-- owner sizes all complete cards using the actual scroll-child width.
+local appearanceCard = Card(appearance, 0, 222)
+local behaviorCard = Card(interface, 0, 231)
+local typographyCard = Card(interface, 243, 206)
+local accessCard = Card(interface, 461, 293)
 
 local function Section(card, title, subtitle, top)
     local heading = Style.Text(card, title, 18, C.pale)
@@ -294,74 +296,79 @@ fontInfo:SetPoint("TOPLEFT", typographyCard, "TOPLEFT", 20, -281)
 fontInfo:SetPoint("RIGHT", typographyCard, "RIGHT", -20, 0)
 fontInfo:SetJustifyH("LEFT")
 
--- One responsive content layout owner, adapted from the row-pair behavior
--- inspected in Polestar_Options/UI/Options.lua. The original option widgets
--- keep their Settings callbacks, tooltips, reset behavior and scrollbar.
--- Only their positions and presentation change as the scroll width changes.
--- At compact widths we retain ONE readable column; at wider widths we pair
--- appropriate controls in TWO columns. No constant OnUpdate work.
-local COLUMN_BREAKPOINT = 630
-local COLUMN_GAP, ROW_GAP, SECTION_GAP = 12, 8, 14
+-- One responsive card-layout owner. Keep all controls inside their original
+-- section card; change the number of CARDS per row, never the settings order
+-- inside a card. At compact widths stack complete cards. At wider widths,
+-- place two complete cards side by side, with independent measured heights.
+-- Polestar's section-height measurement informed this approach; no source
+-- copied, and all Settings/Search/scroll/tooltip owners remain unchanged.
+local CARD_BREAKPOINT = 930
+local CARD_GAP, SECTION_GAP, ROW_GAP = 14, 12, 3
+local ROW_TOP = 55
 
 local function LayoutPage(page, groups, width)
     width = math.max(1, width or page:GetWidth())
     if width <= 1 then return end
-    -- At large user-selected font sizes prefer a single readable column
-    -- until the window has enough width to keep labels from colliding.
     local largeText = (Settings.Get("fontScale") or 1) > 1.20
-    local two = width >= (largeText and 860 or COLUMN_BREAKPOINT)
-    local sectionY = 0
-    for _, group in ipairs(groups) do
-        local card = group.card
-        card:ClearAllPoints()
-        card:SetPoint("TOPLEFT", page, "TOPLEFT", 0, -sectionY)
-        card:SetPoint("TOPRIGHT", page, "TOPRIGHT", -18, -sectionY)
-        local usable = math.max(1, width - 58)
-        local half = math.max(1, math.floor((usable - COLUMN_GAP) / 2))
-        local y, pending, firstHeight = 65, false, 0
+    -- Each half-card must still be wide enough for a label AND its control.
+    -- A page with only one card (Appearance) always uses the full width.
+    local twoCards = #groups > 1 and
+        width >= (largeText and 1080 or CARD_BREAKPOINT)
+    local columns = twoCards and 2 or 1
+    local fullWidth = math.max(1, width - 18)
+    local cardWidth = columns == 2 and
+        math.floor((fullWidth - CARD_GAP) / 2) or fullWidth
+    local usable = math.max(1, cardWidth - 40)
+    local sectionY, tallest = 0, 0
 
-        local function Place(entry, x, cellWidth, paired)
+    for index, group in ipairs(groups) do
+        local column = (index - 1) % columns
+        if index > 1 and column == 0 then
+            sectionY = sectionY + tallest + SECTION_GAP
+            tallest = 0
+        end
+        local card = group.card
+        local cardX = column * (cardWidth + CARD_GAP)
+        card:ClearAllPoints()
+        card:SetPoint("TOPLEFT", page, "TOPLEFT", cardX, -sectionY)
+        card:SetWidth(cardWidth)
+
+        local y = ROW_TOP
+        for _, entry in ipairs(group.entries) do
             local widget = entry.widget
             widget:ClearAllPoints()
-            widget:SetPoint("TOPLEFT", card, "TOPLEFT", 20 + x, -y)
-            widget:SetWidth(cellWidth)
+            widget:SetPoint("TOPLEFT", card, "TOPLEFT", 20, -y)
+            widget:SetWidth(usable)
+            -- Single-line compact controls at BOTH window widths. Never
+            -- turn a card's children into separate columns.
             if widget.LayoutForWidth then
-                widget:LayoutForWidth(cellWidth, paired)
+                widget:LayoutForWidth(usable, true)
             elseif entry.height then
                 widget:SetHeight(entry.height)
             end
-            -- Search targets are derived from LIVE positions after resize,
-            -- not the old static -y numbers assigned during initial setup.
             if widget.optionsScroll then
+                -- Search follows the card into its new grid row on resize.
                 widget.optionsY = sectionY + y
             end
-            return entry.height or widget:GetHeight()
+            y = y + (entry.height or widget:GetHeight()) + ROW_GAP
         end
-
-        for _, entry in ipairs(group.entries) do
-            if not two or entry.wide then
-                if pending then
-                    y = y + firstHeight + ROW_GAP
-                    pending = false
-                end
-                y = y + Place(entry, 0, usable, false) + ROW_GAP
-            elseif pending then
-                local height = Place(entry, half + COLUMN_GAP, half, true)
-                y = y + math.max(firstHeight, height) + ROW_GAP
-                pending = false
-            else
-                firstHeight = Place(entry, 0, half, true)
-                pending = true
-            end
-        end
-        if pending then y = y + firstHeight + ROW_GAP end
         if group.footer then y = group.footer(card, sectionY, y, usable) end
-        card:SetHeight(y + 13)
-        sectionY = sectionY + y + 13 + SECTION_GAP
+        local cardHeight = y + 8
+        card:SetHeight(cardHeight)
+        tallest = math.max(tallest, cardHeight)
     end
-    page:SetHeight(math.max(sectionY, page.scrollOwner:GetHeight()))
+
+    local contentHeight = sectionY + tallest + 6
+    page:SetHeight(math.max(contentHeight, page.scrollOwner:GetHeight()))
     if page.scrollOwner.UpdateScrollChildRect then
         page.scrollOwner:UpdateScrollChildRect()
+    end
+    -- A wide layout can become shorter than the previous narrow scroll
+    -- extent; reset only out-of-bounds scroll, not the chosen page.
+    local maxScroll = math.max(0,
+        page:GetHeight() - page.scrollOwner:GetHeight())
+    if page.scrollOwner:GetVerticalScroll() > maxScroll then
+        page.scrollOwner:SetVerticalScroll(maxScroll)
     end
     page.scrollBar:Refresh()
 end
@@ -370,15 +377,15 @@ local function FooterNote(label, card, y, width)
     label:ClearAllPoints()
     label:SetPoint("TOPLEFT", card, "TOPLEFT", 20, -y)
     label:SetWidth(width)
-    label:SetHeight(28)
-    return y + 30
+    label:SetHeight(18)
+    return y + 20
 end
 
 local appearanceGroups = {
     { card = appearanceCard, entries = {
-        { widget = themeChoice, wide = true },
-        -- The meaning of a disabled/enabled picker lives right under it.
-        { widget = availability, wide = true, height = 38 },
+        { widget = themeChoice },
+        -- The EllesmereUI explanation is always within Appearance.
+        { widget = availability, height = 38 },
         { widget = matchColorsRow },
         { widget = matchFontRow },
     }},
@@ -405,10 +412,10 @@ local interfaceGroups = {
         resetAccess.optionsY = sectionY + y
         resetAccess:SetWidth(math.min(190, usable))
         accessHint:ClearAllPoints()
-        accessHint:SetPoint("TOPLEFT", card, "TOPLEFT", 20, -(y + 40))
+        accessHint:SetPoint("TOPLEFT", card, "TOPLEFT", 20, -(y + 36))
         accessHint:SetWidth(usable)
-        accessHint:SetHeight(34)
-        return y + 78
+        accessHint:SetHeight(28)
+        return y + 66
     end },
 }
 function appearance:Relayout(width) LayoutPage(self, appearanceGroups, width) end

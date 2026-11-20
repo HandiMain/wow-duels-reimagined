@@ -47,34 +47,39 @@ class CompactPageDensityTests(unittest.TestCase):
         o = src("UI/Options.lua")
         self.assertIn('Window.content, "TOPLEFT", 26, -98', o)
         self.assertIn('Window.content, "BOTTOMRIGHT", -26, 17', o)
-        self.assertIn("local appearance = Page(303)", o)
-        self.assertIn("Card(appearance, 0, 292)", o)
+        self.assertIn("local appearance = Page(240)", o)
+        self.assertIn("Card(appearance, 0, 222)", o)
         visible = 650 - 12 - 82 - 57 - 52 - 14
         viewport = visible - 98 - 17
-        self.assertGreaterEqual(viewport, 303)
-        self.assertLess(191 + 54, 264)
-        self.assertLess(264 + 14, 292)
+        self.assertGreaterEqual(viewport, 240)
+        self.assertIn("local ROW_TOP = 55", o)
+        self.assertIn("local cardHeight = y + 8", o)
 
     def test_interface_cards_do_not_overlap_and_search_scrolls(self):
         o = src("UI/Options.lua")
-        self.assertIn("local interface = Page(1055)", o)
+        self.assertIn("local interface = Page(765)", o)
         for marker in (
-            "Card(interface, 0, 325)", "Card(interface, 339, 306)",
-            "Card(interface, 659, 382)",
+            "Card(interface, 0, 231)", "Card(interface, 243, 206)",
+            "Card(interface, 461, 293)",
             "MarkPosition(fontScale, typographyCard, -131)",
             "MarkPosition(iconMode, accessCard, -64)",
             "MarkPosition(resetAccess, accessCard, -332)",
             'ns.Search.Register("setting:" .. key',
             "sf:SetVerticalScroll(",
+            "tallest = math.max(tallest, cardHeight)",
+            "local contentHeight = sectionY + tallest + 6",
         ):
             self.assertIn(marker, o)
-        spans = [(0,325), (339,306), (659,382)]
+        spans = [(0,231), (243,206), (461,293)]
         for i in range(len(spans) - 1):
             self.assertLess(spans[i][0] + spans[i][1], spans[i+1][0])
-        self.assertLessEqual(659 + 382, 1055)
+        self.assertLessEqual(461 + 293, 765)
         widgets = src("UI/Widgets.lua")
         for height in (54,66,64):
             self.assertIn(f"row:SetHeight({height})", widgets)
+        for compact in ("compact and 34 or 54", "compact and 38 or 66",
+                        "compact and 38 or 64"):
+            self.assertIn(compact, widgets)
 
     def test_community_cards_are_denser_but_data_still_dynamic(self):
         c = src("UI/Community.lua")

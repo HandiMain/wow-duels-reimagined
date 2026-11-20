@@ -13,38 +13,54 @@ def read(path):
     return (BASE / path).read_text(encoding="utf-8")
 
 class ResponsiveSettingsTests(unittest.TestCase):
-    def test_polestar_inspired_columns_reflow_from_actual_width(self):
+    def test_whole_cards_reflow_not_individual_settings(self):
         src = read("UI/Options.lua")
-        self.assertIn("local COLUMN_BREAKPOINT = 630", src)
-        self.assertIn("local two = width >= (largeText and 860 or COLUMN_BREAKPOINT)", src)
-        self.assertIn('Settings.Get("fontScale") or 1', src)
-        self.assertIn("math.floor((usable - COLUMN_GAP) / 2)", src)
-        self.assertIn("y = y + math.max(firstHeight, height) + ROW_GAP", src)
+        self.assertIn("local CARD_BREAKPOINT = 930", src)
+        self.assertIn("width >= (largeText and 1080 or CARD_BREAKPOINT)", src)
+        self.assertIn("local columns = twoCards and 2 or 1", src)
+        self.assertIn("local cardX = column * (cardWidth + CARD_GAP)", src)
+        self.assertIn('card:SetPoint("TOPLEFT", page, "TOPLEFT", cardX, -sectionY)', src)
+        self.assertIn("card:SetWidth(cardWidth)", src)
+        self.assertIn("tallest = math.max(tallest, cardHeight)", src)
+        self.assertIn("widget:LayoutForWidth(usable, true)", src)
+        self.assertNotIn("local half =", src)
+        self.assertNotIn("firstHeight", src)
         self.assertIn("if content.Relayout then content:Relayout(content:GetWidth()) end", src)
         self.assertIn("function appearance:Relayout(width)", src)
         self.assertIn("function interface:Relayout(width)", src)
-        for width in (490, 629):
-            self.assertFalse(width >= 630)
-        for width in (630, 830, 1100):
-            self.assertTrue(width >= 630)
 
-    def test_shared_row_responsiveness_without_second_storage_owner(self):
+    def test_card_grid_geometry_and_scroll_clamp(self):
+        src = read("UI/Options.lua")
+        self.assertIn("local fullWidth = math.max(1, width - 18)", src)
+        self.assertIn("math.floor((fullWidth - CARD_GAP) / 2)", src)
+        self.assertIn("page.scrollOwner:SetVerticalScroll(maxScroll)", src)
+        for width in (500, 650, 929):
+            self.assertFalse(width >= 930)
+        for width in (930, 1050, 1250):
+            self.assertTrue(width >= 930)
+            card = (width - 18 - 14) // 2
+            self.assertGreaterEqual(card - 40, 400)
+            self.assertLessEqual(2 * card + 14, width - 18)
+        self.assertFalse(1050 >= 1080)
+        self.assertTrue(1080 >= 1080)
+
+    def test_shared_rows_remain_inline_inside_cards(self):
         src = read("UI/Widgets.lua")
-        self.assertEqual(src.count("function row:LayoutForWidth(width, paired)"), 3)
+        self.assertEqual(src.count("function row:LayoutForWidth(width, compact)"), 3)
         for kind in ("ToggleRow", "ChoiceRow", "SliderRow"):
             self.assertIn("function Widgets."+kind+"(", src)
         for marker in (
-            "self:SetHeight(54)",
-            "self:SetHeight(paired and 56 or 66)",
-            "self:SetHeight(paired and 56 or 64)",
+            "self:SetHeight(compact and 34 or 54)",
+            "self:SetHeight(compact and 38 or 66)",
+            "self:SetHeight(compact and 38 or 64)",
             'control:SetWidth(math.max(112, math.min(140, width - 165)))',
             'slider:SetWidth(math.max(75, math.min(112, width - 165)))',
             'Paint(slider:GetValue())',
         ):
             self.assertIn(marker, src)
-        self.assertIn("self.description:SetShown(not paired)", src)
-        self.assertIn("if self.paired then", src)
-        self.assertIn("ns.Tooltips.Show(self, { title = caption, detail = detail", src)
+        self.assertIn("self.description:SetShown(not compact)", src)
+        self.assertIn("if self.compact then", src)
+        self.assertIn("self.description:GetText() or detail", src)
         self.assertNotIn('SetScript("OnUpdate"', src[:src.index("function Widgets.ScrollBar(")])
 
     def test_card_group_layout_owns_all_existing_settings(self):

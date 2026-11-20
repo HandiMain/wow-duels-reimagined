@@ -418,3 +418,39 @@ Rollback baseline before the patch: develop 4495c83dd1d161dfa0f8aff27528ba9459b5
 ## Responsive layout refinement after 102-test CI pass
 
 After the initial 102-test pass, the paired controls still retained huge 96–102-unit heights, which did not meet the user's Polestar-style compactness goal. Shared Widgets.LayoutForWidth now makes paired control rows 54–56 units high. Long descriptions are hidden *only in paired mode*, with their same full text accessible through existing Tooltips on row or control; at one-column widths descriptions remain visible. Choice buttons shrink to a legible 112–140 width; sliders to 75–112. At fontScale > 1.20, two columns require 860 units of content width (rather than 630) to protect large text. Options.Refresh recomputes layout after font-scale changes. No new engine, polling, or persistence. Verify full text in tooltip, label alignment and control clickability in-game at 75/100/150% text scale.
+
+## Whole-card compact Options repair — 2026-11-20
+
+In-game screenshot regression: pairing individual SETTINGS within oversized
+Window behavior / Typography / Minimap panels made control placement look
+random and did not actually shorten the page. The user's clarified approved
+behavior is a ONE-card-wide vertical stack at small window widths and TWO
+complete SECTION CARDS side by side only when enough content width is available.
+Each card retains its own header, setting order, tooltips, reset controls,
+theme helpers, footer text, hover, Settings callbacks and Search destinations.
+
+Polestar-first reference: Polestar_Options/UI/Options.lua layoutSections,
+layoutRows and section-card measurements (next branch), and Controls.lua
+section-card construction. Use measured section geometry, NOT Polestar's
+two-settings-per-row behavior; no source/assets copied. Duels UI/Options.lua
+remains the sole card/scroll owner. Single-column card list until scroll width
+>=930; at >120% font scale require >=1080. A page with only one card stays
+full width. At two columns, cards go in source order, row height is the taller
+card, and scroll positions are recomputed/clamped after reflow. Within each
+card, existing shared widgets display a compact ONE-LINE label and control;
+detailed descriptions remain on the original tooltips. Shared row heights are
+34 for toggles, 38 for dropdowns/sliders; existing normal fallback still
+retains multi-line descriptions. Tooltip for disabled widget sliders reads its
+current descriptive reason. Theme explanation and minimap position reset stay
+inside their own boxes. No new saved settings, animation engine, polling,
+gameplay, media or TOC bump.
+
+Status: IMPLEMENTED/UNTESTED IN GAME. Verify at default 1050x650 window,
+smallest allowed window and progressively wider resize; confirm each card
+moves INTACT to two-column layout and back, no overlapping cards/text/dropdowns,
+and shorter narrow scrolling. Check font 75/100/150%, manual and Ellesmere
+themes, disabled widget tooltips, all widget sliders/pickers/toggles/reset,
+Search jump/reflow, wheel/scrollbar, reload persistence, Peek/Fold/Enter/
+Escape, and both Forever and Retail. Source contract tests updated; do not
+interpret them as live-WoW proof. Baseline before this repair: develop
+5bd0477cec2811d6185a62dea801679c9d250843.
