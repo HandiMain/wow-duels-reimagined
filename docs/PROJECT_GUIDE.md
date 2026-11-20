@@ -973,3 +973,14 @@ Source labels remain DEMO for Patch Notes; don't invent real releases.
 Scope: UI only, no TOC version bump or new media. Status:
 IMPLEMENTED/UNTESTED pending CI and player's in-game verification.
 Baseline commit: 11b7beaf751774271a7cb5a4e32deadc4e46abc9.
+
+## Live widget-preview repaint after size/transparency drag — 2026-11-20
+
+Additional cross-system audit after the complete nine-feature CI gate: the
+two access sliders stream changes via Settings.Set and Options.RefreshAccessModified,
+but an initial hover-only preview would otherwise remain visually stale
+until hover exit/re-entry. Feedback.RefreshWidgetPreview now repaints only
+the miniature size/alpha when a preview is shown. No full Options.Refresh
+during drag, slider state owner changes, new settings, animation or layout
+changes. The regular Options.Refresh also refreshes a visible miniature.
+Live in-game slider responsiveness and popup overlap remain UNVERIFIED.

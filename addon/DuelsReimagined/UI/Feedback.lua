@@ -167,20 +167,26 @@ previewInfo:SetWidth(92)
 previewInfo:SetJustifyH("LEFT")
 preview:Hide()
 function Feedback.HidePreview() preview:Hide() end
-function Feedback.ShowWidgetPreview(row)
-    if not Window.frame:IsShown() or not row or not row:IsShown() or
-        not row.available then return end
-    local mode = Settings.Get("iconMode")
-    if mode ~= "widget" and mode ~= "both" then return end
-    -- Geometry belongs to the real option row and never mutates its slider.
+local function PaintWidgetPreview()
+    -- Read only the current SavedVariables values, never change a setting.
     local size = math.min(67, Settings.Get("widgetSize"))
     badgeIcon:SetSize(size, size)
     badgeIcon:SetAlpha(math.max(0.10, 1 - Settings.Get("widgetTransparency")))
     previewInfo:SetText(math.floor(Settings.Get("widgetSize") + 0.5) ..
         " px\n" .. math.floor(Settings.Get("widgetTransparency") * 100 + 0.5) ..
         "% fade")
+end
+function Feedback.RefreshWidgetPreview()
+    if preview:IsShown() then PaintWidgetPreview() end
+end
+function Feedback.ShowWidgetPreview(row)
+    if not Window.frame:IsShown() or not row or not row:IsShown() or
+        not row.available then return end
+    local mode = Settings.Get("iconMode")
+    if mode ~= "widget" and mode ~= "both" then return end
     preview:ClearAllPoints()
     preview:SetPoint("BOTTOMRIGHT", Window.content, "BOTTOMRIGHT", -20, 18)
+    PaintWidgetPreview()
     preview:Show()
     Feedback.Acknowledge("widget-preview-v1")
 end

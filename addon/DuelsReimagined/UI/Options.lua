@@ -431,6 +431,9 @@ interface:Relayout(interface:GetWidth())
 function Options.RefreshAccessModified()
     widgetSize:SetModified(Settings.IsModified("widgetSize"))
     widgetTransparency:SetModified(Settings.IsModified("widgetTransparency"))
+    -- The widget sliders already update live. Repaint only the noninteractive
+    -- miniature; never replace an in-progress thumb/slider value.
+    if ns.Feedback then ns.Feedback.RefreshWidgetPreview() end
 end
 
 function Options.Refresh()
@@ -487,6 +490,7 @@ function Options.Refresh()
     widgetTransparency:SetValue(Settings.Get("widgetTransparency"))
     widgetTransparency:SetModified(Settings.IsModified("widgetTransparency"))
     widgetTransparency:RefreshColors()
+    if ns.Feedback then ns.Feedback.RefreshWidgetPreview() end
     local mode = Settings.Get("iconMode")
     local hasWidget = mode == "widget" or mode == "both"
     widgetSize:SetAvailable(hasWidget)

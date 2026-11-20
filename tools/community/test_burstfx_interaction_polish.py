@@ -118,6 +118,9 @@ class BurstFXInteractionPolishTests(unittest.TestCase):
         self.assertIn('preview:EnableMouse(false)', feedback)
         self.assertIn('row.slider:HookScript("OnEnter"', feedback)
         self.assertIn('row:HookScript("OnHide", Feedback.HidePreview)', feedback)
+        self.assertIn('function Feedback.RefreshWidgetPreview()', feedback)
+        self.assertIn('if preview:IsShown() then PaintWidgetPreview() end', feedback)
+        self.assertIn('ns.Feedback.RefreshWidgetPreview()', opts)
         self.assertNotIn('Settings.Set("widgetSize"', feedback)
 
     def test_back_navigation_runtime_only_doesnt_loop(self):
