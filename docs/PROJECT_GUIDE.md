@@ -1152,3 +1152,15 @@ including Esc navigation. If the menu is too crowded Duels may be
 hidden intentionally rather than overlap. For Options test 100% scale,
 compact width, large fonts, Search, rows, and section scroll targets.
 Baseline develop: 87c8e3276efed02798c5fff45eb57fbb8475e808.
+
+## Escape menu test boundary and flicker correction — 2026-11-20
+
+First CI after the category/menu re-audit passed Lua parsing and almost all
+checks. Three obsolete source tests referenced the old Minimap button header,
+the old direct buttonPool field access and a harmless Layout() mention in
+commentary. The updated tests now assert the new heading, actual pooled
+enumerator, and forbid only REAL addon menu:Layout() calls. A final quality
+pass removes the unnecessary Hide/Show during the second delayed geometry
+check; if a valid slot still exists, the button stays visible while its
+position is re-evaluated. If no slot remains, our button hides immediately
+to avoid overlap. No gameplay, media, sound or other settings changes.

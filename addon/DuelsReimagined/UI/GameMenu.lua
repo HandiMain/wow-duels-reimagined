@@ -310,13 +310,14 @@ local function Settle(menu)
     if not (button and spacer and spacer:IsShown() and upper and addons) then
         HideOwn(); placementState="missing-slot"; return
     end
-    -- Exclude our own button from the scan even if a skin briefly displayed it.
-    button:Hide()
+    -- FindGap already excludes our own button, so don't hide/show it on
+    -- every delayed safety recheck (that would cause a visible flicker).
     MatchAppearance(button, upper)
     local above, space = FindGap(menu, button, upper, addons)
     if not above then
         -- SAFETY: do not cover any other addon/Blizzard button. Leave the
         -- reserved slot for this menu opening; reevaluate at the next opening.
+        button:Hide()
         placementState="crowded"
         return
     end

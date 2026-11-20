@@ -60,7 +60,8 @@ class DuelsEscapeMenuTests(unittest.TestCase):
 
     def test_placement_is_generic_and_uses_one_reserved_layout_slot(self):
         gm = src("UI/GameMenu.lua")
-        self.assertIn('menu.buttonPool.EnumerateActive', gm)
+        self.assertIn('local pool = menu and menu.buttonPool', gm)
+        self.assertIn('for b in pool:EnumerateActive() do', gm)
         self.assertIn('name == _G.BLIZZARD_STORE', gm)
         self.assertIn('name == _G.GAMEMENU_OPTIONS', gm)
         self.assertIn('name == _G.ADDONS', gm)
@@ -92,7 +93,7 @@ class DuelsEscapeMenuTests(unittest.TestCase):
         self.assertIn('if not above then', gm)
         self.assertIn('button:Hide()', gm)
         self.assertIn('button:SetPoint("TOP", above, "BOTTOM", 0,', gm)
-        self.assertNotIn('menu:Layout()', gm)
+        self.assertNotRegex(gm, r'(?m)^\s*menu:Layout\(')
         self.assertNotIn('SetScript("OnUpdate"', gm)
 
     def test_click_closes_escape_menu_then_opens_not_toggles_away(self):

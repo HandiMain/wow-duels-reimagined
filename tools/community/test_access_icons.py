@@ -78,7 +78,7 @@ class AccessIconsTests(unittest.TestCase):
     def test_settings_visible_searchable(self):
         o = read("UI/Options.lua")
         s = read("Core/Settings.lua")
-        self.assertIn('Section(accessCard, "Minimap button"', o)
+        self.assertIn('Section(accessCard, "Minimap & widget"', o)
         for name in ("iconMode", "widgetSize", "widgetTransparency",
                      "resetIconPositions"):
             self.assertIn('RegisterOption("' + name + '"', o)
