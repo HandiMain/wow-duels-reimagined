@@ -87,7 +87,7 @@ class AccessIconsTests(unittest.TestCase):
         a = read("UI/AccessIcons.lua")
         t = read("UI/Tooltips.lua")
         start = a.index("local function ConnectClick(button, isWidget)")
-        end = a.index("-- Polestar/Ellesmere collector interoperability:", start)
+        end = a.index("-- Independent minimap icon (Narcissus/BurstFX):", start)
         block = a[start:end]
         self.assertLess(block.index('button:SetScript("OnEnter"'),
                         block.index("Tooltips.Bind(button, function()"))
