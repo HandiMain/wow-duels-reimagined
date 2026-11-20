@@ -9,7 +9,7 @@ local Settings = ns.Settings
 local button, reference
 local look, nativeTextures, nativeFont
 local hooked, managed = false, false
-local SECTION, GAP, MIN_GAP = 20, 4, 2
+local SECTION, GAP = 20, 4
 
 local function Wanted()
     return Settings.Get("showGameMenuButton") == true
@@ -177,10 +177,11 @@ local function EnsureButton(menu, template)
     return button
 end
 
--- Reserve exactly one real, visible button in Blizzard's native Layout.
--- No invisible spacer and no timer-delayed button appearance. Other addons
--- can reserve their own places without leaving two gaps for our one button.
+-- Use Blizzard's native Layout only when no manually positioned menu
+-- buttons are present. Otherwise occupy a real free gap without reserving
+-- additional room or moving another addon's controls.
 local placementState = "not-open"
+local manualMode = false
 
 local function Number(v)
     -- Check secrecy BEFORE any comparison; Midnight/Forever clients may
@@ -203,38 +204,52 @@ local function MenuButtons(menu)
     end
     return shop or options, addons
 end
+-- Most menus can place our button with Blizzard's native layout. Insert
+-- directly after Shop/Options, before other addons' native layout entries.
+-- A quarter-step avoids the midpoint commonly used by other addons even
+-- if our InitButtons hook fires before theirs.
 local function FindSlot(menu, upper, addons)
     local first, last = upper.layoutIndex, addons.layoutIndex
     if not (Number(first) and Number(last) and first < last) then return end
-
-    -- A plain Frame in this range can be another addon's visible layout
-    -- reservation for a manually anchored button. Insert AFTER the first
-    -- such reservation; otherwise insert BEFORE the first addon button.
-    -- No special cases for individual addons or fixed button indices.
-    local reserved
-    for _, child in ipairs({menu:GetChildren()}) do
-        local idx = child.layoutIndex
-        if child ~= button and child.IsShown and child:IsShown()
-            and Number(idx) and idx > first and idx < last
-            and child.GetObjectType and child:GetObjectType() == "Frame"
-            and (not reserved or idx < reserved) then
-            reserved = idx
-        end
-    end
-    local start = reserved or first
     local nextIndex = last
     for _, child in ipairs({menu:GetChildren()}) do
         local idx = child.layoutIndex
         if child ~= button and child.IsShown and child:IsShown()
-            and Number(idx) and idx > start and idx < nextIndex then
+            and Number(idx) and idx > first and idx < nextIndex then
             nextIndex = idx
         end
     end
-    if nextIndex <= start then return end
-    return start + (nextIndex - start) * 0.5, reserved ~= nil
+    if nextIndex <= first then return end
+    return first + (nextIndex - first) * 0.25
+end
+
+-- Some menu addons do NOT participate in Blizzard Layout: they position
+-- their own full-size buttons with SetPoint (EllesmereUI and Polestar when
+-- paired with it are examples). Another layout entry in this situation
+-- creates ghost gaps and pushes later buttons over Blizzard's AddOns.
+-- Detect that behavior by frame properties, not by addon name.
+local function HasManualButtons(menu)
+    local native = {}
+    local pool = menu.buttonPool
+    if pool and pool.EnumerateActive then
+        for item in pool:EnumerateActive() do native[item] = true end
+    end
+    for _, child in ipairs({menu:GetChildren()}) do
+        if child ~= button and not native[child] and
+            child.IsShown and child:IsShown() and
+            child.GetObjectType and child:GetObjectType() == "Button" and
+            child.layoutIndex == nil and child.GetWidth and child.GetHeight then
+            local w, h = child:GetWidth(), child:GetHeight()
+            if Number(w) and Number(h) and w >= 100 and h >= 15 then
+                return true
+            end
+        end
+    end
+    return false
 end
 
 local function Reserve(menu)
+    manualMode = false
     if not Wanted() then HideOwn(); placementState = "disabled"; return end
     if InCombatLockdown and InCombatLockdown() then
         HideOwn(); placementState = "combat"; return
@@ -243,26 +258,36 @@ local function Reserve(menu)
     if not (upper and addons) then
         HideOwn(); placementState = "native-anchors-missing"; return
     end
-    local index, afterReservation = FindSlot(menu, upper, addons)
-    if not index then
-        HideOwn(); placementState = "native-layout-unsupported"; return
-    end
     local template = type(menu.buttonTemplate) == "string" and
         menu.buttonTemplate or "MainMenuFrameButtonTemplate"
     local b = EnsureButton(menu, template)
     reference = upper
     MatchAppearance(b, upper)
     b:ClearAllPoints()
-    b.layoutIndex = index
-    b.topPadding = afterReservation and GAP or SECTION
+
+    manualMode = HasManualButtons(menu)
+    if manualMode then
+        -- Another addon already creates the extra room. Do not add an
+        -- invisible spacer or another button to Blizzard's Layout list.
+        -- Place ours into real free space on OnShow, after skinning/layout.
+        b.layoutIndex, b.topPadding = nil, nil
+        b:Hide()
+        placementState = "manual-pending"
+        return
+    end
+
+    local index = FindSlot(menu, upper, addons)
+    if not index then
+        HideOwn(); placementState = "native-layout-unsupported"; return
+    end
+    b.layoutIndex, b.topPadding = index, SECTION
     b:Show()
     placementState = "native-layout"
 end
 
--- All visible Menu Button CHILDREN are considered, not just Polestar/Horizon
--- or Ellesmere. A button may be manually anchored and have no layoutIndex.
--- Source: Horizon Suite's geometry-based approach, strengthened to refuse
--- any slot that cannot accommodate our full button without intersection.
+-- Inspect real button geometry in visual order, regardless of addon name.
+-- A button may be manually anchored without a layoutIndex; only genuine gaps
+-- large enough for our entire control are considered.
 local function FindGap(menu, b, upper, lower)
     if not (upper and lower) then return end
     local upperBottom, lowerTop = upper:GetBottom(), lower:GetTop()
@@ -292,19 +317,20 @@ local function FindGap(menu, b, upper, lower)
     table.sort(list, function(a, b)
         return a:GetTop() > b:GetTop()
     end)
-    -- Fill the first safe gap. Late-loading addons may choose their anchor
-    -- from the closest button above AddOns, so avoid moving below them.
+    -- Prefer the first safe gap; late buttons often choose a position above
+    -- AddOns, so leaving lower gaps free avoids crowding that button.
     for i = 1, #list - 1 do
         local above, below = list[i], list[i + 1]
         local space = above:GetBottom() - below:GetTop()
-        if Number(space) and space >= height + MIN_GAP * 2 then
+        if Number(space) and space >= height + GAP * 2 then
             return above, space
         end
     end
 end
 
-local function Settle(menu)
-    if not Wanted() or not menu or not menu:IsShown() or not button then return end
+local function PlaceManual(menu)
+    if not manualMode or not Wanted() or not menu or not menu:IsShown()
+        or not button then return end
     if InCombatLockdown and InCombatLockdown() then
         HideOwn(); placementState = "combat"; return
     end
@@ -314,28 +340,24 @@ local function Settle(menu)
     end
     MatchAppearance(button, upper)
     local above, space = FindGap(menu, button, upper, addons)
-    local top = menu:GetTop()
-    local bottomOfAbove = above and above:GetBottom()
-    if not (above and Number(space) and Number(top)
-        and Number(bottomOfAbove)) then
-        -- Refuse a position that would overlap another addon. Drop our
-        -- layout index too, so future layouts cannot reserve a ghost slot.
+    local menuTop = menu:GetTop()
+    local aboveBottom = above and above:GetBottom()
+    if not (above and Number(space) and Number(menuTop)
+        and Number(aboveBottom)) then
+        -- Fail closed. Because our button has no native layoutIndex in this
+        -- mode, hiding it leaves NO reserved gap.
         button:Hide()
-        button.layoutIndex, button.topPadding = nil, nil
         placementState = "crowded"
         return
     end
 
-    -- Never anchor to a foreign button. Horizon and similar addons can
-    -- anchor to ours; a reciprocal anchor causes a circular dependency.
-    -- This menu-relative anchor stays stable without additional timers.
-    local targetTop = bottomOfAbove - (space - button:GetHeight()) * 0.5
-    local offset = top - targetTop
+    -- Fill the earliest safe gap, 4px below the button above. Do not
+    -- center in a large gap: Horizon-like late buttons need the room below.
+    -- Anchor only to the menu to avoid reciprocal addon-to-addon anchors.
+    local targetTop = aboveBottom - GAP
+    local offset = menuTop - targetTop
     if not Number(offset) then
-        button:Hide()
-        button.layoutIndex, button.topPadding = nil, nil
-        placementState = "invalid-geometry"
-        return
+        button:Hide(); placementState = "invalid-geometry"; return
     end
     button:ClearAllPoints()
     button:SetPoint("TOP", menu, "TOP", 0, -offset)
@@ -384,9 +406,9 @@ function GameMenu.Refresh()
     end
     if menu and menu:IsShown() then
         if managed then
-            -- The next Blizzard InitButtons will reserve the native slot.
-            -- Do not call Blizzard Layout ourselves from addon settings.
-            Settle(menu)
+            -- Native buttons remain managed by Blizzard. Manually placed
+            -- buttons are recomputed only when the menu actually changes.
+            if manualMode then PlaceManual(menu) end
         else
             Legacy(menu)
         end
@@ -402,10 +424,12 @@ local function Install()
         hooksecurefunc(menu, "InitButtons", function(m) Reserve(m) end)
         if type(menu.Layout) == "function" then
             hooksecurefunc(menu, "Layout", function(m)
-                if Wanted() then Settle(m) end
+                if manualMode and Wanted() then PlaceManual(m) end
             end)
         end
-        menu:HookScript("OnShow", function() Settle(menu) end)
+        menu:HookScript("OnShow", function()
+            if manualMode then PlaceManual(menu) end
+        end)
         menu:HookScript("OnHide", function()
             if button then button:Hide() end
         end)

@@ -58,35 +58,43 @@ class DuelsEscapeMenuTests(unittest.TestCase):
         self.assertIn('rgb .. "Duels|r |cffffffffReimagined|r"', gm)
         self.assertNotIn('EllesmereUIDB =', gm)
 
-    def test_one_native_slot_no_ghost_spacer_and_generic_placement(self):
+    def test_native_layout_when_no_manual_buttons(self):
         gm = src("UI/GameMenu.lua")
         self.assertIn('local pool = menu and menu.buttonPool', gm)
-        self.assertIn('for b in pool:EnumerateActive() do', gm)
         self.assertIn('name == _G.BLIZZARD_STORE', gm)
         self.assertIn('name == _G.GAMEMENU_OPTIONS', gm)
         self.assertIn('name == _G.ADDONS', gm)
-        self.assertIn('for _, child in ipairs({menu:GetChildren()})', gm)
-        self.assertIn('b.layoutIndex = index', gm)
-        self.assertIn('b.topPadding = afterReservation and GAP or SECTION', gm)
-        self.assertIn('b:Show()', gm)
+        self.assertIn('local function HasManualButtons(menu)', gm)
+        self.assertIn('manualMode = HasManualButtons(menu)', gm)
+        self.assertIn('child.layoutIndex == nil', gm)
+        self.assertIn('not native[child]', gm)
+        self.assertIn('w >= 100 and h >= 15', gm)
+        self.assertIn('return first + (nextIndex - first) * 0.25', gm)
+        self.assertIn('b.layoutIndex, b.topPadding = index, SECTION', gm)
+        self.assertIn('placementState = "native-layout"', gm)
+
+    def test_manual_buttons_use_visible_space_without_layout_reservations(self):
+        gm = src("UI/GameMenu.lua")
+        self.assertIn('b.layoutIndex, b.topPadding = nil, nil', gm)
+        self.assertIn('placementState = "manual-pending"', gm)
+        self.assertIn('local function PlaceManual(menu)', gm)
+        self.assertIn('if not manualMode or not Wanted()', gm)
+        self.assertIn('local above, space = FindGap(menu, button, upper, addons)', gm)
+        self.assertIn('space >= height + GAP * 2', gm)
+        self.assertIn('local targetTop = aboveBottom - GAP', gm)
+        self.assertIn('button:SetPoint("TOP", menu, "TOP", 0, -offset)', gm)
+        self.assertIn('placementState = "crowded"', gm)
+        self.assertIn('button:Hide()', gm)
+        self.assertIn('if issecretvalue and issecretvalue(v) then return false end', gm)
+        self.assertIn('if manualMode then PlaceManual(menu) end', gm)
+        self.assertIn('hooksecurefunc(menu, "InitButtons"', gm)
+        self.assertIn('hooksecurefunc(menu, "Layout"', gm)
+        self.assertIn('menu:HookScript("OnShow"', gm)
         self.assertNotIn('local button, spacer', gm)
         self.assertNotIn('spacer.layoutIndex', gm)
         self.assertNotIn('spacer:SetSize', gm)
         self.assertNotIn('PolestarGameMenuButton', gm)
         self.assertNotIn('HorizonSuiteGameMenuButton', gm)
-
-    def test_synchronous_menu_relative_placement_without_cycles(self):
-        gm = src("UI/GameMenu.lua")
-        self.assertIn('local function Settle(menu)', gm)
-        self.assertIn('hooksecurefunc(menu, "InitButtons"', gm)
-        self.assertIn('hooksecurefunc(menu, "Layout"', gm)
-        self.assertIn('menu:HookScript("OnShow"', gm)
-        self.assertIn('button:SetPoint("TOP", menu, "TOP", 0, -offset)', gm)
-        self.assertIn('child:GetObjectType() == "Button"', gm)
-        self.assertIn('space >= height + MIN_GAP * 2', gm)
-        self.assertIn('button.layoutIndex, button.topPadding = nil, nil', gm)
-        self.assertIn('placementState = "crowded"', gm)
-        self.assertIn('if issecretvalue and issecretvalue(v) then return false end', gm)
         self.assertNotIn('C_Timer.After(', gm)
         self.assertNotIn('ScheduleSettle(', gm)
         self.assertNotIn('button:SetPoint("TOP", above, "BOTTOM"', gm)
@@ -94,6 +102,25 @@ class DuelsEscapeMenuTests(unittest.TestCase):
         self.assertNotIn('menu:SetHeight(', gm)
         self.assertNotIn('menu:ClearAllPoints()', gm)
         self.assertNotIn('SetScript("OnUpdate"', gm)
+
+    def test_reference_menu_geometry_model_not_live_client(self):
+        # Model the reference layout from screenshots: EUI/Polestar occupy
+        # the upper section, Horizon will use the space above AddOns.
+        # The production algorithm checks the same gap boundaries in WoW
+        # coordinates; this model is NOT a live add-on compatibility test.
+        shop_bottom, addons_top = 180, 405
+        frames = [(196, 228), (236, 268), (340, 372)]
+        height, gap = 32, 4
+        prev_bottom = shop_bottom
+        placed = None
+        for top, bottom in frames + [(addons_top, addons_top)]:
+            if top - prev_bottom >= height + 2 * gap:
+                placed = (prev_bottom + gap, prev_bottom + gap + height)
+                break
+            prev_bottom = bottom
+        self.assertEqual(placed, (272, 304))
+        self.assertLess(placed[1], 340)
+        self.assertGreater(addons_top - placed[1], height + gap)
 
     def test_click_closes_escape_menu_then_opens_not_toggles_away(self):
         gm = src("UI/GameMenu.lua")
@@ -109,14 +136,14 @@ class DuelsEscapeMenuTests(unittest.TestCase):
     def test_runtime_toggle_hides_only_our_controls_and_no_force_reload(self):
         gm = src("UI/GameMenu.lua")
         self.assertIn('function GameMenu.Refresh()', gm)
-        self.assertIn('if not Wanted() then HideOwn(); return end', gm)
+        self.assertIn('HideOwn(); placementState = "disabled"; return', gm)
         self.assertIn('if button then button:Hide() end', gm)
         self.assertNotIn('if spacer then spacer:Hide() end', gm)
         self.assertIn('menu:HookScript("OnShow"', gm)
         self.assertIn('load:RegisterEvent("PLAYER_LOGIN")', gm)
         self.assertIn('load:RegisterEvent("ADDON_LOADED")', gm)
         self.assertIn('if hooked then self:UnregisterAllEvents() end', gm)
-        self.assertIn('if not Wanted() then HideOwn(); return end', gm)
+        self.assertIn('HideOwn(); placementState = "disabled"; return', gm)
 
     def test_combat_input_and_legacy_guarded_without_replacing_blizzard_ui(self):
         gm = src("UI/GameMenu.lua")
