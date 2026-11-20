@@ -5,7 +5,6 @@ ns.Chrome = Chrome
 
 -- Apart from the established small icons / DR mark, our chrome is now made
 -- from inexpensive one-pixel UI textures. Every part follows Style tokens.
-local art = "Interface\\AddOns\\DuelsReimagined\\Media\\Concept\\"
 function Chrome.Sharp(tex)
     if tex.SetSnapToPixelGrid then tex:SetSnapToPixelGrid(false) end
     if tex.SetTexelSnappingBias then tex:SetTexelSnappingBias(0) end
@@ -20,13 +19,6 @@ function Chrome.Texture(parent, name, alpha, layer)
     local tex = Style.Fill(parent, color, layer or "BACKGROUND")
     tex:SetAlpha(alpha or 1)
     return tex
-end
-
--- Compatibility for old callers; no bitmap end caps or stretched graphics.
-function Chrome.SlicedButton(parent)
-    local ground = Style.Fill(parent, C.button)
-    Style.Border(parent, C.gold, 1)
-    return ground
 end
 
 -- Fixed-color, user-approved icon artwork. The four 64px atlas cells
@@ -49,8 +41,9 @@ function Chrome.Icon(parent, name)
         tex:SetTexCoord(unpack(uv))
         tex:SetVertexColor(1, 1, 1, 1)
     else
-        -- Preserve legacy fallback for future, as-yet unapproved icons.
-        tex:SetTexture(art .. "Icon" .. name .. ".png")
+        -- Unknown future navigation keys use a Blizzard placeholder instead
+        -- of referencing deleted legacy one-image-per-icon artwork.
+        tex:SetTexture("Interface\\Icons\\INV_Misc_QuestionMark")
     end
     return Chrome.Sharp(tex)
 end
@@ -103,11 +96,6 @@ function Chrome.Divider(parent, width, height)
     return f
 end
 
-function Chrome.SetResizeCorner(available)
-    -- The corner remains physically resizable through Window.resizeGrip.
-    -- No theme-locked corner texture is needed to switch its state.
-end
-
 function Chrome.Shell(frame, header, footer, rail, nav)
     local rim = CreateFrame("Frame", nil, frame)
     rim:SetAllPoints(frame)
@@ -147,9 +135,6 @@ function Chrome.Shell(frame, header, footer, rail, nav)
     return seams
 end
 
-function Chrome.Panel(parent, fill, opts)
-    return Style.Skin(parent, fill or C.nav, opts)
-end
 function Chrome.Refresh()
     for _, entry in ipairs(pixelDividers) do
         local pixels = Style.Pixel(entry.frame, 2)

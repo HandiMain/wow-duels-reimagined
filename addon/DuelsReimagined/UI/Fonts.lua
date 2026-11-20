@@ -67,9 +67,3 @@ function Fonts.GetChoices()
     return list
 end
 
-function Fonts.GetLabel(key)
-    for _, entry in ipairs(Fonts.GetChoices()) do
-        if entry.key == key then return entry.label end
-    end
-    return "Blizzard Default"
-end

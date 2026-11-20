@@ -1164,3 +1164,15 @@ pass removes the unnecessary Hide/Show during the second delayed geometry
 check; if a valid slot still exists, the button stays visible while its
 position is re-evaluated. If no slot remains, our button hides immediately
 to avoid overlap. No gameplay, media, sound or other settings changes.
+
+## Repository audit — 2026-11-20
+
+The addon is currently a UI-first prototype. The current TOC and source files,
+not historical design notes, define the runtime assets. Obsolete concept artwork
+and unused helpers were pruned from the packaged addon after checking loaded Lua
+and TOC references. Git history remains the rollback source for removed media.
+The Polestar-derived reset and Discord icons are still present and retain
+their existing GPL attribution; its unused resize icon is no longer shipped.
+The update does **not** establish live-game verification of every UI state,
+and does not implement duel/ranking/multiplayer features.
+

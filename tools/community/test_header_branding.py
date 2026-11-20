@@ -16,19 +16,15 @@ class OptionFiveBrandingTests(unittest.TestCase):
         # opaque rectangle over our customizable Duels header.
         self.assertIn(b"tRNS", data)
 
-    def test_prior_rgba_art_retained_for_rollback(self):
-        for path, expected in (
-            ("Media/Brand/DuelsLandingEmblem.png", (512, 256)),
-            ("Media/Icons/DuelsCrestIcon.png", (128, 128)),
+    def test_retired_branding_files_not_shipped(self):
+        # Git history remains the rollback source; the addon package should
+        # contain only artwork actually displayed by the current UI.
+        for obsolete in (
+            "Media/Brand/DuelsLandingEmblem.png",
+            "Media/Icons/DuelsCrestIcon.png",
         ):
-            with self.subTest(path=path):
-                data = (ADDON / path).read_bytes()
-                self.assertEqual(data[:8], b"\x89PNG\r\n\x1a\n")
-                w, h, depth, color_type = struct.unpack(">IIBB", data[16:26])
-                self.assertEqual((w, h, depth, color_type), (*expected, 8, 6))
-                self.assertTrue(w & (w - 1) == 0)
-                self.assertTrue(h & (h - 1) == 0)
-                self.assertIn(b"IDAT", data)
+            with self.subTest(asset=obsolete):
+                self.assertFalse((ADDON / obsolete).exists())
 
     def test_only_main_header_uses_option_five(self):
         window = (ADDON / "UI" / "Window.lua").read_text()

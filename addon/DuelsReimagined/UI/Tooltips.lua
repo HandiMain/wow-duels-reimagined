@@ -126,13 +126,6 @@ function Tooltips.Hide(owner, instant)
     end
 end
 
-function Tooltips.Refresh(owner)
-    local who = activeOwner
-    if who and (not owner or owner == who) and who._duelsTooltipInfo then
-        Tooltips.Show(who, who._duelsTooltipInfo)
-    end
-end
-
 -- Rebind updates descriptions without stacking duplicate hooks.
 -- Shared widget factories call this, as should future manually-built buttons.
 function Tooltips.Bind(region, info)
@@ -148,4 +141,3 @@ function Tooltips.Bind(region, info)
     region:HookScript("OnMouseDown", function(self) Tooltips.Hide(self, true) end)
 end
 
-function Tooltips.Owner() return activeOwner end

@@ -172,7 +172,7 @@ class CommunityUITests(unittest.TestCase):
         self.assertIn('corner=11, edge=C.gold', style)
         self.assertIn('Style.SkinMask(parent, color, mask, layer', style)
         self.assertNotIn('ns.Chrome.SlicedButton(button)', style)
-        self.assertIn('function Chrome.SlicedButton(parent)', chrome)
+        self.assertNotIn('function Chrome.SlicedButton(parent)', chrome)
         self.assertNotIn('middle:SetTexCoord', chrome)
         self.assertIn('local btn = Style.Action(canvas, heading, "community")', community)
         self.assertEqual(community.count('btn:SetScript("OnClick"'), 1)

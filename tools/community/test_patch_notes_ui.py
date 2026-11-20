@@ -38,7 +38,6 @@ class PatchNotesUITests(unittest.TestCase):
     def test_art_assets_and_wow_tga_headers(self):
         for name, expected in (
             ("PatchNotesAtlas.tga", (256, 256)),
-            ("PatchNotesHero.tga", (512, 128)),
         ):
             blob = (ADDON / "Media" / "Concept" / name).read_bytes()
             self.assertEqual(blob[2], 2)  # uncompressed true-color
