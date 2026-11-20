@@ -23,7 +23,7 @@ class OptionFiveBrandingTests(unittest.TestCase):
         ):
             with self.subTest(path=path):
                 data = (ADDON / path).read_bytes()
-                self.assertEqual(data[:8], b"\\x89PNG\\r\\n\\x1a\\n")
+                self.assertEqual(data[:8], b"\x89PNG\r\n\x1a\n")
                 w, h, depth, color_type = struct.unpack(">IIBB", data[16:26])
                 self.assertEqual((w, h, depth, color_type), (*expected, 8, 6))
                 self.assertTrue(w & (w - 1) == 0)

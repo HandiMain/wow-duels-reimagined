@@ -22,7 +22,7 @@ class CompactPageDensityTests(unittest.TestCase):
             'brandArea:SetPoint("RIGHT", searchBox, "LEFT", -18, 0)',
         ):
             self.assertIn(marker, w)
-        self.assertIn("HeaderOption5TintAtlas.png",
+        self.assertIn("DuelsLandingEmblem.png",
                       src("UI/BlizzardSettings.lua"))
 
     def test_secondary_icons_labels_and_selected_text(self):
