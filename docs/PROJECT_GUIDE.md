@@ -641,3 +641,42 @@ EllesmereUI, including hover/selection/click, click hit areas, Patch Notes
 unread badge, Search navigation, Fold/Peek, text scaling and /reload.
 Potential risk: 12pt long "COMMUNITY" label with large UI font scales.
 Rollback baseline: develop 4ae969deca1f83761cf8bc2634302829ac9b59c4.
+
+## Minimap login visibility / collector ownership fix — 2026-11-20
+
+An in-game screenshot showed that the fixed-color DR minimap icon could be
+missing immediately after login until the player located/dragged it. Root-cause
+candidates reviewed against Polestar's Maps/MinimapButton.lua and the actual
+EllesmereUI-v9.8.9 minimap zip (EUI_Minimap_Buttons.lua,
+EUI_Minimap_Layout.lua, EUI_Minimap_Lifecycle.lua).
+
+EllesmereUI hooks collected Button:Hide()/Show() to track whether an addon
+wants a button. It also hides the Minimap for its own visibility modes and
+uses root button alpha to manage grouped flyout buttons. Duels previously
+called miniButton:Hide() whenever Minimap:IsShown() was false, AND again on
+Minimap OnHide; a temporary parent hide was therefore reported as the addon
+disabling its button. Our lastMiniWanted flag could block the next Show.
+Duels' idle root-alpha tween could also interfere with collector alpha=0.
+
+A focused change in UI/AccessIcons.lua now derives minimap intent only from
+PLAYER_LOGIN and the user's iconMode, letting the Minimap parent hide its
+children naturally. There is no Minimap OnHide -> explicit button Hide hook.
+When iconMode is turned off we still explicitly hide; when re-enabled we
+explicitly show once. All later refreshes respect collection instead of
+forcing visibility. Idle/Wake fade only the small minimap icon artwork, not
+the root button's alpha; widget root opacity remains under widget settings.
+The frame still exposes the named button and named Icon used by collectors.
+No new permanent polling, EUI API calls, extra settings or texture changes.
+
+Status: IMPLEMENTED / AUTOMATED CHECKS PENDING / IN-GAME UNTESTED. Verify:
+1. full restart and /reload with EllesmereUI minimap enabled and DR minimap
+mode; icon shows on the ungrouped row OR in the intended addon-button flyout,
+without first having to drag it; do not expect a grouped button on the map.
+2. EllesmereUI mouseover-hide / show the Minimap and zone loading: the icon
+remains available and is not silently removed from flyout.
+3. test grouped and ungrouped buttons, move positions, resize minimap,
+no forced jump/reappearance; then switch minimap/widget/both/none and relog.
+4. widget transparency and size, hover/press, tooltips, AddOn Compartment,
+window open/close, input/combat and /reload remain unaffected.
+This is code+source evidence only; WoW and true collector behavior still need
+player confirmation. Baseline: develop 2f16d466f6d67f6e9c8969841192bd3ecb487fc1.

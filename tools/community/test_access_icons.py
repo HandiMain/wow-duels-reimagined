@@ -110,6 +110,32 @@ class AccessIconsTests(unittest.TestCase):
         self.assertIn('end, nil, true)', o)
         self.assertIn('RegisterOption("minimapButton"', o)
 
+    def test_temporary_minimap_hide_does_not_disable_collected_button(self):
+        a = read("UI/AccessIcons.lua")
+        # The parent can be hidden by EllesmereUI visibility modes, Edit Mode,
+        # zone loading or mouseover without changing the user's icon preference.
+        self.assertIn("local miniWanted = loginReady and Minimap and", a)
+        self.assertNotIn('Minimap:IsShown()', a)
+        self.assertNotIn('Minimap:HookScript("OnHide"', a)
+        self.assertIn('if not miniWanted then', a)
+        self.assertIn('if lastMiniWanted or miniButton:IsShown() then miniButton:Hide() end', a)
+        self.assertIn('elseif not lastMiniWanted then', a)
+        self.assertIn('lastMiniWanted = miniWanted and true or false', a)
+        self.assertIn('if miniWanted then IdleMinimap() end', a)
+
+    def test_collector_controls_minimap_root_alpha_not_our_idle_effect(self):
+        a = read("UI/AccessIcons.lua")
+        self.assertIn('Motion.Fade(button == miniButton and button.duelsFace.icon or button, 1, 0.16)', a)
+        self.assertEqual(a.count('Motion.Fade(button.duelsFace.icon, IDLE_ALPHA, 0.30)'), 2)
+        self.assertNotIn('Motion.Fade(button, IDLE_ALPHA', a)
+        self.assertIn('if isWidget then\n            Motion.Stop(self, 1)\n        else\n            Motion.Stop(face.icon, 1)', a)
+        self.assertIn('Motion.Fade(button, target, 0.18)', a) # floating-widget settings still live
+        self.assertIn('if not OwnsMinimapPlacement()', a) # drag respects collector ownership
+        self.assertIn('miniButton:GetParent() ~= Minimap', a)
+        self.assertNotIn('C_Timer.NewTicker', a)
+        self.assertIn('Minimap:HookScript("OnShow"', a)
+        self.assertIn('Minimap:HookScript("OnSizeChanged"', a)
+
     def test_compartment_toggle_and_collector_contract(self):
         s, a, o = read("Core/Settings.lua"), read("UI/AccessIcons.lua"), read("UI/Options.lua")
         self.assertIn('showInCompartment = true', s)

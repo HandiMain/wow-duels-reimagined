@@ -160,7 +160,9 @@ end
 
 local function Wake(button)
     button.duelsIdleToken = (button.duelsIdleToken or 0) + 1
-    Motion.Fade(button, 1, 0.16)
+    -- Collectors such as EllesmereUI own the minimap button's root alpha.
+    -- Fade only our artwork, never override the collector's hidden state.
+    Motion.Fade(button == miniButton and button.duelsFace.icon or button, 1, 0.16)
 end
 
 local function IdleMinimap()
@@ -174,11 +176,11 @@ local function IdleMinimap()
         C_Timer.After(IDLE_DELAY, function()
             if button.duelsIdleToken == token and button:IsShown() and
                 not button.duelsHovering and not button.duelsDragging then
-                Motion.Fade(button, IDLE_ALPHA, 0.30)
+                Motion.Fade(button.duelsFace.icon, IDLE_ALPHA, 0.30)
             end
         end)
     else
-        Motion.Fade(button, IDLE_ALPHA, 0.30)
+        Motion.Fade(button.duelsFace.icon, IDLE_ALPHA, 0.30)
     end
 end
 
@@ -223,7 +225,13 @@ local function ConnectClick(button, isWidget)
     button:HookScript("OnHide", function(self)
         self.duelsIdleToken = (self.duelsIdleToken or 0) + 1
         local face = self.duelsFace
-        Motion.Stop(self, 1)
+        -- The collector may have hidden our minimap button with SetAlpha(0).
+        -- Never reset its root alpha in OnHide; widget alpha remains ours.
+        if isWidget then
+            Motion.Stop(self, 1)
+        else
+            Motion.Stop(face.icon, 1)
+        end
         Motion.Stop(face.face, 1)
         Motion.Stop(face.glow, 0.035)
         Motion.Stop(face.ring, 0.10)
@@ -407,19 +415,23 @@ function Access.Refresh()
     widgetButton.duelsFace.Size(Settings.Get("widgetSize"))
     PositionMinimap()
     WidgetPosition()
-    local miniVisible = loginReady and Minimap and Minimap:IsShown()
-        and (iconMode == "minimap" or iconMode == "both")
-    if not miniVisible then
-        miniButton:Hide()
+    -- The minimap itself can be hidden at login, on mouseover, or by a
+    -- visibility rule. It already hides its children visually. Explicitly
+    -- Hide()ing this button as well told collectors that the addon disabled
+    -- it and could make it disappear from their row/flyout until dragged.
+    local miniWanted = loginReady and Minimap and
+        (iconMode == "minimap" or iconMode == "both")
+    if not miniWanted then
+        if lastMiniWanted or miniButton:IsShown() then miniButton:Hide() end
     elseif not lastMiniWanted then
-        -- A collector may have hidden this still-Minimap-parented button
-        -- for its flyout. Avoid fighting its visibility on every Refresh.
+        -- Only show when the user selects minimap mode. Do not repeatedly
+        -- show a button that a collector intentionally hid for its flyout.
         miniButton:Show()
     end
-    lastMiniWanted = miniVisible and true or false
+    lastMiniWanted = miniWanted and true or false
     widgetButton:SetShown(loginReady and
         (iconMode == "widget" or iconMode == "both"))
-    if miniVisible then IdleMinimap() end
+    if miniWanted then IdleMinimap() end
     WidgetOpacity()
 end
 
@@ -460,13 +472,9 @@ local function RegisterCompartment()
 end
 
 if Minimap and Minimap.HookScript then
-    Minimap:HookScript("OnHide", function()
-        if OwnsMinimapPlacement() then
-            miniButton:Hide()
-            -- An actual minimap visibility transition is ours to restore.
-            lastMiniWanted = false
-        end
-    end)
+    -- No minimap OnHide -> miniButton:Hide() hook: parent visibility already
+    -- handles descendants. An explicit Hide would be interpreted by addon
+    -- button collectors as the player disabling the button.
     Minimap:HookScript("OnShow", function() if loginReady then Access.Refresh() end end)
     Minimap:HookScript("OnSizeChanged", function()
         if loginReady and not draggingMinimap then PositionMinimap() end
