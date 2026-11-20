@@ -14,7 +14,7 @@ class ThemeRedesignTests(unittest.TestCase):
                          'body:SetPoint("TOPLEFT", rail, "BOTTOMLEFT"',
                          'nav:SetWidth(210)'):
             self.assertIn(fragment, w)
-        self.assertIn('button:SetSize(216, 44)', n)
+        self.assertIn('button:SetSize(HALL_BUTTON_WIDTH, 44)', n)
         self.assertIn('button:SetSize(90, 90)', n)
         self.assertIn('Window.utility', w)
         self.assertNotIn('button:SetSize(86, 68)', n)

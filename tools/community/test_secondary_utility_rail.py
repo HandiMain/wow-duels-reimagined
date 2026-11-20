@@ -34,7 +34,7 @@ class UtilityRailTests(unittest.TestCase):
             self.assertIn('key = "' + key + '"', n)
         self.assertNotIn('community = true, options = true', n)
         self.assertIn('if isPrimary then primaryButtons[#primaryButtons + 1] = item end', n)
-        self.assertIn('local utilityIndex = 0', n)
+        self.assertIn('local utilityIndex, previousUtilityButton = 0, nil', n)
         self.assertIn('0, -12 - (utilityIndex - 1) * 98', n)
         self.assertIn('separator = Chrome.Divider(Window.utility, 44, 8)', n)
         self.assertIn('separator:SetPoint("TOP", previousUtilityButton, "BOTTOM", 0, 0)', n)
