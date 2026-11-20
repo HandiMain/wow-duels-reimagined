@@ -54,9 +54,14 @@ class AccessIconsTests(unittest.TestCase):
         self.assertIn('if which ~= "LeftButton"', a)
         self.assertIn("ns.Window.Toggle()", a)
         self.assertNotIn("RightButtonUp", a)
-        for forbidden in ("PatchNotes", "ShowQuickActions", "ToggleQuickActions",
+        # Patch Notes MAY trigger a visual-only update ping. Still forbid
+        # opening a Patch Notes menu from the DR icon or adding right clicks.
+        for forbidden in ('ns.PatchNotes.Show', 'Navigation.SelectKey("patchnotes"',
+                          "ShowQuickActions", "ToggleQuickActions",
                           "UISounds.Play", "GameTooltip:SetOwner"):
             self.assertNotIn(forbidden, a)
+        self.assertIn("function Access.NotifyPatchNotes(unread)", a)
+        self.assertIn("local ring = target.duelsFace.ring", a)
 
     def test_self_disarming_motion_and_drag(self):
         a = read("UI/AccessIcons.lua")

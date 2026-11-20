@@ -2,7 +2,8 @@ local _, ns = ...
 
 -- Adapted from Handi's BurstFX minimap/access-widget architecture.
 -- ONE owner for both entry points; saved values live only in Core/Settings.
--- No quick-actions menus, patch notes, burst detection, or combat effects.
+-- No quick-actions menus or Patch Notes page navigation. The only new
+-- notification is a brief visual-only unread update ring, with no gameplay.
 local Settings, Motion, Tooltips = ns.Settings, ns.Motion, ns.Tooltips
 local Access = {}
 ns.AccessIcons = Access
