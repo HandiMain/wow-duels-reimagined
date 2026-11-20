@@ -680,3 +680,42 @@ no forced jump/reappearance; then switch minimap/widget/both/none and relog.
 window open/close, input/combat and /reload remain unaffected.
 This is code+source evidence only; WoW and true collector behavior still need
 player confirmation. Baseline: develop 2f16d466f6d67f6e9c8969841192bd3ecb487fc1.
+
+## Ellesmere initial minimap-button visibility snapshot — 2026-11-20
+
+Player confirmed: standalone Duels DR minimap icon appears immediately
+without EllesmereUI, but remains missing with EllesmereUI enabled after the
+previous minimap parent-visibility correction (develop 9102a77). This
+isolates an integration bug; no assertion of successful in-game repair.
+
+Polestar-first reference: addon/Polestar/Maps/MinimapButton.lua lazily builds
+the button when enabled and Shows it in its first refresh. Inspected exact
+EllesmereUI-v9.8.9.zip source, especially EUI_Minimap_Buttons.lua:
+GatherMinimapButtons scans named Button children of Minimap, recording
+_addonVisible[child] = child:IsShown() ON FIRST DISCOVERY (lines 310-344);
+HideMinimapChild suppresses tracking during its own Hide/SetAlpha(0), so
+a false initial snapshot is not corrected by the collector's own hide
+(lines 215-265). EUI's ADDON_LOADED handler scans for late addon buttons.
+
+Duels had constructed the named button and called miniButton:Hide()
+unconditionally before PLAYER_LOGIN. This can cause EUI to snapshot
+the button as disabled even though saved iconMode == minimap/both. Duels
+now uses the existing PositionMinimap() as soon as it is defined, then
+sets the button's shown state from Settings.Get("iconMode") at addon-load
+time (BEFORE the loader fires ADDON_LOADED), not first at PLAYER_LOGIN.
+Mode "widget"/"none" remains initially hidden. The existing PLAYER_LOGIN,
+PLAYER_ENTERING_WORLD, Minimap sizing, widget, collector ownership, drag
+and compartment routines remain intact. No EUI private API calls, timers,
+polling, SavedVariables edits, UI or artwork changes.
+
+Status: IMPLEMENTED / IN-GAME UNTESTED. Automated tests model/check the
+first-scan intended state and preserve mode transitions; EUI live scan
+timing and final flyout presentation require real WoW observation. Verify
+cold login and /reload with EUI minimap enabled: if EUI groups buttons,
+DR should be available via its addon-buttons flyout; to see DR on the
+button row, mark DR under EUI's Ungroup Minimap Buttons setting.
+Check without EUI, all minimap/widget/both/none modes, minimap reload/
+scale, icon drag, tooltip, hover, and AddOn Compartment. If still missing
+with grouped AND ungrouped, STOP and inspect EUI's cached _addonVisible
+and button parent in game before further edits, avoiding timer hacks.
+Rollback baseline: develop 9102a772a1f20b6373e4b472942a56a0c866dca0.

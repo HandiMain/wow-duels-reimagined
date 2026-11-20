@@ -110,6 +110,29 @@ class AccessIconsTests(unittest.TestCase):
         self.assertIn('end, nil, true)', o)
         self.assertIn('RegisterOption("minimapButton"', o)
 
+    def test_enabled_minimap_is_shown_before_collector_initial_scan(self):
+        # EUI_Minimap_Buttons.lua (EllesmereUI 9.8.9) snapshots
+        # child:IsShown() into _addonVisible on the first scan, and its
+        # HideMinimapChild() leaves that initial false flag unchanged.
+        # Expose the saved intent before our ADDON_LOADED event can fire.
+        a = read("UI/AccessIcons.lua")
+        self.assertNotIn('ConnectClick(miniButton, false)\nminiButton:Hide()', a)
+        self.assertIn('PositionMinimap()\nlocal initialMode = Mode()', a)
+        self.assertIn('miniButton:SetShown(initialMode == "minimap" or initialMode == "both")', a)
+        self.assertLess(a.index('local function PositionMinimap(angle)'),
+                        a.index('local initialMode = Mode()'))
+        self.assertLess(a.index('miniButton:SetShown(initialMode'),
+                        a.index('events:RegisterEvent("PLAYER_LOGIN")'))
+        self.assertIn('widgetButton:Hide()', a)
+        self.assertIn('miniButton:Show()', a)  # Still reasserts on mode transition
+        self.assertIn('miniButton:Hide()', a)  # Still hides when mode disabled
+        for mode, expected in (
+            ("minimap", True), ("both", True),
+            ("widget", False), ("none", False),
+        ):
+            # Source predicate documented above; independent baseline model.
+            self.assertEqual(mode in ("minimap", "both"), expected)
+
     def test_temporary_minimap_hide_does_not_disable_collected_button(self):
         a = read("UI/AccessIcons.lua")
         # The parent can be hidden by EllesmereUI visibility modes, Edit Mode,

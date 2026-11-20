@@ -267,7 +267,10 @@ miniButton:SetFrameStrata("MEDIUM")
 miniButton:SetFrameLevel((Minimap and Minimap:GetFrameLevel() or 1) + 8)
 miniButton.duelsFace = BuildFace(miniButton)
 ConnectClick(miniButton, false)
-miniButton:Hide()
+-- Do NOT pre-hide here. EllesmereUI can scan named Minimap buttons before
+-- PLAYER_LOGIN; an initial Hide would make its first IsShown() snapshot
+-- remember this enabled button as disabled. Apply the saved mode below,
+-- after PositionMinimap is defined, before addons receive ADDON_LOADED.
 
 -- The movable access widget can be shown instead of, or alongside, Minimap.
 widgetButton = CreateFrame("Button", "DuelsReimaginedAccessWidget", UIParent)
@@ -325,6 +328,15 @@ local function PositionMinimap(angle)
     miniButton:SetPoint("CENTER", Minimap, "CENTER", x, y)
     placedX, placedY = x, y
 end
+
+-- Expose the saved, player-intended minimap visibility at ADDON_LOADED time.
+-- Polestar similarly constructs/shows its button in its first enabled pass.
+-- EllesmereUI's first scan records child:IsShown() into _addonVisible, so a
+-- default-hidden frame cannot reliably be recovered by a later login Show.
+-- Position it first; this does NOT change the player's saved mode or angle.
+PositionMinimap()
+local initialMode = Mode()
+miniButton:SetShown(initialMode == "minimap" or initialMode == "both")
 
 local function WidgetPosition()
     local x, y = Settings.GetWidgetPosition()
