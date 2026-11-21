@@ -187,7 +187,7 @@ Window.content = content
 
 local utility = CreateFrame("Frame", nil, footer)
 utility:SetSize(360, 36)
-utility:SetPoint("RIGHT", footer, "RIGHT", -167, 0)
+utility:SetPoint("RIGHT", footer, "RIGHT", -187, 0)
 Window.utility = utility
 
 -- Subcategories are NOT primary navigation buttons.
@@ -450,75 +450,98 @@ end
 
 Window.ApplyScale(Settings.Get("menuScale") or 1)
 
--- One resize owner, regardless of active page. Persist once on mouse release.
--- Filled forged-copper triangular end cap: clean beveled diagonal,
--- continuous bottom/right edges and one rivet. The artwork remains
--- noninteractive; the single proven resize and reset hotspot stays put.
+-- One resize owner: the approved Concept 06 Alliance/Horde copper border.
+-- Base, hover and press artwork all originate from the user's approved study.
+-- Noninteractive decoration is separate from the real resize/reset hitbox.
 local resizeArt = CreateFrame("Frame", nil, frame)
-resizeArt:SetSize(64, 64)
+resizeArt:SetSize(106, 106)
 resizeArt:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -2, 2)
 resizeArt:SetFrameLevel(frame:GetFrameLevel() + 24)
 resizeArt:EnableMouse(false)
-local CORNER_ART = "Interface\\AddOns\\DuelsReimagined\\Media\\Skin\\DuelFilledTriangleCorner.png"
+local CORNER_ART = "Interface\\AddOns\\DuelsReimagined\\Media\\Skin\\DuelFactionCorner06.png"
+local CORNER_HOVER = "Interface\\AddOns\\DuelsReimagined\\Media\\Skin\\DuelFactionCorner06Hover.png"
+local CORNER_PRESS = "Interface\\AddOns\\DuelsReimagined\\Media\\Skin\\DuelFactionCorner06Press.png"
 local forgedCorner = resizeArt:CreateTexture(nil, "ARTWORK", nil, 2)
 forgedCorner:SetTexture(CORNER_ART)
 forgedCorner:SetAllPoints(resizeArt)
-forgedCorner:SetAlpha(0.98)
 if Chrome then Chrome.Sharp(forgedCorner) end
-local gripGlow = resizeArt:CreateTexture(nil, "OVERLAY", nil, 3)
-gripGlow:SetTexture(CORNER_ART)
+
+-- Both overlays use the same source art and the shared Motion driver.
+-- Hover reveals metallic blue/red/gold accents; press lights the sapphire.
+local gripGlow = resizeArt:CreateTexture(nil, "OVERLAY", nil, 2)
+gripGlow:SetTexture(CORNER_HOVER)
 gripGlow:SetAllPoints(resizeArt)
 gripGlow:SetBlendMode("ADD")
-gripGlow:SetVertexColor(1, 0.72, 0.30)
 gripGlow:SetAlpha(0)
 if Chrome then Chrome.Sharp(gripGlow) end
+local gripPress = resizeArt:CreateTexture(nil, "OVERLAY", nil, 3)
+gripPress:SetTexture(CORNER_PRESS)
+gripPress:SetAllPoints(resizeArt)
+gripPress:SetBlendMode("ADD")
+gripPress:SetAlpha(0)
+if Chrome then Chrome.Sharp(gripPress) end
 
--- The single resizer input owner stays on the true bottom-right corner.
+-- Enlarged corner art never swallows clicks on footer buttons.
 local grip = CreateFrame("Button", nil, frame)
-grip:SetSize(38, 38)
+grip:SetSize(54, 54)
 grip:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -2, 2)
 grip:SetFrameLevel(frame:GetFrameLevel() + 45)
 grip:RegisterForClicks("RightButtonUp")
-local function GripFeedback(alpha, duration)
-    -- Restrain the highlight instead of doubling the metal with a full
-    -- additive gold copy during hover/drag.
-    alpha = math.min(alpha, 0.18)
-    Motion.Fade(gripGlow, alpha, duration)
+local sizing, pressed = false, false
+local function ShiftCorner(down)
+    resizeArt:ClearAllPoints()
+    resizeArt:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT",
+        down and -1 or -2, down and 1 or 2)
 end
+local function GripFeedback(alpha, duration)
+    Motion.Fade(gripGlow, alpha, duration)
+    Motion.Fade(gripPress, pressed and 0.94 or 0, duration)
+end
+
 grip.icon = forgedCorner
-local sizing = false
 grip:SetScript("OnMouseDown", function(_, button)
-    if button ~= "LeftButton" or (ns.Header and ns.Header.IsFolded()) then return end
+    if (button ~= "LeftButton" and button ~= "RightButton")
+        or (ns.Header and ns.Header.IsFolded()) then return end
+    pressed = true
+    ShiftCorner(true)
+    GripFeedback(0.94, Motion.Duration("quick"))
+    if button ~= "LeftButton" then return end
     local left, top = frame:GetLeft(), frame:GetTop()
     if left and top then
         frame:ClearAllPoints()
         frame:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", left, top)
     end
     sizing = true
-    GripFeedback(0.94, Motion.Duration("quick"))
     frame:StartSizing("BOTTOMRIGHT")
 end)
 grip:SetScript("OnMouseUp", function(_, button)
-    if button ~= "LeftButton" or not sizing then return end
-    sizing = false
-    frame:StopMovingOrSizing()
-    Window.CommitResize()
-    GripFeedback(grip:IsMouseOver() and 0.52 or 0, Motion.Duration("quick"))
+    if button == "LeftButton" and sizing then
+        sizing = false
+        frame:StopMovingOrSizing()
+        Window.CommitResize()
+    end
+    if button ~= "LeftButton" and button ~= "RightButton" then return end
+    pressed = false
+    ShiftCorner(false)
+    GripFeedback(grip:IsMouseOver() and 0.62 or 0, Motion.Duration("quick"))
 end)
 grip:SetScript("OnClick", function(_, button)
     if button == "RightButton" then Window.ResetSize() end
 end)
 grip:SetScript("OnEnter", function()
-    GripFeedback(sizing and 0.94 or 0.52, Motion.Duration("quick"))
+    GripFeedback(pressed and 0.94 or 0.62, Motion.Duration("quick"))
 end)
 grip:SetScript("OnLeave", function()
-    GripFeedback(sizing and 0.94 or 0, Motion.Duration("gentle"))
+    GripFeedback(pressed and 0.94 or 0, Motion.Duration("gentle"))
 end)
 ns.Tooltips.Bind(grip, { title = "Resize window",
     detail = "Drag the corner to resize. Right-click to restore default dimensions." })
--- Preserve the shared tooltip OnHide cleanup installed with HookScript.
+-- Stop fades and moving if the parent folds/hides during a press.
 grip:HookScript("OnHide", function()
     Motion.Stop(gripGlow, 0)
+    Motion.Stop(gripPress, 0)
+    pressed = false
+    ShiftCorner(false)
     if sizing then
         sizing = false
         frame:StopMovingOrSizing()
@@ -528,6 +551,9 @@ Window.resizeGrip = grip
 function Window.SetSizingEnabled(on)
     if not on then
         Motion.Stop(gripGlow, 0)
+        Motion.Stop(gripPress, 0)
+        pressed = false
+        ShiftCorner(false)
     end
     if not on and sizing then
         sizing = false
@@ -536,16 +562,13 @@ function Window.SetSizingEnabled(on)
     frame:SetResizable(on and true or false)
     grip:SetShown(on and true or false)
     resizeArt:SetShown(on and true or false)
-    -- Fold also swaps the decorative grip back to a non-resizable corner.
-    -- Otherwise the artwork would advertise an unavailable interaction.
     if Chrome.SetResizeCorner then Chrome.SetResizeCorner(on) end
 end
-
 local close = Style.Action(footer, "Close", "footer")
 close:SetSize(105, 30)
 -- Centered vertically, with safe padding from the actual interior boundary.
 -- The ornamental border corner stays clear of the working Close button.
-close:SetPoint("RIGHT", footer, "RIGHT", -44, 0)
+close:SetPoint("RIGHT", footer, "RIGHT", -64, 0)
 close:SetScript("OnClick", function() frame:Hide() end)
 Window.closeButton = close -- Navigation anchors its compact Back beside Close.
 ns.Tooltips.Bind(close, { title = "Close Duels Reimagined",
