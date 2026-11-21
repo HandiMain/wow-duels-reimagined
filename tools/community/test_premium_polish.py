@@ -37,7 +37,7 @@ class PremiumPolishTests(unittest.TestCase):
         self.assertNotIn('Style.Skin(grip, C.rail, {', w)
         self.assertIn('resizeArt:SetSize(84, 84)', w)
         self.assertIn('grip:SetSize(38, 38)', w)
-        self.assertIn('DuelForgedResizeCorner.png', w)
+        self.assertIn('DuelSculptedCopperCorner.png', w)
         self.assertIn('gripGlow:SetBlendMode("ADD")', w)
         self.assertNotIn('ResizeGlyph.tga', w)
         self.assertIn('Motion.Fade(gripGlow, alpha, duration)', w)

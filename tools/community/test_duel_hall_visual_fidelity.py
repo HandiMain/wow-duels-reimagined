@@ -34,7 +34,7 @@ class VisualFidelityTests(unittest.TestCase):
         self.assertIn('Window.rail:SetScript("OnSizeChanged", FitTabs)', n)
         self.assertIn('button:SetSize(112, 30)', n)
         self.assertIn('sub:SetSize(174, 35)', n)
-        self.assertIn('DuelCategoryIcons.tga', n)
+        self.assertIn('DuelPremiumCategoryIcons.tga', n)
 
     def test_readable_display_font_does_not_override_user_font_choice(self):
         style, options = lua("UI/Style.lua"), lua("UI/Options.lua")
@@ -42,7 +42,7 @@ class VisualFidelityTests(unittest.TestCase):
         self.assertIn('role=role', style)
         self.assertIn('fontPath or', style)
         self.assertIn('entry.role == "display" and "Fonts\\\\MORPHEUS.TTF"', style)
-        self.assertIn('DuelOptionsExactBanners.png', options)
+        self.assertIn('DuelOptionsCompleteBanners.png', options)
         self.assertNotIn('local heading = Style.Text(header, title', options)
         self.assertIn('function Style.ForgedEdge(parent, opts)', style)
         self.assertIn('Style.Plate(card, "cardBody", { corner=15 })', options)

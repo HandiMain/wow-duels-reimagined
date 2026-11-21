@@ -14,7 +14,7 @@ class ApprovedOptionsPolishTests(unittest.TestCase):
         o = lua("UI/Options.lua")
         self.assertIn('headingBand:SetPoint("TOPLEFT", card, "TOPLEFT", 4, -4)',o)
         self.assertIn('headingBand:SetPoint("TOPRIGHT", card, "TOPRIGHT", -4, -4)',o)
-        self.assertIn('local BANNER_LEFT, BANNER_RIGHT = 392, 96',o)
+        self.assertIn('local BANNER_LEFT, BANNER_RIGHT = 438, 160',o)
         self.assertIn('local BANNER_HEIGHT = 52',o)
         self.assertIn('local ROW_TOP = 64',o)
         self.assertIn('widget.optionsY = sectionY + y',o)
@@ -34,20 +34,20 @@ class ApprovedOptionsPolishTests(unittest.TestCase):
         self.assertIn('Style.ConstrainButtonLabel(sub, text, 46, 10, 10)',n)
 
     def test_replaced_subcategory_art_is_sourced_from_approved_concept(self):
-        b = (ROOT/"Media/Skin/DuelCategoryIcons.tga").read_bytes()
+        b = (ROOT/"Media/Skin/DuelPremiumCategoryIcons.tga").read_bytes()
         self.assertEqual(b[2],2)
         self.assertEqual((b[16],b[17]),(32,0x28))
         self.assertEqual(struct.unpack_from("<HH",b,12),(128,64))
         self.assertEqual(hashlib.sha256(b).hexdigest(),
-                         "d2b962c4a0529fdcfd85d4c4e4bf572fbae753c6d2cf39f0027f63bfd2dd9f6e")
+                         "78c27a28dc257c07f47c92ea08967583a7dfc17c59188932a9fa54c637ac1769")
         n=lua("UI/Navigation.lua")
-        self.assertIn('DuelCategoryIcons.tga',n)
-        self.assertIn('glyph:SetSize(24, 24)',n)
+        self.assertIn('DuelPremiumCategoryIcons.tga',n)
+        self.assertIn('glyph:SetSize(28, 28)',n)
         self.assertIn('sub:SetScript("OnClick"',n)
 
     def test_forged_corner_preserves_original_single_resize_owner(self):
         w = lua("UI/Window.lua")
-        for marker in ('DuelForgedResizeCorner.png',
+        for marker in ('DuelSculptedCopperCorner.png',
                        'local grip = CreateFrame("Button", nil, frame)',
                        'grip:SetSize(38, 38)',
                        'resizeArt:SetSize(84, 84)',
