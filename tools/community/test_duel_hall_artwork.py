@@ -12,7 +12,7 @@ SKIN = ROOT / "Media" / "Skin"
 ASSETS = {
     "DuelHallPlaque.tga": (256, 128),
     "DuelCornerJewel.tga": (64, 64),
-    "DuelPremiumCategoryIcons.tga": (128, 64),
+    "DuelMinimalGoldTabs.tga": (128, 64),
 }
 
 def read(name):
@@ -55,7 +55,7 @@ class DuelHallArtworkTests(unittest.TestCase):
         self.assertGreater(red, blue*3)
 
     def test_ornament_assets_have_real_transparency(self):
-        for name in ("DuelCornerJewel.tga","DuelPremiumCategoryIcons.tga"):
+        for name in ("DuelCornerJewel.tga","DuelMinimalGoldTabs.tga"):
             data,w,h = pixels(SKIN / name)
             alpha = data[21::4]
             self.assertTrue(any(v == 0 for v in alpha), name)
@@ -72,12 +72,12 @@ class DuelHallArtworkTests(unittest.TestCase):
             self.assertIn(token,style)
         self.assertIn('Style.ConceptImage(button, "hall", "ARTWORK", 2)',nav)
         self.assertNotIn('DuelHallLaurel.tga',nav)
-        self.assertIn('DuelPremiumCategoryIcons.tga',nav)
+        self.assertIn('DuelMinimalGoldTabs.tga',nav)
         self.assertIn('item.plate:SetStyle(active and "gold" or "dark")',nav)
         self.assertNotIn('for i = 1, 7 do',nav)
         self.assertIn('Style.Plate(rim, "shellCopper"',chrome)
         self.assertIn('Style.Plate(card, "cardBody", { corner=15 })',options)
-        self.assertIn('DuelOptionsCompleteBanners.png', options)
+        self.assertIn('DuelOptionsBannerInlays.png', options)
         self.assertNotIn('Style.Plate(headingBand, "cardHeading"',options)
         self.assertIn('Style.Plate(b, name == "Close" and "hall" or "dark"',header)
 

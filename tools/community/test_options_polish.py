@@ -15,7 +15,7 @@ class ApprovedOptionsPolishTests(unittest.TestCase):
         self.assertIn('headingBand:SetPoint("TOPLEFT", card, "TOPLEFT", 4, -4)',o)
         self.assertIn('headingBand:SetPoint("TOPRIGHT", card, "TOPRIGHT", -4, -4)',o)
         self.assertIn('local BANNER_LEFT, BANNER_RIGHT = 438, 160',o)
-        self.assertIn('local BANNER_HEIGHT = 52',o)
+        self.assertIn('local BANNER_HEIGHT = 50',o)
         self.assertIn('local ROW_TOP = 64',o)
         self.assertIn('widget.optionsY = sectionY + y',o)
         self.assertIn('function appearance:Relayout(width)',o)
@@ -34,23 +34,23 @@ class ApprovedOptionsPolishTests(unittest.TestCase):
         self.assertIn('Style.ConstrainButtonLabel(sub, text, 46, 10, 10)',n)
 
     def test_replaced_subcategory_art_is_sourced_from_approved_concept(self):
-        b = (ROOT/"Media/Skin/DuelPremiumCategoryIcons.tga").read_bytes()
+        b = (ROOT/"Media/Skin/DuelMinimalGoldTabs.tga").read_bytes()
         self.assertEqual(b[2],2)
         self.assertEqual((b[16],b[17]),(32,0x28))
         self.assertEqual(struct.unpack_from("<HH",b,12),(128,64))
         self.assertEqual(hashlib.sha256(b).hexdigest(),
-                         "98e4bfd8e6d464a636862991d67d50c1d4d73ea5ee24f899d04b6a539aff3879")
+                         "6a15481f315ab81a7b20f7b5a594080dc93db4bf057ff3708761ad102e8879dd")
         n=lua("UI/Navigation.lua")
-        self.assertIn('DuelPremiumCategoryIcons.tga',n)
+        self.assertIn('DuelMinimalGoldTabs.tga',n)
         self.assertIn('glyph:SetSize(28, 28)',n)
         self.assertIn('sub:SetScript("OnClick"',n)
 
     def test_forged_corner_preserves_original_single_resize_owner(self):
         w = lua("UI/Window.lua")
-        for marker in ('DuelSculptedCopperCorner.png',
+        for marker in ('DuelArchitecturalResizeL.png',
                        'local grip = CreateFrame("Button", nil, frame)',
                        'grip:SetSize(38, 38)',
-                       'resizeArt:SetSize(84, 84)',
+                       'resizeArt:SetSize(64, 64)',
                        'frame:StartSizing("BOTTOMRIGHT")',
                        'frame:StopMovingOrSizing()',
                        'Window.CommitResize()',

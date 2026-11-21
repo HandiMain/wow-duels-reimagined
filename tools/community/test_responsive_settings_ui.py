@@ -96,7 +96,7 @@ class ResponsiveSettingsTests(unittest.TestCase):
         self.assertIn('local header = CreateFrame("Frame", nil, band)', src)
         self.assertIn('ns.Tooltips.Bind(header, {', src)
         self.assertIn('card.optionsHeading = header', src)
-        self.assertIn('card.optionsBand:SetHeight(largeText and 64 or BANNER_HEIGHT)', src)
+        self.assertIn('card.optionsBand:SetHeight(BANNER_HEIGHT)', src)
         self.assertIn('local y = largeText and 78 or ROW_TOP', src)
         self.assertIn('local ROW_TOP = 64', src)
         self.assertIn('local CARD_GAP, SECTION_GAP, ROW_GAP = 14, 8, 1', src)

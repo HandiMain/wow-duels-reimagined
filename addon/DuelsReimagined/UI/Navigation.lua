@@ -361,10 +361,11 @@ for index, section in ipairs(sections) do
         local text = Style.Text(sub, page.label, 15, C.text)
         text:SetWordWrap(false)
         if page.key == "options" or page.key == "interface" then
-            -- Two dedicated sculpted gold medallions (palette + controls)
-            -- replace the fuzzy cut-outs. The tab still owns input/selection.
+            -- Bold gold symbols designed to read at 28px: a sparkle for
+            -- Appearance and a clean window for Interface. No busy medallions.
+            -- The actual button, selected and hover states remain unchanged.
             local glyph = sub:CreateTexture(nil, "OVERLAY", nil, 4)
-            glyph:SetTexture("Interface\\AddOns\\DuelsReimagined\\Media\\Skin\\DuelPremiumCategoryIcons.tga")
+            glyph:SetTexture("Interface\\AddOns\\DuelsReimagined\\Media\\Skin\\DuelMinimalGoldTabs.tga")
             glyph:SetSize(28, 28)
             glyph:SetPoint("LEFT", sub, "LEFT", 12, 0)
             if page.key == "options" then

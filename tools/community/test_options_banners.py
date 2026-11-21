@@ -10,7 +10,7 @@ import unittest
 import zlib
 
 ROOT = Path(__file__).resolve().parents[2] / "addon" / "DuelsReimagined"
-ART = ROOT / "Media" / "Skin" / "DuelOptionsCompleteBanners.png"
+ART = ROOT / "Media" / "Skin" / "DuelOptionsBannerInlays.png"
 OPTIONS = ROOT / "UI" / "Options.lua"
 
 class ApprovedOptionsBannersTests(unittest.TestCase):
@@ -19,7 +19,7 @@ class ApprovedOptionsBannersTests(unittest.TestCase):
         self.assertEqual(data[:8], bytes((137,80,78,71,13,10,26,10)))
         self.assertEqual(struct.unpack(">IIBB", data[16:26]), (2048,256,8,6))
         self.assertEqual(hashlib.sha256(data).hexdigest(),
-                         "d8cee77ef60dff91156e6d3766887ce1e18c75bfad42039d4fe88a6a64b034c3")
+                         "00d03d532fb195d62cd6944e081dd87aac24122d3421e0ba3d872be980863e8b")
         p = 8
         seen = []
         while p < len(data):
@@ -36,7 +36,7 @@ class ApprovedOptionsBannersTests(unittest.TestCase):
 
     def test_both_tabs_use_exact_graphics_without_reconstructed_icons_or_titles(self):
         src = OPTIONS.read_text(encoding="utf-8")
-        self.assertIn("DuelOptionsCompleteBanners.png",src)
+        self.assertIn("DuelOptionsBannerInlays.png",src)
         self.assertNotIn("DuelOptionsCategoryArt.png",src)
         self.assertNotIn('Style.Plate(headingBand, "cardHeading"',src)
         self.assertNotIn('local heading = Style.Text(header, title',src)

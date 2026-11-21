@@ -31,7 +31,7 @@ class VisualOwnerTests(unittest.TestCase):
         self.assertIn('item.bar:SetShown(false)',nav)
         self.assertIn('Style.Plate(card, "cardBody"',options)
         self.assertNotIn('Style.Skin(card, C.nav',options)
-        self.assertIn('DuelOptionsCompleteBanners.png',options)
+        self.assertIn('DuelOptionsBannerInlays.png',options)
         self.assertNotIn('Style.Plate(headingBand, "cardHeading"',options)
         self.assertIn('Style.Plate(b, name == "Close" and "hall" or "dark"',header)
         self.assertNotIn('Style.Skin(b, name == "Close"',header)

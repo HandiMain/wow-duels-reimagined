@@ -451,19 +451,19 @@ end
 Window.ApplyScale(Settings.Get("menuScale") or 1)
 
 -- One resize owner, regardless of active page. Persist once on mouse release.
--- A single sculpted copper corner plate with relief, rivet and forged rim
--- joins Chrome.Shell's bottom and right edges. No parallel-line glyph or
--- standalone button-shaped background. Artwork never eats mouse input.
+-- Short forged L-bracket replaces the busy triangular corner drawing.
+-- Its single copper rivet joins the existing bottom/right shell rim;
+-- the separate transparent hitbox continues to own drag and reset.
 local resizeArt = CreateFrame("Frame", nil, frame)
-resizeArt:SetSize(84, 84)
+resizeArt:SetSize(64, 64)
 resizeArt:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -2, 2)
 resizeArt:SetFrameLevel(frame:GetFrameLevel() + 24)
 resizeArt:EnableMouse(false)
-local CORNER_ART = "Interface\\AddOns\\DuelsReimagined\\Media\\Skin\\DuelSculptedCopperCorner.png"
+local CORNER_ART = "Interface\\AddOns\\DuelsReimagined\\Media\\Skin\\DuelArchitecturalResizeL.png"
 local forgedCorner = resizeArt:CreateTexture(nil, "ARTWORK", nil, 2)
 forgedCorner:SetTexture(CORNER_ART)
 forgedCorner:SetAllPoints(resizeArt)
-forgedCorner:SetAlpha(0.94)
+forgedCorner:SetAlpha(0.98)
 if Chrome then Chrome.Sharp(forgedCorner) end
 local gripGlow = resizeArt:CreateTexture(nil, "OVERLAY", nil, 3)
 gripGlow:SetTexture(CORNER_ART)
@@ -480,6 +480,9 @@ grip:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -2, 2)
 grip:SetFrameLevel(frame:GetFrameLevel() + 45)
 grip:RegisterForClicks("RightButtonUp")
 local function GripFeedback(alpha, duration)
+    -- Restrain the highlight instead of doubling the metal with a full
+    -- additive gold copy during hover/drag.
+    alpha = math.min(alpha, 0.22)
     Motion.Fade(gripGlow, alpha, duration)
 end
 grip.icon = forgedCorner

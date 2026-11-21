@@ -57,15 +57,14 @@ local function Page(contentHeight)
     return content
 end
 
--- The approved concept's COMPLETE category banners are baked in one native
--- PNG atlas, including lettering, icons, copper embossing and right motifs.
--- Unlike the previous icon/motif approximation, no font is substituted and
--- no separate 32px symbols are layered over a generic header plate.
--- The atlas owns graphics only; WoW still owns every setting and mouse target.
--- Two complete 640x80 source-header plates per row in a 2048x256 RGBA atlas.
--- Unlike the obsolete truncated crops, these include the real right corner
--- and the original continuous lower border in every category.
-local BANNER_ART = "Interface\\AddOns\\DuelsReimagined\\Media\\Skin\\DuelOptionsCompleteBanners.png"
+-- Concept-derived title/icons/motifs are preserved as six softly feathered
+-- INLAYS. Their old baked borders are deliberately removed: Style.Plate
+-- owns ONE continuous 9-slice copper rim around each entire settings card.
+-- This prevents the right and bottom edge from getting cropped by the
+-- independently stretched screenshot fragments.
+-- Live settings, hover/click targets, tooltips and text-size controls stay
+-- separate from these ornamental pixels. Two 640x80 cells per atlas row.
+local BANNER_ART = "Interface\\AddOns\\DuelsReimagined\\Media\\Skin\\DuelOptionsBannerInlays.png"
 local BANNER_ATLAS_W, BANNER_ATLAS_H = 2048, 256
 local BANNER_CELL_W, BANNER_CELL_H = 640, 80
 local BANNER_LEFT, BANNER_RIGHT = 438, 160
@@ -85,16 +84,24 @@ local function Card(page, y, height)
     card:SetHeight(height)
     Style.Plate(card, "cardBody", { corner=15 })
 
-    -- Artwork covers the card's full width. The original panel's real
-    -- interactive rows are anchored below it; only chrome is image-backed.
+    -- The banner is inset past the card's existing gold rim. It has NO
+    -- baked strokes: only artwork/title/subtitle/motif can paint here.
     local headingBand = CreateFrame("Frame", nil, card)
-    -- Match the gilded card-body rim, rather than painting over its edges.
-    headingBand:SetPoint("TOPLEFT", card, "TOPLEFT", 4, -4)
-    headingBand:SetPoint("TOPRIGHT", card, "TOPRIGHT", -4, -4)
-    headingBand:SetHeight(52)
+    headingBand:SetPoint("TOPLEFT", card, "TOPLEFT", 12, -6)
+    headingBand:SetPoint("TOPRIGHT", card, "TOPRIGHT", -12, -6)
+    headingBand:SetHeight(50)
     headingBand:EnableMouse(false)
     if headingBand.SetClipsChildren then headingBand:SetClipsChildren(true) end
     card.optionsBand = headingBand
+
+    -- A single native divider links the banner to the real settings body.
+    -- The frame's existing 9-slice alone owns all four outside edges.
+    local divider = Style.Fill(card, C.goldDim, "ARTWORK")
+    divider:ClearAllPoints()
+    divider:SetPoint("TOPLEFT", card, "TOPLEFT", 12, -58)
+    divider:SetPoint("TOPRIGHT", card, "TOPRIGHT", -12, -58)
+    divider:SetHeight(1)
+    divider:SetAlpha(0.60)
     card.scrollOwner, card.scrollTop = page.scrollOwner, y
     return card
 end
@@ -111,10 +118,9 @@ local accessCard = Card(interface, 216, 174)
 local typographyCard = Card(interface, 398, 143)
 local notificationsCard = Card(interface, 549, 100)
 
--- One banner component on BOTH Appearance and Interface. The fixed-width
--- left and right slices preserve real letterforms and ornamental proportions
--- while ONLY the empty center band stretches when cards change width.
--- The 3-slice UVs select exact pixels from the approved screenshots.
+-- One inlay component on BOTH Appearance and Interface. Left text/icon
+-- and right motifs retain their proportions. Only the quiet gap stretches.
+-- The separate card rim is unaffected at compact and large widths.
 local function Section(card, key, title, help, extra)
     local index = assert(bannerIndices[key], "Unknown Duels Options banner")
     local band = card.optionsBand
@@ -380,7 +386,7 @@ MarkPosition(resetAccess, accessCard, -332)
 -- copied, and all Settings/Search/scroll/tooltip owners remain unchanged.
 local CARD_BREAKPOINT = 720
 local CARD_GAP, SECTION_GAP, ROW_GAP = 14, 8, 1
-local BANNER_HEIGHT = 52
+local BANNER_HEIGHT = 50
 local ROW_TOP = 64
 
 local function LayoutPage(page, groups, width)
@@ -414,7 +420,7 @@ local function LayoutPage(page, groups, width)
         card:SetWidth(cardWidth)
         -- At 125-150% text, trade density for fully readable rows.
         if card.optionsBand then
-            card.optionsBand:SetHeight(largeText and 64 or BANNER_HEIGHT)
+            card.optionsBand:SetHeight(BANNER_HEIGHT)
         end
 
         local y = largeText and 78 or ROW_TOP
