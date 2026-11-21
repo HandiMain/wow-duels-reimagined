@@ -1283,3 +1283,38 @@ and Interface, icons, hover/selection, resize extremes, other addons absent,
 Ellesmere enabled, combat, ESC, Enter, Fold/Peek and footer. Automated checks
 do NOT establish a perfect pixel match in the real client. Refine source pieces,
 not screenshot crops, when the player's in-game reference shows differences.
+
+## Exact concept-source extraction — checkpoint (2026-11-21)
+
+The uploaded, approved `consept(2).webp` at 1536 × 1024 is the
+**literal source** for the new `Media/Skin/DuelExactAtlas.png` (512 × 256).
+Unlike earlier hand-drawn approximations, these pixels were extracted from
+the user-approved artwork:
+
+- Hall plaque: actual swords, curved red laurels, HALL wordmark, reflected
+  crimson/gold metal frame. This is one fixed branded art region displayed
+  inside an actual WoW Button. Its title is intentionally *baked* for visual
+  fidelity; the click, hover, tooltip, page selection and Search stay native.
+  Future primary destinations still use independent native labels/icons.
+- Gold and dark category plates: actual selected/unselected concept borders
+  and metal shading; text/icon pixels in the source were removed and rebuilt
+  as a clean backdrop so Appearance/Interface retain real live labels.
+- Appearance card body/header: concept-sampled border and title-band artwork,
+  reconstructed without fake option text. Interactive rows, toggles, choice
+  widgets, descriptions and scrolling are separate and searchable.
+- Small frame corners: source-derived metallic corner art; non-interactive.
+
+All six regions share one 512×256 power-of-two sprite atlas with explicit
+texture coordinates. The 32-color version is deliberately compact and
+quantized; **source-derived is not identical to every source RGB pixel**.
+The original full screenshot is NOT included as an overlay, and no gameplay
+or ESC-menu behavior was changed. The old procedural TGA masks are retained
+as background/fallback while the new visual pass is evaluated in WoW.
+
+**Remaining visual verification:** inspect whether the client accepts the
+palette-indexed PNG atlas, the positions match at 100% Menu Scale, Hall
+branding renders without duplicate words, categories switch their actual
+gold/dark skins, cards keep corners on resize, and everything remains readable
+at increased font size. A source-level/CI pass cannot certify client texture
+loading or pixel accuracy. An approval screenshot is still required.
+

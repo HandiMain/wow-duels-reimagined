@@ -120,14 +120,13 @@ function Chrome.Shell(frame, header, footer, rail, nav)
     Line(seams, rail, "TOPRIGHT", "BOTTOMRIGHT", true, C.shellEdge)
     Line(seams, nav, "BOTTOMLEFT", "BOTTOMRIGHT", false, C.goldDim)
 
-    -- Purpose-drawn gilded corner jewels over a native, scalable frame.
-    -- These are visual textures only; never a child that intercepts clicks.
+    -- Real extracted metal corners from the approved concept, rather than
+    -- flat diamonds or generated gold strokes. Purely decorative textures.
     for _, edge in ipairs({
         {"TOPLEFT", 7, -7}, {"TOPRIGHT", -7, -7},
         {"BOTTOMLEFT", 7, 7}, {"BOTTOMRIGHT", -7, 7},
     }) do
-        local cap = rim:CreateTexture(nil, "OVERLAY", nil, 7)
-        cap:SetTexture(CORNER_ART)
+        local cap = Style.ConceptImage(rim, "corner", "OVERLAY", 7)
         cap:SetSize(31, 31)
         cap:SetPoint(edge[1], rim, edge[1], edge[2], edge[3])
     end

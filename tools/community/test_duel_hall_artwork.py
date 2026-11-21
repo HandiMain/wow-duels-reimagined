@@ -1,6 +1,6 @@
 """Duel Hall fidelity textures: independent, native WoW art assets.
 
-The approved concept is a measuring reference, NOT a screenshot texture.
+The screenshot is now the literal source of the ornamental atlas, not a pasted UI.
 All dynamic labels, controls, hit targets and state owners remain in Lua.
 """
 from pathlib import Path
@@ -75,14 +75,14 @@ class DuelHallArtworkTests(unittest.TestCase):
                       'function group:SetStyle(newKind)',
                       'DuelHallPlaque.tga','DuelGiltTab.tga','DuelDarkTab.tga'):
             self.assertIn(token,style)
-        self.assertIn('Style.Plate(button, "hall", { corner=21 })',nav)
-        self.assertIn('DuelHallLaurel.tga',nav)
+        self.assertIn('Style.ConceptImage(button, "hall", "ARTWORK", 2)',nav)
+        self.assertNotIn('DuelHallLaurel.tga',nav)
         self.assertIn('DuelCategoryIcons.tga',nav)
         self.assertIn('item.plate:SetStyle(active and "gold" or "dark")',nav)
         self.assertNotIn('for i = 1, 7 do',nav)
-        self.assertIn('DuelCornerJewel.tga',chrome)
-        self.assertIn('Style.Plate(card, "dark", { corner=11 })',options)
-        self.assertIn('Style.Plate(headingBand, "dark"',options)
+        self.assertIn('Style.ConceptImage(rim, "corner"',chrome)
+        self.assertIn('Style.Plate(card, "cardBody", { corner=15 })',options)
+        self.assertIn('Style.Plate(headingBand, "cardHeading"',options)
         self.assertIn('Style.Plate(b, name == "Close" and "hall" or "dark"',header)
 
     def test_existing_state_and_input_owners_preserved(self):

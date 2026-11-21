@@ -29,8 +29,8 @@ class VisualFidelityTests(unittest.TestCase):
         n = lua("UI/Navigation.lua")
         self.assertIn('local HALL_BUTTON_WIDTH = 205', n)
         self.assertIn('button:SetSize(HALL_BUTTON_WIDTH, 84)', n)
-        self.assertIn('Style.Plate(button, "hall", { corner=21 })', n)
-        self.assertIn('DuelHallLaurel.tga', n)
+        self.assertIn('Style.ConceptImage(button, "hall", "ARTWORK", 2)', n)
+        self.assertNotIn('DuelHallLaurel.tga', n)
         self.assertIn('railDivider:SetPoint("TOP", primaryButtons[#primaryButtons].button', n)
         self.assertIn('Window.rail:SetScript("OnSizeChanged", FitTabs)', n)
         self.assertIn('button:SetSize(104, 30)', n)
@@ -45,7 +45,7 @@ class VisualFidelityTests(unittest.TestCase):
         self.assertIn('entry.role == "display" and "Fonts\\\\MORPHEUS.TTF"', style)
         self.assertIn('local heading = Style.Text(header, title, 22, C.pale, nil, "display")', options)
         self.assertIn('function Style.ForgedEdge(parent, opts)', style)
-        self.assertIn('Style.Plate(card, "dark", { corner=11 })', options)
+        self.assertIn('Style.Plate(card, "cardBody", { corner=15 })', options)
         self.assertIn('local headingBand = CreateFrame("Frame", nil, card)', options)
 
     def test_compact_options_reflow_and_explicit_font_matching(self):

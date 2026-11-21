@@ -262,12 +262,37 @@ end
 -- Purpose-built texture atlas pieces, authored independently from the
 -- approved screenshot. Each surface is a 9-slice so corners keep their
 -- sculpted depth at different window sizes; buttons and labels stay native.
+-- Concept-derived artwork supplied by the project owner (2026-11-21).
+-- Sprite boundaries refer to the actual approved screenshot extraction, not
+-- imagined brush strokes. The native Lua state and controls still own input.
 local PLATE_ROOT = "Interface\\AddOns\\DuelsReimagined\\Media\\Skin\\"
+local CONCEPT_ATLAS = PLATE_ROOT .. "DuelExactAtlas.png"
 local PLATES = {
+    -- Procedural hall is kept ONLY for generic red controls (Close, header X).
+    -- The primary Hall destination has its own literal concept-image region.
     hall = { path=PLATE_ROOT .. "DuelHallPlaque.tga", w=256, h=128, cutX=30, cutY=28 },
-    gold = { path=PLATE_ROOT .. "DuelGiltTab.tga", w=256, h=64, cutX=24, cutY=16 },
-    dark = { path=PLATE_ROOT .. "DuelDarkTab.tga", w=256, h=64, cutX=24, cutY=16 },
+    gold = { path=CONCEPT_ATLAS, w=256, h=64, cutX=24, cutY=16,
+        atlasX=256, atlasY=0, atlasW=512, atlasH=256 },
+    dark = { path=CONCEPT_ATLAS, w=256, h=64, cutX=24, cutY=16,
+        atlasX=256, atlasY=64, atlasW=512, atlasH=256 },
+    cardBody = { path=CONCEPT_ATLAS, w=256, h=128, cutX=20, cutY=18,
+        atlasX=0, atlasY=128, atlasW=512, atlasH=256 },
+    cardHeading = { path=CONCEPT_ATLAS, w=256, h=64, cutX=22, cutY=12,
+        atlasX=256, atlasY=128, atlasW=512, atlasH=256 },
 }
+local CONCEPT_REGIONS = {
+    hall = { 0, 0.5, 0, 0.5 },
+    corner = { 0.5, 0.625, 0.75, 1 },
+}
+function Style.ConceptImage(parent, region, layer, sublevel)
+    local coords = assert(CONCEPT_REGIONS[region],
+        "Unknown extracted concept region: " .. tostring(region))
+    local tex = parent:CreateTexture(nil, layer or "ARTWORK", nil, sublevel or 1)
+    tex:SetTexture(CONCEPT_ATLAS)
+    tex:SetTexCoord(unpack(coords))
+    return tex
+end
+
 function Style.Plate(parent, kind, opts)
     opts = opts or {}
     local data = assert(PLATES[kind], "Unknown Duel Hall plate: " .. tostring(kind))
@@ -277,7 +302,10 @@ function Style.Plate(parent, kind, opts)
     local function Coord(spec, x, y)
         local xs = { 0, spec.cutX, spec.w-spec.cutX, spec.w }
         local ys = { 0, spec.cutY, spec.h-spec.cutY, spec.h }
-        return xs[x]/spec.w, xs[x+1]/spec.w, ys[y]/spec.h, ys[y+1]/spec.h
+        local u, v = spec.atlasX or 0, spec.atlasY or 0
+        local aw, ah = spec.atlasW or spec.w, spec.atlasH or spec.h
+        return (u+xs[x])/aw, (u+xs[x+1])/aw,
+            (v+ys[y])/ah, (v+ys[y+1])/ah
     end
     for y = 1, 3 do
         for x = 1, 3 do

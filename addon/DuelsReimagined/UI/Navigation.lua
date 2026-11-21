@@ -242,27 +242,17 @@ for index, section in ipairs(sections) do
         previousUtilityButton = button
     end
 
-    -- Even when Hall is not selected its raised outline reads as a button.
-    -- It uses the existing shared tintable premium masks; hover and selected
-    -- layers remain independent and retain their current animations.
+    -- Unlike the discarded procedurally painted plaque, this image is
+    -- extracted from the actual approved concept. The button frame remains
+    -- responsible for mouse, selection, tooltip and navigation behavior.
     if isPrimary then
         Style.Skin(button, C.button, {
-            corner=9, edge=C.gold, shine=0.57, shade=0.43, rim=0.98,
+            corner=9, edge=C.goldDim, shine=0.12, shade=0.18, rim=0.65,
         })
-        Style.ForgedEdge(button, { inset=5, alpha=0.76 })
-        -- Original guild-hall styled bitmap, nine-sliced beneath actual
-        -- interactive controls. No screenshots or baked text.
-        Style.Plate(button, "hall", { corner=21 })
-        local leaves = "Interface\\AddOns\\DuelsReimagined\\Media\\Skin\\DuelHallLaurel.tga"
-        local laurelL = button:CreateTexture(nil, "ARTWORK", nil, 1)
-        laurelL:SetTexture(leaves)
-        laurelL:SetSize(58, 70)
-        laurelL:SetPoint("CENTER", button, "CENTER", -61, -1)
-        local laurelR = button:CreateTexture(nil, "ARTWORK", nil, 1)
-        laurelR:SetTexture(leaves)
-        laurelR:SetSize(58, 70)
-        laurelR:SetTexCoord(1, 0, 0, 1)
-        laurelR:SetPoint("CENTER", button, "CENTER", 61, -1)
+        if section.key == "hall" then
+            local concept = Style.ConceptImage(button, "hall", "ARTWORK", 2)
+            concept:SetAllPoints(button)
+        end
     else
         Style.Skin(button, C.nav, {
             corner=7, edge=C.goldDim, shine=0.18, shade=0.20, rim=0.86,
@@ -276,6 +266,7 @@ for index, section in ipairs(sections) do
         bar:SetPoint("BOTTOMLEFT", button, "BOTTOMLEFT", 3, 0)
         bar:SetPoint("BOTTOMRIGHT", button, "BOTTOMRIGHT", -3, 0)
         bar:SetHeight(3)
+        bar:SetAlpha(0)  -- gold rim already exists in the actual image
     else
         bar:SetPoint("TOPLEFT", button, "TOPLEFT", 1, -12)
         bar:SetPoint("BOTTOMLEFT", button, "BOTTOMLEFT", 1, 12)
@@ -294,8 +285,12 @@ for index, section in ipairs(sections) do
         icon:SetPoint("TOP", button, "TOP", 0, -4)
         label:SetPoint("BOTTOM", button, "BOTTOM", 0, 6)
         label:SetJustifyH("CENTER")
-        label:SetShadowColor(0, 0, 0, 0.95)
-        label:SetShadowOffset(1, -1)
+        -- Static Hall lettering and swords are faithful concept pixels.
+        -- Never draw an extra WoW fontstring/glyph over the extracted design.
+        if section.key == "hall" then
+            icon:Hide()
+            label:Hide()
+        end
     else
         icon:SetPoint("LEFT", button, "LEFT", 9, 0)
         label:SetPoint("LEFT", icon, "RIGHT", 6, 0)
@@ -333,7 +328,7 @@ for index, section in ipairs(sections) do
 
     button:SetScript("OnClick", function() Select(index, 1) end)
     button:SetScript("OnEnter", function()
-        if currentSection ~= index then Motion.Fade(hover, 0.58, 0.17) end
+        if currentSection ~= index then Motion.Fade(hover, isPrimary and 0.20 or 0.58, 0.17) end
     end)
     button:SetScript("OnLeave", function() Motion.Fade(hover, 0, 0.21) end)
     ns.Widgets.PressFeedback(button, hover)
