@@ -57,14 +57,13 @@ local function Page(contentHeight)
     return content
 end
 
--- Concept-derived title/icons/motifs are preserved as six softly feathered
--- INLAYS. Their old baked borders are deliberately removed: Style.Plate
--- owns ONE continuous 9-slice copper rim around each entire settings card.
--- This prevents the right and bottom edge from getting cropped by the
--- independently stretched screenshot fragments.
--- Live settings, hover/click targets, tooltips and text-size controls stay
--- separate from these ornamental pixels. Two 640x80 cells per atlas row.
-local BANNER_ART = "Interface\\AddOns\\DuelsReimagined\\Media\\Skin\\DuelOptionsBannerInlays.png"
+-- Transparent concept-derived icons, titles, subtitles and motifs retain
+-- their native shapes. Their rectangular background is discarded. A single
+-- independent diffuse ambient texture fades into the live card body, and
+-- Style.Plate remains the ONLY outer copper border owner. No stretched
+-- center slice or extra clickable settings layer is introduced.
+local BANNER_ART = "Interface\\AddOns\\DuelsReimagined\\Media\\Skin\\DuelOptionsSoftArt.png"
+local BANNER_AMBIENT = "Interface\\AddOns\\DuelsReimagined\\Media\\Skin\\DuelBannerAmbient.png"
 local BANNER_ATLAS_W, BANNER_ATLAS_H = 2048, 256
 local BANNER_CELL_W, BANNER_CELL_H = 640, 80
 local BANNER_LEFT, BANNER_RIGHT = 438, 160
@@ -118,15 +117,22 @@ local accessCard = Card(interface, 216, 174)
 local typographyCard = Card(interface, 398, 143)
 local notificationsCard = Card(interface, 549, 100)
 
--- One inlay component on BOTH Appearance and Interface. Left text/icon
--- and right motifs retain their proportions. Only the quiet gap stretches.
--- The separate card rim is unaffected at compact and large widths.
+-- Same art renderer on BOTH Appearance and Interface. The title and motif
+-- never stretch across the empty middle. Only a neutral ambient wash
+-- adapts to the card's width, with no hard right/bottom texture cutoff.
 local function Section(card, key, title, help, extra)
     local index = assert(bannerIndices[key], "Unknown Duels Options banner")
     local band = card.optionsBand
     local header = CreateFrame("Frame", nil, band)
     header:SetAllPoints(band)
     header:EnableMouse(true)
+
+    -- Native diffuse gradient can scale freely without distorting the
+    -- concept's lettering or icons. Its alpha vanishes into the card body.
+    local wash = header:CreateTexture(nil, "ARTWORK", nil, 1)
+    wash:SetTexture(BANNER_AMBIENT)
+    wash:SetAllPoints(header)
+    if ns.Chrome and ns.Chrome.Sharp then ns.Chrome.Sharp(wash) end
 
     local spriteX = (index % 2) * BANNER_CELL_W
     local spriteY = math.floor(index / 2) * BANNER_CELL_H
@@ -141,24 +147,22 @@ local function Section(card, key, title, help, extra)
         if ns.Chrome and ns.Chrome.Sharp then ns.Chrome.Sharp(piece) end
         return piece
     end
-    -- Both engraved corners stay in the non-stretched exterior slices.
-    -- Only the quiet background interval between lettering and motifs expands.
+    -- Two independent textures for sharp artwork at any card width.
+    -- There is no center strip to magnify or truncate the approved design.
     local left = Slice(0, BANNER_LEFT)
-    local center = Slice(BANNER_LEFT, BANNER_CELL_W - BANNER_RIGHT)
     local right = Slice(BANNER_CELL_W - BANNER_RIGHT, BANNER_CELL_W)
     left:SetPoint("TOPLEFT", header, "TOPLEFT")
-    left:SetPoint("BOTTOMLEFT", header, "BOTTOMLEFT")
     right:SetPoint("TOPRIGHT", header, "TOPRIGHT")
-    right:SetPoint("BOTTOMRIGHT", header, "BOTTOMRIGHT")
-    center:SetPoint("TOPLEFT", left, "TOPRIGHT")
-    center:SetPoint("BOTTOMRIGHT", right, "BOTTOMLEFT")
 
     local function FitSlices(self)
-        local width, height = math.max(1, self:GetWidth()), math.max(1, self:GetHeight())
-        local fixed = BANNER_LEFT + BANNER_RIGHT
-        local scale = math.min(height / BANNER_CELL_H, (width - 2) / fixed)
-        left:SetWidth(math.max(1, BANNER_LEFT * scale))
-        right:SetWidth(math.max(1, BANNER_RIGHT * scale))
+        local width = math.max(1, self:GetWidth())
+        local height = math.max(1, self:GetHeight())
+        local scale = math.min(height / BANNER_CELL_H,
+            math.max(0.01, (width - 8) / (BANNER_LEFT + BANNER_RIGHT)))
+        left:SetSize(math.max(1, BANNER_LEFT * scale),
+            math.max(1, BANNER_CELL_H * scale))
+        right:SetSize(math.max(1, BANNER_RIGHT * scale),
+            math.max(1, BANNER_CELL_H * scale))
     end
     header:SetScript("OnSizeChanged", FitSlices)
     FitSlices(header)

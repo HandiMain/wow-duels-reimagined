@@ -1409,3 +1409,9 @@ does not stretch the copper corners. Test with and without EllesmereUI.
 - Replace ornate, tiny medallion tabs with two **simple readable gold glyphs** in `DuelMinimalGoldTabs.tga`: four-point sparkle for Appearance and bold window for Interface. Both remain live selected/hover/click buttons.
 - Replace the triangular multi-line grip with a compact 64x64 transparent forged L-plate and one rivet in `DuelArchitecturalResizeL.png`; it shares the existing rim and single resize owner. Leave 38x38 interactive hotspot and right-click Reset semantics unchanged. Clamp additive hover glow to 0.22 to avoid visually doubling the art.
 - Scope limited to Options visual art, tab symbols and resize-corner ornament. No gameplay, persistence, search, controls or top-level shell changes. **In-game visual inspection required** at normal/compact width and 100/150% text. Automated checks are static + Lua tests only.
+
+## Soft category artwork and filled corner — 2026-11-21
+
+- Approved visual correction: The six Options headers retain their concept-derived lettering/icons/motifs, but artwork backgrounds are now transparent and softened rather than baked into rectangular bars. `DuelOptionsSoftArt.png` is alpha-only foreground and `DuelBannerAmbient.png` is one scalable diffuse bronze wash. The title and right motif use independent texture slices, without a horizontally stretched center strip. `Style.Plate(card,"cardBody")` remains the only four-sided copper frame.
+- Resize ornament is now a solid, beveled copper triangle with one rivet in `DuelFilledTriangleCorner.png`, retaining original 64x64 visual frame and 38x38 live drag/right-click area; hover glow ceiling 0.18. Appearance/Interface tab icons and interactions stay unchanged.
+- In-game visual verification required; automated tests are structural and asset checks, not pixel proof.
