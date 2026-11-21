@@ -49,8 +49,8 @@ class WindowPolishWorkspaceTests(unittest.TestCase):
 
     def test_compact_back_is_in_footer_with_real_close_anchor(self):
         nav, win = read("UI/Navigation.lua"), read("UI/Window.lua")
-        self.assertIn('Style.Action(Window.content, "Back", "footer")', nav)
-        self.assertIn('backButton:SetSize(66, 26)', nav)
+        self.assertIn('Style.Action(Window.content, "Back", "footer", {', nav)
+        self.assertIn('backButton:SetSize(60, 24)', nav)
         self.assertIn('backButton:SetPoint("TOPRIGHT", Window.content, "TOPRIGHT", -24, -25)', nav)
         self.assertIn('ns.Tooltips.Bind(backButton', nav)
         self.assertNotIn('Style.Action(Window.rail, "Back")', nav)
@@ -143,7 +143,7 @@ class WindowPolishWorkspaceTests(unittest.TestCase):
         self.assertNotIn('SkinDecor', toc)
         self.assertIn('if key == "uiTheme" then return "duelhall" end', settings)
         self.assertIn('CreateFrame("Button", "DuelsReimaginedMinimapButton", UIParent)', access)
-        self.assertIn('local HALL_BUTTON_WIDTH = 195', read("UI/Navigation.lua"))
+        self.assertIn('local HALL_BUTTON_WIDTH = 205', read("UI/Navigation.lua"))
         self.assertIn('UI\\Motion.lua', toc)
         self.assertIn('UI\\Feedback.lua', toc)
         self.assertNotIn('PlaySound(', window)

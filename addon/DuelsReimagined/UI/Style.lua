@@ -18,13 +18,13 @@ end
 -- Reference: approved in-game concept (2026-11-21), not legacy preview skins.
 local schemes = {
     duelhall = {
-        gold="D6A64E", goldDim="8E6B3C", red="AA1818",
+        gold="E5B460", goldDim="A17A47", red="BE2820",
         pale="F0D59A", text="EEE7DE", muted="B7ADA2",
         window="171615", rail="141313", nav="1B1918",
         body="141312", header="100F0E", footer="100F0E",
-        selected="6E460C", hover="39271B", button="821612",
-        shellEdge="B18A50", border="59432C",
-        tabActive="76500D", tabText="FFE4A6", tabMuted="D7C8B2",
+        selected="543412", hover="39251C", button="65130F",
+        shellEdge="BD9558", border="6C5035",
+        tabActive="704A13", tabText="FFE9B9", tabMuted="D9CBB7",
         headerText="F2E9DA", headerMuted="BDB2A3",
         footerText="EFE4D4", footerMuted="ACA197",
         buttonText="FFF0C3", track="5F5150",
@@ -64,11 +64,11 @@ local function RegisterTexture(region, color, mode)
     end
 end
 
-local function RegisterFont(label, size, color, outline)
+local function RegisterFont(label, size, color, outline, role)
     local token
     for name, value in pairs(C) do if value == color then token = name; break end end
     fontStrings[#fontStrings+1] = {
-        label=label, token=token, size=size, outline=outline,
+        label=label, token=token, size=size, outline=outline, role=role,
     }
 end
 
@@ -193,6 +193,44 @@ end
 -- surfaces, Options cards, Community cards and Patch Notes panels.
 -- It also exposes the standard GetAlpha/SetAlpha contract used by Motion,
 -- preserving existing hover, pressed and selected-state animations.
+-- Restrained second metal lip: pixel-width bevel lines, all theme-bound.
+-- Unlike a stretched bitmap these anchors follow resizing and UI scale.
+function Style.ForgedEdge(parent, opts)
+    opts = opts or {}
+    local inset = opts.inset or 3
+    local amount = opts.alpha or 0.72
+    local function Edge(color, alpha, points, vertical)
+        local tex = Style.Fill(parent, color, "ARTWORK")
+        tex:ClearAllPoints()
+        for _, point in ipairs(points) do
+            tex:SetPoint(unpack(point))
+        end
+        if vertical then
+            tex:SetWidth(Style.Pixel(parent, 1))
+        else
+            tex:SetHeight(Style.Pixel(parent, 1))
+        end
+        tex:SetAlpha(alpha)
+        return tex
+    end
+    Edge(opts.light or C.gold, amount, {
+        {"TOPLEFT",parent,"TOPLEFT",inset,-inset},
+        {"TOPRIGHT",parent,"TOPRIGHT",-inset,-inset}
+    }, false)
+    Edge(opts.dark or C.goldDim, amount*0.75, {
+        {"BOTTOMLEFT",parent,"BOTTOMLEFT",inset,inset},
+        {"BOTTOMRIGHT",parent,"BOTTOMRIGHT",-inset,inset}
+    }, false)
+    Edge(opts.dark or C.goldDim, amount*0.60, {
+        {"TOPLEFT",parent,"TOPLEFT",inset,-inset},
+        {"BOTTOMLEFT",parent,"BOTTOMLEFT",inset,inset}
+    }, true)
+    Edge(opts.light or C.gold, amount*0.36, {
+        {"TOPRIGHT",parent,"TOPRIGHT",-inset,-inset},
+        {"BOTTOMRIGHT",parent,"BOTTOMRIGHT",-inset,inset}
+    }, true)
+end
+
 function Style.Skin(parent, fill, opts)
     opts = opts or {}
     local corner, inset = opts.corner or 11, opts.inset or 0
@@ -255,16 +293,20 @@ function Style.BindFont(region, size, outline, color)
     RegisterFont(region, size or 13, color or C.text, outline)
 end
 
-function Style.Text(parent, value, size, color, outline)
+function Style.Text(parent, value, size, color, outline, role)
     local label = parent:CreateFontString(nil, "OVERLAY")
-    label:SetFont(STANDARD_TEXT_FONT or "Fonts\\FRIZQT__.TTF",
-        size or 14, outline and "OUTLINE" or "")
+    local defaultPath = role == "display" and "Fonts\\MORPHEUS.TTF" or
+        (STANDARD_TEXT_FONT or "Fonts\\FRIZQT__.TTF")
+    if not label:SetFont(defaultPath, size or 14, outline and "OUTLINE" or "") then
+        label:SetFont(STANDARD_TEXT_FONT or "Fonts\\FRIZQT__.TTF",
+            size or 14, outline and "OUTLINE" or "")
+    end
     local c = color or C.text
     label:SetTextColor(unpack(c))
     label:SetJustifyH("LEFT")
     label:SetJustifyV("MIDDLE")
     label:SetText(value or "")
-    RegisterFont(label, size or 14, c, outline)
+    RegisterFont(label, size or 14, c, outline, role)
     return label
 end
 
@@ -293,8 +335,9 @@ function Style.Action(parent, caption, variant, palette)
         })
     else
         Style.Skin(button, C.button, {
-            corner=11, edge=C.gold, shine=0.60, shade=0.41, rim=0.92,
+            corner=footer and 7 or 9, edge=C.gold, shine=0.52, shade=0.42, rim=0.97,
         })
+        Style.ForgedEdge(button, { inset=3, alpha=0.52 })
         hover = Style.Skin(button, C.gold, {
             corner=11, edge=C.headerText, shine=0.36, shade=0.17, rim=0.74,
             alpha=0,
@@ -409,7 +452,9 @@ function Style.ApplyTheme(accent, panel, fontPath)
     local mode = ns.Settings and ns.Settings.Get("fontOutline") or "default"
     for _, entry in ipairs(fontStrings) do
         local fs = entry.label
-        local path = fontPath or STANDARD_TEXT_FONT or "Fonts\\FRIZQT__.TTF"
+        local path = fontPath or
+            (entry.role == "display" and "Fonts\\MORPHEUS.TTF") or
+            STANDARD_TEXT_FONT or "Fonts\\FRIZQT__.TTF"
         local size = entry.size * scale
         local outline = entry.outline and "OUTLINE" or ""
         if mode == "none" then outline = ""

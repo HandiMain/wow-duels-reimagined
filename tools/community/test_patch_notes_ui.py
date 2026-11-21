@@ -48,13 +48,13 @@ class PatchNotesUITests(unittest.TestCase):
 
     def test_shared_owners_and_font_consistency(self):
         nav, page = load("UI/Navigation.lua"), load("UI/PatchNotes.lua")
-        self.assertIn('label:SetText("PATCH\\nNOTES")', nav)
+        self.assertIn('label:SetText("Patch Notes")', nav)
         self.assertNotIn('PatchNotesAtlas.tga', nav)
         self.assertIn('local icon = Chrome.Icon(button, section.icon)', nav)
         self.assertNotIn('local parchment = Style.Fill(icon, C.goldDim, "ARTWORK")', nav)
         self.assertIn('PatchNotes = { 0,   0.5, 0.5, 1 }', load("UI/Chrome.lua"))
-        self.assertIn("Style.Text(button, string.upper(section.label),", nav)
-        self.assertIn("isPrimary and 18 or 12, C.tabMuted)", nav)
+        self.assertIn("Style.Text(button, isPrimary and "HALL" or section.label,", nav)
+        self.assertIn("isPrimary and 23 or 12, C.tabMuted, nil,", nav)
         self.assertIn("Style.Text(root,", page)
         self.assertIn("Widgets.ScrollBar(scroll,", page)
         self.assertIn("Motion.Fade(canvas,", page)

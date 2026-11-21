@@ -41,10 +41,10 @@ class NavigationIconAtlasTests(unittest.TestCase):
         nav = source("UI/Navigation.lua")
         for token in (
             "button:SetSize(HALL_BUTTON_WIDTH, 84)",
-            "local HALL_BUTTON_WIDTH = 195",
+            "local HALL_BUTTON_WIDTH = 205",
             "button:SetSize(104, 30)",
             "icon:SetSize(isPrimary and 48 or 20",
-            'icon:SetPoint("TOP", button, "TOP", 0, -5)',
+            'icon:SetPoint("TOP", button, "TOP", 0, -4)',
             'label:SetPoint("BOTTOM", button, "BOTTOM", 0, 6)',
             'label:SetPoint("LEFT", icon, "RIGHT", 6, 0)',
             "local function FitTabs(self, width)",

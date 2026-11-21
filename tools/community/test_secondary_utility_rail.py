@@ -12,7 +12,7 @@ class UtilityRailTests(unittest.TestCase):
             'local primaryKeys = { hall = true }',
             'local railButtons, primaryButtons, subButtons = {}, {}, {}',
             'local parent = isPrimary and Window.rail or Window.utility',
-            'local HALL_BUTTON_WIDTH = 195',
+            'local HALL_BUTTON_WIDTH = 205',
             'button:SetSize(HALL_BUTTON_WIDTH, 84)',
             'button:SetSize(104, 30)',
             '(utilityIndex - 1) * 112',

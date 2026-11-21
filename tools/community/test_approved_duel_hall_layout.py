@@ -41,7 +41,7 @@ class ApprovedDuelHallLayoutTests(unittest.TestCase):
 
     def test_appearance_full_width_interface_dense_fallback(self):
         o = read("UI/Options.lua")
-        for text in ('local CARD_BREAKPOINT = 760',
+        for text in ('local CARD_BREAKPOINT = 720',
                      'local twoCards = #groups > 1 and',
                      'width >= (largeText and 1080 or CARD_BREAKPOINT)',
                      'scroll:SetPoint("TOPLEFT", Window.content, "TOPLEFT", 26, -153)',
@@ -63,7 +63,7 @@ class ApprovedDuelHallLayoutTests(unittest.TestCase):
         self.assertIn('if key == "uiTheme" then return "duelhall" end', settings)
         self.assertIn('db.uiTheme = Settings.Get("uiTheme")', settings)
         self.assertIn('if key == "matchColors" then return false end', settings)
-        self.assertIn('if key == "matchFont" then return EllesmereReady() end', settings)
+        self.assertIn('if key == "matchColors" or key == "matchFont" then return false end', settings)
         self.assertIn('function Theme.IsAvailable()', theme)
         self.assertIn('Style.ApplyTheme(accent, panel, font)', theme)
 

@@ -14,14 +14,19 @@ local alphaWhilePeeking = 0.16
 
 local function HeaderButton(name, title, detail)
     local b = CreateFrame("Button", nil, header)
-    b:SetSize(24, 24)
+    b:SetSize(name == "Close" and 34 or 29, name == "Close" and 34 or 29)
     b:RegisterForClicks("LeftButtonUp")
+    -- Dark forged controls at rest; the close X gets its crimson plate.
+    Style.Skin(b, name == "Close" and C.button or C.nav, {
+        corner=6, edge=C.goldDim, shine=0.24, shade=0.24, rim=0.92,
+    })
+    Style.ForgedEdge(b, { inset=3, alpha=0.48 })
     local hover = Style.Skin(b, C.goldDim, {
-        corner=9, edge=C.goldDim, shine=0.18, shade=0.25, alpha=0,
+        corner=6, edge=C.gold, shine=0.26, shade=0.19, alpha=0,
     })
     local art = b:CreateTexture(nil, "ARTWORK")
     art:SetTexture(iconBase .. name .. ".png")
-    art:SetSize(19, 19)
+    art:SetSize(name == "Close" and 23 or 19, name == "Close" and 23 or 19)
     art:SetPoint("CENTER")
     ns.Chrome.Sharp(art)
     b.art, b.hover = art, hover

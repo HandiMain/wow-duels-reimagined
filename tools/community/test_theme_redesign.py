@@ -19,7 +19,7 @@ class ThemeRedesignTests(unittest.TestCase):
             'local pageIcon = Chrome.Icon(content, "Options")',
         ):
             self.assertIn(token, w)
-        self.assertIn('local HALL_BUTTON_WIDTH = 195', n)
+        self.assertIn('local HALL_BUTTON_WIDTH = 205', n)
         self.assertIn('button:SetSize(HALL_BUTTON_WIDTH, 84)', n)
         self.assertIn('button:SetSize(104, 30)', n)
         self.assertIn('sub:SetSize(174, 35)', n)

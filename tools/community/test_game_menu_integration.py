@@ -187,8 +187,8 @@ class DuelsEscapeMenuTests(unittest.TestCase):
                           'brandLogo.CreateMaskTexture'):
             self.assertNotIn(forbidden, win)
         self.assertIn('Drag(brandLogo)', win)
-        self.assertIn('BrandLayer(C.gold,       0,    0.25, -4)', win)
-        self.assertIn('BrandLayer(C.headerText, 0.25, 0.50, -4)', win)
+        self.assertIn('BrandLayer(C.red,        0,    0.25)', win)
+        self.assertIn('BrandLayer(C.headerText, 0.25, 0.50)', win)
         self.assertIn('function Window.PlaceBrandBefore(searchBox)', win)
 
 if __name__ == "__main__":

@@ -1214,3 +1214,36 @@ combat restrictions, menu scaling, tooltip layering, and optional EllesmereUI
 states in the actual WoW client. Static contract tests do not prove visual
 pixel-exactness or live WoW behavior.
 
+## Approved Duel Hall — screenshot fidelity pass (2026-11-21)
+
+**State:** IMPLEMENTED/UNTESTED pending in-game acceptance. The reference is
+the approved 1536x1024 concept and the 1119x700 user-provided in-game capture.
+The earlier build landed the main frame geometry but underrepresented the
+reference's native Warcraft styling. This focused pass changes presentation,
+not the navigation model, gameplay, networking, storage schema or ESC menu.
+
+- Header Peek/Fold/Close receive real metallic button frames; Close uses the
+  crimson action skin. The wordmark tagline receives separate tiny gold rules.
+- Hall remains the prominent left gameplay destination. Its actual button
+  receives two native painted edge lines, a restrained red sheen, original
+  code-drawn laurel leaves and a divider anchored beneath the **last**
+  gameplay button (safe when more primary pages arrive).
+- Content cards receive a slim bronze heading band and stronger border.
+  Appearance's palette tab is painted in ARTWORK rather than behind the tab.
+- The shared text owner now supports a *display* role using Blizzard's own
+  Morpheus font for major headings, falling back safely. Optional manually
+  chosen or EllesmereUI-matched fonts still win when explicitly configured.
+- A fresh install starts with both third-party color and font matching OFF so
+  the actual approved house appearance is visible. Existing explicitly saved
+  user choices are not overwritten.
+- Interface card grouping may use two columns in ordinary desktop widths
+  (720px content breakpoint); large fonts keep a single-column fallback.
+- No concept screenshot is included as an asset or composited onto the UI.
+  All visual pieces remain ordinary WoW textures, frames, font strings,
+  interactions and reusable theme tokens.
+
+**Evidence:** source-level and UI-ownership/static tests can verify the
+invariants, but only the player can verify line thickness, actual font shape,
+texture readability, tab/menu collisions, popup layering, mouse focus,
+combat behavior, scaling and ESC-menu compatibility in WoW. Screenshots of
+Appearance and Interface at the same Menu Scale are required for comparison.

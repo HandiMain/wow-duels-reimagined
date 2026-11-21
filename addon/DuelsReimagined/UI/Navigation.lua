@@ -206,7 +206,7 @@ end
 
 local function AddOverlay(button, primary)
     -- Both types use the same tintable premium masks and Motion engine.
-    local selected = Style.Skin(button, C.tabActive, {
+    local selected = Style.Skin(button, primary and C.button or C.tabActive, {
         corner=primary and 11 or 9,
         edge=primary and C.gold or C.goldDim,
         shine=primary and 0.58 or 0.30,
@@ -221,7 +221,7 @@ end
 
 -- Keep the gameplay tab compact; primary tabs can still shrink if the
 -- available width becomes constrained.
-local HALL_BUTTON_WIDTH = 195
+local HALL_BUTTON_WIDTH = 205
 local utilityIndex, previousUtilityButton = 0, nil
 for index, section in ipairs(sections) do
     local isPrimary = primaryKeys[section.key] == true
@@ -246,12 +246,38 @@ for index, section in ipairs(sections) do
     -- layers remain independent and retain their current animations.
     if isPrimary then
         Style.Skin(button, C.button, {
-            corner=9, edge=C.gold, shine=0.46, shade=0.34, rim=0.95,
+            corner=9, edge=C.gold, shine=0.57, shade=0.43, rim=0.98,
         })
+        Style.ForgedEdge(button, { inset=5, alpha=0.76 })
+        -- Ember reflected off the top of a forged challenge plaque.
+        for i = 1, 3 do
+            local glow = Style.Fill(button, C.red, "ARTWORK")
+            glow:ClearAllPoints()
+            glow:SetPoint("TOPLEFT", button, "TOPLEFT", 13, -7 - (i - 1) * 4)
+            glow:SetPoint("TOPRIGHT", button, "TOPRIGHT", -13, -7 - (i - 1) * 4)
+            glow:SetHeight(4)
+            glow:SetAlpha(0.18 / i)
+        end
+        -- A quiet pair of original, code-drawn laurels around the swords.
+        -- Their pieces are tintable native textures, not cropped concept art.
+        for _, side in ipairs({-1, 1}) do
+            for i = 1, 7 do
+                local leaf = Style.Fill(button, C.red, "ARTWORK")
+                leaf:ClearAllPoints()
+                leaf:SetSize(4, 9)
+                leaf:SetPoint("CENTER", button, "CENTER",
+                    side * (57 + math.abs(i - 4) * 2), 12 + (i - 4) * 6)
+                leaf:SetAlpha(0.64)
+                if leaf.SetRotation then
+                    leaf:SetRotation(side * (0.38 + (i - 4) * 0.10))
+                end
+            end
+        end
     else
         Style.Skin(button, C.nav, {
-            corner=7, edge=C.goldDim, shine=0.13, shade=0.15, rim=0.80,
+            corner=7, edge=C.goldDim, shine=0.18, shade=0.20, rim=0.86,
         })
+        Style.ForgedEdge(button, { inset=3, alpha=0.32 })
     end
     local selected, hover = AddOverlay(button, isPrimary)
     local bar = button:CreateTexture(nil, "OVERLAY")
@@ -272,9 +298,10 @@ for index, section in ipairs(sections) do
     local icon = Chrome.Icon(button, section.icon)
     icon:SetSize(isPrimary and 48 or 20, isPrimary and 48 or 20)
     local label = Style.Text(button, isPrimary and "HALL" or section.label,
-        isPrimary and 21 or 12, C.tabMuted)
+        isPrimary and 23 or 12, C.tabMuted, nil,
+        isPrimary and "display" or nil)
     if isPrimary then
-        icon:SetPoint("TOP", button, "TOP", 0, -5)
+        icon:SetPoint("TOP", button, "TOP", 0, -4)
         label:SetPoint("BOTTOM", button, "BOTTOM", 0, 6)
         label:SetJustifyH("CENTER")
     else
@@ -323,7 +350,7 @@ for index, section in ipairs(sections) do
 
     local item = {
         button = button, primary = isPrimary,
-        activeAlpha = isPrimary and 0.94 or 0.56,
+        activeAlpha = isPrimary and 0.88 or 0.35,
         selected = selected, hover = hover, bar = bar, icon = icon, label = label,
     }
     railButtons[index] = item
@@ -335,8 +362,9 @@ for index, section in ipairs(sections) do
         sub:SetSize(174, 35)
         sub:SetPoint("LEFT", Window.nav, "LEFT", 6 + (pageIndex - 1) * 182, 0)
         Style.Skin(sub, C.nav, {
-            corner=6, edge=C.goldDim, shine=0.12, shade=0.16, rim=0.70,
+            corner=6, edge=C.goldDim, shine=0.19, shade=0.21, rim=0.89,
         })
+        Style.ForgedEdge(sub, { inset=3, alpha=0.36 })
         local subSelected, subHover = AddOverlay(sub, false)
         local subBar = sub:CreateTexture(nil, "OVERLAY")
         subBar:SetColorTexture(unpack(C.gold))
@@ -352,9 +380,9 @@ for index, section in ipairs(sections) do
             glyph:SetSize(20, 20)
             glyph:SetPoint("LEFT", sub, "LEFT", 16, 0)
             if page.key == "options" then
-                Style.Skin(glyph, C.gold, {
-                    corner=9, edge=C.goldDim, shine=0.18, shade=0.08,
-                })
+                -- Paint the palette on ARTWORK (the previous BACKGROUND
+                -- skin was hidden by the tab and appeared as a black square).
+                Style.SkinMask(glyph, C.gold, "face", "ARTWORK", 2, 9, 1)
                 for _, pos in ipairs({{-4,3},{2,4},{5,-2}}) do
                     local dot = Style.Fill(glyph, C.body, "OVERLAY")
                     dot:SetSize(3, 3)
@@ -400,8 +428,11 @@ end
 
 -- Compact Back control belongs to the footer beside Close, not the Hall rail.
 -- Navigation remains the sole owner of its state and history.
-backButton = Style.Action(Window.content, "Back", "footer")
-backButton:SetSize(66, 26)
+backButton = Style.Action(Window.content, "Back", "footer", {
+    fill=C.nav, hover=C.selected, edge=C.goldDim,
+    light=C.goldDim, dark=C.window, text=C.text,
+})
+backButton:SetSize(60, 24)
 backButton:SetPoint("TOPRIGHT", Window.content, "TOPRIGHT", -24, -25)
 backButton:SetFrameLevel(Window.content:GetFrameLevel() + 9)
 ns.Tooltips.Bind(backButton, { title = "Back",
@@ -436,6 +467,15 @@ local function FitTabs(self, width)
         item.button:SetPoint("TOP", self, "TOP", 0, -31 - (i - 1) * 99)
         item.button:SetWidth(buttonWidth)
     end
+end
+-- The divider tracks the last gameplay button, leaving the rest of the rail
+-- available to future primary destinations without a fixed overlap.
+local railDivider = Chrome.Divider(Window.rail, 170, 14)
+if #primaryButtons > 0 then
+    railDivider:SetPoint("TOP", primaryButtons[#primaryButtons].button,
+        "BOTTOM", 0, -18)
+else
+    railDivider:Hide()
 end
 Window.rail:SetScript("OnSizeChanged", FitTabs)
 FitTabs(Window.rail, Window.rail:GetWidth())

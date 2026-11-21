@@ -61,10 +61,9 @@ function Settings.GetDefault(key)
     if key == "fontScale" then return 1 end
     if key == "fontOutline" then return "default" end
     if accessDefaults[key] ~= nil then return accessDefaults[key] end
-    -- Duel Hall is always the default look, even with EllesmereUI installed.
-    -- Font matching remains automatic unless explicitly configured.
-    if key == "matchColors" then return false end
-    if key == "matchFont" then return EllesmereReady() end
+    -- Fresh installs show the full approved Duel Hall look by default.
+    -- Explicit saved EllesmereUI color/font matching remains respected.
+    if key == "matchColors" or key == "matchFont" then return false end
     return boolDefaults[key]
 end
 

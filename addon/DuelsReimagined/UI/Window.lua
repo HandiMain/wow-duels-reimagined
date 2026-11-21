@@ -23,8 +23,9 @@ frame:Hide()
 -- interior is tucked INSIDE the masked corner radius: no square pixels
 -- extend beyond the outer edge when scaled or resized.
 Style.Skin(frame, C.window, {
-    corner=12, edge=C.shellEdge, shine=0.19, shade=0.27, rim=0.94,
+    corner=12, edge=C.shellEdge, shine=0.16, shade=0.27, rim=0.96,
 })
+Style.ForgedEdge(frame, { inset=5, alpha=0.44 })
 local inset = 6
 local interior = CreateFrame("Frame", nil, frame)
 interior:SetPoint("TOPLEFT", frame, "TOPLEFT", inset, -inset)
@@ -165,6 +166,7 @@ rail:SetPoint("TOPLEFT", body, "TOPLEFT", 0, 0)
 rail:SetPoint("BOTTOMLEFT", body, "BOTTOMLEFT", 0, 0)
 rail:SetWidth(226)
 Style.Skin(rail, C.rail, { corner=8, edge=C.shellEdge, shine=0.12, shade=0.20 })
+Style.ForgedEdge(rail, { inset=2, alpha=0.36 })
 Window.rail = rail
 
 local main = CreateFrame("Frame", nil, body)
@@ -222,15 +224,28 @@ local function BrandLayer(color, top, bottom)
 end
 BrandLayer(C.red,        0,    0.25) -- DUELS lettering
 BrandLayer(C.headerText, 0.25, 0.50) -- REIMAGINED
-local brandTagline = Style.Text(brandArea, "YOUR DUELING HUB", 10, C.gold)
+local brandTagline = Style.Text(brandArea, "YOUR DUELING HUB", 11, C.gold)
 brandTagline:SetPoint("LEFT", brandArea, "LEFT", 88, -21)
 brandTagline:SetJustifyH("LEFT")
+-- Two short gilt rules frame the real subtitle text.
+local markLineLeft = Style.Fill(brandArea, C.gold, "ARTWORK")
+markLineLeft:ClearAllPoints()
+markLineLeft:SetPoint("RIGHT", brandTagline, "LEFT", -7, 0)
+markLineLeft:SetSize(18, 1)
+markLineLeft:SetAlpha(0.65)
+local markLineRight = Style.Fill(brandArea, C.gold, "ARTWORK")
+markLineRight:ClearAllPoints()
+markLineRight:SetPoint("LEFT", brandTagline, "RIGHT", 7, 0)
+markLineRight:SetSize(24, 1)
+markLineRight:SetAlpha(0.65)
 
 local function FitBrand(_, width)
     local space = math.max(1, (width or brandArea:GetWidth()) - 80)
     local w = math.min(BRAND_MAX_WIDTH, BRAND_MAX_HEIGHT * BRAND_ASPECT, space)
     brandLogo:SetSize(w, w / BRAND_ASPECT)
     brandTagline:SetShown(w > 170)
+    markLineLeft:SetShown(w > 170)
+    markLineRight:SetShown(w > 170)
 end
 brandArea:SetScript("OnSizeChanged", FitBrand)
 function Window.PlaceBrandBefore(searchBox)
@@ -553,7 +568,7 @@ local pageIcon = Chrome.Icon(content, "Options")
 pageIcon:SetSize(30, 30)
 pageIcon:SetPoint("TOPLEFT", content, "TOPLEFT", 23, -20)
 pageIcon:Hide()
-local title = Style.Text(content, "Welcome to the Hall", 24, C.pale)
+local title = Style.Text(content, "Welcome to the Hall", 27, C.pale, nil, "display")
 title:SetPoint("TOPLEFT", content, "TOPLEFT", 24, -23)
 local titleRule = Chrome.Divider(content, 430, 14)
 titleRule:SetPoint("TOPLEFT", content, "TOPLEFT", 25, -124)

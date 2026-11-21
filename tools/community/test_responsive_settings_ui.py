@@ -15,7 +15,7 @@ def read(path):
 class ResponsiveSettingsTests(unittest.TestCase):
     def test_whole_cards_reflow_not_individual_settings(self):
         src = read("UI/Options.lua")
-        self.assertIn("local CARD_BREAKPOINT = 760", src)
+        self.assertIn("local CARD_BREAKPOINT = 720", src)
         self.assertIn("width >= (largeText and 1080 or CARD_BREAKPOINT)", src)
         self.assertIn("local columns = twoCards and 2 or 1", src)
         self.assertIn("local cardX = column * (cardWidth + CARD_GAP)", src)
@@ -34,12 +34,12 @@ class ResponsiveSettingsTests(unittest.TestCase):
         self.assertIn("local fullWidth = math.max(1, width - 18)", src)
         self.assertIn("math.floor((fullWidth - CARD_GAP) / 2)", src)
         self.assertIn("page.scrollOwner:SetVerticalScroll(maxScroll)", src)
-        for width in (500, 650, 759):
-            self.assertFalse(width >= 760)
-        for width in (760, 824, 1050):
-            self.assertTrue(width >= 760)
+        for width in (500, 650, 719):
+            self.assertFalse(width >= 720)
+        for width in (720, 824, 1050):
+            self.assertTrue(width >= 720)
             card = (width - 18 - 14) // 2
-            self.assertGreaterEqual(card - 40, 320)
+            self.assertGreaterEqual(card - 40, 304)
             self.assertLessEqual(2 * card + 14, width - 18)
         self.assertFalse(1050 >= 1080)
         self.assertTrue(1080 >= 1080)

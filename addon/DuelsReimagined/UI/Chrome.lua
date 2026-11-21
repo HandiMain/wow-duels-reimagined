@@ -121,16 +121,26 @@ function Chrome.Shell(frame, header, footer, rail, nav)
     Line(seams, rail, "TOPRIGHT", "BOTTOMRIGHT", true, C.shellEdge)
     Line(seams, nav, "BOTTOMLEFT", "BOTTOMRIGHT", false, C.goldDim)
 
-    -- Tiny corner insets suggest the selected concept without texture art.
+    -- Four layered, independently tinted Warcraft-style metal corner studs.
+    -- Never a scaled screenshot or an interactive frame above the controls.
     for _, edge in ipairs({
-        {"TOPLEFT", 4, -4}, {"TOPRIGHT", -4, -4},
-        {"BOTTOMLEFT", 4, 4}, {"BOTTOMRIGHT", -4, 4},
+        {"TOPLEFT", 8, -8}, {"TOPRIGHT", -8, -8},
+        {"BOTTOMLEFT", 8, 8}, {"BOTTOMRIGHT", -8, 8},
     }) do
-        local cap = Style.Fill(rim, C.gold, "OVERLAY")
+        local cap = Style.Fill(rim, C.shellEdge, "OVERLAY")
         cap:ClearAllPoints()
-        cap:SetSize(5,5)
+        cap:SetSize(11, 11)
         cap:SetPoint(edge[1], rim, edge[1], edge[2], edge[3])
-        if cap.SetRotation then cap:SetRotation(math.pi/4) end
+        if cap.SetRotation then cap:SetRotation(math.pi / 4) end
+        local center = Style.Fill(rim, C.window, "OVERLAY")
+        center:ClearAllPoints()
+        center:SetSize(6, 6)
+        center:SetPoint("CENTER", cap, "CENTER")
+        if center.SetRotation then center:SetRotation(math.pi / 4) end
+        local stud = Style.Fill(rim, C.gold, "OVERLAY")
+        stud:ClearAllPoints()
+        stud:SetSize(2, 2)
+        stud:SetPoint("CENTER", cap, "CENTER")
     end
     return seams
 end
