@@ -10,23 +10,35 @@ class TextSafeOptionsAndHoverTests(unittest.TestCase):
     def test_all_six_banners_have_safe_text_height_and_row_separation(self):
         o=lua("Options.lua")
         for t in (
-            'local BANNER_HEIGHT = 62',
-            'local ROW_TOP = 80',
-            'headingBand:SetHeight(62)',
-            'math.max(1, height - 4) / BANNER_CELL_H',
-            'left:SetPoint("TOPLEFT", header, "TOPLEFT", 0, -2)',
-            'right:SetPoint("TOPRIGHT", header, "TOPRIGHT", 0, -2)',
-            'divider:SetPoint("TOPLEFT", card, "TOPLEFT", 12, -72)',
-            'local y = largeText and 94 or ROW_TOP',
+            'local BANNER_HEIGHT = 72',
+            'local ROW_TOP = 90',
+            'headingBand:SetHeight(72)',
+            'math.max(1, height - 8) / BANNER_CELL_H',
+            'left:SetPoint("LEFT", header, "LEFT", 0, 0)',
+            'right:SetPoint("RIGHT", header, "RIGHT", 0, 0)',
+            'divider:SetPoint("TOPLEFT", card, "TOPLEFT", 12, -82)',
+            'local y = largeText and 104 or ROW_TOP',
             'function appearance:Relayout(width)',
             'function interface:Relayout(width)',
         ): self.assertIn(t,o)
         self.assertEqual(o.count('Section('),7)
+        self.assertIn('headingBand:SetClipsChildren(false)',o)
+        self.assertIn('(width - 24) / (BANNER_LEFT + BANNER_RIGHT)',o)
         self.assertIn("DuelOptionsSoftArt.png",o)
         self.assertNotIn("DuelBannerAmbient.png",o)
         self.assertNotIn("local center = Slice(",o)
-        self.assertLess(6+62,72) # card-header end before divider
-        self.assertLess(72,80) # divider before first live row
+        self.assertLess(6+72,82) # card-header end before divider
+        self.assertLess(82,90) # divider before first live row
+
+    def test_large_window_uses_short_gradients_not_stretched_masks(self):
+        style=lua("Style.lua")
+        window=lua("Window.lua")
+        self.assertIn('if opts.smooth then',style)
+        self.assertIn('strengths[2], strengths[3] = 0, 0',style)
+        self.assertIn('EdgeFade(true, 112, true, 0.024)',style)
+        self.assertIn('EdgeFade(false, 88, false, 0.045)',style)
+        self.assertIn('Style.Skin(rail, C.rail, { corner=8, edge=C.shellEdge, smooth=true })',window)
+        self.assertIn('Style.Skin(content, C.body, { corner=7, edge=C.border, smooth=true })',window)
 
     def test_smaller_header_x_preserves_behavior(self):
         h=lua("Header.lua")
