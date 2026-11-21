@@ -450,17 +450,19 @@ end
 
 Window.ApplyScale(Settings.Get("menuScale") or 1)
 
--- One resize owner: the approved Concept 06 Alliance/Horde copper border.
--- Base, hover and press artwork all originate from the user's approved study.
--- Noninteractive decoration is separate from the real resize/reset hitbox.
+-- One resize owner: Concept 06 with equally sized Alliance/Horde crests.
+-- Graphics remain beneath Chrome.Shell's copper rim (+20), so the only straight
+-- border lines are from the shell. The footer sweep feathers out before Close.
+-- Base, hover and press are noninteractive textures; the button alone handles
+-- drag, reset and Motion feedback.
 local resizeArt = CreateFrame("Frame", nil, frame)
-resizeArt:SetSize(106, 106)
+resizeArt:SetSize(96, 96)
 resizeArt:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -2, 2)
-resizeArt:SetFrameLevel(frame:GetFrameLevel() + 24)
+resizeArt:SetFrameLevel(frame:GetFrameLevel() + 18)
 resizeArt:EnableMouse(false)
-local CORNER_ART = "Interface\\AddOns\\DuelsReimagined\\Media\\Skin\\DuelFactionCorner06.png"
-local CORNER_HOVER = "Interface\\AddOns\\DuelsReimagined\\Media\\Skin\\DuelFactionCorner06Hover.png"
-local CORNER_PRESS = "Interface\\AddOns\\DuelsReimagined\\Media\\Skin\\DuelFactionCorner06Press.png"
+local CORNER_ART = "Interface\\AddOns\\DuelsReimagined\\Media\\Skin\\DuelFactionCorner06Blended.png"
+local CORNER_HOVER = "Interface\\AddOns\\DuelsReimagined\\Media\\Skin\\DuelFactionCorner06BlendedHover.png"
+local CORNER_PRESS = "Interface\\AddOns\\DuelsReimagined\\Media\\Skin\\DuelFactionCorner06BlendedPress.png"
 local forgedCorner = resizeArt:CreateTexture(nil, "ARTWORK", nil, 2)
 forgedCorner:SetTexture(CORNER_ART)
 forgedCorner:SetAllPoints(resizeArt)
