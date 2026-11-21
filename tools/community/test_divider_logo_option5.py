@@ -31,21 +31,21 @@ class DividerAndWordmarkTests(unittest.TestCase):
         self.assertIn('if ns.Chrome and ns.Chrome.Refresh then ns.Chrome.Refresh() end',win)
         self.assertNotIn('SetScript("OnUpdate"',chrome)
 
-    def test_new_logo_is_one_tintable_indexed_rgba_atlas(self):
+    def test_old_landing_atlas_remains_but_main_uses_exact_identity(self):
         p=BASE/"Media"/"Skin"/"HeaderOption5TintAtlas.png"
         data=p.read_bytes()
         self.assertEqual(data[:8],b"\x89PNG\r\n\x1a\n")
         self.assertEqual(struct.unpack(">II",data[16:24]),(256,256))
         self.assertIn(b"tRNS",data)
         window=src("UI/Window.lua")
-        self.assertIn('BrandLayer(C.red,        0,    0.25)',window)
-        self.assertIn('BrandLayer(C.headerText, 0.25, 0.50)',window)
+        self.assertIn('DuelExactBrand.png',window)
+        self.assertNotIn('BrandLayer(',window)
         self.assertNotIn('BrandLayer(C.gold,       0.50, 0.75, 3)',window)
         self.assertNotIn('local underline = CreateFrame(',window)
         self.assertNotIn('local leftRule = Style.Fill(',window)
         self.assertNotIn('local rightRule = Style.Fill(',window)
-        self.assertIn('local BRAND_ASPECT = 4.65',window)
-        self.assertIn('brandLogo:SetPoint("TOPLEFT", brandArea, "TOPLEFT", 66, -3)',window)
+        self.assertIn('local visualWidth = math.min(330, available)',window)
+        self.assertIn('Drag(brandDrag)',window)
         self.assertNotIn('Option5HeaderLogo.png',window)
 
     def test_tints_and_previous_controls_still_work(self):

@@ -15,9 +15,8 @@ class VisualFidelityTests(unittest.TestCase):
     def test_header_is_still_compact_with_full_native_controls(self):
         w, h = lua("UI/Window.lua"), lua("UI/Header.lua")
         for token in ('header:SetHeight(72)', 'rail:SetWidth(226)',
-                      'footer:SetHeight(50)', 'markLineLeft', 'markLineRight',
-                      'BrandLayer(C.red,', 'YOUR DUELING HUB',
-                      'Style.ForgedEdge(frame,',
+                      'footer:SetHeight(50)', 'DuelExactBrand.png',
+                      'Drag(brandDrag)', 'local brandArea = CreateFrame',
                       'Style.Text(content, "Welcome to the Hall", 27, C.pale, nil, "display")'):
             self.assertIn(token, w)
         for token in ('name == "Close" and 34 or 29', 'Style.Plate(b, name == "Close" and "hall" or "dark", { corner=7 })',

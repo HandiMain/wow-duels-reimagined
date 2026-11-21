@@ -47,8 +47,8 @@ class SecondaryRailRecoveryTests(unittest.TestCase):
 
     def test_center_diamond_removed_and_rules_are_mirrored(self):
         window = text("UI/Window.lua")
-        self.assertIn('BrandLayer(C.red,        0,    0.25)', window)
-        self.assertIn('BrandLayer(C.headerText, 0.25, 0.50)', window)
+        self.assertIn('DuelExactBrand.png', window)
+        self.assertNotIn('BrandLayer(', window)
         self.assertNotIn('BrandLayer(C.gold,       0.50, 0.75, 3)', window)
         self.assertNotIn('local underline = CreateFrame(', window)
         self.assertIn('HeaderOption5TintAtlas.png', text("UI/BlizzardSettings.lua"))

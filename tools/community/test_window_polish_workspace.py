@@ -12,9 +12,9 @@ def read(path):
 class WindowPolishWorkspaceTests(unittest.TestCase):
     def test_logo_is_static_again_but_original_brand_and_drag_remain(self):
         w = read("UI/Window.lua")
-        self.assertIn("BrandLayer(C.red,        0,    0.25)", w)
-        self.assertIn("BrandLayer(C.headerText, 0.25, 0.50)", w)
-        self.assertIn("Drag(brandLogo)", w)
+        self.assertIn("DuelExactBrand.png", w)
+        self.assertNotIn("BrandLayer(", w)
+        self.assertIn("Drag(brandDrag)", w)
         self.assertNotIn('brandLogo:SetScript("OnEnter"', w)
         self.assertNotIn("MakeShimmerBand", w)
         self.assertNotIn("HideBrandShimmer", w)

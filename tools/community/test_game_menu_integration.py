@@ -186,9 +186,9 @@ class DuelsEscapeMenuTests(unittest.TestCase):
                           'HideBrandShimmer', 'brandLogo:SetScript("OnEnter"',
                           'brandLogo.CreateMaskTexture'):
             self.assertNotIn(forbidden, win)
-        self.assertIn('Drag(brandLogo)', win)
-        self.assertIn('BrandLayer(C.red,        0,    0.25)', win)
-        self.assertIn('BrandLayer(C.headerText, 0.25, 0.50)', win)
+        self.assertIn('Drag(brandDrag)', win)
+        self.assertIn('DuelExactBrand.png', win)
+        self.assertNotIn('BrandLayer(', win)
         self.assertIn('function Window.PlaceBrandBefore(searchBox)', win)
 
 if __name__ == "__main__":

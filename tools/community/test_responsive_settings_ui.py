@@ -160,8 +160,8 @@ class ResponsiveSettingsTests(unittest.TestCase):
 
     def test_main_header_themed_and_landing_art_fixed_colors(self):
         win, land = read("UI/Window.lua"), read("UI/BlizzardSettings.lua")
-        self.assertIn("BrandLayer(C.red,        0,    0.25)", win)
-        self.assertIn("BrandLayer(C.headerText, 0.25, 0.50)", win)
+        self.assertIn("DuelExactBrand.png", win)
+        self.assertNotIn("BrandLayer(", win)
         self.assertIn("HeaderOption5TintAtlas.png", land)
         self.assertIn("LockedBrandBand(LANDING_GOLD, 0, 0.25)", land)
         self.assertIn("LockedBrandBand(LANDING_PALE, 0.25, 0.50)", land)
@@ -174,7 +174,7 @@ class ResponsiveSettingsTests(unittest.TestCase):
 
     def test_hall_has_idle_skin_and_click_feedback(self):
         nav = read("UI/Navigation.lua")
-        self.assertIn("if isPrimary then\n        Style.Skin(button, C.button", nav)
+        self.assertIn('if section.key == "hall" then', nav)
         self.assertIn("local selected, hover = AddOverlay(button, isPrimary)", nav)
         self.assertIn('button:SetScript("OnClick", function() Select(index, 1) end)', nav)
         self.assertIn("ns.Widgets.PressFeedback(button, hover)", nav)

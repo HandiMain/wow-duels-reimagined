@@ -49,11 +49,11 @@ class PremiumSkinTests(unittest.TestCase):
         for p, expected in (
             ("UI/Window.lua", "Style.Skin(content, C.body"),
             ("UI/Window.lua", "Style.LitBand(header, C.header"),
-            ("UI/Navigation.lua", "Style.Skin(sub, C.nav"),
+            ("UI/Navigation.lua", 'Style.Plate(sub, "dark"'),
             ("UI/Navigation.lua", "Style.Skin(button, C.tabActive"),
             ("UI/Header.lua", "Style.Skin(searchBox, C.window"),
             ("UI/Footer.lua", "Style.Skin(button, C.goldDim"),
-            ("UI/Options.lua", "Style.Skin(card, C.nav"),
+            ("UI/Options.lua", 'Style.Plate(card, "cardBody"'),
             ("UI/Community.lua", "Style.Skin(card, C.nav"),
             ("UI/Community.lua", "Style.Skin(listing, C.nav"),
             ("UI/PatchNotes.lua", "Style.Skin(banner, C.nav"),
@@ -79,7 +79,7 @@ class PremiumSkinTests(unittest.TestCase):
             for token in tokens:
                 self.assertIn(token, src(p))
         self.assertIn("local function WriteDB()", src("Core/Settings.lua"))
-        self.assertIn("HeaderOption5TintAtlas.png", src("UI/Window.lua"))
+        self.assertIn("DuelExactBrand.png", src("UI/Window.lua"))
         self.assertIn("HeaderOption5TintAtlas.png", src("UI/BlizzardSettings.lua"))
         for p in ("UI/Style.lua","UI/Chrome.lua","UI/Navigation.lua"):
             self.assertNotIn('SetScript("OnUpdate"', src(p))

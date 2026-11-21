@@ -13,12 +13,12 @@ class CompactPageDensityTests(unittest.TestCase):
     def test_wider_wordmark_extracted_from_approved_concept(self):
         w = src("UI/Window.lua")
         for marker in (
-            "local BRAND_ASPECT = 4.65",
-            "BRAND_MAX_WIDTH, BRAND_MAX_HEIGHT = 250, 55",
-            'brandLogo:SetPoint("TOPLEFT", brandArea, "TOPLEFT", 66, -3)',
-            'BrandLayer(C.red,        0,    0.25)',
-            'BrandLayer(C.headerText, 0.25, 0.50)',
-            '-- Literal brand artwork extracted from the approved source concept.',
+            "local brandDrag = CreateFrame",
+            "local visualWidth = math.min(330, available)",
+            'brandArea:SetPoint("LEFT", header, "LEFT", 14, 0)',
+            'Drag(brandDrag)',
+            'DuelExactBrand.png',
+            '-- The approved static identity has ONE paint owner.',
             'brandArea:SetPoint("RIGHT", searchBox, "LEFT", -12, 0)',
             'exactBrand:SetTexCoord(0, 384/512, 25/128, 93/128)',
         ):

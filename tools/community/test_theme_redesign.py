@@ -57,10 +57,9 @@ class ThemeRedesignTests(unittest.TestCase):
     def test_approved_brand_and_shared_code_drawn_chrome(self):
         w, chrome, style = (src(p) for p in
             ("UI/Window.lua", "UI/Chrome.lua", "UI/Style.lua"))
-        for token in ('Chrome.Icon(brandArea, "Hall")',
-                      'BrandLayer(C.red,        0,    0.25)',
-                      'BrandLayer(C.headerText, 0.25, 0.50)',
-                      '"YOUR DUELING HUB"', 'HeaderOption5TintAtlas.png'):
+        for token in ('local brandDrag = CreateFrame', 'Drag(brandDrag)',
+                      'DuelExactBrand.png',
+                      'exactBrand:SetTexCoord(0, 384/512, 25/128, 93/128)'):
             self.assertIn(token, w)
         self.assertIn('Style.SkinMask(rim, C.shellEdge, "rim"', chrome)
         self.assertIn('function Chrome.Divider(', chrome)

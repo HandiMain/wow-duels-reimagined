@@ -34,8 +34,8 @@ class ConceptExtractionTests(unittest.TestCase):
         window = lua("UI/Window.lua")
         self.assertIn("DuelExactBrand.png", window)
         self.assertIn("exactBrand:SetTexCoord(0, 384/512, 25/128, 93/128)", window)
-        self.assertIn("exactBrand:SetSize(visibleW, visibleW * 68 / 384)", window)
-        self.assertIn("Drag(brandLogo)", window)
+        self.assertIn("exactBrand:SetSize(visualWidth, visualWidth * 68 / 384)", window)
+        self.assertIn("Drag(brandDrag)", window)
         self.assertIn("function Window.PlaceBrandBefore(searchBox)", window)
 
     def test_atlas_contains_independent_pieces_not_full_ui(self):
@@ -75,7 +75,7 @@ class ConceptExtractionTests(unittest.TestCase):
         self.assertIn('Style.Plate(card, "cardBody", { corner=15 })', options)
         self.assertIn('Style.Plate(headingBand, "cardHeading"', options)
         self.assertIn('item.plate:SetStyle(active and "gold" or "dark")', nav)
-        self.assertIn('Style.Text(sub, page.label, 14, C.text)', nav)
+        self.assertIn('Style.Text(sub, page.label, 16, C.text, nil, "display")', nav)
         self.assertIn('Style.ConceptImage(rim, "corner"', chrome)
         self.assertIn('function Header.Fold(', lua("UI/Header.lua"))
         self.assertIn('function Options.Refresh()', options)

@@ -44,7 +44,7 @@ class UtilityRailTests(unittest.TestCase):
         self.assertIn('if page.key == "options" or page.key == "interface" then', n)
         self.assertIn('glyph:SetSize(22, 22)', n)
         self.assertIn('local sub = CreateFrame("Button", nil, Window.nav)', n)
-        self.assertIn('Style.Skin(sub, C.nav, {', n)
+        self.assertIn('Style.Plate(sub, "dark", { corner=10 })', n)
         self.assertIn('sub:SetScript("OnClick", function() Select(index, pageIndex) end)', n)
         self.assertIn('item.label:SetTextColor(unpack(active and C.tabText or C.text))', n)
 
