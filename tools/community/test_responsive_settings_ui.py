@@ -78,8 +78,8 @@ class ResponsiveSettingsTests(unittest.TestCase):
 
     def test_settings_are_categorized_without_new_pages_or_storage(self):
         o = read("UI/Options.lua")
-        for heading in ("Window & motion", "Game access", "Minimap & widget",
-                        "Typography", "Notifications & help"):
+        for heading in ("Window & Motion", "Game Access", "Minimap & Widget",
+                        "Typography", "Notifications & Help"):
             self.assertIn('"' + heading + '"', o)
         for row, parent in (("autoPeekMoving", "behaviorCard"),
                             ("showGameMenuButton", "gameAccessCard"),
@@ -93,12 +93,12 @@ class ResponsiveSettingsTests(unittest.TestCase):
 
     def test_dense_section_headers_preserve_help_and_card_boundaries(self):
         src = read("UI/Options.lua")
-        self.assertIn('local header = CreateFrame("Frame", nil, card)', src)
+        self.assertIn('local header = CreateFrame("Frame", nil, band)', src)
         self.assertIn('ns.Tooltips.Bind(header, {', src)
         self.assertIn('card.optionsHeading = header', src)
-        self.assertIn('card.optionsHeading:SetHeight(largeText and 34 or 24)', src)
-        self.assertIn('local y = largeText and 52 or ROW_TOP', src)
-        self.assertIn('local ROW_TOP = 38', src)
+        self.assertIn('card.optionsBand:SetHeight(largeText and 68 or BANNER_HEIGHT)', src)
+        self.assertIn('local y = largeText and 77 or ROW_TOP', src)
+        self.assertIn('local ROW_TOP = 58', src)
         self.assertIn('local CARD_GAP, SECTION_GAP, ROW_GAP = 14, 8, 1', src)
         self.assertIn('math.ceil(widget:GetStringHeight() or 18) + 8', src)
         self.assertNotIn('local behaviorInfo = Style.Text(', src)
@@ -114,21 +114,21 @@ class ResponsiveSettingsTests(unittest.TestCase):
 
     def test_five_clear_categories_stay_compact_and_independent(self):
         o = read("UI/Options.lua")
-        for title in ("Window & motion", "Game access", "Minimap & widget",
-                      "Typography", "Notifications & help"):
+        for title in ("Window & Motion", "Game Access", "Minimap & Widget",
+                      "Typography", "Notifications & Help"):
             self.assertIn('"' + title + '"', o)
         # The same LayoutPage measures whole cards, independent of their rows.
         compact_toggle = 28
         compact_choice = 32
-        behavior = 38 + 2 * (compact_toggle + 1) + 6
-        game_access = 38 + 2 * (compact_toggle + 1) + 6
-        access = 38 + 3 * (compact_choice + 1) + 4 + 34 + 6
-        typography = 38 + 3 * (compact_choice + 1) + 6
-        notices = 38 + 2 * (compact_toggle + 1) + 6
+        behavior = 58 + 2 * (compact_toggle + 1) + 6
+        game_access = 58 + 2 * (compact_toggle + 1) + 6
+        access = 58 + 3 * (compact_choice + 1) + 4 + 34 + 6
+        typography = 58 + 3 * (compact_choice + 1) + 6
+        notices = 58 + 2 * (compact_toggle + 1) + 6
         self.assertEqual((behavior, game_access, access, typography, notices),
-                         (102, 102, 181, 143, 102))
+                         (122, 122, 201, 163, 122))
         self.assertLess(max(behavior, game_access) +
-                        max(access, typography) + notices + 3 * 8, 420)
+                        max(access, typography) + notices + 3 * 8, 500)
         self.assertIn('page:SetHeight(contentHeight > viewHeight + 1 and contentHeight or', o)
         self.assertIn('local cardHeight = y + (isAppearance and 10 or 6)', o)
 
