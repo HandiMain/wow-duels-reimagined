@@ -1470,3 +1470,10 @@ User in-game screenshot confirmed the brown stripe was still visible after incre
 - **Focused correction:** `UI/Options.lua` now crops only the Appearance cell's left texture to its original palette icon (first 104 source pixels) while keeping its separate gold right motif. Only the damaged fixed title/subtitle are rendered as noninteractive, fixed-size WoW FontStrings within the same header and tooltip owner, with font fallback and measured padding. All other five original banner graphics and layout are untouched.
 - The atlas file is intentionally retained unmodified, since replacing the broken glyphs at render time avoids re-encoding all six bitmap banners and risks to the five good cells.
 - Regression source checks cover Appearance-only cropping, no duplicate titles, header padding, maintained scroll/search, and preservation of existing assets. **Actual appearance on Forever and Retail still requires a screenshot at default and compact window size.**
+
+## Appearance palette-graphic repair — November 21, 2026
+
+- **IMPLEMENTED / UNTESTED IN GAME:** In the follow-up screenshot the Appearance title/subtitle were legible, but both original palette symbols were truncated along the same horizontal line (including the symbol over the right flourish). The remaining five Interface headers were already correct.
+- Added a standalone **64x64 32-bit top-origin TGA** golden palette symbol, `Media/Skin/DuelPaletteComplete.tga`, generated independently. WoW can display it as a normal texture without a new runtime painting system.
+- Only the Appearance header replaces the old left icon and overlays a matching complete symbol on its right gold flourish; the original right swoosh, copper border, interaction and other five banner cells remain unchanged. The repaired title/subtitle stay as WoW FontStrings.
+- Added targeted test coverage for icon placement, asset dimensions/format/alpha, and unchanged section ownership. Verify exact alignment and overlapping right motif in Retail and Forever at normal/compact size before calling the visual fix VERIFIED.
