@@ -54,7 +54,7 @@ class WindowPolishWorkspaceTests(unittest.TestCase):
         self.assertIn('backButton:SetPoint("TOPRIGHT", Window.content, "TOPRIGHT", -24, -25)', nav)
         self.assertIn('ns.Tooltips.Bind(backButton', nav)
         self.assertNotIn('Style.Action(Window.rail, "Back")', nav)
-        self.assertIn('close:SetSize(120, 30)', win)
+        self.assertIn('close:SetSize(105, 30)', win)
         self.assertIn('Window.closeButton = close', win)
         self.assertIn('if backButton then backButton:SetShown(#history > 0) end', nav)
         self.assertIn('ns.Search.Register("navigation:back", "Back", "Navigation",', nav)

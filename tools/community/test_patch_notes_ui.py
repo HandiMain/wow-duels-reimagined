@@ -53,7 +53,7 @@ class PatchNotesUITests(unittest.TestCase):
         self.assertIn('local icon = Chrome.Icon(button, section.icon)', nav)
         self.assertNotIn('local parchment = Style.Fill(icon, C.goldDim, "ARTWORK")', nav)
         self.assertIn('PatchNotes = { 0,   0.5, 0.5, 1 }', load("UI/Chrome.lua"))
-        self.assertIn("Style.Text(button, isPrimary and "HALL" or section.label,", nav)
+        self.assertIn('Style.Text(button, isPrimary and "HALL" or section.label,', nav)
         self.assertIn("isPrimary and 23 or 12, C.tabMuted, nil,", nav)
         self.assertIn("Style.Text(root,", page)
         self.assertIn("Widgets.ScrollBar(scroll,", page)

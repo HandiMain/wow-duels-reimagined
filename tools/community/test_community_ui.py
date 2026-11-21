@@ -169,7 +169,7 @@ class CommunityUITests(unittest.TestCase):
         community = content("UI/Community.lua")
         self.assertIn('local community = variant == "community"', style)
         self.assertIn('Style.Skin(button, C.button, {', style)
-        self.assertIn('corner=11, edge=C.gold', style)
+        self.assertIn('corner=footer and 7 or 9, edge=C.gold', style)
         self.assertIn('Style.SkinMask(parent, color, mask, layer', style)
         self.assertNotIn('ns.Chrome.SlicedButton(button)', style)
         self.assertNotIn('function Chrome.SlicedButton(parent)', chrome)
