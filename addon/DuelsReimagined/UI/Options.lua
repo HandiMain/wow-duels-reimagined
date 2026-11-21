@@ -57,31 +57,39 @@ local function Page(contentHeight)
     return content
 end
 
--- One exported atlas of real icon/motif crops from the approved screenshot;
--- labels, interactive controls, borders, hover states and hit targets remain
--- separate native WoW objects. The 256x128 atlas contains 6 icons (32x32)
--- and 6 right motifs (64x32), with no screenshot-sized panel texture.
-local BANNER_ART = "Interface\\AddOns\\DuelsReimagined\\Media\\Skin\\DuelOptionsCategoryArt.png"
-local categoryArt = {
-    appearance={icon=5, motif=5, subtitle="FONT MATCHING & VISUAL IDENTITY"},
-    motion={icon=0, motif=0, subtitle="MOVEMENT, BEHAVIOR & PERFORMANCE"},
-    access={icon=1, motif=1, subtitle="GAME MENU & ADDON INTEGRATION"},
-    minimap={icon=2, motif=2, subtitle="MINIMAP ICON & WIDGET DISPLAY"},
-    typography={icon=3, motif=3, subtitle="INTERFACE FONT & TEXT STYLING"},
-    notifications={icon=4, motif=4, subtitle="TOOLTIPS, REMINDERS & GUIDANCE"},
+-- The approved concept's COMPLETE category banners are baked in one native
+-- PNG atlas, including lettering, icons, copper embossing and right motifs.
+-- Unlike the previous icon/motif approximation, no font is substituted and
+-- no separate 32px symbols are layered over a generic header plate.
+-- The atlas owns graphics only; WoW still owns every setting and mouse target.
+-- Two 512x64 cells per row in a power-of-two, RGBA 1024x256 texture.
+local BANNER_ART = "Interface\\AddOns\\DuelsReimagined\\Media\\Skin\\DuelOptionsExactBanners.png"
+local BANNER_ATLAS_W, BANNER_ATLAS_H = 1024, 256
+local BANNER_CELL_W, BANNER_CELL_H = 512, 64
+local BANNER_LEFT, BANNER_RIGHT = 320, 128
+local bannerIndices = {
+    appearance = 0,
+    motion = 1,
+    access = 2,
+    minimap = 3,
+    typography = 4,
+    notifications = 5,
 }
+
 local function Card(page, y, height)
     local card = CreateFrame("Frame", nil, page)
     card:SetPoint("TOPLEFT", page, "TOPLEFT", 0, -y)
     card:SetPoint("TOPRIGHT", page, "TOPRIGHT", -18, -y)
     card:SetHeight(height)
     Style.Plate(card, "cardBody", { corner=15 })
+
+    -- Artwork covers the card's full width. The original panel's real
+    -- interactive rows are anchored below it; only chrome is image-backed.
     local headingBand = CreateFrame("Frame", nil, card)
-    headingBand:SetPoint("TOPLEFT", card, "TOPLEFT", 4, -4)
-    headingBand:SetPoint("TOPRIGHT", card, "TOPRIGHT", -4, -4)
-    headingBand:SetHeight(50)
-    Style.Plate(headingBand, "cardHeading",
-        { corner=9, layer="ARTWORK", sublevel=2 })
+    headingBand:SetPoint("TOPLEFT", card, "TOPLEFT")
+    headingBand:SetPoint("TOPRIGHT", card, "TOPRIGHT")
+    headingBand:SetHeight(54)
+    headingBand:EnableMouse(false)
     card.optionsBand = headingBand
     card.scrollOwner, card.scrollTop = page.scrollOwner, y
     return card
@@ -99,48 +107,56 @@ local accessCard = Card(interface, 216, 174)
 local typographyCard = Card(interface, 398, 143)
 local notificationsCard = Card(interface, 549, 100)
 
--- Shared premium banner owner for BOTH Appearance and Interface.
--- A compact single-line fallback remains available after responsive resize.
+-- One banner component on BOTH Appearance and Interface. The fixed-width
+-- left and right slices preserve real letterforms and ornamental proportions
+-- while ONLY the empty center band stretches when cards change width.
+-- The 3-slice UVs select exact pixels from the approved screenshots.
 local function Section(card, key, title, help, extra)
-    local meta = categoryArt[key]
+    local index = assert(bannerIndices[key], "Unknown Duels Options banner")
     local band = card.optionsBand
     local header = CreateFrame("Frame", nil, band)
     header:SetAllPoints(band)
     header:EnableMouse(true)
 
-    local symbol = header:CreateTexture(nil, "OVERLAY", nil, 1)
-    symbol:SetTexture(BANNER_ART)
-    symbol:SetTexCoord(meta.icon / 8, (meta.icon + 1) / 8, 0, 0.25)
-    symbol:SetSize(36, 36)
-    symbol:SetPoint("LEFT", header, "LEFT", 12, 0)
-    if ns.Chrome then ns.Chrome.Sharp(symbol) end
+    local spriteX = (index % 2) * BANNER_CELL_W
+    local spriteY = math.floor(index / 2) * BANNER_CELL_H
+    local function Slice(fromX, toX)
+        local piece = header:CreateTexture(nil, "ARTWORK", nil, 4)
+        piece:SetTexture(BANNER_ART)
+        piece:SetTexCoord(
+            (spriteX + fromX) / BANNER_ATLAS_W,
+            (spriteX + toX) / BANNER_ATLAS_W,
+            spriteY / BANNER_ATLAS_H,
+            (spriteY + BANNER_CELL_H) / BANNER_ATLAS_H)
+        if ns.Chrome and ns.Chrome.Sharp then ns.Chrome.Sharp(piece) end
+        return piece
+    end
+    local left = Slice(0, BANNER_LEFT)
+    local center = Slice(BANNER_LEFT, BANNER_CELL_W - BANNER_RIGHT)
+    local right = Slice(BANNER_CELL_W - BANNER_RIGHT, BANNER_CELL_W)
+    left:SetPoint("TOPLEFT", header, "TOPLEFT")
+    left:SetPoint("BOTTOMLEFT", header, "BOTTOMLEFT")
+    right:SetPoint("TOPRIGHT", header, "TOPRIGHT")
+    right:SetPoint("BOTTOMRIGHT", header, "BOTTOMRIGHT")
+    center:SetPoint("TOPLEFT", left, "TOPRIGHT")
+    center:SetPoint("BOTTOMRIGHT", right, "BOTTOMLEFT")
 
-    local motif = header:CreateTexture(nil, "OVERLAY", nil, 0)
-    motif:SetTexture(BANNER_ART)
-    local col, row = meta.motif % 4, math.floor(meta.motif / 4)
-    motif:SetTexCoord(col / 4, (col + 1) / 4,
-        (row + 1) / 4, (row + 2) / 4)
-    motif:SetSize(104, 42)
-    motif:SetPoint("RIGHT", header, "RIGHT", -12, 0)
-    motif:SetAlpha(0.66)
-    if ns.Chrome then ns.Chrome.Sharp(motif) end
+    local function FitSlices(self)
+        local width, height = math.max(1, self:GetWidth()), math.max(1, self:GetHeight())
+        local fixed = BANNER_LEFT + BANNER_RIGHT
+        local scale = math.min(height / BANNER_CELL_H, (width - 2) / fixed)
+        left:SetWidth(math.max(1, BANNER_LEFT * scale))
+        right:SetWidth(math.max(1, BANNER_RIGHT * scale))
+    end
+    header:SetScript("OnSizeChanged", FitSlices)
+    FitSlices(header)
 
-    local heading = Style.Text(header, title, 21, C.pale, nil, "display")
-    heading:SetPoint("TOPLEFT", header, "TOPLEFT", 55, -4)
-    heading:SetPoint("TOPRIGHT", header, "TOPRIGHT", -104, -4)
-    heading:SetJustifyH("LEFT")
-    heading:SetWordWrap(false)
-
-    local detail = Style.Text(header, meta.subtitle, 10, C.muted)
-    detail:SetPoint("TOPLEFT", header, "TOPLEFT", 55, -31)
-    detail:SetPoint("TOPRIGHT", header, "TOPRIGHT", -104, -31)
-    detail:SetJustifyH("LEFT")
-    detail:SetWordWrap(false)
-
+    -- Baked titles still have accessible, current explanatory tooltips.
+    -- No fake row controls; do not attach handlers to texture regions.
     ns.Tooltips.Bind(header, {
-        title=title,
-        detail=help .. (extra and (" " .. extra) or ""),
-        anchor="RIGHT",
+        title = title,
+        detail = help .. (extra and (" " .. extra) or ""),
+        anchor = "RIGHT",
     })
     card.optionsHeading = header
     return header
@@ -358,8 +374,8 @@ MarkPosition(resetAccess, accessCard, -332)
 -- copied, and all Settings/Search/scroll/tooltip owners remain unchanged.
 local CARD_BREAKPOINT = 720
 local CARD_GAP, SECTION_GAP, ROW_GAP = 14, 8, 1
-local BANNER_HEIGHT = 50
-local ROW_TOP = 58
+local BANNER_HEIGHT = 54
+local ROW_TOP = 60
 
 local function LayoutPage(page, groups, width)
     width = math.max(1, width or page:GetWidth())
@@ -376,7 +392,7 @@ local function LayoutPage(page, groups, width)
     local usable = math.max(1, cardWidth - 40)
     local sectionY, tallest = 0, 0
     local isAppearance = page == appearance
-    -- Compact banner cards show two columns; larger fonts stack the cards.
+    -- Native, concept-extracted banners follow the same compact/stacked grid.
     local rowGap = largeText and 4 or (isAppearance and 4 or ROW_GAP)
 
     for index, group in ipairs(groups) do
@@ -395,7 +411,7 @@ local function LayoutPage(page, groups, width)
             card.optionsBand:SetHeight(largeText and 68 or BANNER_HEIGHT)
         end
 
-        local y = largeText and 77 or ROW_TOP
+        local y = largeText and 78 or ROW_TOP
         for _, entry in ipairs(group.entries) do
             local widget = entry.widget
             widget:ClearAllPoints()

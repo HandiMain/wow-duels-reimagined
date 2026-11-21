@@ -97,8 +97,8 @@ class ResponsiveSettingsTests(unittest.TestCase):
         self.assertIn('ns.Tooltips.Bind(header, {', src)
         self.assertIn('card.optionsHeading = header', src)
         self.assertIn('card.optionsBand:SetHeight(largeText and 68 or BANNER_HEIGHT)', src)
-        self.assertIn('local y = largeText and 77 or ROW_TOP', src)
-        self.assertIn('local ROW_TOP = 58', src)
+        self.assertIn('local y = largeText and 78 or ROW_TOP', src)
+        self.assertIn('local ROW_TOP = 60', src)
         self.assertIn('local CARD_GAP, SECTION_GAP, ROW_GAP = 14, 8, 1', src)
         self.assertIn('math.ceil(widget:GetStringHeight() or 18) + 8', src)
         self.assertNotIn('local behaviorInfo = Style.Text(', src)
@@ -120,13 +120,13 @@ class ResponsiveSettingsTests(unittest.TestCase):
         # The same LayoutPage measures whole cards, independent of their rows.
         compact_toggle = 28
         compact_choice = 32
-        behavior = 58 + 2 * (compact_toggle + 1) + 6
-        game_access = 58 + 2 * (compact_toggle + 1) + 6
-        access = 58 + 3 * (compact_choice + 1) + 4 + 34 + 6
-        typography = 58 + 3 * (compact_choice + 1) + 6
-        notices = 58 + 2 * (compact_toggle + 1) + 6
+        behavior = 60 + 2 * (compact_toggle + 1) + 6
+        game_access = 60 + 2 * (compact_toggle + 1) + 6
+        access = 60 + 3 * (compact_choice + 1) + 4 + 34 + 6
+        typography = 60 + 3 * (compact_choice + 1) + 6
+        notices = 60 + 2 * (compact_toggle + 1) + 6
         self.assertEqual((behavior, game_access, access, typography, notices),
-                         (122, 122, 201, 163, 122))
+                         (124, 124, 203, 165, 124))
         self.assertLess(max(behavior, game_access) +
                         max(access, typography) + notices + 3 * 8, 500)
         self.assertIn('page:SetHeight(contentHeight > viewHeight + 1 and contentHeight or', o)

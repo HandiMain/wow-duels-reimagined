@@ -1378,3 +1378,11 @@ does not stretch the copper corners. Test with and without EllesmereUI.
 - Controls, search destinations, settings, tooltips, scrolling, category grouping, tab state and fonts remain under their previous owners. No additional theme or setting added.
 - Polestar reference: compact setting rows and common painter ownership in Theme/Widgets.lua; no source copied.
 - In-game visual verification required at narrow, standard and large text scales.
+
+## Exact screenshot-transferred Options banners — November 21, 2026
+
+- **Approved target:** the user-provided Interface concept (1672 × 941). Its five complete category headers are directly extracted as pixels: copper/gold edging, icon, title, subtitle, brushed metallic lighting and right-hand motifs are ONE artwork per card. No approximate rebuilding with native type or separate symbol layers.
+- **Appearance:** the same renderer, with palette and lettering sourced from the separate generated Appearance concept, composed into the matching category banner structure because the approved Interface screenshot does not depict Appearance as one of its five cards.
+- Media: one RGBA power-of-two `Media/Skin/DuelOptionsExactBanners.png` (1024 × 256). Six 512 × 64 cells, with a 3-part horizontal UV split to preserve title/icon scale and stretch only the quiet center gradient on window resize. This replaces `DuelOptionsCategoryArt.png` and its generic reconstructed headers.
+- Keep each card's existing **real** rows, buttons, reset states, search targets, tooltip data, scroll/frame owners, options tabs, saved settings, and gameplay untouched. Do not add a second color/skin owner or permanent update ticker.
+- Visual proof requires a new in-game screenshot at the current size. CI confirms file integrity, Lua syntax, and structural contracts but does NOT prove exact on-screen rendering.
