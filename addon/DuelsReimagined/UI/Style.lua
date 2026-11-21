@@ -258,6 +258,41 @@ function Style.Skin(parent, fill, opts)
         opts.shade == nil and 0.28 or opts.shade,
         opts.rim == nil and 0.8 or opts.rim,
     }
+    -- Large window canvases must not scale the 64px shine/shade masks
+    -- across hundreds of pixels: their quantized rows become horizontal
+    -- bands. Keep the rounded face/rim, with short edge fades and a neutral
+    -- solid center. This is deliberately opt-in: small interactive controls
+    -- retain their established 9-slice lighting and feedback.
+    if opts.smooth then
+        strengths[2], strengths[3] = 0, 0
+        local function EdgeFade(top, height, bright, alpha)
+            local tex = parent:CreateTexture(nil, "BACKGROUND", nil, 4)
+            tex:SetTexture("Interface\\Buttons\\WHITE8X8")
+            tex:SetVertexColor(1, 1, 1, 1)
+            local edge = corner + inset
+            if top then
+                tex:SetPoint("TOPLEFT", parent, "TOPLEFT", edge, -inset)
+                tex:SetPoint("TOPRIGHT", parent, "TOPRIGHT", -edge, -inset)
+            else
+                tex:SetPoint("BOTTOMLEFT", parent, "BOTTOMLEFT", edge, inset)
+                tex:SetPoint("BOTTOMRIGHT", parent, "BOTTOMRIGHT", -edge, inset)
+            end
+            tex:SetHeight(height)
+            if tex.SetGradient and CreateColor then
+                local r = bright and 1 or 0
+                local lit = CreateColor(r, r, r, alpha)
+                local clear = CreateColor(r, r, r, 0)
+                -- WoW gradient arguments are bottom color then top color.
+                tex:SetGradient("VERTICAL", top and clear or lit,
+                    top and lit or clear)
+            else
+                -- Unsupported clients get an even, line-free dark fill.
+                tex:Hide()
+            end
+        end
+        EdgeFade(true, 112, true, 0.024)
+        EdgeFade(false, 88, false, 0.045)
+    end
     local groups = { face, shine, shade, rim }
     local skin = { alpha=1, groups=groups }
     function skin:SetAlpha(a)
