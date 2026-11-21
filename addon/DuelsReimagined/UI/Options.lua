@@ -157,10 +157,49 @@ local function Section(card, key, title, help, extra)
     -- There is no center strip to magnify or truncate the approved design.
     local left = Slice(0, BANNER_LEFT)
     local right = Slice(BANNER_CELL_W - BANNER_RIGHT, BANNER_CELL_W)
+    -- The FIRST atlas cell has its Appearance title cut off in the source
+    -- bitmap. Keep that cell's original icon and the right gold motif, but
+    -- never draw the damaged title/subtitle pixels. All five other cells
+    -- continue to render exactly as authored, without Lua text overlays.
+    local appearanceIconWidth = key == "appearance" and 104 or nil
+    if appearanceIconWidth then
+        left:SetTexCoord(spriteX / BANNER_ATLAS_W,
+            (spriteX + appearanceIconWidth) / BANNER_ATLAS_W,
+            spriteY / BANNER_ATLAS_H,
+            (spriteY + BANNER_CELL_H) / BANNER_ATLAS_H)
+    end
     -- Center both bitmap halves vertically so all six fixed headings and
     -- subtitles have breathing space at full and half-card widths.
     left:SetPoint("LEFT", header, "LEFT", 0, 0)
     right:SetPoint("RIGHT", header, "RIGHT", 0, 0)
+
+    -- Only Appearance uses real, fixed-size WoW labels: damaged raster text
+    -- cannot be restored by moving its crop. Unlike interactive settings,
+    -- these decorative headings are intentionally unaffected by font options
+    -- (just like the other five raster headings).
+    if appearanceIconWidth then
+        local name = header:CreateFontString(nil, "ARTWORK", nil, 5)
+        name:SetFont("Fonts\\MORPHEUS.TTF", 26, "OUTLINE")
+        name:SetTextColor(unpack(C.gold))
+        name:SetShadowColor(0, 0, 0, 0.85)
+        name:SetShadowOffset(1, -1)
+        name:SetWordWrap(false)
+        name:SetJustifyH("LEFT")
+        name:SetPoint("TOPLEFT", header, "TOPLEFT", 96, -12)
+        name:SetSize(290, 31)
+        name:SetText(title)
+        local sub = header:CreateFontString(nil, "ARTWORK", nil, 5)
+        sub:SetFont("Fonts\\FRIZQT__.TTF", 10, "")
+        sub:SetTextColor(unpack(C.muted))
+        sub:SetShadowColor(0, 0, 0, 0.8)
+        sub:SetShadowOffset(1, -1)
+        sub:SetWordWrap(false)
+        sub:SetJustifyH("LEFT")
+        sub:SetPoint("TOPLEFT", header, "TOPLEFT", 96, -43)
+        sub:SetSize(340, 16)
+        sub:SetText("FONT MATCHING & VISUAL IDENTITY")
+        card.appearanceHeading, card.appearanceSubtitle = name, sub
+    end
 
     local function FitSlices(self)
         local width = math.max(1, self:GetWidth())
@@ -169,6 +208,9 @@ local function Section(card, key, title, help, extra)
             math.max(0.01, (width - 24) / (BANNER_LEFT + BANNER_RIGHT)))
         left:SetSize(math.max(1, BANNER_LEFT * scale),
             math.max(1, BANNER_CELL_H * scale))
+        if appearanceIconWidth then
+            left:SetWidth(math.max(1, appearanceIconWidth * scale))
+        end
         right:SetSize(math.max(1, BANNER_RIGHT * scale),
             math.max(1, BANNER_CELL_H * scale))
     end
