@@ -37,7 +37,7 @@ class ApprovedOptionsBannersTests(unittest.TestCase):
     def test_both_tabs_use_exact_graphics_without_reconstructed_icons_or_titles(self):
         src = OPTIONS.read_text(encoding="utf-8")
         self.assertIn("DuelOptionsSoftArt.png",src)
-        self.assertIn("DuelBannerAmbient.png",src)
+        self.assertNotIn("DuelBannerAmbient.png",src)
         self.assertNotIn("local center = Slice(",src)
         self.assertNotIn("DuelOptionsCategoryArt.png",src)
         self.assertNotIn('Style.Plate(headingBand, "cardHeading"',src)
@@ -53,7 +53,7 @@ class ApprovedOptionsBannersTests(unittest.TestCase):
         for needle in (
             "local function Slice(fromX, toX)",
             "local left = Slice(0, BANNER_LEFT)",
-            "wash:SetTexture(BANNER_AMBIENT)",
+            'left:SetPoint("TOPLEFT", header, "TOPLEFT", 0, -2)',
             "local right = Slice(BANNER_CELL_W - BANNER_RIGHT, BANNER_CELL_W)",
             'header:SetScript("OnSizeChanged", FitSlices)',
             "ns.Tooltips.Bind(header, {",

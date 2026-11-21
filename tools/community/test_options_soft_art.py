@@ -12,10 +12,9 @@ MEDIA=ROOT/"Media"/"Skin"
 def source(p):return (ROOT/p).read_text(encoding="utf-8")
 
 class OptionsSoftArtTests(unittest.TestCase):
-    def test_true_alpha_art_and_independent_ambient_gradient(self):
+    def test_true_alpha_art_without_unwanted_brown_header_fill(self):
         for file, dimensions, sha in (
             ("DuelOptionsSoftArt.png",(2048,256),"7409daba912b6a9437e836bbbd5ff4fa902deecc1f20a73e19abe8786e7d19ba"),
-            ("DuelBannerAmbient.png",(256,64),"ca0745547059179f065bc691e11f9b03423501347f1b73dab249e48ceeb06c94"),
         ):
             b=(MEDIA/file).read_bytes()
             self.assertEqual(b[:8],bytes((137,80,78,71,13,10,26,10)))
@@ -23,8 +22,10 @@ class OptionsSoftArtTests(unittest.TestCase):
             self.assertEqual(hashlib.sha256(b).hexdigest(),sha)
         s=source("UI/Options.lua")
         self.assertEqual(s.count('Style.Plate(card, "cardBody", { corner=15 })'),1)
-        self.assertIn("wash:SetTexture(BANNER_AMBIENT)",s)
-        self.assertIn("wash:SetAllPoints(header)",s)
+        self.assertNotIn("BANNER_AMBIENT",s)
+        self.assertNotIn("wash:SetTexture",s)
+        self.assertNotIn('header:CreateTexture(nil, "ARTWORK", nil, 1)',s)
+        self.assertFalse((MEDIA/"DuelBannerAmbient.png").exists())
         self.assertIn("local left = Slice(0, BANNER_LEFT)",s)
         self.assertIn("local right = Slice(BANNER_CELL_W - BANNER_RIGHT, BANNER_CELL_W)",s)
         self.assertNotIn("local center = Slice(",s)

@@ -57,13 +57,12 @@ local function Page(contentHeight)
     return content
 end
 
--- Transparent concept-derived icons, titles, subtitles and motifs retain
--- their native shapes. Their rectangular background is discarded. A single
--- independent diffuse ambient texture fades into the live card body, and
--- Style.Plate remains the ONLY outer copper border owner. No stretched
--- center slice or extra clickable settings layer is introduced.
+-- The approved icon/title/subtitle/motif artwork is alpha-only. Render it
+-- DIRECTLY over the card body's near-black fill. The former ambient PNG
+-- painted the unwanted light-brown rectangle behind the entire header.
+-- One cardBody 9-slice is still the only border owner; no header fill,
+-- duplicate frame, font substitution, or stretched center slice.
 local BANNER_ART = "Interface\\AddOns\\DuelsReimagined\\Media\\Skin\\DuelOptionsSoftArt.png"
-local BANNER_AMBIENT = "Interface\\AddOns\\DuelsReimagined\\Media\\Skin\\DuelBannerAmbient.png"
 local BANNER_ATLAS_W, BANNER_ATLAS_H = 2048, 256
 local BANNER_CELL_W, BANNER_CELL_H = 640, 80
 local BANNER_LEFT, BANNER_RIGHT = 438, 160
@@ -117,22 +116,15 @@ local accessCard = Card(interface, 216, 174)
 local typographyCard = Card(interface, 398, 143)
 local notificationsCard = Card(interface, 549, 100)
 
--- Same art renderer on BOTH Appearance and Interface. The title and motif
--- never stretch across the empty middle. Only a neutral ambient wash
--- adapts to the card's width, with no hard right/bottom texture cutoff.
+-- Same header renderer on Appearance and Interface. Gold labels, icons,
+-- and motifs remain the approved source pixels. The middle stays empty and
+-- dark; there is deliberately NO separate backdrop beneath the artwork.
 local function Section(card, key, title, help, extra)
     local index = assert(bannerIndices[key], "Unknown Duels Options banner")
     local band = card.optionsBand
     local header = CreateFrame("Frame", nil, band)
     header:SetAllPoints(band)
     header:EnableMouse(true)
-
-    -- Native diffuse gradient can scale freely without distorting the
-    -- concept's lettering or icons. Its alpha vanishes into the card body.
-    local wash = header:CreateTexture(nil, "ARTWORK", nil, 1)
-    wash:SetTexture(BANNER_AMBIENT)
-    wash:SetAllPoints(header)
-    if ns.Chrome and ns.Chrome.Sharp then ns.Chrome.Sharp(wash) end
 
     local spriteX = (index % 2) * BANNER_CELL_W
     local spriteY = math.floor(index / 2) * BANNER_CELL_H

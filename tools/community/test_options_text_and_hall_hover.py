@@ -23,7 +23,7 @@ class TextSafeOptionsAndHoverTests(unittest.TestCase):
         ): self.assertIn(t,o)
         self.assertEqual(o.count('Section('),7)
         self.assertIn("DuelOptionsSoftArt.png",o)
-        self.assertIn("DuelBannerAmbient.png",o)
+        self.assertNotIn("DuelBannerAmbient.png",o)
         self.assertNotIn("local center = Slice(",o)
         self.assertLess(6+62,72) # card-header end before divider
         self.assertLess(72,80) # divider before first live row
