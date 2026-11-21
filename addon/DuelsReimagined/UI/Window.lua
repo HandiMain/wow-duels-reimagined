@@ -182,7 +182,7 @@ Window.content = content
 
 local utility = CreateFrame("Frame", nil, footer)
 utility:SetSize(360, 36)
-utility:SetPoint("RIGHT", footer, "RIGHT", -147, 0)
+utility:SetPoint("RIGHT", footer, "RIGHT", -167, 0)
 Window.utility = utility
 
 -- Subcategories are NOT primary navigation buttons.

@@ -361,8 +361,8 @@ for index, section in ipairs(sections) do
         local text = Style.Text(sub, page.label, 16, C.text, nil, "display")
         text:SetWordWrap(false)
         if page.key == "options" or page.key == "interface" then
-            -- Individually drawn 32-bit icon atlas, not rectangles or a
-            -- screenshot cutout. Labels and click targets remain real.
+            -- Actual Appearance/Interface icons cropped from the approved
+            -- section-header art. Labels and click targets remain real.
             local glyph = sub:CreateTexture(nil, "OVERLAY", nil, 4)
             glyph:SetTexture("Interface\\AddOns\\DuelsReimagined\\Media\\Skin\\DuelCategoryIcons.tga")
             glyph:SetSize(24, 24)

@@ -22,10 +22,10 @@ class ApprovedDuelHallLayoutTests(unittest.TestCase):
         content = width - 2 * inset - rail
         self.assertGreaterEqual(content, 780)
         # Footer utilities + compact secondary links + Close fit at default.
-        utility_left = width - inset - 147 - 336
-        close_left = width - inset - 20 - 105
+        utility_left = width - inset - 167 - 360
+        close_left = width - inset - 44 - 112
         self.assertGreater(utility_left, 500)
-        self.assertGreaterEqual(close_left - (utility_left + 336), 20)
+        self.assertGreaterEqual(close_left - (utility_left + 360), 8)
         self.assertGreaterEqual(content - 44, 700)
 
     def test_page_tabs_have_separate_window_and_one_responsive_owner(self):

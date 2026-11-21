@@ -179,7 +179,7 @@ class AccessIconsTests(unittest.TestCase):
         self.assertNotIn("PrimaryRail", n)
         self.assertNotIn("PrimaryRail", c)
         self.assertIn('button:SetSize(HALL_BUTTON_WIDTH, 84)', n)
-        self.assertIn('button:SetSize(104, 30)', n)
+        self.assertIn('button:SetSize(112, 30)', n)
         self.assertIn('button:SetPoint("TOP", Window.rail, "TOP",', n)
         self.assertIn('key = "community", label = "Community"', n)
         self.assertIn('key = "options", label = "Options"', n)

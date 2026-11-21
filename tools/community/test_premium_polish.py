@@ -15,8 +15,8 @@ def get(path):
 class PremiumPolishTests(unittest.TestCase):
     def test_compact_footer_shortcuts_preserve_secondary_names(self):
         w, n = get("UI/Window.lua"), get("UI/Navigation.lua")
-        self.assertIn('utility:SetSize(336, 36)', w)
-        self.assertIn('button:SetSize(104, 30)', n)
+        self.assertIn('utility:SetSize(360, 36)', w)
+        self.assertIn('button:SetSize(112, 30)', n)
         self.assertIn('icon:SetSize(isPrimary and 48 or 20', n)
         self.assertIn('Window.utility = utility', w)
         self.assertIn('local primaryKeys = { hall = true }', n)
@@ -35,11 +35,11 @@ class PremiumPolishTests(unittest.TestCase):
     def test_grip_uses_compact_themeable_glyph_and_existing_motion_engine(self):
         w = get("UI/Window.lua")
         self.assertNotIn('Style.Skin(grip, C.rail, {', w)
-        self.assertIn('plate:SetSize(26, 26)', w)
-        self.assertIn('local gripGlow = Style.Skin(plate, C.tabActive', w)
-        self.assertIn('local gripGlyph = Style.TintedImage(plate,', w)
-        self.assertIn('ResizeGlyph.tga', w)
-        self.assertIn('gripGlyph:SetAlpha(0.28)', w)
+        self.assertIn('resizeArt:SetSize(84, 84)', w)
+        self.assertIn('grip:SetSize(38, 38)', w)
+        self.assertIn('DuelForgedResizeCorner.png', w)
+        self.assertIn('gripGlow:SetBlendMode("ADD")', w)
+        self.assertNotIn('ResizeGlyph.tga', w)
         self.assertIn('Motion.Fade(gripGlow, alpha, duration)', w)
         self.assertIn('GripFeedback(0.94, Motion.Duration("quick"))', w)
         self.assertIn('grip:SetScript("OnMouseDown"', w)
@@ -50,7 +50,7 @@ class PremiumPolishTests(unittest.TestCase):
         self.assertIn('frame:StartSizing("BOTTOMRIGHT")', w)
         self.assertIn('Window.CommitResize()', w)
         self.assertIn('Window.ResetSize()', w)
-        self.assertIn('Motion.Stop(gripGlyph, 0.28)', w)
+        self.assertIn('resizeArt:SetShown(on and true or false)', w)
         self.assertNotIn("ResizeGripHighlight.png", w)
         # Drag-edge guides may update ONLY while dragging. They self-disarm
         # at drag stop and hide; a permanent window polling loop is forbidden.

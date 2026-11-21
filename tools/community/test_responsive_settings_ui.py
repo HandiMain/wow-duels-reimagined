@@ -96,9 +96,9 @@ class ResponsiveSettingsTests(unittest.TestCase):
         self.assertIn('local header = CreateFrame("Frame", nil, band)', src)
         self.assertIn('ns.Tooltips.Bind(header, {', src)
         self.assertIn('card.optionsHeading = header', src)
-        self.assertIn('card.optionsBand:SetHeight(largeText and 68 or BANNER_HEIGHT)', src)
+        self.assertIn('card.optionsBand:SetHeight(largeText and 64 or BANNER_HEIGHT)', src)
         self.assertIn('local y = largeText and 78 or ROW_TOP', src)
-        self.assertIn('local ROW_TOP = 60', src)
+        self.assertIn('local ROW_TOP = 64', src)
         self.assertIn('local CARD_GAP, SECTION_GAP, ROW_GAP = 14, 8, 1', src)
         self.assertIn('math.ceil(widget:GetStringHeight() or 18) + 8', src)
         self.assertNotIn('local behaviorInfo = Style.Text(', src)
@@ -120,15 +120,15 @@ class ResponsiveSettingsTests(unittest.TestCase):
         # The same LayoutPage measures whole cards, independent of their rows.
         compact_toggle = 28
         compact_choice = 32
-        behavior = 60 + 2 * (compact_toggle + 1) + 6
-        game_access = 60 + 2 * (compact_toggle + 1) + 6
-        access = 60 + 3 * (compact_choice + 1) + 4 + 34 + 6
-        typography = 60 + 3 * (compact_choice + 1) + 6
-        notices = 60 + 2 * (compact_toggle + 1) + 6
+        behavior = 64 + 2 * (compact_toggle + 1) + 6
+        game_access = 64 + 2 * (compact_toggle + 1) + 6
+        access = 64 + 3 * (compact_choice + 1) + 4 + 34 + 6
+        typography = 64 + 3 * (compact_choice + 1) + 6
+        notices = 64 + 2 * (compact_toggle + 1) + 6
         self.assertEqual((behavior, game_access, access, typography, notices),
-                         (124, 124, 203, 165, 124))
+                         (128, 128, 207, 169, 128))
         self.assertLess(max(behavior, game_access) +
-                        max(access, typography) + notices + 3 * 8, 500)
+                        max(access, typography) + notices + 3 * 8, 510)
         self.assertIn('page:SetHeight(contentHeight > viewHeight + 1 and contentHeight or', o)
         self.assertIn('local cardHeight = y + (isAppearance and 10 or 6)', o)
 

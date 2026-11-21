@@ -32,7 +32,7 @@ class VisualFidelityTests(unittest.TestCase):
         self.assertNotIn('DuelHallLaurel.tga', n)
         self.assertIn('railDivider:SetPoint("TOP", primaryButtons[#primaryButtons].button', n)
         self.assertIn('Window.rail:SetScript("OnSizeChanged", FitTabs)', n)
-        self.assertIn('button:SetSize(104, 30)', n)
+        self.assertIn('button:SetSize(112, 30)', n)
         self.assertIn('sub:SetSize(174, 35)', n)
         self.assertIn('DuelCategoryIcons.tga', n)
 

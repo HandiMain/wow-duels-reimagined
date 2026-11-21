@@ -42,11 +42,11 @@ class NavigationIconAtlasTests(unittest.TestCase):
         for token in (
             "button:SetSize(HALL_BUTTON_WIDTH, 84)",
             "local HALL_BUTTON_WIDTH = 205",
-            "button:SetSize(104, 30)",
+            "button:SetSize(112, 30)",
             "icon:SetSize(isPrimary and 48 or 20",
             'icon:SetPoint("TOP", button, "TOP", 0, -4)',
             'label:SetPoint("BOTTOM", button, "BOTTOM", 0, 6)',
-            'label:SetPoint("LEFT", icon, "RIGHT", 6, 0)',
+            'Style.ConstrainButtonLabel(button, label, 35, 7, 9)',
             "local function FitTabs(self, width)",
             "local function FitSubTabs(self, width)",
             "FadeSelection(item, on)",

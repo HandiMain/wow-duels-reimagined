@@ -1,4 +1,4 @@
-"""Targeted regressions: small resize glyph and clean theme typography."""
+"""Targeted regressions: forged copper corner and clean theme typography."""
 from pathlib import Path
 import struct
 import unittest
@@ -9,35 +9,33 @@ def source(path):
     return (BASE / path).read_text(encoding="utf-8")
 
 class GripTypographyTests(unittest.TestCase):
-    def test_glyph_is_neutral_32bit_rgba_tga(self):
-        data = (BASE / "Media" / "Skin" / "ResizeGlyph.tga").read_bytes()
-        self.assertEqual(len(data), 18 + 32*32*4)
-        self.assertEqual(data[2], 2)
-        self.assertEqual(struct.unpack_from("<HH", data, 12), (32,32))
-        self.assertEqual((data[16],data[17]), (32,0x28))
-        pixels = data[18:]
-        alpha = pixels[3::4]
-        self.assertIn(0, alpha)
-        self.assertIn(255, alpha)
-        self.assertTrue(all(pixels[i:i+3] == b"\xff\xff\xff"
-                            for i in range(0,len(pixels),4)))
+    def test_forged_corner_is_transparent_native_png(self):
+        import hashlib
+        path = BASE / "Media" / "Skin" / "DuelForgedResizeCorner.png"
+        data = path.read_bytes()
+        self.assertEqual(data[:8], bytes((137,80,78,71,13,10,26,10)))
+        self.assertEqual(struct.unpack_from(">IIBB",data,16), (128,128,8,6))
+        self.assertEqual(hashlib.sha256(data).hexdigest(),
+                         "e6a01e7cd8c7890272ecb7a74d8e3bfac2505fc9e14ea4b84ba1008fe27e01b8")
 
-    def test_invisible_hit_area_visible_small_glyph_only(self):
+    def test_integrated_frame_corner_without_second_button_skin(self):
         win = source("UI/Window.lua")
-        self.assertIn('grip:SetSize(34, 34)', win)
-        self.assertIn('plate:SetSize(26, 26)', win)
-        self.assertIn('plate:EnableMouse(false)', win)
-        self.assertIn('local gripGlyph = Style.TintedImage(plate,', win)
-        self.assertIn('gripGlyph:SetAllPoints(plate)', win)
-        self.assertIn('gripGlyph:SetAlpha(0.28)', win)
-        self.assertNotIn('Style.Skin(grip, C.rail', win)
-        self.assertNotIn('for i = 1, 3 do\n    local length = 8', win)
+        for marker in ('resizeArt:SetSize(84, 84)',
+                       'resizeArt:EnableMouse(false)',
+                       'forgedCorner:SetTexture(CORNER_ART)',
+                       'grip:SetSize(38, 38)',
+                       'DuelForgedResizeCorner.png',
+                       'gripGlow:SetBlendMode("ADD")',
+                       'resizeArt:SetShown(on and true or false)'):
+            self.assertIn(marker,win)
+        self.assertNotIn("ResizeGlyph.tga",win)
+        self.assertNotIn("Style.Skin(grip, C.rail",win)
+        self.assertNotIn("plate:SetSize(26, 26)",win)
 
     def test_existing_hover_press_drag_reset_and_fold(self):
         win = source("UI/Window.lua")
         for needle in ('Motion.Fade(gripGlow, alpha, duration)',
-                       'Motion.Fade(gripGlyph, alpha > 0 and 0.96 or 0.28, duration)',
-                       'Motion.Stop(gripGlow, 0)', 'Motion.Stop(gripGlyph, 0.28)',
+                       'Motion.Stop(gripGlow, 0)',
                        'frame:StartSizing("BOTTOMRIGHT")',
                        'frame:StopMovingOrSizing()', 'Window.CommitResize()',
                        'if button == "RightButton" then Window.ResetSize() end',

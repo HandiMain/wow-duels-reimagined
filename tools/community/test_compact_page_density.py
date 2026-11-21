@@ -33,9 +33,9 @@ class CompactPageDensityTests(unittest.TestCase):
     def test_footer_shortcuts_and_content_tabs_are_compact(self):
         n = src("UI/Navigation.lua")
         for marker in (
-            "button:SetSize(104, 30)",
+            "button:SetSize(112, 30)",
             "icon:SetSize(isPrimary and 48 or 20",
-            'label:SetPoint("LEFT", icon, "RIGHT", 6, 0)',
+            'Style.ConstrainButtonLabel(button, label, 35, 7, 9)',
             "sub:SetSize(174, 35)",
             "item.label:SetTextColor(unpack(active and C.tabText or C.text))",
             'Window.nav:SetScript("OnSizeChanged", FitSubTabs)',
@@ -55,7 +55,7 @@ class CompactPageDensityTests(unittest.TestCase):
         visible = 650 - 12 - 72 - 50 - 14
         viewport = visible - 153 - 17
         self.assertGreaterEqual(viewport, 130)
-        self.assertIn("local ROW_TOP = 60", o)
+        self.assertIn("local ROW_TOP = 64", o)
         self.assertIn("local cardHeight = y + (isAppearance and 10 or 6)", o)
 
     def test_pill_switch_uses_existing_rounded_assets_and_preserves_behavior(self):
