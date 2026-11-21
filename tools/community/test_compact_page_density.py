@@ -10,7 +10,7 @@ def src(path):
     return (BASE / path).read_text(encoding="utf-8")
 
 class CompactPageDensityTests(unittest.TestCase):
-    def test_wider_wordmark_centered_without_new_texture(self):
+    def test_wider_wordmark_extracted_from_approved_concept(self):
         w = src("UI/Window.lua")
         for marker in (
             "local BRAND_ASPECT = 4.65",
@@ -18,8 +18,9 @@ class CompactPageDensityTests(unittest.TestCase):
             'brandLogo:SetPoint("TOPLEFT", brandArea, "TOPLEFT", 66, -3)',
             'BrandLayer(C.red,        0,    0.25)',
             'BrandLayer(C.headerText, 0.25, 0.50)',
-            '-- The approved header logo is assembled from INDEPENDENT native regions:',
+            '-- Literal brand artwork extracted from the approved source concept.',
             'brandArea:SetPoint("RIGHT", searchBox, "LEFT", -12, 0)',
+            'exactBrand:SetTexCoord(0, 384/512, 25/128, 93/128)',
         ):
             self.assertIn(marker, w)
         landing = src("UI/BlizzardSettings.lua")

@@ -16,7 +16,7 @@ def lua(path):
 class ConceptExtractionTests(unittest.TestCase):
     def test_extracted_atlas_is_a_small_power_of_two_png(self):
         data = ATLAS.read_bytes()
-        self.assertTrue(data.startswith(b"\x89PNG\r\n\x1a\n"))
+        self.assertTrue(data.startswith(bytes([137,80,78,71,13,10,26,10])))
         w, h, bit_depth, color_type = struct.unpack(">IIBB", data[16:26])
         self.assertEqual((w, h), (512, 256))
         self.assertEqual(bit_depth, 8)
@@ -27,7 +27,7 @@ class ConceptExtractionTests(unittest.TestCase):
     def test_transparent_brand_art_is_cropped_and_keeps_drag_owner(self):
         brand = ROOT / "Media" / "Skin" / "DuelExactBrand.png"
         data = brand.read_bytes()
-        self.assertTrue(data.startswith(b"\\x89PNG\\r\\n\\x1a\\n"))
+        self.assertTrue(data.startswith(bytes([137,80,78,71,13,10,26,10])))
         w, h = struct.unpack(">II", data[16:24])
         self.assertEqual((w, h), (512, 128))
         self.assertLess(len(data), 8000)
