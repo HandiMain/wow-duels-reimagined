@@ -1,7 +1,7 @@
 """Appearance-only raster text repair; static WoW layout contracts.
 
-The approved first atlas cell has damaged lettering. Keep its icon and right
-motif, and replace ONLY the faulty title/subtitle with native, fixed-size text.
+The approved first atlas cell has damaged lettering AND truncated palette art.
+Only Appearance uses a separate complete palette TGA and native header labels.
 Live WoW screenshots are still required to certify pixel alignment.
 """
 from pathlib import Path
@@ -13,11 +13,13 @@ SOURCE = (BASE / "UI" / "Options.lua").read_text(encoding="utf-8")
 
 class AppearanceHeaderRepairTests(unittest.TestCase):
     def test_only_appearance_uses_native_text_repair(self):
-        self.assertIn('local appearanceIconWidth = key == "appearance" and 104 or nil', SOURCE)
-        self.assertIn("if appearanceIconWidth then", SOURCE)
-        self.assertIn("left:SetTexCoord(spriteX / BANNER_ATLAS_W,", SOURCE)
-        self.assertIn("(spriteX + appearanceIconWidth) / BANNER_ATLAS_W", SOURCE)
-        self.assertIn("left:SetWidth(math.max(1, appearanceIconWidth * scale))", SOURCE)
+        self.assertIn('local isAppearance = key == "appearance"', SOURCE)
+        self.assertIn('left:Hide() -- remove the damaged left icon and baked lettering', SOURCE)
+        self.assertIn('palette:SetTexture(COMPLETE_PALETTE)', SOURCE)
+        self.assertIn('motifPalette:SetTexture(COMPLETE_PALETTE)', SOURCE)
+        self.assertIn('palette:SetPoint("CENTER", header, "LEFT", 50, 0)', SOURCE)
+        self.assertIn('motifPalette:SetPoint("CENTER", header, "RIGHT", -69, 0)', SOURCE)
+        self.assertIn('card.appearancePalette, card.appearanceMotifPalette = palette, motifPalette', SOURCE)
         self.assertIn('local name = header:CreateFontString(nil, "ARTWORK", nil, 5)', SOURCE)
         self.assertIn('name:SetText(title)', SOURCE)
         self.assertIn('sub:SetText("FONT MATCHING & VISUAL IDENTITY")', SOURCE)
@@ -25,7 +27,7 @@ class AppearanceHeaderRepairTests(unittest.TestCase):
         self.assertEqual(SOURCE.count("header:CreateFontString(nil, \"ARTWORK\", nil, 5)"), 2)
 
     def test_visual_height_and_fallback_are_safe(self):
-        self.assertLess(104, 112)  # The damaged raster title begins after its icon
+        self.assertTrue((BASE / "Media" / "Skin" / "DuelPaletteComplete.tga").is_file())
         self.assertIn('name:SetPoint("TOPLEFT", header, "TOPLEFT", 96, -9)', SOURCE)
         self.assertIn('name:SetSize(290, 35)', SOURCE)
         self.assertIn('sub:SetPoint("TOPLEFT", header, "TOPLEFT", 96, -44)', SOURCE)
@@ -35,6 +37,17 @@ class AppearanceHeaderRepairTests(unittest.TestCase):
         self.assertIn('headingBand:SetClipsChildren(false)', SOURCE)
         self.assertIn('local BANNER_HEIGHT = 72', SOURCE)
         self.assertLess(44 + 16, 72)
+
+    def test_complete_palette_image_is_wow_compatible(self):
+        data = (BASE / "Media" / "Skin" / "DuelPaletteComplete.tga").read_bytes()
+        self.assertEqual(data[2], 2)  # uncompressed true-color TGA
+        self.assertEqual(data[12:16], bytes((64, 0, 64, 0)))
+        self.assertEqual(data[16:18], bytes((32, 0x28)))  # BGRA + top-left
+        self.assertEqual(len(data), 18 + 64 * 64 * 4)
+        alpha = data[21::4]
+        self.assertGreater(sum(1 for p in alpha if p > 0), 750)
+        self.assertLess(sum(1 for p in alpha if p == 255), 2500)
+        self.assertGreater(len(set(alpha)), 3)
 
     def test_other_banners_and_options_controls_unchanged(self):
         self.assertIn("local left = Slice(0, BANNER_LEFT)", SOURCE)
