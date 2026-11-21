@@ -24,8 +24,8 @@ class SingleRimOptionsTests(unittest.TestCase):
         for marker in (
             'headingBand:SetPoint("TOPLEFT", card, "TOPLEFT", 12, -6)',
             'headingBand:SetPoint("TOPRIGHT", card, "TOPRIGHT", -12, -6)',
-            'divider:SetPoint("TOPLEFT", card, "TOPLEFT", 12, -72)',
-            'divider:SetPoint("TOPRIGHT", card, "TOPRIGHT", -12, -72)',
+            'divider:SetPoint("TOPLEFT", card, "TOPLEFT", 12, -82)',
+            'divider:SetPoint("TOPRIGHT", card, "TOPRIGHT", -12, -82)',
             'card.optionsBand:SetHeight(BANNER_HEIGHT)',
             'widget.optionsY = sectionY + y',
             'function appearance:Relayout(width)',
