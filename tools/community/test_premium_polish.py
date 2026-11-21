@@ -39,7 +39,7 @@ class PremiumPolishTests(unittest.TestCase):
         self.assertIn('local gripGlow = Style.Skin(plate, C.tabActive', w)
         self.assertIn('local gripGlyph = Style.TintedImage(plate,', w)
         self.assertIn('ResizeGlyph.tga', w)
-        self.assertIn('gripGlyph:SetAlpha(0.74)', w)
+        self.assertIn('gripGlyph:SetAlpha(0.28)', w)
         self.assertIn('Motion.Fade(gripGlow, alpha, duration)', w)
         self.assertIn('GripFeedback(0.94, Motion.Duration("quick"))', w)
         self.assertIn('grip:SetScript("OnMouseDown"', w)
@@ -50,7 +50,7 @@ class PremiumPolishTests(unittest.TestCase):
         self.assertIn('frame:StartSizing("BOTTOMRIGHT")', w)
         self.assertIn('Window.CommitResize()', w)
         self.assertIn('Window.ResetSize()', w)
-        self.assertIn('Motion.Stop(gripGlyph, 0.74)', w)
+        self.assertIn('Motion.Stop(gripGlyph, 0.28)', w)
         self.assertNotIn("ResizeGripHighlight.png", w)
         # Drag-edge guides may update ONLY while dragging. They self-disarm
         # at drag stop and hide; a permanent window polling loop is forbidden.

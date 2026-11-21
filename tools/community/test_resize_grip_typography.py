@@ -29,15 +29,15 @@ class GripTypographyTests(unittest.TestCase):
         self.assertIn('plate:EnableMouse(false)', win)
         self.assertIn('local gripGlyph = Style.TintedImage(plate,', win)
         self.assertIn('gripGlyph:SetAllPoints(plate)', win)
-        self.assertIn('gripGlyph:SetAlpha(0.74)', win)
+        self.assertIn('gripGlyph:SetAlpha(0.28)', win)
         self.assertNotIn('Style.Skin(grip, C.rail', win)
         self.assertNotIn('for i = 1, 3 do\n    local length = 8', win)
 
     def test_existing_hover_press_drag_reset_and_fold(self):
         win = source("UI/Window.lua")
         for needle in ('Motion.Fade(gripGlow, alpha, duration)',
-                       'Motion.Fade(gripGlyph, alpha > 0 and 1 or 0.74, duration)',
-                       'Motion.Stop(gripGlow, 0)', 'Motion.Stop(gripGlyph, 0.74)',
+                       'Motion.Fade(gripGlyph, alpha > 0 and 0.96 or 0.28, duration)',
+                       'Motion.Stop(gripGlow, 0)', 'Motion.Stop(gripGlyph, 0.28)',
                        'frame:StartSizing("BOTTOMRIGHT")',
                        'frame:StopMovingOrSizing()', 'Window.CommitResize()',
                        'if button == "RightButton" then Window.ResetSize() end',

@@ -465,10 +465,12 @@ local gripGlyph = Style.TintedImage(plate,
     "Interface\\AddOns\\DuelsReimagined\\Media\\Skin\\ResizeGlyph.tga",
     C.gold, "OVERLAY")
 gripGlyph:SetAllPoints(plate)
-gripGlyph:SetAlpha(0.74)
+-- Keep the resize affordance subtly engraved at rest instead of letting
+-- a large bright diagonal mark compete with the new copper corner.
+gripGlyph:SetAlpha(0.28)
 local function GripFeedback(alpha, duration)
     Motion.Fade(gripGlow, alpha, duration)
-    Motion.Fade(gripGlyph, alpha > 0 and 1 or 0.74, duration)
+    Motion.Fade(gripGlyph, alpha > 0 and 0.96 or 0.28, duration)
 end
 grip.icon = gripGlyph
 local sizing = false
@@ -504,7 +506,7 @@ ns.Tooltips.Bind(grip, { title = "Resize window",
 -- Preserve the shared tooltip OnHide cleanup installed with HookScript.
 grip:HookScript("OnHide", function()
     Motion.Stop(gripGlow, 0)
-    Motion.Stop(gripGlyph, 0.74)
+    Motion.Stop(gripGlyph, 0.28)
     if sizing then
         sizing = false
         frame:StopMovingOrSizing()
@@ -514,7 +516,7 @@ Window.resizeGrip = grip
 function Window.SetSizingEnabled(on)
     if not on then
         Motion.Stop(gripGlow, 0)
-        Motion.Stop(gripGlyph, 0.74)
+        Motion.Stop(gripGlyph, 0.28)
     end
     if not on and sizing then
         sizing = false
