@@ -171,7 +171,7 @@ local rail = CreateFrame("Frame", nil, body)
 rail:SetPoint("TOPLEFT", body, "TOPLEFT", 0, 0)
 rail:SetPoint("BOTTOMLEFT", body, "BOTTOMLEFT", 0, 0)
 rail:SetWidth(226)
-Style.Skin(rail, C.rail, { corner=8, edge=C.shellEdge, shine=0.12, shade=0.20 })
+Style.Skin(rail, C.rail, { corner=8, edge=C.shellEdge, smooth=true })
 -- One rail edge, not a second line on top of its skin.
 Window.rail = rail
 
@@ -182,7 +182,7 @@ Window.main = main
 
 local content = CreateFrame("Frame", nil, main)
 content:SetAllPoints(main)
-Style.Skin(content, C.body, { corner=7, edge=C.border, shine=0.12, shade=0.16 })
+Style.Skin(content, C.body, { corner=7, edge=C.border, smooth=true })
 Window.content = content
 
 local utility = CreateFrame("Frame", nil, footer)
