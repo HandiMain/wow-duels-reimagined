@@ -36,6 +36,22 @@ Style.color = {}
 for token, code in pairs(duelHall) do Style.color[token] = Hex(code) end
 local C = Style.color
 local colorTextures, fontStrings, pixelEdges = {}, {}, {}
+-- Shared bounded-label measurement; no permanent OnUpdate or duplicate font engine.
+local function FitLabelFont(entry)
+    local fit = entry.fit
+    if not fit then return end
+    local fs = entry.label
+    local face, size, flags = fs:GetFont()
+    if not face or not size then return end
+    local room = math.max(1, fit.button:GetWidth() - fit.left - fit.right - 3)
+    local measure = fs.GetUnboundedStringWidth or fs.GetStringWidth
+    if not measure then return end
+    local current = size
+    while current > fit.minimum and measure(fs) > room do
+        current = math.max(fit.minimum, current - 0.75)
+        if not fs:SetFont(face, current, flags or "") then break end
+    end
+end
 
 function Style.Pixel(region, physicalPixels)
     local scale = region and region.GetEffectiveScale and region:GetEffectiveScale() or 1
@@ -421,6 +437,35 @@ function Style.Text(parent, value, size, color, outline, role)
     return label
 end
 
+-- Footer, action, and category labels share one source of truth for their
+-- live font bounds. A font change refits; an on-size event refits. Selected,
+-- hover, disabled, and click behavior remain owned by the original Button.
+function Style.ConstrainButtonLabel(button, label, left, right, minimum)
+    left, right = left or 8, right or 8
+    label:SetWordWrap(false)
+    local function Anchor(y)
+        label:ClearAllPoints()
+        label:SetPoint("LEFT", button, "LEFT", left, y or 0)
+        label:SetPoint("RIGHT", button, "RIGHT", -right, y or 0)
+    end
+    Anchor(0)
+    for _, entry in ipairs(fontStrings) do
+        if entry.label == label then
+            entry.fit = { button=button, left=left, right=right,
+                minimum=minimum or 9 }
+            FitLabelFont(entry)
+            button:HookScript("OnSizeChanged", function()
+                local path, _, flags = label:GetFont()
+                local scale = ns.Settings and ns.Settings.Get("fontScale") or 1
+                if path then label:SetFont(path, entry.size * scale, flags or "") end
+                FitLabelFont(entry)
+            end)
+            break
+        end
+    end
+    return Anchor
+end
+
 -- Interactive buttons own native text/callbacks; only the decorative relief
 -- uses nine-sliced art, never image-based labels or hit targets.
 -- Optional fixed-brand palette keeps a specific action independent of theme
@@ -455,21 +500,16 @@ function Style.Action(parent, caption, variant, palette)
     })
     local label = Style.Text(button, caption, 15,
         palette and palette.text or C.buttonText)
-    label:SetPoint("CENTER")
+    local placeLabel = Style.ConstrainButtonLabel(button, label, 9, 9, 9)
+    label:SetJustifyH("CENTER")
     button:SetScript("OnEnter", function()
         ns.Motion.Fade(hover, 0.20, 0.16)
     end)
     button:SetScript("OnLeave", function()
         ns.Motion.Fade(hover, 0, 0.18)
     end)
-    button:SetScript("OnMouseDown", function()
-        label:ClearAllPoints()
-        label:SetPoint("CENTER", button, "CENTER", 0, -1)
-    end)
-    button:SetScript("OnMouseUp", function()
-        label:ClearAllPoints()
-        label:SetPoint("CENTER", button, "CENTER", 0, 0)
-    end)
+    button:SetScript("OnMouseDown", function() placeLabel(-1) end)
+    button:SetScript("OnMouseUp", function() placeLabel(0) end)
     if ns.Widgets and ns.Widgets.PressFeedback then
         ns.Widgets.PressFeedback(button, hover)
     end
@@ -518,5 +558,6 @@ function Style.ApplyTheme(fontPath)
             fs:SetFont(STANDARD_TEXT_FONT or "Fonts\\FRIZQT__.TTF", size, outline)
         end
         if entry.token then fs:SetTextColor(unpack(C[entry.token])) end
+        FitLabelFont(entry)
     end
 end

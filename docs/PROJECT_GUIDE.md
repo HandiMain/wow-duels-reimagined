@@ -1386,3 +1386,11 @@ does not stretch the copper corners. Test with and without EllesmereUI.
 - Media: one RGBA power-of-two `Media/Skin/DuelOptionsExactBanners.png` (1024 × 256). Six 512 × 64 cells, with a 3-part horizontal UV split to preserve title/icon scale and stretch only the quiet center gradient on window resize. This replaces `DuelOptionsCategoryArt.png` and its generic reconstructed headers.
 - Keep each card's existing **real** rows, buttons, reset states, search targets, tooltip data, scroll/frame owners, options tabs, saved settings, and gameplay untouched. Do not add a second color/skin owner or permanent update ticker.
 - Visual proof requires a new in-game screenshot at the current size. CI confirms file integrity, Lua syntax, and structural contracts but does NOT prove exact on-screen rendering.
+
+## Options, footer and integrated resize-corner polish — November 21, 2026
+
+- The two Options pages retain their six exact screenshot-derived category graphics. Their header frames now inset 4 UI units to align to the shared 9-slice card border. The banner split has moved into the narrow quiet band after the baked subtitle, avoiding stretched text/motifs.
+- Appearance/Interface tab glyphs reuse their real approved category icons inside the existing 128×64 TGA atlas, rather than old unrelated icons.
+- Footer links are 112-wide and all footer/Action/tab labels share one bounded-font fitter that refits after font changes and width changes. No independent font pollers. Close is inset further from the forged corner without overlapping the utility group.
+- One existing resize behavior owner remains: drag to resize/persist, right click to reset. The new 84×84 transparent copper relief is an actual corner/edge continuation, while the mouse input remains a separate clear 38×38 hit zone. Hide both when folded. No added settings, themes, or gameplay.
+- Automated/static checks are evidence only; player verifies final geometry/hover/click in actual WoW at 100/150% text and smaller window sizes.

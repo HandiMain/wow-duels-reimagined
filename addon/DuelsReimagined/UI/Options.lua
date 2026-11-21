@@ -66,7 +66,7 @@ end
 local BANNER_ART = "Interface\\AddOns\\DuelsReimagined\\Media\\Skin\\DuelOptionsExactBanners.png"
 local BANNER_ATLAS_W, BANNER_ATLAS_H = 1024, 256
 local BANNER_CELL_W, BANNER_CELL_H = 512, 64
-local BANNER_LEFT, BANNER_RIGHT = 320, 128
+local BANNER_LEFT, BANNER_RIGHT = 392, 96
 local bannerIndices = {
     appearance = 0,
     motion = 1,
@@ -86,9 +86,10 @@ local function Card(page, y, height)
     -- Artwork covers the card's full width. The original panel's real
     -- interactive rows are anchored below it; only chrome is image-backed.
     local headingBand = CreateFrame("Frame", nil, card)
-    headingBand:SetPoint("TOPLEFT", card, "TOPLEFT")
-    headingBand:SetPoint("TOPRIGHT", card, "TOPRIGHT")
-    headingBand:SetHeight(54)
+    -- Match the gilded card-body rim, rather than painting over its edges.
+    headingBand:SetPoint("TOPLEFT", card, "TOPLEFT", 4, -4)
+    headingBand:SetPoint("TOPRIGHT", card, "TOPRIGHT", -4, -4)
+    headingBand:SetHeight(52)
     headingBand:EnableMouse(false)
     card.optionsBand = headingBand
     card.scrollOwner, card.scrollTop = page.scrollOwner, y
@@ -374,8 +375,8 @@ MarkPosition(resetAccess, accessCard, -332)
 -- copied, and all Settings/Search/scroll/tooltip owners remain unchanged.
 local CARD_BREAKPOINT = 720
 local CARD_GAP, SECTION_GAP, ROW_GAP = 14, 8, 1
-local BANNER_HEIGHT = 54
-local ROW_TOP = 60
+local BANNER_HEIGHT = 52
+local ROW_TOP = 64
 
 local function LayoutPage(page, groups, width)
     width = math.max(1, width or page:GetWidth())
@@ -408,7 +409,7 @@ local function LayoutPage(page, groups, width)
         card:SetWidth(cardWidth)
         -- At 125-150% text, trade density for fully readable rows.
         if card.optionsBand then
-            card.optionsBand:SetHeight(largeText and 68 or BANNER_HEIGHT)
+            card.optionsBand:SetHeight(largeText and 64 or BANNER_HEIGHT)
         end
 
         local y = largeText and 78 or ROW_TOP

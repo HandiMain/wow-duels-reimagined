@@ -55,7 +55,8 @@ local function FooterButton(label, width, detail)
     icon:SetPoint("LEFT", button, "LEFT", 4, 0)
     ns.Chrome.Sharp(icon)
     local title = Style.Text(button, label, 12, C.footerText)
-    title:SetPoint("LEFT", icon, "RIGHT", 6, 0)
+    Style.ConstrainButtonLabel(button, title, 25, 9, 9)
+    title:SetJustifyH("LEFT")
     button.icon, button.hover = icon, hover
     button:SetScript("OnEnter", function(self)
         if self:IsEnabled() then Motion.Fade(hover, 0.28, 0.13) end

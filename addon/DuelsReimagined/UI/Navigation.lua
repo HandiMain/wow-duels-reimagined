@@ -237,9 +237,9 @@ for index, section in ipairs(sections) do
         button:SetPoint("TOP", Window.rail, "TOP", 0, -31)
     else
         utilityIndex = utilityIndex + 1
-        button:SetSize(104, 30)
+        button:SetSize(112, 30)
         button:SetPoint("LEFT", Window.utility, "LEFT",
-            (utilityIndex - 1) * 112, 0)
+            (utilityIndex - 1) * 120, 0)
         previousUtilityButton = button
     end
 
@@ -289,9 +289,8 @@ for index, section in ipairs(sections) do
         end
     else
         icon:SetPoint("LEFT", button, "LEFT", 9, 0)
-        label:SetPoint("LEFT", icon, "RIGHT", 6, 0)
+        Style.ConstrainButtonLabel(button, label, 35, 7, 9)
         label:SetJustifyH("LEFT")
-        label:SetWordWrap(false)
     end
 
     if section.key == "patchnotes" then
@@ -366,17 +365,17 @@ for index, section in ipairs(sections) do
             -- screenshot cutout. Labels and click targets remain real.
             local glyph = sub:CreateTexture(nil, "OVERLAY", nil, 4)
             glyph:SetTexture("Interface\\AddOns\\DuelsReimagined\\Media\\Skin\\DuelCategoryIcons.tga")
-            glyph:SetSize(22, 22)
-            glyph:SetPoint("LEFT", sub, "LEFT", 15, 0)
+            glyph:SetSize(24, 24)
+            glyph:SetPoint("LEFT", sub, "LEFT", 13, 0)
             if page.key == "options" then
                 glyph:SetTexCoord(0, .5, 0, 1)
             else
                 glyph:SetTexCoord(.5, 1, 0, 1)
             end
-            text:SetPoint("LEFT", glyph, "RIGHT", 9, 0)
+            Style.ConstrainButtonLabel(sub, text, 46, 10, 10)
             text:SetJustifyH("LEFT")
         else
-            text:SetPoint("CENTER", sub, "CENTER", 0, 0)
+            Style.ConstrainButtonLabel(sub, text, 9, 9, 9)
             text:SetJustifyH("CENTER")
         end
         sub:SetScript("OnClick", function() Select(index, pageIndex) end)

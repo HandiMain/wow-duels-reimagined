@@ -181,7 +181,7 @@ Style.Skin(content, C.body, { corner=7, edge=C.border, shine=0.12, shade=0.16 })
 Window.content = content
 
 local utility = CreateFrame("Frame", nil, footer)
-utility:SetSize(336, 36)
+utility:SetSize(360, 36)
 utility:SetPoint("RIGHT", footer, "RIGHT", -147, 0)
 Window.utility = utility
 
@@ -440,42 +440,43 @@ function Window.RefreshTheme()
     scaleFill:SetColorTexture(unpack(C.gold))
     scaleTrack:SetColorTexture(unpack(C.track))
     scaleResetIcon:SetVertexColor(unpack(C.gold))
-    -- Raised grip tint is registered with Style.Skin and repaints
-    -- automatically for Duels themes and optional EllesmereUI matching.
+    -- Fixed Duel Hall copper art is deliberately independent of font matching.
 end
 
 Window.ApplyScale(Settings.Get("menuScale") or 1)
 
 -- One resize owner, regardless of active page. Persist once on mouse release.
+-- The copper/bronze ornament is visibly connected to Chrome.Shell's edges,
+-- never a small button floating inside the corner; artwork does not eat input.
+local resizeArt = CreateFrame("Frame", nil, frame)
+resizeArt:SetSize(84, 84)
+resizeArt:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -2, 2)
+resizeArt:SetFrameLevel(frame:GetFrameLevel() + 24)
+resizeArt:EnableMouse(false)
+local CORNER_ART = "Interface\\AddOns\\DuelsReimagined\\Media\\Skin\\DuelForgedResizeCorner.png"
+local forgedCorner = resizeArt:CreateTexture(nil, "ARTWORK", nil, 2)
+forgedCorner:SetTexture(CORNER_ART)
+forgedCorner:SetAllPoints(resizeArt)
+forgedCorner:SetAlpha(0.94)
+if Chrome then Chrome.Sharp(forgedCorner) end
+local gripGlow = resizeArt:CreateTexture(nil, "OVERLAY", nil, 3)
+gripGlow:SetTexture(CORNER_ART)
+gripGlow:SetAllPoints(resizeArt)
+gripGlow:SetBlendMode("ADD")
+gripGlow:SetVertexColor(1, 0.72, 0.30)
+gripGlow:SetAlpha(0)
+if Chrome then Chrome.Sharp(gripGlow) end
+
+-- The single resizer input owner stays on the true bottom-right corner.
 local grip = CreateFrame("Button", nil, frame)
--- A 34x34 hit area sits INSIDE the bottom-right corner, clear of Close.
-grip:SetSize(34, 34)
-grip:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -4, 4)
+grip:SetSize(38, 38)
+grip:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -2, 2)
 grip:SetFrameLevel(frame:GetFrameLevel() + 45)
 grip:RegisterForClicks("RightButtonUp")
--- The 34px button is an INVISIBLE drag target. A small engraved symbol
--- fits the existing window corner; only hover/press creates a faint halo.
--- Its neutral artwork is tinted by Duels themes and EllesmereUI colors.
-local plate = CreateFrame("Frame", nil, grip)
-plate:SetSize(26, 26)
-plate:SetPoint("BOTTOMRIGHT", grip, "BOTTOMRIGHT", -3, 3)
-plate:EnableMouse(false)
-local gripGlow = Style.Skin(plate, C.tabActive, {
-    corner=8, edge=C.goldDim, shine=0.22, shade=0.13, rim=0.35,
-    alpha=0,
-})
-local gripGlyph = Style.TintedImage(plate,
-    "Interface\\AddOns\\DuelsReimagined\\Media\\Skin\\ResizeGlyph.tga",
-    C.gold, "OVERLAY")
-gripGlyph:SetAllPoints(plate)
--- Keep the resize affordance subtly engraved at rest instead of letting
--- a large bright diagonal mark compete with the new copper corner.
-gripGlyph:SetAlpha(0.28)
 local function GripFeedback(alpha, duration)
     Motion.Fade(gripGlow, alpha, duration)
-    Motion.Fade(gripGlyph, alpha > 0 and 0.96 or 0.28, duration)
 end
-grip.icon = gripGlyph
+grip.icon = forgedCorner
 local sizing = false
 grip:SetScript("OnMouseDown", function(_, button)
     if button ~= "LeftButton" or (ns.Header and ns.Header.IsFolded()) then return end
@@ -509,7 +510,6 @@ ns.Tooltips.Bind(grip, { title = "Resize window",
 -- Preserve the shared tooltip OnHide cleanup installed with HookScript.
 grip:HookScript("OnHide", function()
     Motion.Stop(gripGlow, 0)
-    Motion.Stop(gripGlyph, 0.28)
     if sizing then
         sizing = false
         frame:StopMovingOrSizing()
@@ -519,7 +519,6 @@ Window.resizeGrip = grip
 function Window.SetSizingEnabled(on)
     if not on then
         Motion.Stop(gripGlow, 0)
-        Motion.Stop(gripGlyph, 0.28)
     end
     if not on and sizing then
         sizing = false
@@ -527,6 +526,7 @@ function Window.SetSizingEnabled(on)
     end
     frame:SetResizable(on and true or false)
     grip:SetShown(on and true or false)
+    resizeArt:SetShown(on and true or false)
     -- Fold also swaps the decorative grip back to a non-resizable corner.
     -- Otherwise the artwork would advertise an unavailable interaction.
     if Chrome.SetResizeCorner then Chrome.SetResizeCorner(on) end
@@ -535,7 +535,8 @@ end
 local close = Style.Action(footer, "Close", "footer")
 close:SetSize(105, 30)
 -- Centered vertically, with safe padding from the actual interior boundary.
-close:SetPoint("RIGHT", footer, "RIGHT", -20, 0)
+-- The ornamental border corner stays clear of the working Close button.
+close:SetPoint("RIGHT", footer, "RIGHT", -44, 0)
 close:SetScript("OnClick", function() frame:Hide() end)
 Window.closeButton = close -- Navigation anchors its compact Back beside Close.
 ns.Tooltips.Bind(close, { title = "Close Duels Reimagined",
