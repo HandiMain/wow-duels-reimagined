@@ -62,11 +62,13 @@ end
 -- Unlike the previous icon/motif approximation, no font is substituted and
 -- no separate 32px symbols are layered over a generic header plate.
 -- The atlas owns graphics only; WoW still owns every setting and mouse target.
--- Two 512x64 cells per row in a power-of-two, RGBA 1024x256 texture.
-local BANNER_ART = "Interface\\AddOns\\DuelsReimagined\\Media\\Skin\\DuelOptionsExactBanners.png"
-local BANNER_ATLAS_W, BANNER_ATLAS_H = 1024, 256
-local BANNER_CELL_W, BANNER_CELL_H = 512, 64
-local BANNER_LEFT, BANNER_RIGHT = 392, 96
+-- Two complete 640x80 source-header plates per row in a 2048x256 RGBA atlas.
+-- Unlike the obsolete truncated crops, these include the real right corner
+-- and the original continuous lower border in every category.
+local BANNER_ART = "Interface\\AddOns\\DuelsReimagined\\Media\\Skin\\DuelOptionsCompleteBanners.png"
+local BANNER_ATLAS_W, BANNER_ATLAS_H = 2048, 256
+local BANNER_CELL_W, BANNER_CELL_H = 640, 80
+local BANNER_LEFT, BANNER_RIGHT = 438, 160
 local bannerIndices = {
     appearance = 0,
     motion = 1,
@@ -91,6 +93,7 @@ local function Card(page, y, height)
     headingBand:SetPoint("TOPRIGHT", card, "TOPRIGHT", -4, -4)
     headingBand:SetHeight(52)
     headingBand:EnableMouse(false)
+    if headingBand.SetClipsChildren then headingBand:SetClipsChildren(true) end
     card.optionsBand = headingBand
     card.scrollOwner, card.scrollTop = page.scrollOwner, y
     return card
@@ -132,6 +135,8 @@ local function Section(card, key, title, help, extra)
         if ns.Chrome and ns.Chrome.Sharp then ns.Chrome.Sharp(piece) end
         return piece
     end
+    -- Both engraved corners stay in the non-stretched exterior slices.
+    -- Only the quiet background interval between lettering and motifs expands.
     local left = Slice(0, BANNER_LEFT)
     local center = Slice(BANNER_LEFT, BANNER_CELL_W - BANNER_RIGHT)
     local right = Slice(BANNER_CELL_W - BANNER_RIGHT, BANNER_CELL_W)

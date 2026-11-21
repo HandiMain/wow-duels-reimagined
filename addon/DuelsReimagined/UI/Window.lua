@@ -25,6 +25,8 @@ frame:Hide()
 -- extend beyond the outer edge when scaled or resized.
 Style.Skin(frame, C.window, {
     corner=12, edge=C.window, shine=0.07, shade=0.11, rim=0,
+    -- Do not fill the transparent area outside the sculpted copper 9-slice.
+    inset=5,
 })
 -- Single shell border owner: Chrome.Shell adds sculpted accents.
 local inset = 6
@@ -32,6 +34,9 @@ local interior = CreateFrame("Frame", nil, frame)
 interior:SetPoint("TOPLEFT", frame, "TOPLEFT", inset, -inset)
 interior:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -inset, inset)
 Style.Fill(interior, C.window)
+-- Polestar-style optional frame clipping: interior backgrounds and page
+-- canvases must stay within the real metallic frame, not its outside corners.
+if interior.SetClipsChildren then interior:SetClipsChildren(true) end
 Window.frame = frame
 
 -- Magnetic positioning is an enhancement to the ONE existing window drag
@@ -446,14 +451,15 @@ end
 Window.ApplyScale(Settings.Get("menuScale") or 1)
 
 -- One resize owner, regardless of active page. Persist once on mouse release.
--- The copper/bronze ornament is visibly connected to Chrome.Shell's edges,
--- never a small button floating inside the corner; artwork does not eat input.
+-- A single sculpted copper corner plate with relief, rivet and forged rim
+-- joins Chrome.Shell's bottom and right edges. No parallel-line glyph or
+-- standalone button-shaped background. Artwork never eats mouse input.
 local resizeArt = CreateFrame("Frame", nil, frame)
 resizeArt:SetSize(84, 84)
 resizeArt:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -2, 2)
 resizeArt:SetFrameLevel(frame:GetFrameLevel() + 24)
 resizeArt:EnableMouse(false)
-local CORNER_ART = "Interface\\AddOns\\DuelsReimagined\\Media\\Skin\\DuelForgedResizeCorner.png"
+local CORNER_ART = "Interface\\AddOns\\DuelsReimagined\\Media\\Skin\\DuelSculptedCopperCorner.png"
 local forgedCorner = resizeArt:CreateTexture(nil, "ARTWORK", nil, 2)
 forgedCorner:SetTexture(CORNER_ART)
 forgedCorner:SetAllPoints(resizeArt)

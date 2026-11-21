@@ -358,15 +358,15 @@ for index, section in ipairs(sections) do
         subBar:SetPoint("BOTTOMLEFT", sub, "BOTTOMLEFT", 8, 0)
         subBar:SetPoint("BOTTOMRIGHT", sub, "BOTTOMRIGHT", -8, 0)
         subBar:SetHeight(2)
-        local text = Style.Text(sub, page.label, 16, C.text, nil, "display")
+        local text = Style.Text(sub, page.label, 15, C.text)
         text:SetWordWrap(false)
         if page.key == "options" or page.key == "interface" then
-            -- Actual Appearance/Interface icons cropped from the approved
-            -- section-header art. Labels and click targets remain real.
+            -- Two dedicated sculpted gold medallions (palette + controls)
+            -- replace the fuzzy cut-outs. The tab still owns input/selection.
             local glyph = sub:CreateTexture(nil, "OVERLAY", nil, 4)
-            glyph:SetTexture("Interface\\AddOns\\DuelsReimagined\\Media\\Skin\\DuelCategoryIcons.tga")
-            glyph:SetSize(24, 24)
-            glyph:SetPoint("LEFT", sub, "LEFT", 13, 0)
+            glyph:SetTexture("Interface\\AddOns\\DuelsReimagined\\Media\\Skin\\DuelPremiumCategoryIcons.tga")
+            glyph:SetSize(28, 28)
+            glyph:SetPoint("LEFT", sub, "LEFT", 12, 0)
             if page.key == "options" then
                 glyph:SetTexCoord(0, .5, 0, 1)
             else

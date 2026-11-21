@@ -1394,3 +1394,11 @@ does not stretch the copper corners. Test with and without EllesmereUI.
 - Footer links are 112-wide and all footer/Action/tab labels share one bounded-font fitter that refits after font changes and width changes. No independent font pollers. Close is inset further from the forged corner without overlapping the utility group.
 - One existing resize behavior owner remains: drag to resize/persist, right click to reset. The new 84×84 transparent copper relief is an actual corner/edge continuation, while the mouse input remains a separate clear 38×38 hit zone. Hide both when folded. No added settings, themes, or gameplay.
 - Automated/static checks are evidence only; player verifies final geometry/hover/click in actual WoW at 100/150% text and smaller window sizes.
+
+## Corrected Options artwork and shell clipping — 2026-11-21
+
+- The earlier two-by-three Options banner atlas discarded the right corners and lower trim. Replace with six COMPLETE photographic crops from the approved concept in RGBA 2048x256 atlas, two 640x80 source-derived banners per row. Three-slice code keeps the left text and right motifs/corner intact; only the quiet brown gap expands. Both Appearance and Interface use the same full-bleed asset. One card/one Settings/Search ownership remains.
+- Appearance and Interface tabs use independently rendered 128x64 TGA palette/window medallions with dark-forged brass edges. Live text and native hover/selected interactions remain; simpler font role avoids unnecessary decorative-text conflict.
+- Replace former diagonal stripe resizer decoration with a single 128x128 alpha-backed sculpted copper plate (raised wedge, seal, rivet), attached to the same 84x84 noninteractive visual frame and unchanged 38x38 corner drag/right-click hitbox.
+- Root dark skin is inset 5 UI units beneath the perimeter 9-slice. Optional clipping on the interior ensures a black square/panel cannot extend past the window's metal rim. Do NOT clip overlay dialogs/tooltips on the root frame.
+- Verify both tabs at default/minimum window size and 100/150% text, bottom-right outside the frame on a bright game background, drag/reset and /reload. Automated checks cannot prove live WoW pixels.
