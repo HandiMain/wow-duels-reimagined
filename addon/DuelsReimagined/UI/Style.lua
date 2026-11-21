@@ -424,23 +424,33 @@ end
 function Style.LitBand(parent, base, opts)
     opts = opts or {}
     Style.Fill(parent, base)
-    -- Short low-alpha strips are supported by both target clients and
-    -- repaint live. No permanent OnUpdate or client-specific gradient API.
-    local top = opts.light or C.headerText
-    for i = 1, 7 do
-        local strip = Style.Fill(parent, top)
-        strip:ClearAllPoints()
-        strip:SetPoint("TOPLEFT", parent, "TOPLEFT", 0, -((i - 1) * 5))
-        strip:SetPoint("TOPRIGHT", parent, "TOPRIGHT", 0, -((i - 1) * 5))
-        strip:SetHeight(5)
-        strip:SetAlpha((opts.brightness or 0.08) * (8 - i) / 7)
+    -- A stepped stack of seven 5px strips produced visible horizontal
+    -- seams across the header and footer. One native gradient per edge
+    -- gives the same restrained relief without banding or ongoing updates.
+    local function Fade(top, height, color, strength)
+        local tex = parent:CreateTexture(nil, "BACKGROUND", nil, 2)
+        tex:SetTexture("Interface\\Buttons\\WHITE8X8")
+        tex:SetVertexColor(1, 1, 1, 1)
+        if top then
+            tex:SetPoint("TOPLEFT", parent, "TOPLEFT")
+            tex:SetPoint("TOPRIGHT", parent, "TOPRIGHT")
+        else
+            tex:SetPoint("BOTTOMLEFT", parent, "BOTTOMLEFT")
+            tex:SetPoint("BOTTOMRIGHT", parent, "BOTTOMRIGHT")
+        end
+        tex:SetHeight(height)
+        if tex.SetGradient and CreateColor then
+            local lit = CreateColor(color[1], color[2], color[3], strength)
+            local clear = CreateColor(color[1], color[2], color[3], 0)
+            tex:SetGradient("VERTICAL", top and clear or lit,
+                top and lit or clear)
+        else
+            tex:Hide()
+        end
     end
-    local bottom = Style.Fill(parent, opts.dark or C.window)
-    bottom:ClearAllPoints()
-    bottom:SetPoint("BOTTOMLEFT", parent, "BOTTOMLEFT")
-    bottom:SetPoint("BOTTOMRIGHT", parent, "BOTTOMRIGHT")
-    bottom:SetHeight(6)
-    bottom:SetAlpha(0.28)
+    Fade(true, 35, opts.light or C.headerText,
+        (opts.brightness or 0.08) * 0.5)
+    Fade(false, 12, opts.dark or C.window, 0.16)
     local line = Style.Fill(parent, opts.edge or C.goldDim, "BORDER")
     line:ClearAllPoints()
     line:SetPoint("TOPLEFT", parent, "TOPLEFT", 0, 0)
