@@ -179,23 +179,31 @@ local function Section(card, key, title, help, extra)
     -- (just like the other five raster headings).
     if appearanceIconWidth then
         local name = header:CreateFontString(nil, "ARTWORK", nil, 5)
-        name:SetFont("Fonts\\MORPHEUS.TTF", 26, "OUTLINE")
+        if not name:SetFont("Fonts\\MORPHEUS.TTF", 26, "OUTLINE") then
+            name:SetFont(STANDARD_TEXT_FONT or "Fonts\\FRIZQT__.TTF",
+                25, "OUTLINE")
+        end
         name:SetTextColor(unpack(C.gold))
         name:SetShadowColor(0, 0, 0, 0.85)
         name:SetShadowOffset(1, -1)
         name:SetWordWrap(false)
         name:SetJustifyH("LEFT")
-        name:SetPoint("TOPLEFT", header, "TOPLEFT", 96, -12)
-        name:SetSize(290, 31)
+        name:SetJustifyV("MIDDLE")
+        name:SetPoint("TOPLEFT", header, "TOPLEFT", 96, -9)
+        name:SetSize(290, 35)
         name:SetText(title)
         local sub = header:CreateFontString(nil, "ARTWORK", nil, 5)
-        sub:SetFont("Fonts\\FRIZQT__.TTF", 10, "")
+        if not sub:SetFont("Fonts\\FRIZQT__.TTF", 10, "") then
+            sub:SetFont(STANDARD_TEXT_FONT or "Fonts\\FRIZQT__.TTF",
+                10, "")
+        end
         sub:SetTextColor(unpack(C.muted))
         sub:SetShadowColor(0, 0, 0, 0.8)
         sub:SetShadowOffset(1, -1)
         sub:SetWordWrap(false)
         sub:SetJustifyH("LEFT")
-        sub:SetPoint("TOPLEFT", header, "TOPLEFT", 96, -43)
+        sub:SetJustifyV("MIDDLE")
+        sub:SetPoint("TOPLEFT", header, "TOPLEFT", 96, -44)
         sub:SetSize(340, 16)
         sub:SetText("FONT MATCHING & VISUAL IDENTITY")
         card.appearanceHeading, card.appearanceSubtitle = name, sub
@@ -217,7 +225,7 @@ local function Section(card, key, title, help, extra)
     header:SetScript("OnSizeChanged", FitSlices)
     FitSlices(header)
 
-    -- Baked titles still have accessible, current explanatory tooltips.
+    -- All headings (including the repaired native Appearance title) retain tooltips.
     -- No fake row controls; do not attach handlers to texture regions.
     ns.Tooltips.Bind(header, {
         title = title,
