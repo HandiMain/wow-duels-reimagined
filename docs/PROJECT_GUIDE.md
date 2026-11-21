@@ -1303,6 +1303,11 @@ the user-approved artwork:
   reconstructed without fake option text. Interactive rows, toggles, choice
   widgets, descriptions and scrolling are separate and searchable.
 - Small frame corners: source-derived metallic corner art; non-interactive.
+- Header identity: `DuelExactBrand.png` extracts the actual swords, two-tone
+  DUELS REIMAGINED wordmark and YOUR DUELING HUB subtitle as a transparent
+  512x128 atlas with a 384x68 visible crop. The existing drag owner and header
+  geometry stay active. Like Hall's fixed label, this is deliberately static
+  branded text; it does not respond to optional third-party font matching.
 
 All six regions share one 512×256 power-of-two sprite atlas with explicit
 texture coordinates. The 32-color version is deliberately compact and

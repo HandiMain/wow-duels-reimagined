@@ -195,9 +195,9 @@ Window.nav = nav
 Window.chromeSeams = Chrome.Shell(frame, header, footer, rail, nav)
 Window.header, Window.footer, Window.body = header, footer, body
 
--- The approved header logo is assembled from INDEPENDENT native regions:
--- the existing untinted sword glyph, two tinted wordmark masks and real
--- scalable subtitle text. No screenshot/image overlay is used.
+-- Literal brand artwork extracted from the approved source concept.
+-- The old native pieces remain underneath as a fallback; the mouse-owning
+-- drag frame, search clearance and header behavior stay independent.
 local brandArea = CreateFrame("Frame", nil, header)
 brandArea:SetSize(390, 70)
 brandArea:SetPoint("LEFT", header, "LEFT", 14, 0)
@@ -222,8 +222,8 @@ local function BrandLayer(color, top, bottom)
     Chrome.Sharp(tex)
     return tex
 end
-BrandLayer(C.red,        0,    0.25) -- DUELS lettering
-BrandLayer(C.headerText, 0.25, 0.50) -- REIMAGINED
+local oldDuels = BrandLayer(C.red,        0,    0.25)
+local oldReimagined = BrandLayer(C.headerText, 0.25, 0.50)
 local brandTagline = Style.Text(brandArea, "YOUR DUELING HUB", 11, C.gold)
 brandTagline:SetPoint("LEFT", brandArea, "LEFT", 88, -21)
 brandTagline:SetJustifyH("LEFT")
@@ -239,10 +239,27 @@ markLineRight:SetPoint("LEFT", brandTagline, "RIGHT", 7, 0)
 markLineRight:SetSize(24, 1)
 markLineRight:SetAlpha(0.65)
 
+-- This is not a generative approximation: its pixels were extracted from
+-- the approved 1536x1024 concept. The cropped atlas region contains only
+-- swords, wordmark, subtitle and gilt rules on transparent pixels.
+local exactBrand = brandArea:CreateTexture(nil, "OVERLAY", nil, 3)
+exactBrand:SetTexture("Interface\\AddOns\\DuelsReimagined\\Media\\Skin\\DuelExactBrand.png")
+exactBrand:SetTexCoord(0, 384/512, 25/128, 93/128)
+exactBrand:SetPoint("LEFT", brandArea, "LEFT", 2, 0)
+exactBrand:SetSize(330, 59)
+mark:SetAlpha(0)
+oldDuels:SetAlpha(0)
+oldReimagined:SetAlpha(0)
+brandTagline:SetAlpha(0)
+markLineLeft:SetAlpha(0)
+markLineRight:SetAlpha(0)
+
 local function FitBrand(_, width)
     local space = math.max(1, (width or brandArea:GetWidth()) - 80)
     local w = math.min(BRAND_MAX_WIDTH, BRAND_MAX_HEIGHT * BRAND_ASPECT, space)
     brandLogo:SetSize(w, w / BRAND_ASPECT)
+    local visibleW = math.max(1, math.min(330, (width or brandArea:GetWidth()) - 5))
+    exactBrand:SetSize(visibleW, visibleW * 68 / 384)
     brandTagline:SetShown(w > 170)
     markLineLeft:SetShown(w > 170)
     markLineRight:SetShown(w > 170)

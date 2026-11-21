@@ -24,6 +24,20 @@ class ConceptExtractionTests(unittest.TestCase):
         self.assertLess(len(data), 20000)
         self.assertNotIn(b"consept(2).webp", data)
 
+    def test_transparent_brand_art_is_cropped_and_keeps_drag_owner(self):
+        brand = ROOT / "Media" / "Skin" / "DuelExactBrand.png"
+        data = brand.read_bytes()
+        self.assertTrue(data.startswith(b"\\x89PNG\\r\\n\\x1a\\n"))
+        w, h = struct.unpack(">II", data[16:24])
+        self.assertEqual((w, h), (512, 128))
+        self.assertLess(len(data), 8000)
+        window = lua("UI/Window.lua")
+        self.assertIn("DuelExactBrand.png", window)
+        self.assertIn("exactBrand:SetTexCoord(0, 384/512, 25/128, 93/128)", window)
+        self.assertIn("exactBrand:SetSize(visibleW, visibleW * 68 / 384)", window)
+        self.assertIn("Drag(brandLogo)", window)
+        self.assertIn("function Window.PlaceBrandBefore(searchBox)", window)
+
     def test_atlas_contains_independent_pieces_not_full_ui(self):
         style = lua("UI/Style.lua")
         for key in (
