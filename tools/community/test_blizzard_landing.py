@@ -33,11 +33,11 @@ class BlizzardLandingTests(unittest.TestCase):
         self.assertIn("Style.Skin(button, palette.fill, {", style)
         self.assertIn("edge=palette.edge, light=palette.light", style)
         self.assertIn("dark=palette.dark, shine=0.28", style)
-        self.assertIn("hover = Style.Skin(button, palette.hover, {", style)
+        self.assertIn("hover = Style.FeedbackOverlay(button, {", style)
         self.assertIn("palette and palette.text or C.buttonText", style)
         # The default shared action stays theme-aware for all other pages.
         self.assertIn("Style.Skin(button, C.button, {", style)
-        self.assertIn("hover = Style.Skin(button, C.gold, {", style)
+        self.assertIn("fill=palette and palette.hover or C.gold", style)
         self.assertIn('ns.Motion.Fade(hover, 0.20, 0.16)', style)
         self.assertIn('ns.Widgets.PressFeedback(button, hover)', style)
 

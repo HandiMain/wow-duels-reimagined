@@ -51,10 +51,10 @@ class UtilityRailTests(unittest.TestCase):
     def test_premium_skin_motion_search_unread_and_fold_stay_owned(self):
         n, w, st, h = (read(p) for p in ("UI/Navigation.lua", "UI/Window.lua",
                                        "UI/Style.lua", "UI/Header.lua"))
-        for token in ('local selected = Style.Skin(button, primary and C.button or C.tabActive',
-                      'local hover = Style.Skin(button, C.tabActive',
+        for token in ('local selected = Style.FeedbackOverlay(button',
+                      'local hover = Style.FeedbackOverlay(button',
                       'Motion.Fade(hover, active and 0.16 or',
-                      'ns.Widgets.PressFeedback(button, hover)',
+                      'ns.Widgets.PressFeedback(button, hover, {',
                       'patchPulse:SetLooping("BOUNCE")',
                       'ns.Search.Register("page:" .. section.key',
                       'SetPatchUnread = function(unread)',
