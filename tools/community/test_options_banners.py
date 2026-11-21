@@ -44,7 +44,9 @@ class ApprovedOptionsBannersTests(unittest.TestCase):
         self.assertNotIn('local heading = Style.Text(header, title',src)
         self.assertNotIn('local detail = Style.Text(header',src)
         self.assertEqual(src.count('Section('),7)
-        self.assertIn('local appearanceIconWidth = key == "appearance" and 104 or nil',src)
+        self.assertIn('local isAppearance = key == "appearance"',src)
+        self.assertIn('DuelPaletteComplete.tga',src)
+        self.assertIn('motifPalette:SetTexture(COMPLETE_PALETTE)',src)
         self.assertIn('name:SetText(title)',src)
         self.assertIn('sub:SetText("FONT MATCHING & VISUAL IDENTITY")',src)
         for key in ("appearance","motion","access","minimap","typography","notifications"):
