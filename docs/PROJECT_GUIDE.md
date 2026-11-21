@@ -1196,7 +1196,9 @@ and shared controls; the screenshot itself is never overlaid or shipped.
   restrained crimson). Old five-theme preferences migrate to Duel Hall on load;
   the picker stays present but unavailable while there is only one installed
   theme. EllesmereUI color/font matching remains optional and cannot be
-  required for basic use.
+  required for basic use. Colors default to Duel Hall even with EllesmereUI
+  installed; explicitly enabled matching is respected, while font matching
+  continues to follow EllesmereUI availability by default.
 - Shared layout/skin/navigation/Options owners remain in their original
   modules. The Interface page uses two full setting cards per row at a safe
   desktop width, with single-column/large-font fallbacks. Scroll and Search

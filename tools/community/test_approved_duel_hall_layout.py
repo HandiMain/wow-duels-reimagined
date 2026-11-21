@@ -62,6 +62,8 @@ class ApprovedDuelHallLayoutTests(unittest.TestCase):
             self.assertNotIn(obsolete, style)
         self.assertIn('if key == "uiTheme" then return "duelhall" end', settings)
         self.assertIn('db.uiTheme = Settings.Get("uiTheme")', settings)
+        self.assertIn('if key == "matchColors" then return false end', settings)
+        self.assertIn('if key == "matchFont" then return EllesmereReady() end', settings)
         self.assertIn('function Theme.IsAvailable()', theme)
         self.assertIn('Style.ApplyTheme(accent, panel, font)', theme)
 
