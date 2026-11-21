@@ -1,4 +1,4 @@
-"""Exact approved Options category graphics: six complete source-derived banners.
+"""Approved Options source graphics: five intact, with Appearance text repaired live.
 
 These static tests validate the native artwork and retained WoW control owners.
 They do not claim an in-game screenshot has been visually verified.
@@ -34,7 +34,7 @@ class ApprovedOptionsBannersTests(unittest.TestCase):
         self.assertEqual(p,len(data))
         self.assertIn(b"IDAT",seen)
 
-    def test_both_tabs_use_exact_graphics_without_reconstructed_icons_or_titles(self):
+    def test_original_atlas_kept_and_appearance_only_text_repair(self):
         src = OPTIONS.read_text(encoding="utf-8")
         self.assertIn("DuelOptionsSoftArt.png",src)
         self.assertNotIn("DuelBannerAmbient.png",src)
@@ -44,6 +44,9 @@ class ApprovedOptionsBannersTests(unittest.TestCase):
         self.assertNotIn('local heading = Style.Text(header, title',src)
         self.assertNotIn('local detail = Style.Text(header',src)
         self.assertEqual(src.count('Section('),7)
+        self.assertIn('local appearanceIconWidth = key == "appearance" and 104 or nil',src)
+        self.assertIn('name:SetText(title)',src)
+        self.assertIn('sub:SetText("FONT MATCHING & VISUAL IDENTITY")',src)
         for key in ("appearance","motion","access","minimap","typography","notifications"):
             self.assertIn("    "+key+" = ",src)
             self.assertIn('Section(',src)
