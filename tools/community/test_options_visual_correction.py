@@ -6,7 +6,7 @@ import unittest
 ROOT=Path(__file__).resolve().parents[2]/"addon"/"DuelsReimagined"
 def source(p):return (ROOT/p).read_text(encoding="utf-8")
 class OptionsVisualCorrectionTests(unittest.TestCase):
-    def test_full_banners_include_complete_header_pixels(self):
+    def test_banner_inlays_keep_chrome_on_the_card_frame(self):
         b=(ROOT/"Media/Skin/DuelOptionsBannerInlays.png").read_bytes()
         self.assertEqual(b[:8],bytes([137,80,78,71,13,10,26,10]))
         self.assertEqual(struct.unpack_from(">IIBB",b,16),(2048,256,8,6))
@@ -16,12 +16,12 @@ class OptionsVisualCorrectionTests(unittest.TestCase):
         for s in ("BANNER_ATLAS_W, BANNER_ATLAS_H = 2048, 256",
                   "BANNER_CELL_W, BANNER_CELL_H = 640, 80",
                   "BANNER_LEFT, BANNER_RIGHT = 438, 160",
-                  'headingBand:SetPoint("TOPLEFT", card, "TOPLEFT", 4, -4)',
-                  'headingBand:SetPoint("TOPRIGHT", card, "TOPRIGHT", -4, -4)',
+                  'headingBand:SetPoint("TOPLEFT", card, "TOPLEFT", 12, -6)',
+                  'headingBand:SetPoint("TOPRIGHT", card, "TOPRIGHT", -12, -6)',
                   "function interface:Relayout(width)",
                   "function appearance:Relayout(width)"):
             self.assertIn(s,o)
-    def test_premium_medallions_preserve_native_tab_interaction(self):
+    def test_legible_gold_symbols_preserve_native_tab_interaction(self):
         b=(ROOT/"Media/Skin/DuelMinimalGoldTabs.tga").read_bytes()
         self.assertEqual(struct.unpack_from("<HH",b,12),(128,64))
         self.assertEqual((b[2],b[16],b[17]),(2,32,0x28))

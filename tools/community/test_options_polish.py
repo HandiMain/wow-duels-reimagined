@@ -12,8 +12,8 @@ def lua(path):
 class ApprovedOptionsPolishTests(unittest.TestCase):
     def test_banners_fit_card_rim_and_leave_controls_below(self):
         o = lua("UI/Options.lua")
-        self.assertIn('headingBand:SetPoint("TOPLEFT", card, "TOPLEFT", 4, -4)',o)
-        self.assertIn('headingBand:SetPoint("TOPRIGHT", card, "TOPRIGHT", -4, -4)',o)
+        self.assertIn('headingBand:SetPoint("TOPLEFT", card, "TOPLEFT", 12, -6)',o)
+        self.assertIn('headingBand:SetPoint("TOPRIGHT", card, "TOPRIGHT", -12, -6)',o)
         self.assertIn('local BANNER_LEFT, BANNER_RIGHT = 438, 160',o)
         self.assertIn('local BANNER_HEIGHT = 50',o)
         self.assertIn('local ROW_TOP = 64',o)
@@ -33,7 +33,7 @@ class ApprovedOptionsPolishTests(unittest.TestCase):
         self.assertIn('Style.ConstrainButtonLabel(button, title, 25, 9, 9)',f)
         self.assertIn('Style.ConstrainButtonLabel(sub, text, 46, 10, 10)',n)
 
-    def test_replaced_subcategory_art_is_sourced_from_approved_concept(self):
+    def test_simplified_gold_tab_symbols_remain_native_rgba(self):
         b = (ROOT/"Media/Skin/DuelMinimalGoldTabs.tga").read_bytes()
         self.assertEqual(b[2],2)
         self.assertEqual((b[16],b[17]),(32,0x28))
