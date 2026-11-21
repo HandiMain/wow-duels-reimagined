@@ -53,7 +53,7 @@ class CompactPageDensityTests(unittest.TestCase):
         viewport = visible - 153 - 17
         self.assertGreaterEqual(viewport, 175)
         self.assertIn("local ROW_TOP = 38", o)
-        self.assertIn("local cardHeight = y + 6", o)
+        self.assertIn("local cardHeight = y + (isAppearance and 10 or 6)", o)
 
     def test_pill_switch_uses_existing_rounded_assets_and_preserves_behavior(self):
         w = src("UI/Widgets.lua")

@@ -129,8 +129,8 @@ class ResponsiveSettingsTests(unittest.TestCase):
                          (102, 102, 181, 143, 102))
         self.assertLess(max(behavior, game_access) +
                         max(access, typography) + notices + 3 * 8, 420)
-        self.assertIn('page:SetHeight(math.max(contentHeight, page.scrollOwner:GetHeight()))', o)
-        self.assertIn('local cardHeight = y + 6', o)
+        self.assertIn('page:SetHeight(contentHeight > viewHeight + 1 and contentHeight or', o)
+        self.assertIn('local cardHeight = y + (isAppearance and 10 or 6)', o)
 
     def test_search_destinations_are_recalculated_after_resize(self):
         src = read("UI/Options.lua")
