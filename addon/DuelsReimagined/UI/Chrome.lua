@@ -100,8 +100,11 @@ function Chrome.Shell(frame, header, footer, rail, nav)
     rim:SetAllPoints(frame)
     rim:SetFrameLevel(frame:GetFrameLevel() + 20)
     rim:EnableMouse(false)
-    Style.SkinMask(rim, C.shellEdge, "rim", "ARTWORK", 1, 12, 0)
-    Style.SkinMask(rim, C.headerText, "shine", "ARTWORK", 0, 12, 2):SetAlpha(0.10)
+    -- Single sculpted copper frame. No oversized diamonds or duplicate
+    -- gold rectangle strips: this transparent 9-slice owns the perimeter.
+    Style.Plate(rim, "shellCopper", {
+        corner=27, layer="ARTWORK", sublevel=1,
+    })
     local seams = CreateFrame("Frame", nil, frame)
     seams:SetAllPoints(frame)
     seams:SetFrameLevel(frame:GetFrameLevel() + 12)
@@ -120,38 +123,9 @@ function Chrome.Shell(frame, header, footer, rail, nav)
     Line(seams, rail, "TOPRIGHT", "BOTTOMRIGHT", true, C.shellEdge)
     Line(seams, nav, "BOTTOMLEFT", "BOTTOMRIGHT", false, C.goldDim)
 
-    -- Real extracted metal corners from the approved concept, rather than
-    -- flat diamonds or generated gold strokes. Purely decorative textures.
-    -- One extracted motif mirrored to fit all four corners.
-    local corners = {
-        {"TOPLEFT", 7, -7, false, false},
-        {"TOPRIGHT", -7, -7, true, false},
-        {"BOTTOMLEFT", 7, 7, false, true},
-        {"BOTTOMRIGHT", -7, 7, true, true},
-    }
-    for _, edge in ipairs(corners) do
-        local cap = Style.ConceptImage(rim, "corner", "OVERLAY", 7)
-        cap:SetSize(31, 31)
-        cap:SetPoint(edge[1], rim, edge[1], edge[2], edge[3])
-        local l, r = edge[4] and 0.625 or 0.5,
-            edge[4] and 0.5 or 0.625
-        local t, b = edge[5] and 1 or 0.75,
-            edge[5] and 0.75 or 1
-        cap:SetTexCoord(l, r, t, b)
-    end
-    -- Header and footer gain narrow double-edge highlights, not stretched
-    -- screenshot strips, and remain pixel-sharp while resizing.
-    local function GlowSeam(owner, atTop)
-        local lip = Style.Fill(seams, C.gold, "ARTWORK")
-        lip:ClearAllPoints()
-        local edge = atTop and "TOP" or "BOTTOM"
-        lip:SetPoint(edge.."LEFT", owner, edge.."LEFT", 7, atTop and -2 or 2)
-        lip:SetPoint(edge.."RIGHT", owner, edge.."RIGHT", -7, atTop and -2 or 2)
-        lip:SetHeight(1)
-        lip:SetAlpha(0.42)
-    end
-    GlowSeam(header, false)
-    GlowSeam(footer, true)
+    -- The border's modest chamfer is integrated into its one texture.
+    -- The separate four 31-pixel ornaments and duplicate edge glows were
+    -- removed to match the approved restrained metallic frame.
     return seams
 end
 

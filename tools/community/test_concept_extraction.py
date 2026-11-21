@@ -78,7 +78,7 @@ class ConceptExtractionTests(unittest.TestCase):
         self.assertIn('Style.Plate(headingBand, "cardHeading"', options)
         self.assertIn('item.plate:SetStyle(active and "gold" or "dark")', nav)
         self.assertIn('Style.Text(sub, page.label, 16, C.text, nil, "display")', nav)
-        self.assertIn('Style.ConceptImage(rim, "corner"', chrome)
+        self.assertIn('Style.Plate(rim, "shellCopper"', chrome)
         self.assertIn('function Header.Fold(', lua("UI/Header.lua"))
         self.assertIn('function Options.Refresh()', options)
 

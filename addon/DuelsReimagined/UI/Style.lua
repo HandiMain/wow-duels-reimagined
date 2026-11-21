@@ -269,6 +269,10 @@ end
 local PLATE_ROOT = "Interface\\AddOns\\DuelsReimagined\\Media\\Skin\\"
 local CONCEPT_ATLAS = PLATE_ROOT .. "DuelExactAtlas.png"
 local PLATES = {
+    -- A dedicated, power-of-two copper rim with a transparent center:
+    -- 9-sliced on ONE non-interactive frame, not repeated corner stamps.
+    shellCopper = { path=PLATE_ROOT .. "DuelCopperRim.png",
+        w=512, h=512, cutX=56, cutY=56 },
     -- Procedural hall is kept ONLY for generic red controls (Close, header X).
     -- The primary Hall destination has its own literal concept-image region.
     hall = { path=PLATE_ROOT .. "DuelHallPlaque.tga", w=256, h=128, cutX=30, cutY=28 },

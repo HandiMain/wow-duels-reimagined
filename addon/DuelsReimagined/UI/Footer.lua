@@ -31,6 +31,9 @@ end)
 discord:SetScript("OnLeave", function()
     discordIcon:SetVertexColor(0.345, 0.396, 0.949)
 end)
+ns.Widgets.PressFeedback(discord, nil, {
+    corner=8, clickAlpha=0.34,
+})
 ns.Tooltips.Bind(discord, {
     title = "Duels Reimagined Discord",
     detail = "Community invite is coming soon.",
@@ -60,7 +63,9 @@ local function FooterButton(label, width, detail)
     button:SetScript("OnLeave", function(self)
         Motion.Fade(hover, 0, 0.13)
     end)
-    ns.Widgets.PressFeedback(button, hover)
+    ns.Widgets.PressFeedback(button, hover, {
+        corner=9, hoverAlpha=0.24, clickAlpha=0.43,
+    })
     ns.Tooltips.Bind(button, function(self)
         return { title = label,
             detail = self:IsEnabled() and detail or

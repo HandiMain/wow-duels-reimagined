@@ -211,9 +211,9 @@ local function AddOverlay(button, primary)
     -- Both types use the same tintable premium masks and Motion engine.
     local selected = Style.Skin(button, primary and C.button or C.tabActive, {
         corner=primary and 11 or 9,
-        edge=primary and C.gold or C.goldDim,
-        shine=primary and 0.58 or 0.30,
-        shade=0.40, rim=0.92, alpha=0,
+        edge=C.gold,
+        shine=primary and 0.42 or 0.30,
+        shade=0.22, rim=0.85, alpha=0,
     })
     local hover = Style.Skin(button, C.tabActive, {
         corner=primary and 11 or 9, edge=C.goldDim,
@@ -325,16 +325,23 @@ for index, section in ipairs(sections) do
 
     button:SetScript("OnClick", function() Select(index, 1) end)
     button:SetScript("OnEnter", function()
-        if currentSection ~= index then Motion.Fade(hover, isPrimary and 0.20 or 0.58, 0.17) end
+        -- Hover is visible even on the currently selected destination.
+        -- Less glow on active buttons keeps the persistent selection clear.
+        local active = currentSection == index
+        Motion.Fade(hover, active and 0.16 or
+            (isPrimary and 0.27 or 0.40), Motion.Duration("quick"))
     end)
     button:SetScript("OnLeave", function() Motion.Fade(hover, 0, 0.21) end)
-    ns.Widgets.PressFeedback(button, hover)
+    ns.Widgets.PressFeedback(button, hover, {
+        corner=isPrimary and 13 or 9,
+        hoverAlpha=0.24, clickAlpha=isPrimary and 0.39 or 0.50,
+    })
     ns.Tooltips.Bind(button, { title = section.label,
         detail = "Open the " .. section.label .. " section." })
 
     local item = {
         button = button, primary = isPrimary,
-        activeAlpha = section.key == "hall" and 0 or (isPrimary and 0.88 or 0.20),
+        activeAlpha = section.key == "hall" and 0.15 or (isPrimary and 0.26 or 0.33),
         selected = selected, hover = hover, bar = bar, icon = icon, label = label,
     }
     railButtons[index] = item
@@ -375,19 +382,21 @@ for index, section in ipairs(sections) do
         end
         sub:SetScript("OnClick", function() Select(index, pageIndex) end)
         sub:SetScript("OnEnter", function()
-            if currentSection ~= index or currentPage ~= pageIndex then
-                Motion.Fade(subHover, 0.48, 0.16)
-            end
+            local chosen = currentSection == index and currentPage == pageIndex
+            Motion.Fade(subHover, chosen and 0.16 or 0.42,
+                Motion.Duration("quick"))
         end)
         sub:SetScript("OnLeave", function() Motion.Fade(subHover, 0, 0.20) end)
-        ns.Widgets.PressFeedback(sub, subHover)
+        ns.Widgets.PressFeedback(sub, subHover, {
+            corner=11, hoverAlpha=0.25, clickAlpha=0.52,
+        })
         ns.Tooltips.Bind(sub, {
             title = page.label,
             detail = page.subtitle or ("Open the " .. page.label .. " page.")
         })
         pages[#pages + 1] = {
             button = sub, selected = subSelected, hover = subHover,
-            bar = subBar, label = text, plate = plate, activeAlpha = 0
+            bar = subBar, label = text, plate = plate, activeAlpha = 0.13
         }
     end
     subButtons[index] = pages

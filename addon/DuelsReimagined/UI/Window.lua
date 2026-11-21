@@ -23,7 +23,7 @@ frame:Hide()
 -- interior is tucked INSIDE the masked corner radius: no square pixels
 -- extend beyond the outer edge when scaled or resized.
 Style.Skin(frame, C.window, {
-    corner=12, edge=C.shellEdge, shine=0.16, shade=0.27, rim=0.96,
+    corner=12, edge=C.window, shine=0.07, shade=0.11, rim=0,
 })
 -- Single shell border owner: Chrome.Shell adds sculpted accents.
 local inset = 6

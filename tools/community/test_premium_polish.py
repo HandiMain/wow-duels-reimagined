@@ -25,11 +25,11 @@ class PremiumPolishTests(unittest.TestCase):
     def test_outer_frame_fills_seam_but_respects_rounded_corners(self):
         w, c = get("UI/Window.lua"), get("UI/Chrome.lua")
         self.assertIn('Style.Skin(frame, C.window, {', w)
-        self.assertIn('corner=12, edge=C.shellEdge', w)
+        self.assertIn('corner=12, edge=C.window', w)
         self.assertIn('local inset = 6', w)
         self.assertIn('interior:SetPoint("TOPLEFT", frame, "TOPLEFT", inset, -inset)', w)
         self.assertIn('interior:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -inset, inset)', w)
-        self.assertIn('Style.SkinMask(rim, C.shellEdge, "rim"', c)
+        self.assertIn('Style.Plate(rim, "shellCopper"', c)
         self.assertNotIn("local inset = 8", w)
 
     def test_grip_uses_compact_themeable_glyph_and_existing_motion_engine(self):

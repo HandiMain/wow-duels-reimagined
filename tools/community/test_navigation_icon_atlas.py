@@ -52,7 +52,7 @@ class NavigationIconAtlasTests(unittest.TestCase):
             "FadeSelection(item, on)",
             'patchPulse:SetLooping("BOUNCE")',
             'button:SetScript("OnClick", function() Select(index, 1) end)',
-            "ns.Widgets.PressFeedback(button, hover)",
+            "ns.Widgets.PressFeedback(button, hover, {",
             'ns.Search.Register("page:" .. section.key',
         ):
             self.assertIn(token, nav)

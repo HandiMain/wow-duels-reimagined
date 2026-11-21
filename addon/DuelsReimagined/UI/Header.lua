@@ -28,7 +28,11 @@ local function HeaderButton(name, title, detail)
     art:SetSize(name == "Close" and 23 or 19, name == "Close" and 23 or 19)
     art:SetPoint("CENTER")
     ns.Chrome.Sharp(art)
-    b.art, b.hover = art, hover
+    -- A separate, persistent selected accent for Fold/Peek, distinct from
+    -- the short press flash. It does not cover the approved button art.
+    local chosen = Style.SkinMask(b, C.gold, "rim", "ARTWORK", -2, 8, 2)
+    chosen:SetAlpha(0)
+    b.art, b.hover, b.chosen = art, hover, chosen
     b.tooltipTitle, b.tooltipDetail = title, detail
     b:SetScript("OnEnter", function()
         Motion.Fade(hover, 0.24, 0.13)
@@ -36,7 +40,23 @@ local function HeaderButton(name, title, detail)
     b:SetScript("OnLeave", function()
         Motion.Fade(hover, 0, 0.18)
     end)
-    ns.Widgets.PressFeedback(b, hover)
+    ns.Widgets.PressFeedback(b, hover, {
+        corner=8, hoverAlpha=0.24, clickAlpha=0.42,
+    })
+    b:HookScript("OnMouseDown", function(_, mouse)
+        if mouse == "LeftButton" then
+            art:ClearAllPoints()
+            art:SetPoint("CENTER", b, "CENTER", 0, -1)
+        end
+    end)
+    b:HookScript("OnMouseUp", function()
+        art:ClearAllPoints()
+        art:SetPoint("CENTER")
+    end)
+    b:HookScript("OnHide", function()
+        art:ClearAllPoints()
+        art:SetPoint("CENTER")
+    end)
     Tooltips.Bind(b, function()
         return { title = b.tooltipTitle, detail = b.tooltipDetail }
     end)
@@ -52,6 +72,10 @@ end
 
 function Header.SetManualPeek(on)
     manualPeek = on and true or false
+    if Header.peekButton and Header.peekButton.chosen then
+        Motion.Fade(Header.peekButton.chosen, manualPeek and 0.52 or 0,
+            Motion.Duration("quick"))
+    end
     RefreshFade()
 end
 
@@ -94,6 +118,7 @@ local foldButton = HeaderButton("FoldUp", "Fold window",
     "Collapse to the header without closing. Click again to unfold.")
 local peekButton = HeaderButton("Eye", "Peek",
     "Hold to see what is behind the window.")
+Header.peekButton = peekButton
 peekButton:SetPoint("RIGHT", foldButton, "LEFT", -3, 0)
 peekButton:SetScript("OnMouseDown", function(_, button)
     if button == "LeftButton" then Header.SetManualPeek(true) end
@@ -101,10 +126,15 @@ end)
 peekButton:SetScript("OnMouseUp", function()
     Header.SetManualPeek(false)
 end)
-peekButton:SetScript("OnHide", function() manualPeek = false end)
+peekButton:SetScript("OnHide", function()
+    manualPeek = false
+    Motion.Stop(peekButton.chosen, 0)
+end)
 
 local function PaintFold()
     foldButton.art:SetTexture(iconBase .. (folded and "FoldDown" or "FoldUp") .. ".png")
+    Motion.Fade(foldButton.chosen, folded and 0.58 or 0,
+        Motion.Duration("quick"))
     foldButton.tooltipTitle = folded and "Unfold window" or "Fold window"
     foldButton.tooltipDetail = folded and
         "Restore the window as you left it." or

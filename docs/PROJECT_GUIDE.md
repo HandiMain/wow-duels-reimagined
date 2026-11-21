@@ -1335,3 +1335,32 @@ category icon colors, golden corners and scroll behavior. Check larger font
 scale, Peek/Fold, ESC menu, third-party color matching and other addon states. A source-level/CI pass cannot certify client texture
 loading or pixel accuracy. An approval screenshot is still required.
 
+
+## Copper frame and three-state button polish — 2026-11-21
+
+Design: preserve the approved Duel Hall composition and all current button
+art, replace only the outer ornate corners/stacked rim with a restrained,
+brushed-copper/bronze chamfered perimeter. `DuelCopperRim.png` is an
+independent transparent 512×512 RGBA nine-slice asset; it is not a fullscreen
+screenshot and does not contain text or interactions. `Chrome.Shell` is its
+single perimeter owner. Its frame-level texture is non-interactive, so it
+cannot block native click targets. Do not reintroduce the four floating
+corner jewels or redundant border glow strips.
+
+All applicable native buttons now have three explicit visual experiences:
+hover fade (including currently selected destinations), a short gold press
+and release glint via the existing shared Motion driver, and a persistent
+selected accent on navigation destinations/tabs or the active Fold/held
+Peek controls. One-time actions (Close, Reset, Reload) have transient click
+feedback, not a misleading persistent selection. Disabled controls do not
+flash. Mouse leave, hide, reduced-motion, search-driven navigation and
+Fold/Peek lifecycle must be checked. Do not add permanent polling.
+
+Status after commit: IMPLEMENTED/UNTESTED in WoW. Static checks and GitHub
+CI are useful but cannot certify actual live client rendering. Quick manual
+verification: at 100% Menu Scale, open Hall and Options, hover and press
+Hall, Appearance/Interface, Community/Patch Notes/Options, Eye, Fold,
+Close, reset/reload and Back. Ensure no double outlines, no hover trapping,
+selected state survives page changes, Peek is only active while held, Fold
+stays highlighted only while collapsed, and resize at minimum and maximum
+does not stretch the copper corners. Test with and without EllesmereUI.

@@ -75,7 +75,7 @@ class DuelHallArtworkTests(unittest.TestCase):
         self.assertIn('DuelCategoryIcons.tga',nav)
         self.assertIn('item.plate:SetStyle(active and "gold" or "dark")',nav)
         self.assertNotIn('for i = 1, 7 do',nav)
-        self.assertIn('Style.ConceptImage(rim, "corner"',chrome)
+        self.assertIn('Style.Plate(rim, "shellCopper"',chrome)
         self.assertIn('Style.Plate(card, "cardBody", { corner=15 })',options)
         self.assertIn('Style.Plate(headingBand, "cardHeading"',options)
         self.assertIn('Style.Plate(b, name == "Close" and "hall" or "dark"',header)

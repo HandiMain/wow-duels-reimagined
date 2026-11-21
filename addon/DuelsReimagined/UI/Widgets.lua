@@ -180,23 +180,58 @@ function Widgets.ToggleRow(parent, label, description, onToggle, onReset)
 end
  
 
--- Shared pressed-state feedback. Existing hover and click handlers remain
--- authoritative; this merely adds a short response to a real mouse press.
-function Widgets.PressFeedback(button, region)
-    if not button or not region or button._duelsPressBound then return end
+-- One interactive-state owner for all addon buttons, based on Polestar's
+-- short mouse-depth response. Uses our ONE Motion driver (event-driven only).
+-- Hover/selected layers are owned by the caller; this creates a separate
+-- temporary gold sheen for press/release so selected state never flickers.
+function Widgets.PressFeedback(button, hover, opts)
+    if not button or button._duelsPressBound then return end
+    opts = opts or {}
     button._duelsPressBound = true
+    local flash = Style.SkinMask(button, C.gold, "shine", "ARTWORK", -1,
+        opts.corner or 9, opts.inset or 2)
+    flash:SetAlpha(0)
+    button._duelsPressFlash = flash
+    local down = false
+    local function Enabled(self)
+        return self.available ~= false and
+            (not self.IsEnabled or self:IsEnabled())
+    end
     button:HookScript("OnMouseDown", function(self, mouse)
-        if mouse == "LeftButton" and (not self.IsEnabled or self:IsEnabled()) then
-            Motion.Fade(region, 0.4, Motion.Duration("quick"))
-        end
+        if mouse ~= "LeftButton" or not Enabled(self) then return end
+        down = true
+        Motion.Stop(flash, opts.downAlpha or 0.44)
+        if hover then Motion.Fade(hover, opts.downHover or 0.40, 0.06) end
     end)
     button:HookScript("OnMouseUp", function(self, mouse)
-        if mouse == "LeftButton" then
-            local over = self.IsMouseOver and self:IsMouseOver()
-            Motion.Fade(region, over and 0.20 or 0, Motion.Duration("quick"))
+        if mouse ~= "LeftButton" then return end
+        down = false
+        Motion.Fade(flash, 0, Motion.Duration("normal"))
+        if hover then
+            local over = Enabled(self) and self.IsMouseOver and self:IsMouseOver()
+            Motion.Fade(hover, over and (opts.hoverAlpha or 0.24) or 0,
+                Motion.Duration("quick"))
         end
     end)
-    button:HookScript("OnHide", function() Motion.Stop(region, 0) end)
+    button:HookScript("OnClick", function(self, mouse)
+        if mouse ~= "LeftButton" or not Enabled(self) or
+            (self.IsVisible and not self:IsVisible()) then return end
+        -- A brief release glint is visible AFTER the completed click. A
+        -- distinct highlight persists only where selection owns it.
+        Motion.Stop(flash, opts.clickAlpha or 0.50)
+        Motion.Fade(flash, 0, Motion.Duration("gentle"))
+    end)
+    button:HookScript("OnLeave", function()
+        if down then
+            down = false
+            Motion.Fade(flash, 0, Motion.Duration("quick"))
+        end
+    end)
+    button:HookScript("OnHide", function()
+        down = false
+        Motion.Stop(flash, 0)
+        if hover then Motion.Stop(hover, 0) end
+    end)
 end
 
 -- A light-weight universal reset affordance for future non-toggle widgets.
