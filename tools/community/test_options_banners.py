@@ -53,7 +53,7 @@ class ApprovedOptionsBannersTests(unittest.TestCase):
         for needle in (
             "local function Slice(fromX, toX)",
             "local left = Slice(0, BANNER_LEFT)",
-            'left:SetPoint("TOPLEFT", header, "TOPLEFT", 0, -2)',
+            'left:SetPoint("LEFT", header, "LEFT", 0, 0)',
             "local right = Slice(BANNER_CELL_W - BANNER_RIGHT, BANNER_CELL_W)",
             'header:SetScript("OnSizeChanged", FitSlices)',
             "ns.Tooltips.Bind(header, {",
