@@ -20,8 +20,8 @@ local function HeaderButton(name, title, detail)
     -- Exactly one extracted button surface. The click/Peek/Fold behavior
     -- stays native; drawing a second rim caused the doubled gold outline.
     Style.Plate(b, name == "Close" and "hall" or "dark", { corner=7 })
-    local hover = Style.Skin(b, C.goldDim, {
-        corner=6, edge=C.gold, shine=0.26, shade=0.19, alpha=0,
+    local hover = Style.FeedbackOverlay(b, {
+        corner=8, inset=2, fill=C.gold, edge=C.gold, shine=0.60, rim=0.82,
     })
     local art = b:CreateTexture(nil, "ARTWORK")
     art:SetTexture(iconBase .. name .. ".png")
@@ -30,8 +30,10 @@ local function HeaderButton(name, title, detail)
     ns.Chrome.Sharp(art)
     -- A separate, persistent selected accent for Fold/Peek, distinct from
     -- the short press flash. It does not cover the approved button art.
-    local chosen = Style.SkinMask(b, C.gold, "rim", "ARTWORK", -2, 8, 2)
-    chosen:SetAlpha(0)
+    local chosen = Style.FeedbackOverlay(b, {
+        corner=8, inset=2, fill=C.goldDim, edge=C.gold,
+        shine=0.36, rim=0.94,
+    })
     b.art, b.hover, b.chosen = art, hover, chosen
     b.tooltipTitle, b.tooltipDetail = title, detail
     b:SetScript("OnEnter", function()

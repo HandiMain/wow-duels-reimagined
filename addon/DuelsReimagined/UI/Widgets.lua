@@ -188,7 +188,7 @@ function Widgets.PressFeedback(button, hover, opts)
     if not button or button._duelsPressBound then return end
     opts = opts or {}
     button._duelsPressBound = true
-    local flash = Style.SkinMask(button, C.gold, "shine", "ARTWORK", -1,
+    local flash = Style.SkinMask(button, C.gold, "shine", "OVERLAY", -1,
         opts.corner or 9, opts.inset or 2)
     flash:SetAlpha(0)
     button._duelsPressFlash = flash

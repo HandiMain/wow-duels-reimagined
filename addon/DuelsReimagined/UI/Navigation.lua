@@ -208,16 +208,15 @@ local function Select(sectionIndex, pageIndex, noMotion, repaintOnly, isBack)
 end
 
 local function AddOverlay(button, primary)
-    -- Both types use the same tintable premium masks and Motion engine.
-    local selected = Style.Skin(button, primary and C.button or C.tabActive, {
-        corner=primary and 11 or 9,
-        edge=C.gold,
-        shine=primary and 0.42 or 0.30,
-        shade=0.22, rim=0.85, alpha=0,
+    -- Selected glow and hover are OVER the extracted plate, not below it.
+    -- Persistent choice uses a warm rim; pointer hover is a quicker sheen.
+    local selected = Style.FeedbackOverlay(button, {
+        corner=primary and 14 or 10, inset=2,
+        fill=C.goldDim, edge=C.gold, shine=0.46, rim=0.86,
     })
-    local hover = Style.Skin(button, C.tabActive, {
-        corner=primary and 11 or 9, edge=C.goldDim,
-        shine=0.22, shade=0.22, rim=0.56, alpha=0,
+    local hover = Style.FeedbackOverlay(button, {
+        corner=primary and 14 or 10, inset=2,
+        fill=C.gold, edge=C.gold, shine=0.67, rim=0.75,
     })
     return selected, hover
 end

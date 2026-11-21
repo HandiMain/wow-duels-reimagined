@@ -46,8 +46,8 @@ local function FooterButton(label, width, detail)
     if button.SetMotionScriptsWhileDisabled then
         button:SetMotionScriptsWhileDisabled(true)
     end
-    local hover = Style.Skin(button, C.goldDim, {
-        corner=9, edge=C.goldDim, shine=0.32, shade=0.20, alpha=0,
+    local hover = Style.FeedbackOverlay(button, {
+        corner=9, fill=C.goldDim, edge=C.gold, shine=0.58, rim=0.74,
     })
     local icon = button:CreateTexture(nil, "ARTWORK")
     icon:SetSize(15, 15)

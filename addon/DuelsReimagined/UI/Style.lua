@@ -260,6 +260,28 @@ function Style.Skin(parent, fill, opts)
     return skin
 end
 
+-- One reusable live feedback surface ABOVE 9-sliced painted buttons.
+-- The older Style.Skin overlays lived in BACKGROUND/BORDER and were hidden
+-- by the approved ARTWORK-level concept plaque. All hover/selected colors
+-- now stay visible while native buttons and icons retain their input owner.
+function Style.FeedbackOverlay(parent, opts)
+    opts = opts or {}
+    local corner, inset = opts.corner or 10, opts.inset or 2
+    local sheen = Style.SkinMask(parent, opts.fill or C.gold,
+        "shine", "OVERLAY", 0, corner, inset)
+    local edge = Style.SkinMask(parent, opts.edge or C.gold,
+        "rim", "OVERLAY", 1, corner, inset)
+    local region = { alpha=0 }
+    function region:SetAlpha(value)
+        self.alpha = math.max(0, math.min(1, value or 0))
+        sheen:SetAlpha(self.alpha * (opts.shine or 0.65))
+        edge:SetAlpha(self.alpha * (opts.rim or 0.90))
+    end
+    function region:GetAlpha() return self.alpha end
+    region:SetAlpha(opts.alpha or 0)
+    return region
+end
+
 -- Purpose-built texture atlas pieces, authored independently from the
 -- approved screenshot. Each surface is a 9-slice so corners keep their
 -- sculpted depth at different window sizes; buttons and labels stay native.
@@ -423,25 +445,19 @@ function Style.Action(parent, caption, variant, palette)
             corner=11, edge=palette.edge, light=palette.light,
             dark=palette.dark, shine=0.28, shade=0.20, rim=0.88,
         })
-        hover = Style.Skin(button, palette.hover, {
-            corner=11, edge=palette.edge, light=palette.light,
-            dark=palette.dark, shine=0.20, shade=0.10, rim=0.70,
-            alpha=0,
-        })
+    elseif footer then
+        Style.Plate(button, "hall", { corner=9 })
     else
-        if footer then
-            -- One raised red action plate, with real text and mouse handlers.
-            Style.Plate(button, "hall", { corner=9 })
-        else
-            Style.Skin(button, C.button, {
-                corner=9, edge=C.gold, shine=0.52, shade=0.42, rim=0.97,
-            })
-        end
-        hover = Style.Skin(button, C.gold, {
-            corner=11, edge=C.headerText, shine=0.36, shade=0.17, rim=0.74,
-            alpha=0,
+        Style.Skin(button, C.button, {
+            corner=9, edge=C.gold, shine=0.52, shade=0.42, rim=0.97,
         })
     end
+    hover = Style.FeedbackOverlay(button, {
+        corner=footer and 10 or 11, inset=2,
+        fill=palette and palette.hover or C.gold,
+        edge=palette and palette.edge or C.gold,
+        shine=0.58, rim=0.78,
+    })
     local label = Style.Text(button, caption, 15,
         palette and palette.text or C.buttonText)
     label:SetPoint("CENTER")

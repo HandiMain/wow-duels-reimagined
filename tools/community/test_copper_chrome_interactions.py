@@ -58,5 +58,21 @@ class CopperChromeTests(unittest.TestCase):
         self.assertIn('function Header.Fold(value)',header)
         self.assertIn('button:SetScript("OnClick", function() Select(index, 1) end)',nav)
 
+    def test_hover_and_click_glows_are_above_approved_art(self):
+        style=lua("UI/Style.lua")
+        nav=lua("UI/Navigation.lua")
+        header=lua("UI/Header.lua")
+        footer=lua("UI/Footer.lua")
+        widget=lua("UI/Widgets.lua")
+        self.assertIn('function Style.FeedbackOverlay(parent, opts)',style)
+        self.assertIn('"shine", "OVERLAY", 0, corner, inset',style)
+        self.assertIn('"rim", "OVERLAY", 1, corner, inset',style)
+        self.assertIn('local selected = Style.FeedbackOverlay(button',nav)
+        self.assertIn('local hover = Style.FeedbackOverlay(button',nav)
+        self.assertIn('local hover = Style.FeedbackOverlay(b',header)
+        self.assertIn('local chosen = Style.FeedbackOverlay(b',header)
+        self.assertIn('local hover = Style.FeedbackOverlay(button',footer)
+        self.assertIn('"shine", "OVERLAY", -1,',widget)
+
 if __name__ == "__main__":
     unittest.main()
