@@ -20,7 +20,7 @@ class VisualFidelityTests(unittest.TestCase):
                       'Style.ForgedEdge(frame,',
                       'Style.Text(content, "Welcome to the Hall", 27, C.pale, nil, "display")'):
             self.assertIn(token, w)
-        for token in ('name == "Close" and 34 or 29', 'Style.ForgedEdge(b,',
+        for token in ('name == "Close" and 34 or 29', 'Style.Plate(b, name == "Close" and "hall" or "dark", { corner=7 })',
                       'function Header.Fold(value)', 'function Header.CloseSearch(',
                       'function Header.SetManualPeek(on)'):
             self.assertIn(token, h)
@@ -29,13 +29,13 @@ class VisualFidelityTests(unittest.TestCase):
         n = lua("UI/Navigation.lua")
         self.assertIn('local HALL_BUTTON_WIDTH = 205', n)
         self.assertIn('button:SetSize(HALL_BUTTON_WIDTH, 84)', n)
-        self.assertIn('Style.ForgedEdge(button, { inset=5, alpha=0.76 })', n)
-        self.assertIn('code-drawn laurels', n)
+        self.assertIn('Style.Plate(button, "hall", { corner=21 })', n)
+        self.assertIn('DuelHallLaurel.tga', n)
         self.assertIn('railDivider:SetPoint("TOP", primaryButtons[#primaryButtons].button', n)
         self.assertIn('Window.rail:SetScript("OnSizeChanged", FitTabs)', n)
         self.assertIn('button:SetSize(104, 30)', n)
         self.assertIn('sub:SetSize(174, 35)', n)
-        self.assertIn('Style.SkinMask(glyph, C.gold, "face", "ARTWORK"', n)
+        self.assertIn('DuelCategoryIcons.tga', n)
 
     def test_readable_display_font_does_not_override_user_font_choice(self):
         style, options = lua("UI/Style.lua"), lua("UI/Options.lua")
@@ -43,9 +43,9 @@ class VisualFidelityTests(unittest.TestCase):
         self.assertIn('role=role', style)
         self.assertIn('fontPath or', style)
         self.assertIn('entry.role == "display" and "Fonts\\\\MORPHEUS.TTF"', style)
-        self.assertIn('local heading = Style.Text(header, title, 20, C.pale, nil, "display")', options)
+        self.assertIn('local heading = Style.Text(header, title, 22, C.pale, nil, "display")', options)
         self.assertIn('function Style.ForgedEdge(parent, opts)', style)
-        self.assertIn('Style.ForgedEdge(card,', options)
+        self.assertIn('Style.Plate(card, "dark", { corner=11 })', options)
         self.assertIn('local headingBand = CreateFrame("Frame", nil, card)', options)
 
     def test_compact_options_reflow_and_explicit_font_matching(self):

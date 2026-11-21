@@ -1247,3 +1247,39 @@ invariants, but only the player can verify line thickness, actual font shape,
 texture readability, tab/menu collisions, popup layering, mouse focus,
 combat behavior, scaling and ESC-menu compatibility in WoW. Screenshots of
 Appearance and Interface at the same Menu Scale are required for comparison.
+
+## Duel Hall artwork fidelity baseline — 2026-11-21
+
+**State:** approved screenshot remains the design source; implementation is
+**IMPLEMENTED/UNTESTED** until in-game inspection. Two compared captures:
+the approved 1536x1024 concept (consept(1).webp) and the 1120x711 in-game
+build (Screenshot_2). Window dimensions were normalized for comparison; the
+overall major regions were already close, while painted surfaces and controls
+lacked the concept's depth.
+
+**Chosen implementation: Option A.** The new independent texture assets are
+all ORIGINAL artwork drawn procedurally for Duels, not cutouts of the concept
+or borrowed from another addon. The main Hall plaque, its laurel ornament,
+raised gold and dark menu plates, corner jewel and subcategory icon atlas are
+small, power-of-two, uncompressed 32-bit TGA files under Media/Skin. Text,
+click targets, responsive geometry, icon selection, Search, settings and
+animations remain ordinary independent WoW elements. Style.Plate owns their
+nine-slice layout, and Navigation switches only the selected subtab's painted
+plate. No separate theme or state/animation owner was added.
+
+**Proportions retained from approved composition:** ~226 UI-unit left
+gameplay rail at the minimum 1050x650 window, 72-unit header, 50-unit footer,
+84-unit Hall destination and 35-unit options tabs. Enlarged Appearance card
+spacing matches the reference's roomier ledger without making the Interface
+grid taller. An appearance page that fits must not show a phantom scroll thumb.
+Dark metal/bronze framing and red/gold accents remain the only house palette;
+the five former themes stay retired. User overrides from EllesmereUI remain
+optional.
+
+**Quality gates:** static regression checks for TGA headers/transparency,
+reference usage, resizing and click state; Lua syntax/runtime Search and
+SavedVariables checks; manual 100% Menu Scale visual review in WoW of Appearance
+and Interface, icons, hover/selection, resize extremes, other addons absent,
+Ellesmere enabled, combat, ESC, Enter, Fold/Peek and footer. Automated checks
+do NOT establish a perfect pixel match in the real client. Refine source pieces,
+not screenshot crops, when the player's in-game reference shows differences.

@@ -21,7 +21,7 @@ local function PaintToggle(key, position)
 
     -- Recompute all visuals from state each time, never multiply old tint.
     local start = row.available and OFF or DISABLED
-    local finish = row.available and C.gold or DISABLED
+    local finish = row.available and C.red or DISABLED
     local r = start[1] + (finish[1] - start[1]) * p
     local g = start[2] + (finish[2] - start[2]) * p
     local b = start[3] + (finish[3] - start[3]) * p

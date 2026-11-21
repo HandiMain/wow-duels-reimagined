@@ -259,6 +259,62 @@ function Style.Skin(parent, fill, opts)
     return skin
 end
 
+-- Purpose-built texture atlas pieces, authored independently from the
+-- approved screenshot. Each surface is a 9-slice so corners keep their
+-- sculpted depth at different window sizes; buttons and labels stay native.
+local PLATE_ROOT = "Interface\\AddOns\\DuelsReimagined\\Media\\Skin\\"
+local PLATES = {
+    hall = { path=PLATE_ROOT .. "DuelHallPlaque.tga", w=256, h=128, cutX=30, cutY=28 },
+    gold = { path=PLATE_ROOT .. "DuelGiltTab.tga", w=256, h=64, cutX=24, cutY=16 },
+    dark = { path=PLATE_ROOT .. "DuelDarkTab.tga", w=256, h=64, cutX=24, cutY=16 },
+}
+function Style.Plate(parent, kind, opts)
+    opts = opts or {}
+    local data = assert(PLATES[kind], "Unknown Duel Hall plate: " .. tostring(kind))
+    local corner = opts.corner or 11
+    local inset = opts.inset or 0
+    local tiles = {}
+    local function Coord(spec, x, y)
+        local xs = { 0, spec.cutX, spec.w-spec.cutX, spec.w }
+        local ys = { 0, spec.cutY, spec.h-spec.cutY, spec.h }
+        return xs[x]/spec.w, xs[x+1]/spec.w, ys[y]/spec.h, ys[y+1]/spec.h
+    end
+    for y = 1, 3 do
+        for x = 1, 3 do
+            local tex = parent:CreateTexture(nil, opts.layer or "BORDER", nil,
+                opts.sublevel or 4)
+            tex:SetTexture(data.path)
+            tex:SetTexCoord(Coord(data, x, y))
+            tiles[#tiles+1] = { tex=tex, x=x, y=y }
+        end
+    end
+    local tl,t,tr,l,m,r,bl,b,br =
+        tiles[1].tex,tiles[2].tex,tiles[3].tex,
+        tiles[4].tex,tiles[5].tex,tiles[6].tex,
+        tiles[7].tex,tiles[8].tex,tiles[9].tex
+    tl:SetPoint("TOPLEFT", parent, "TOPLEFT", inset, -inset); tl:SetSize(corner, corner)
+    tr:SetPoint("TOPRIGHT", parent, "TOPRIGHT", -inset, -inset); tr:SetSize(corner, corner)
+    bl:SetPoint("BOTTOMLEFT", parent, "BOTTOMLEFT", inset, inset); bl:SetSize(corner, corner)
+    br:SetPoint("BOTTOMRIGHT", parent, "BOTTOMRIGHT", -inset, inset); br:SetSize(corner, corner)
+    t:SetPoint("TOPLEFT", tl, "TOPRIGHT"); t:SetPoint("TOPRIGHT", tr, "TOPLEFT"); t:SetHeight(corner)
+    b:SetPoint("BOTTOMLEFT", bl, "BOTTOMRIGHT"); b:SetPoint("BOTTOMRIGHT", br, "BOTTOMLEFT"); b:SetHeight(corner)
+    l:SetPoint("TOPLEFT", tl, "BOTTOMLEFT"); l:SetPoint("BOTTOMLEFT", bl, "TOPLEFT"); l:SetWidth(corner)
+    r:SetPoint("TOPRIGHT", tr, "BOTTOMRIGHT"); r:SetPoint("BOTTOMRIGHT", br, "TOPRIGHT"); r:SetWidth(corner)
+    m:SetPoint("TOPLEFT", tl, "BOTTOMRIGHT"); m:SetPoint("BOTTOMRIGHT", br, "TOPLEFT")
+    local group = {}
+    function group:SetStyle(newKind)
+        local spec = assert(PLATES[newKind], "Unknown Duel Hall plate")
+        for _, tile in ipairs(tiles) do
+            tile.tex:SetTexture(spec.path)
+            tile.tex:SetTexCoord(Coord(spec, tile.x, tile.y))
+        end
+    end
+    function group:SetAlpha(value)
+        for _, tile in ipairs(tiles) do tile.tex:SetAlpha(value) end
+    end
+    return group
+end
+
 function Style.LitBand(parent, base, opts)
     opts = opts or {}
     Style.Fill(parent, base)
@@ -310,7 +366,8 @@ function Style.Text(parent, value, size, color, outline, role)
     return label
 end
 
--- All real buttons use drawn fills + borders, never a baked button bitmap.
+-- Interactive buttons own native text/callbacks; only the decorative relief
+-- uses nine-sliced art, never image-based labels or hit targets.
 -- Optional fixed-brand palette keeps a specific action independent of theme
 -- recoloring while reusing this shared button's input/motion/tooltip owner.
 function Style.Action(parent, caption, variant, palette)
@@ -338,6 +395,11 @@ function Style.Action(parent, caption, variant, palette)
             corner=footer and 7 or 9, edge=C.gold, shine=0.52, shade=0.42, rim=0.97,
         })
         Style.ForgedEdge(button, { inset=3, alpha=0.52 })
+        if footer then
+            -- Actual red, independently painted Close plate: all button
+            -- text and callbacks remain separate and dynamic.
+            Style.Plate(button, "hall", { corner=9 })
+        end
         hover = Style.Skin(button, C.gold, {
             corner=11, edge=C.headerText, shine=0.36, shade=0.17, rim=0.74,
             alpha=0,

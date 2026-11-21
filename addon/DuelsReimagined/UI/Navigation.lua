@@ -177,6 +177,7 @@ local function Select(sectionIndex, pageIndex, noMotion, repaintOnly, isBack)
             end
             item.bar:SetColorTexture(unpack(C.red))
             item.bar:SetShown(active)
+            if item.plate then item.plate:SetStyle(active and "gold" or "dark") end
             item.label:SetTextColor(unpack(active and C.tabText or C.text))
         end
     end
@@ -249,35 +250,24 @@ for index, section in ipairs(sections) do
             corner=9, edge=C.gold, shine=0.57, shade=0.43, rim=0.98,
         })
         Style.ForgedEdge(button, { inset=5, alpha=0.76 })
-        -- Ember reflected off the top of a forged challenge plaque.
-        for i = 1, 3 do
-            local glow = Style.Fill(button, C.red, "ARTWORK")
-            glow:ClearAllPoints()
-            glow:SetPoint("TOPLEFT", button, "TOPLEFT", 13, -7 - (i - 1) * 4)
-            glow:SetPoint("TOPRIGHT", button, "TOPRIGHT", -13, -7 - (i - 1) * 4)
-            glow:SetHeight(4)
-            glow:SetAlpha(0.18 / i)
-        end
-        -- A quiet pair of original, code-drawn laurels around the swords.
-        -- Their pieces are tintable native textures, not cropped concept art.
-        for _, side in ipairs({-1, 1}) do
-            for i = 1, 7 do
-                local leaf = Style.Fill(button, C.red, "ARTWORK")
-                leaf:ClearAllPoints()
-                leaf:SetSize(4, 9)
-                leaf:SetPoint("CENTER", button, "CENTER",
-                    side * (57 + math.abs(i - 4) * 2), 12 + (i - 4) * 6)
-                leaf:SetAlpha(0.64)
-                if leaf.SetRotation then
-                    leaf:SetRotation(side * (0.38 + (i - 4) * 0.10))
-                end
-            end
-        end
+        -- Original guild-hall styled bitmap, nine-sliced beneath actual
+        -- interactive controls. No screenshots or baked text.
+        Style.Plate(button, "hall", { corner=21 })
+        local leaves = "Interface\\AddOns\\DuelsReimagined\\Media\\Skin\\DuelHallLaurel.tga"
+        local laurelL = button:CreateTexture(nil, "ARTWORK", nil, 1)
+        laurelL:SetTexture(leaves)
+        laurelL:SetSize(58, 70)
+        laurelL:SetPoint("CENTER", button, "CENTER", -61, -1)
+        local laurelR = button:CreateTexture(nil, "ARTWORK", nil, 1)
+        laurelR:SetTexture(leaves)
+        laurelR:SetSize(58, 70)
+        laurelR:SetTexCoord(1, 0, 0, 1)
+        laurelR:SetPoint("CENTER", button, "CENTER", 61, -1)
     else
         Style.Skin(button, C.nav, {
             corner=7, edge=C.goldDim, shine=0.18, shade=0.20, rim=0.86,
         })
-        Style.ForgedEdge(button, { inset=3, alpha=0.32 })
+        Style.Plate(button, "dark", { corner=9 })
     end
     local selected, hover = AddOverlay(button, isPrimary)
     local bar = button:CreateTexture(nil, "OVERLAY")
@@ -304,6 +294,8 @@ for index, section in ipairs(sections) do
         icon:SetPoint("TOP", button, "TOP", 0, -4)
         label:SetPoint("BOTTOM", button, "BOTTOM", 0, 6)
         label:SetJustifyH("CENTER")
+        label:SetShadowColor(0, 0, 0, 0.95)
+        label:SetShadowOffset(1, -1)
     else
         icon:SetPoint("LEFT", button, "LEFT", 9, 0)
         label:SetPoint("LEFT", icon, "RIGHT", 6, 0)
@@ -364,7 +356,7 @@ for index, section in ipairs(sections) do
         Style.Skin(sub, C.nav, {
             corner=6, edge=C.goldDim, shine=0.19, shade=0.21, rim=0.89,
         })
-        Style.ForgedEdge(sub, { inset=3, alpha=0.36 })
+        local plate = Style.Plate(sub, "dark", { corner=10 })
         local subSelected, subHover = AddOverlay(sub, false)
         local subBar = sub:CreateTexture(nil, "OVERLAY")
         subBar:SetColorTexture(unpack(C.gold))
@@ -374,32 +366,16 @@ for index, section in ipairs(sections) do
         local text = Style.Text(sub, page.label, 14, C.text)
         text:SetWordWrap(false)
         if page.key == "options" or page.key == "interface" then
-            -- Small native-drawn palette/monitor glyphs; no screenshot crop
-            -- and no asset file or gameplay dependency.
-            local glyph = CreateFrame("Frame", nil, sub)
-            glyph:SetSize(20, 20)
-            glyph:SetPoint("LEFT", sub, "LEFT", 16, 0)
+            -- Individually drawn 32-bit icon atlas, not rectangles or a
+            -- screenshot cutout. Labels and click targets remain real.
+            local glyph = sub:CreateTexture(nil, "OVERLAY", nil, 4)
+            glyph:SetTexture("Interface\\AddOns\\DuelsReimagined\\Media\\Skin\\DuelCategoryIcons.tga")
+            glyph:SetSize(22, 22)
+            glyph:SetPoint("LEFT", sub, "LEFT", 15, 0)
             if page.key == "options" then
-                -- Paint the palette on ARTWORK (the previous BACKGROUND
-                -- skin was hidden by the tab and appeared as a black square).
-                Style.SkinMask(glyph, C.gold, "face", "ARTWORK", 2, 9, 1)
-                for _, pos in ipairs({{-4,3},{2,4},{5,-2}}) do
-                    local dot = Style.Fill(glyph, C.body, "OVERLAY")
-                    dot:SetSize(3, 3)
-                    dot:SetPoint("CENTER", glyph, "CENTER", pos[1], pos[2])
-                end
+                glyph:SetTexCoord(0, .5, 0, 1)
             else
-                local screen = CreateFrame("Frame", nil, glyph)
-                screen:SetSize(18, 12)
-                screen:SetPoint("TOP", glyph, "TOP", 0, -1)
-                Style.Fill(screen, C.body)
-                Style.Border(screen, C.gold, 1)
-                local stem = Style.Fill(glyph, C.gold)
-                stem:SetSize(2, 5)
-                stem:SetPoint("TOP", screen, "BOTTOM", 0, 0)
-                local foot = Style.Fill(glyph, C.gold)
-                foot:SetSize(10, 2)
-                foot:SetPoint("BOTTOM", glyph, "BOTTOM", 0, 0)
+                glyph:SetTexCoord(.5, 1, 0, 1)
             end
             text:SetPoint("LEFT", glyph, "RIGHT", 9, 0)
             text:SetJustifyH("LEFT")
@@ -420,7 +396,7 @@ for index, section in ipairs(sections) do
             detail = page.subtitle or ("Open the " .. page.label .. " page.")
         })
         pages[#pages + 1] = {
-            button = sub, selected = subSelected, hover = subHover, bar = subBar, label = text
+            button = sub, selected = subSelected, hover = subHover, bar = subBar, label = text, plate = plate
         }
     end
     subButtons[index] = pages

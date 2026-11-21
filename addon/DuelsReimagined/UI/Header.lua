@@ -20,7 +20,9 @@ local function HeaderButton(name, title, detail)
     Style.Skin(b, name == "Close" and C.button or C.nav, {
         corner=6, edge=C.goldDim, shine=0.24, shade=0.24, rim=0.92,
     })
-    Style.ForgedEdge(b, { inset=3, alpha=0.48 })
+    -- Sculpted art is the button's inert background, not an image-based
+    -- click target. Peek, Fold and Close retain their native interactions.
+    Style.Plate(b, name == "Close" and "hall" or "dark", { corner=7 })
     local hover = Style.Skin(b, C.goldDim, {
         corner=6, edge=C.gold, shine=0.26, shade=0.19, alpha=0,
     })

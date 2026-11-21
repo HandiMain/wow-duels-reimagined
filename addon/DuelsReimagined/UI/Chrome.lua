@@ -56,6 +56,7 @@ end
 -- titles and inside Community cards / sidebar.
 local pixelDividers = {}
 local HAIRLINE_IMAGE = "Interface\\Buttons\\WHITE8X8"
+local CORNER_ART = "Interface\\AddOns\\DuelsReimagined\\Media\\Skin\\DuelCornerJewel.tga"
 
 local function PixelAlign(tex)
     if tex.SetSnapToPixelGrid then tex:SetSnapToPixelGrid(true) end
@@ -77,12 +78,10 @@ function Chrome.Divider(parent, width, height)
     right:SetAlpha(0.66)
     PixelAlign(right)
 
-    local stone = Style.Fill(f, C.gold, "OVERLAY")
-    stone:ClearAllPoints()
-    stone:SetSize(6, 6)
+    local stone = f:CreateTexture(nil, "OVERLAY")
+    stone:SetTexture(CORNER_ART)
+    stone:SetSize(17, 17)
     stone:SetPoint("CENTER")
-    if stone.SetRotation then stone:SetRotation(math.pi / 4) end
-
     local entry = {frame=f, left=left, right=right}
     pixelDividers[#pixelDividers + 1] = entry
     local function SyncThickness()
@@ -121,27 +120,30 @@ function Chrome.Shell(frame, header, footer, rail, nav)
     Line(seams, rail, "TOPRIGHT", "BOTTOMRIGHT", true, C.shellEdge)
     Line(seams, nav, "BOTTOMLEFT", "BOTTOMRIGHT", false, C.goldDim)
 
-    -- Four layered, independently tinted Warcraft-style metal corner studs.
-    -- Never a scaled screenshot or an interactive frame above the controls.
+    -- Purpose-drawn gilded corner jewels over a native, scalable frame.
+    -- These are visual textures only; never a child that intercepts clicks.
     for _, edge in ipairs({
-        {"TOPLEFT", 8, -8}, {"TOPRIGHT", -8, -8},
-        {"BOTTOMLEFT", 8, 8}, {"BOTTOMRIGHT", -8, 8},
+        {"TOPLEFT", 7, -7}, {"TOPRIGHT", -7, -7},
+        {"BOTTOMLEFT", 7, 7}, {"BOTTOMRIGHT", -7, 7},
     }) do
-        local cap = Style.Fill(rim, C.shellEdge, "OVERLAY")
-        cap:ClearAllPoints()
-        cap:SetSize(11, 11)
+        local cap = rim:CreateTexture(nil, "OVERLAY", nil, 7)
+        cap:SetTexture(CORNER_ART)
+        cap:SetSize(31, 31)
         cap:SetPoint(edge[1], rim, edge[1], edge[2], edge[3])
-        if cap.SetRotation then cap:SetRotation(math.pi / 4) end
-        local center = Style.Fill(rim, C.window, "OVERLAY")
-        center:ClearAllPoints()
-        center:SetSize(6, 6)
-        center:SetPoint("CENTER", cap, "CENTER")
-        if center.SetRotation then center:SetRotation(math.pi / 4) end
-        local stud = Style.Fill(rim, C.gold, "OVERLAY")
-        stud:ClearAllPoints()
-        stud:SetSize(2, 2)
-        stud:SetPoint("CENTER", cap, "CENTER")
     end
+    -- Header and footer gain narrow double-edge highlights, not stretched
+    -- screenshot strips, and remain pixel-sharp while resizing.
+    local function GlowSeam(owner, atTop)
+        local lip = Style.Fill(seams, C.gold, "ARTWORK")
+        lip:ClearAllPoints()
+        local edge = atTop and "TOP" or "BOTTOM"
+        lip:SetPoint(edge.."LEFT", owner, edge.."LEFT", 7, atTop and -2 or 2)
+        lip:SetPoint(edge.."RIGHT", owner, edge.."RIGHT", -7, atTop and -2 or 2)
+        lip:SetHeight(1)
+        lip:SetAlpha(0.42)
+    end
+    GlowSeam(header, false)
+    GlowSeam(footer, true)
     return seams
 end
 

@@ -63,7 +63,7 @@ local function Card(page, y, height)
     card:SetPoint("TOPRIGHT", page, "TOPRIGHT", -18, -y)
     card:SetHeight(height)
     Style.Skin(card, C.nav, { corner=7, edge=C.shellEdge, shine=0.14, shade=0.21, rim=0.92 })
-    Style.ForgedEdge(card, { inset=3, alpha=0.44 })
+    Style.Plate(card, "dark", { corner=11 })
     -- Warcraft ledger heading band: separate from real clickable rows.
     -- Its edges stretch with the card without distorting a bitmap.
     local headingBand = CreateFrame("Frame", nil, card)
@@ -71,6 +71,7 @@ local function Card(page, y, height)
     headingBand:SetPoint("TOPRIGHT", card, "TOPRIGHT", -4, -4)
     headingBand:SetHeight(31)
     Style.Fill(headingBand, C.header)
+    Style.Plate(headingBand, "dark", { corner=7, layer="ARTWORK", sublevel=2 })
     local rimLight = Style.Fill(headingBand, C.goldDim, "ARTWORK")
     rimLight:ClearAllPoints()
     rimLight:SetPoint("BOTTOMLEFT", headingBand, "BOTTOMLEFT", 0, 0)
@@ -102,7 +103,7 @@ local function Section(card, title, subtitle, top, extra)
     header:SetPoint("TOPRIGHT", card, "TOPRIGHT", -20, top + 6)
     header:SetHeight(24)
     header:EnableMouse(true)
-    local heading = Style.Text(header, title, 20, C.pale, nil, "display")
+    local heading = Style.Text(header, title, 22, C.pale, nil, "display")
     heading:SetPoint("LEFT", header, "LEFT", 0, 0)
     heading:SetPoint("RIGHT", header, "RIGHT", 0, 0)
     heading:SetJustifyH("LEFT")
@@ -357,7 +358,10 @@ local function LayoutPage(page, groups, width)
         math.floor((fullWidth - CARD_GAP) / 2) or fullWidth
     local usable = math.max(1, cardWidth - 40)
     local sectionY, tallest = 0, 0
-    local rowGap = largeText and 4 or ROW_GAP
+    local isAppearance = page == appearance
+    -- The approved Appearance ledger is deliberately ~35px taller than the
+    -- old dense settings card, while Interface keeps its compact grid.
+    local rowGap = largeText and 4 or (isAppearance and 4 or ROW_GAP)
 
     for index, group in ipairs(groups) do
         local column = (index - 1) % columns
@@ -393,20 +397,26 @@ local function LayoutPage(page, groups, width)
             elseif entry.height then
                 widget:SetHeight(entry.height)
             end
+            if isAppearance and not largeText then
+                widget:SetHeight(widget:GetHeight() + 6)
+            end
             if widget.optionsScroll then
                 -- Search follows the card into its new grid row on resize.
                 widget.optionsY = sectionY + y
             end
-            y = y + (entry.height or widget:GetHeight()) + rowGap
+            y = y + widget:GetHeight() + rowGap
         end
         if group.footer then y = group.footer(card, sectionY, y, usable) end
-        local cardHeight = y + 6
+        local cardHeight = y + (isAppearance and 10 or 6)
         card:SetHeight(cardHeight)
         tallest = math.max(tallest, cardHeight)
     end
 
     local contentHeight = sectionY + tallest + 6
-    page:SetHeight(math.max(contentHeight, page.scrollOwner:GetHeight()))
+    -- Avoid a full-height phantom scrollbar from fractional UI scaling.
+    local viewHeight = page.scrollOwner:GetHeight()
+    page:SetHeight(contentHeight > viewHeight + 1 and contentHeight or
+        math.max(1, viewHeight - 0.5))
     if page.scrollOwner.UpdateScrollChildRect then
         page.scrollOwner:UpdateScrollChildRect()
     end
