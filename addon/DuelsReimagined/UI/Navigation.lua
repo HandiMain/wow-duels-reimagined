@@ -251,6 +251,18 @@ for index, section in ipairs(sections) do
         -- rim, bevel, glow or live icon beneath or above its baked artwork.
         local concept = Style.ConceptImage(button, "hall", "ARTWORK", 2)
         concept:SetAllPoints(button)
+        -- Visible gilded hover using the SAME approved plaque artwork:
+        -- an additive highlight, not a replacement frame or new border.
+        -- It is separate from the existing press/selection owner.
+        local hallGlow = Style.ConceptImage(button, "hall", "OVERLAY", 6)
+        hallGlow:SetAllPoints(button)
+        hallGlow:SetBlendMode("ADD")
+        hallGlow:SetVertexColor(1, 0.78, 0.48)
+        hallGlow:SetAlpha(0)
+        button.hallGlow = hallGlow
+        button:HookScript("OnHide", function()
+            Motion.Stop(hallGlow, 0)
+        end)
     else
         -- Reusable live destinations/utility shortcuts have one plate.
         Style.Plate(button, "dark", { corner=9 })
@@ -326,10 +338,18 @@ for index, section in ipairs(sections) do
         -- Hover is visible even on the currently selected destination.
         -- Less glow on active buttons keeps the persistent selection clear.
         local active = currentSection == index
-        Motion.Fade(hover, active and 0.16 or
-            (isPrimary and 0.27 or 0.40), Motion.Duration("quick"))
+        Motion.Fade(hover, active and 0.26 or
+            (isPrimary and 0.34 or 0.40), Motion.Duration("quick"))
+        if button.hallGlow then
+            Motion.Fade(button.hallGlow, 0.30, Motion.Duration("quick"))
+        end
     end)
-    button:SetScript("OnLeave", function() Motion.Fade(hover, 0, 0.21) end)
+    button:SetScript("OnLeave", function()
+        Motion.Fade(hover, 0, Motion.Duration("gentle"))
+        if button.hallGlow then
+            Motion.Fade(button.hallGlow, 0, Motion.Duration("gentle"))
+        end
+    end)
     ns.Widgets.PressFeedback(button, hover, {
         corner=isPrimary and 13 or 9,
         hoverAlpha=0.24, clickAlpha=isPrimary and 0.39 or 0.50,

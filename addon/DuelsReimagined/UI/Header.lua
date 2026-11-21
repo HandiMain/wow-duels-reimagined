@@ -14,7 +14,9 @@ local alphaWhilePeeking = 0.16
 
 local function HeaderButton(name, title, detail)
     local b = CreateFrame("Button", nil, header)
-    b:SetSize(name == "Close" and 34 or 29, name == "Close" and 34 or 29)
+    -- The red X is deliberately smaller than Peek/Fold, while its native
+    -- button retains ordinary hover, pressed and tooltip behavior.
+    b:SetSize(name == "Close" and 24 or 29, name == "Close" and 24 or 29)
     b:RegisterForClicks("LeftButtonUp")
     -- Dark forged controls at rest; the close X gets its crimson plate.
     -- Exactly one extracted button surface. The click/Peek/Fold behavior
@@ -25,7 +27,7 @@ local function HeaderButton(name, title, detail)
     })
     local art = b:CreateTexture(nil, "ARTWORK")
     art:SetTexture(iconBase .. name .. ".png")
-    art:SetSize(name == "Close" and 23 or 19, name == "Close" and 23 or 19)
+    art:SetSize(name == "Close" and 15 or 19, name == "Close" and 15 or 19)
     art:SetPoint("CENTER")
     ns.Chrome.Sharp(art)
     -- A separate, persistent selected accent for Fold/Peek, distinct from

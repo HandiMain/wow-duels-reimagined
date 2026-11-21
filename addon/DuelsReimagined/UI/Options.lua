@@ -88,7 +88,7 @@ local function Card(page, y, height)
     local headingBand = CreateFrame("Frame", nil, card)
     headingBand:SetPoint("TOPLEFT", card, "TOPLEFT", 12, -6)
     headingBand:SetPoint("TOPRIGHT", card, "TOPRIGHT", -12, -6)
-    headingBand:SetHeight(50)
+    headingBand:SetHeight(62)
     headingBand:EnableMouse(false)
     if headingBand.SetClipsChildren then headingBand:SetClipsChildren(true) end
     card.optionsBand = headingBand
@@ -97,8 +97,8 @@ local function Card(page, y, height)
     -- The frame's existing 9-slice alone owns all four outside edges.
     local divider = Style.Fill(card, C.goldDim, "ARTWORK")
     divider:ClearAllPoints()
-    divider:SetPoint("TOPLEFT", card, "TOPLEFT", 12, -58)
-    divider:SetPoint("TOPRIGHT", card, "TOPRIGHT", -12, -58)
+    divider:SetPoint("TOPLEFT", card, "TOPLEFT", 12, -72)
+    divider:SetPoint("TOPRIGHT", card, "TOPRIGHT", -12, -72)
     divider:SetHeight(1)
     divider:SetAlpha(0.60)
     card.scrollOwner, card.scrollTop = page.scrollOwner, y
@@ -151,14 +151,16 @@ local function Section(card, key, title, help, extra)
     -- There is no center strip to magnify or truncate the approved design.
     local left = Slice(0, BANNER_LEFT)
     local right = Slice(BANNER_CELL_W - BANNER_RIGHT, BANNER_CELL_W)
-    left:SetPoint("TOPLEFT", header, "TOPLEFT")
-    right:SetPoint("TOPRIGHT", header, "TOPRIGHT")
+    -- Keep a real two-pixel breathing space above/below the bitmap:
+    -- formerly the subtitle descenders sat against the 50px clip edge.
+    left:SetPoint("TOPLEFT", header, "TOPLEFT", 0, -2)
+    right:SetPoint("TOPRIGHT", header, "TOPRIGHT", 0, -2)
 
     local function FitSlices(self)
         local width = math.max(1, self:GetWidth())
         local height = math.max(1, self:GetHeight())
-        local scale = math.min(height / BANNER_CELL_H,
-            math.max(0.01, (width - 8) / (BANNER_LEFT + BANNER_RIGHT)))
+        local scale = math.min(math.max(1, height - 4) / BANNER_CELL_H,
+            math.max(0.01, (width - 12) / (BANNER_LEFT + BANNER_RIGHT)))
         left:SetSize(math.max(1, BANNER_LEFT * scale),
             math.max(1, BANNER_CELL_H * scale))
         right:SetSize(math.max(1, BANNER_RIGHT * scale),
@@ -390,8 +392,8 @@ MarkPosition(resetAccess, accessCard, -332)
 -- copied, and all Settings/Search/scroll/tooltip owners remain unchanged.
 local CARD_BREAKPOINT = 720
 local CARD_GAP, SECTION_GAP, ROW_GAP = 14, 8, 1
-local BANNER_HEIGHT = 50
-local ROW_TOP = 64
+local BANNER_HEIGHT = 62
+local ROW_TOP = 80
 
 local function LayoutPage(page, groups, width)
     width = math.max(1, width or page:GetWidth())
@@ -427,7 +429,7 @@ local function LayoutPage(page, groups, width)
             card.optionsBand:SetHeight(BANNER_HEIGHT)
         end
 
-        local y = largeText and 78 or ROW_TOP
+        local y = largeText and 94 or ROW_TOP
         for _, entry in ipairs(group.entries) do
             local widget = entry.widget
             widget:ClearAllPoints()

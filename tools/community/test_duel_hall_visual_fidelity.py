@@ -19,7 +19,7 @@ class VisualFidelityTests(unittest.TestCase):
                       'Drag(brandDrag)', 'local brandArea = CreateFrame',
                       'Style.Text(content, "Welcome to the Hall", 27, C.pale, nil, "display")'):
             self.assertIn(token, w)
-        for token in ('name == "Close" and 34 or 29', 'Style.Plate(b, name == "Close" and "hall" or "dark", { corner=7 })',
+        for token in ('name == "Close" and 24 or 29', 'Style.Plate(b, name == "Close" and "hall" or "dark", { corner=7 })',
                       'function Header.Fold(value)', 'function Header.CloseSearch(',
                       'function Header.SetManualPeek(on)'):
             self.assertIn(token, h)
