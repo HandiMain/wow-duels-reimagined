@@ -15,7 +15,7 @@ class UtilityRailTests(unittest.TestCase):
             'local HALL_BUTTON_WIDTH = 205',
             'button:SetSize(HALL_BUTTON_WIDTH, 84)',
             'button:SetSize(112, 30)',
-            '(utilityIndex - 1) * 112',
+            '(utilityIndex - 1) * 120',
             'sub:SetSize(174, 35)',
             'Window.nav:SetShown(#section.pages > 1)',
             'local function FitTabs(self, width)',
