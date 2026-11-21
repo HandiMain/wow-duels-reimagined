@@ -450,19 +450,21 @@ end
 
 Window.ApplyScale(Settings.Get("menuScale") or 1)
 
--- One resize owner: Concept 06 with equally sized Alliance/Horde crests.
--- Graphics remain beneath Chrome.Shell's copper rim (+20), so the only straight
--- border lines are from the shell. The footer sweep feathers out before Close.
--- Base, hover and press are noninteractive textures; the button alone handles
--- drag, reset and Motion feedback.
+-- One resize owner: user-approved copper filigree Corner 03 (round jewel).
+-- Exact ornament extracted from concept 03 with transparent, feathered alpha:
+-- the established Chrome.Shell (+20) alone draws right/bottom border lines.
+-- This art remains at +18, beneath the rim, and is limited to the corner;
+-- it never overlays footer Close. Hover and press masks use the same source
+-- ornament, with a stronger jewel flash while clicking/dragging.
+-- The separate existing button alone owns drag/reset and Motion feedback.
 local resizeArt = CreateFrame("Frame", nil, frame)
 resizeArt:SetSize(96, 96)
 resizeArt:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -2, 2)
 resizeArt:SetFrameLevel(frame:GetFrameLevel() + 18)
 resizeArt:EnableMouse(false)
-local CORNER_ART = "Interface\\AddOns\\DuelsReimagined\\Media\\Skin\\DuelFactionCorner06Blended.png"
-local CORNER_HOVER = "Interface\\AddOns\\DuelsReimagined\\Media\\Skin\\DuelFactionCorner06BlendedHover.png"
-local CORNER_PRESS = "Interface\\AddOns\\DuelsReimagined\\Media\\Skin\\DuelFactionCorner06BlendedPress.png"
+local CORNER_ART = "Interface\\AddOns\\DuelsReimagined\\Media\\Skin\\DuelCorner03Copper.png"
+local CORNER_HOVER = "Interface\\AddOns\\DuelsReimagined\\Media\\Skin\\DuelCorner03Hover.png"
+local CORNER_PRESS = "Interface\\AddOns\\DuelsReimagined\\Media\\Skin\\DuelCorner03Press.png"
 local forgedCorner = resizeArt:CreateTexture(nil, "ARTWORK", nil, 2)
 forgedCorner:SetTexture(CORNER_ART)
 forgedCorner:SetAllPoints(resizeArt)

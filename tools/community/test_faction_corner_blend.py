@@ -8,9 +8,9 @@ def lua(n):return (ROOT/n).read_text(encoding="utf-8")
 class FactionCornerBlendTests(unittest.TestCase):
     def test_rebalanced_faction_assets_and_native_rgba(self):
         for name,digest in (
-            ("DuelFactionCorner06Blended.png","6a7923d5249901b6231736fa6c03cc5ad44d0d8c2fae2aa3886926dd90b450f2"),
-            ("DuelFactionCorner06BlendedHover.png","60ff9bfa2f585401ac94a64d5208e6bd819a9169fcf54e55d4382e65f330774a"),
-            ("DuelFactionCorner06BlendedPress.png","3e38b902c7719ed526e200904f28e4ba45b7e75c8a9a51dd1cae407e94c03218"),
+            ("DuelCorner03Copper.png","e88b09be81d49eb4046bf9aa41936be2568a8ed5a329255c818c9a22bc939bcc"),
+            ("DuelCorner03Hover.png","b8be31d80cf2f69119950499e2994a39b0b1373af767dd1a3270446d1f8944e5"),
+            ("DuelCorner03Press.png","8ce544af9cdc3809757eaa9b13906bc1f94dd65f4ffea705b991c665e2b9e065"),
         ):
             b=(SKIN/name).read_bytes()
             self.assertEqual(b[:8],bytes((137,80,78,71,13,10,26,10)))
@@ -31,8 +31,8 @@ class FactionCornerBlendTests(unittest.TestCase):
     def test_hover_press_drag_fold_reset_still_work_via_one_owner(self):
         w=lua("UI/Window.lua")
         for token in (
-            "DuelFactionCorner06BlendedHover.png",
-            "DuelFactionCorner06BlendedPress.png",
+            "DuelCorner03Hover.png",
+            "DuelCorner03Press.png",
             'gripGlow:SetBlendMode("ADD")',
             'gripPress:SetBlendMode("ADD")',
             "Motion.Fade(gripGlow, alpha, duration)",

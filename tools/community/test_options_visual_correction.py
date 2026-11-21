@@ -38,10 +38,10 @@ class OptionsVisualCorrectionTests(unittest.TestCase):
         self.assertNotIn("frame:SetClipsChildren(true)",w)
         self.assertIn('Style.Plate(rim, "shellCopper"',source("UI/Chrome.lua"))
     def test_sculpted_corner_and_original_drag_reset_owner(self):
-        b=(ROOT/"Media/Skin/DuelFactionCorner06Blended.png").read_bytes()
+        b=(ROOT/"Media/Skin/DuelCorner03Copper.png").read_bytes()
         self.assertEqual(struct.unpack_from(">IIBB",b,16),(256,256,8,6))
         self.assertEqual(hashlib.sha256(b).hexdigest(),
-            "6a7923d5249901b6231736fa6c03cc5ad44d0d8c2fae2aa3886926dd90b450f2")
+            "e88b09be81d49eb4046bf9aa41936be2568a8ed5a329255c818c9a22bc939bcc")
         w=source("UI/Window.lua")
         for s in ("resizeArt:SetSize(96, 96)","grip:SetSize(54, 54)",
                   'frame:StartSizing("BOTTOMRIGHT")',"Window.CommitResize()",
