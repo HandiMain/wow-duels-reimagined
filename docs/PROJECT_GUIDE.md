@@ -1286,8 +1286,9 @@ not screenshot crops, when the player's in-game reference shows differences.
 
 ## Exact concept-source extraction — checkpoint (2026-11-21)
 
-The uploaded, approved `consept(2).webp` at 1536 × 1024 is the
-**literal source** for the new `Media/Skin/DuelExactAtlas.png` (512 × 256).
+The uploaded approved 1536 × 1024 concept is the **literal visual source**
+for `Media/Skin/DuelExactAtlas.png` (512 × 256). The current full-color
+extraction also uses the subsequently approved 1536 × 1024 concept image.
 Unlike earlier hand-drawn approximations, these pixels were extracted from
 the user-approved artwork:
 
@@ -1309,17 +1310,28 @@ the user-approved artwork:
   geometry stay active. Like Hall's fixed label, this is deliberately static
   branded text; it does not respond to optional third-party font matching.
 
-All six regions share one 512×256 power-of-two sprite atlas with explicit
-texture coordinates. The 32-color version is deliberately compact and
-quantized; **source-derived is not identical to every source RGB pixel**.
+The regions share a power-of-two 512×256 RGBA PNG sprite atlas with explicit
+texture coordinates. The old destructive 32/128-color quantization was
+replaced by full RGBA assets extracted from the approved concept. There are
+also separate 512×128 RGBA branding and 32-bit TGA textures for native
+categories, button face and divider. These assets are now committed to
+GitHub, not supplied as a manual ZIP or composited full-window screenshot.
 The original full screenshot is NOT included as an overlay, and no gameplay
 or ESC-menu behavior was changed. The shared fallback masks remain, but obsolete procedural laurel and tab
 textures were removed because no runtime code uses them.
 
-**Remaining visual verification:** inspect whether the client accepts the
-palette-indexed PNG atlas, the positions match at 100% Menu Scale, Hall
-branding renders without duplicate words, categories switch their actual
-gold/dark skins, cards keep corners on resize, and everything remains readable
-at increased font size. A source-level/CI pass cannot certify client texture
+**2026-11-21 code cleanup:** removed duplicate brand widgets and image-layer
+overlays so the approved header, Hall and options panels each have one visual
+owner. Fixed footer action double-skinning; mirrored the corner art; removed
+duplicate tab selection rims/underlines. Neutral black backgrounds replace
+brownish sepia defaults. Existing keyboard, Search, Peek/Fold, resize, settings,
+SavedVariables, AddOn compartment, and ESC menu remain owned by their
+original modules.
+
+**Remaining in-game visual verification:** inspect the true client-rendered
+texture quality, alignment and scale at 100% Menu Scale; verify no duplicate
+brand text, no old underpaint on the Hall or tab buttons, option card borders,
+category icon colors, golden corners and scroll behavior. Check larger font
+scale, Peek/Fold, ESC menu, third-party color matching and other addon states. A source-level/CI pass cannot certify client texture
 loading or pixel accuracy. An approval screenshot is still required.
 

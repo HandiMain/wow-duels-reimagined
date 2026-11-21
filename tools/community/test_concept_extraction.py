@@ -20,8 +20,9 @@ class ConceptExtractionTests(unittest.TestCase):
         w, h, bit_depth, color_type = struct.unpack(">IIBB", data[16:26])
         self.assertEqual((w, h), (512, 256))
         self.assertEqual(bit_depth, 8)
-        self.assertIn(color_type, (2, 3, 6))
-        self.assertLess(len(data), 20000)
+        self.assertEqual(color_type, 6)  # full RGBA, no palette banding
+        self.assertGreater(len(data), 45000)  # no destructive 32/128-color quantization
+        self.assertLess(len(data), 400000)
         self.assertNotIn(b"consept(2).webp", data)
 
     def test_transparent_brand_art_is_cropped_and_keeps_drag_owner(self):
@@ -30,7 +31,8 @@ class ConceptExtractionTests(unittest.TestCase):
         self.assertTrue(data.startswith(bytes([137,80,78,71,13,10,26,10])))
         w, h = struct.unpack(">II", data[16:24])
         self.assertEqual((w, h), (512, 128))
-        self.assertLess(len(data), 8000)
+        self.assertGreater(len(data), 18000)  # original high-resolution identity
+        self.assertLess(len(data), 150000)
         window = lua("UI/Window.lua")
         self.assertIn("DuelExactBrand.png", window)
         self.assertIn("exactBrand:SetTexCoord(0, 384/512, 25/128, 93/128)", window)
