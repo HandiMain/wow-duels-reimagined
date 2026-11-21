@@ -53,10 +53,9 @@ end
 local primaryKeys = { hall = true }
 local railButtons, primaryButtons, subButtons = {}, {}, {}
 local patchDot, patchPulse
-local sectionTitle = Style.Text(Window.nav, "HALL", 18, C.pale)
-sectionTitle:SetPoint("TOPLEFT", Window.nav, "TOPLEFT", 20, -24)
-local subtitleRule = Chrome.Divider(Window.nav, 166, 12)
-subtitleRule:SetPoint("TOPLEFT", Window.nav, "TOPLEFT", 19, -56)
+-- The page heading now belongs to Window.content, not the subcategory bar.
+local sectionTitle = Style.Text(Window.nav, "HALL", 1, C.pale)
+sectionTitle:Hide()
 
 local currentSection, currentPage
 local history, backButton = {}, nil
@@ -98,28 +97,31 @@ end
 -- Only the navigation owner moves this small selection indicator. The
 -- existing per-button hover/selection controls and their hitboxes stay put.
 local movingBar = Style.Fill(Window.nav, C.gold, "OVERLAY")
-movingBar:ClearAllPoints()
-movingBar:SetSize(4, 27)
+movingBar:SetSize(80, 2)
 movingBar:Hide()
 local movingIndex
 local function PlaceBar(_, index)
+    local section = sections[currentSection]
+    local count = section and #section.pages or 1
+    local w = math.max(80, Window.nav:GetWidth() - 12)
+    local tabWidth = math.min(174, (w - (count - 1) * 8) / math.max(1, count))
     movingBar:ClearAllPoints()
-    movingBar:SetPoint("TOPLEFT", Window.nav, "TOPLEFT",
-        12, -(84 + (index - 1) * 41))
+    movingBar:SetPoint("BOTTOMLEFT", Window.nav, "BOTTOMLEFT",
+        6 + (index - 1) * (tabWidth + 8) + 14, 0)
+    movingBar:SetWidth(math.max(24, tabWidth - 28))
 end
 local sweep = Style.Fill(Window.nav, C.gold, "OVERLAY")
-sweep:ClearAllPoints()
 sweep:SetSize(48, 2)
 sweep:Hide()
 local function SweepPage()
     if ns.Settings.Get("reduceMotion") or not Window.frame:IsShown() then return end
     Motion.Stop(sweep, 0)
     sweep:Show()
-    Motion.Value(sweep, 0, 1, 0.39, function(region, progress)
+    Motion.Value(sweep, 0, 1, 0.35, function(region, progress)
         region:ClearAllPoints()
-        region:SetPoint("TOPLEFT", Window.nav, "TOPLEFT",
-            19 + progress * math.max(40, Window.nav:GetWidth() - 90), -56)
-        region:SetAlpha(math.sin(math.pi * progress) * 0.70)
+        region:SetPoint("BOTTOMLEFT", Window.nav, "BOTTOMLEFT",
+            6 + progress * math.max(40, Window.nav:GetWidth() - 70), 0)
+        region:SetAlpha(math.sin(math.pi * progress) * 0.55)
         if progress >= 1 then region:Hide() end
     end)
 end
@@ -147,6 +149,7 @@ local function Select(sectionIndex, pageIndex, noMotion, repaintOnly, isBack)
     end
     local section, page = sections[sectionIndex], sections[sectionIndex].pages[pageIndex]
     sectionTitle:SetText(string.upper(section.label))
+    Window.nav:SetShown(#section.pages > 1)
 
     for i, item in ipairs(railButtons) do
         local on = i == sectionIndex
@@ -218,7 +221,7 @@ end
 
 -- Keep the gameplay tab compact; primary tabs can still shrink if the
 -- available width becomes constrained.
-local HALL_BUTTON_WIDTH = 156
+local HALL_BUTTON_WIDTH = 195
 local utilityIndex, previousUtilityButton = 0, nil
 for index, section in ipairs(sections) do
     local isPrimary = primaryKeys[section.key] == true
@@ -226,23 +229,15 @@ for index, section in ipairs(sections) do
     local button = CreateFrame("Button", nil, parent)
 
     if isPrimary then
-        -- Hall is the sole primary tab for now; leave the rest of this row
-        -- available for real dueling, ranking or tournament features later.
-        button:SetSize(HALL_BUTTON_WIDTH, 44)
-        button:SetPoint("LEFT", Window.rail, "LEFT", 24, 0)
+        -- Game destinations stack vertically; later pages never displace the
+        -- secondary footer links or Options subcategories.
+        button:SetSize(HALL_BUTTON_WIDTH, 84)
+        button:SetPoint("TOP", Window.rail, "TOP", 0, -31)
     else
         utilityIndex = utilityIndex + 1
-        button:SetSize(90, 90)
-        button:SetPoint("TOP", Window.utility, "TOP",
-            0, -12 - (utilityIndex - 1) * 98)
-        if previousUtilityButton then
-            -- The 8-unit gap belongs to the rail, never to either button.
-            -- Anchor to the actual prior button rather than a guessed row
-            -- offset, keeping dividers consistent after future resizing.
-            local separator = Chrome.Divider(Window.utility, 44, 8)
-            separator:SetPoint("TOP", previousUtilityButton, "BOTTOM", 0, 0)
-            separator:SetAlpha(0.50)
-        end
+        button:SetSize(104, 30)
+        button:SetPoint("LEFT", Window.utility, "LEFT",
+            (utilityIndex - 1) * 112, 0)
         previousUtilityButton = button
     end
 
@@ -250,8 +245,12 @@ for index, section in ipairs(sections) do
     -- It uses the existing shared tintable premium masks; hover and selected
     -- layers remain independent and retain their current animations.
     if isPrimary then
-        Style.Skin(button, C.rail, {
-            corner=11, edge=C.goldDim, shine=0.22, shade=0.26, rim=0.82,
+        Style.Skin(button, C.button, {
+            corner=9, edge=C.gold, shine=0.46, shade=0.34, rim=0.95,
+        })
+    else
+        Style.Skin(button, C.nav, {
+            corner=7, edge=C.goldDim, shine=0.13, shade=0.15, rim=0.80,
         })
     end
     local selected, hover = AddOverlay(button, isPrimary)
@@ -271,37 +270,23 @@ for index, section in ipairs(sections) do
     -- Patch Notes' individually colored Lua strokes and preserves the four
     -- original icon meanings while theme skins remain on the buttons.
     local icon = Chrome.Icon(button, section.icon)
-    icon:SetSize(isPrimary and 34 or 50, isPrimary and 34 or 50)
-    local label = Style.Text(button, string.upper(section.label),
-        isPrimary and 18 or 12, C.tabMuted)
+    icon:SetSize(isPrimary and 48 or 20, isPrimary and 48 or 20)
+    local label = Style.Text(button, isPrimary and "HALL" or section.label,
+        isPrimary and 21 or 12, C.tabMuted)
     if isPrimary then
-        -- Anchor the icon/text pair around the button center regardless of
-        -- width; FitTabs still hides only the icon on very narrow windows.
-        icon:SetPoint("RIGHT", button, "CENTER", -11, 0)
-        label:SetPoint("LEFT", icon, "RIGHT", 12, 0)
-        label:SetJustifyH("LEFT")
-    else
-        -- The Community icon atlas has a small baked-in gold line above the
-        -- figures. Chrome crops the line; compensate the texture height and
-        -- top anchor so the actual figures stay at their EXACT former scale
-        -- and position, without shifting the label or changing the hit area.
-        if section.key == "community" then
-            local trim = 19 / 64
-            icon:SetHeight(50 * (1 - trim))
-            icon:SetPoint("TOP", button, "TOP", 0, -4 - 50 * trim)
-        else
-            icon:SetPoint("TOP", button, "TOP", 0, -4)
-        end
-        label:SetPoint("TOP", icon, "BOTTOM", 0, 0)
-        label:SetWidth(88)
-        label:SetHeight(30)
+        icon:SetPoint("TOP", button, "TOP", 0, -5)
+        label:SetPoint("BOTTOM", button, "BOTTOM", 0, 6)
         label:SetJustifyH("CENTER")
-        label:SetJustifyV("MIDDLE")
+    else
+        icon:SetPoint("LEFT", button, "LEFT", 9, 0)
+        label:SetPoint("LEFT", icon, "RIGHT", 6, 0)
+        label:SetJustifyH("LEFT")
+        label:SetWordWrap(false)
     end
 
     if section.key == "patchnotes" then
         -- Preserve the unread animation, not the old mismatched bitmap.
-        label:SetText("PATCH\nNOTES")
+        label:SetText("Patch Notes")
         patchDot = CreateFrame("Frame", nil, button)
         patchDot:SetSize(9, 9)
         patchDot:SetPoint("TOPRIGHT", button, "TOPRIGHT", -6, -5)
@@ -347,17 +332,53 @@ for index, section in ipairs(sections) do
     local pages = {}
     for pageIndex, page in ipairs(section.pages) do
         local sub = CreateFrame("Button", nil, Window.nav)
-        sub:SetSize(230, 38)
-        sub:SetPoint("TOPLEFT", Window.nav, "TOPLEFT", 12, -(79 + (pageIndex - 1) * 41))
-        sub:SetPoint("RIGHT", Window.nav, "RIGHT", -12, 0)
+        sub:SetSize(174, 35)
+        sub:SetPoint("LEFT", Window.nav, "LEFT", 6 + (pageIndex - 1) * 182, 0)
+        Style.Skin(sub, C.nav, {
+            corner=6, edge=C.goldDim, shine=0.12, shade=0.16, rim=0.70,
+        })
         local subSelected, subHover = AddOverlay(sub, false)
         local subBar = sub:CreateTexture(nil, "OVERLAY")
-        subBar:SetColorTexture(unpack(C.red))
-        subBar:SetPoint("TOPLEFT", sub, "TOPLEFT", 0, -5)
-        subBar:SetPoint("BOTTOMLEFT", sub, "BOTTOMLEFT", 0, 5)
-        subBar:SetWidth(3)
+        subBar:SetColorTexture(unpack(C.gold))
+        subBar:SetPoint("BOTTOMLEFT", sub, "BOTTOMLEFT", 8, 0)
+        subBar:SetPoint("BOTTOMRIGHT", sub, "BOTTOMRIGHT", -8, 0)
+        subBar:SetHeight(2)
         local text = Style.Text(sub, page.label, 14, C.text)
-        text:SetPoint("LEFT", sub, "LEFT", 16, 0)
+        text:SetWordWrap(false)
+        if page.key == "options" or page.key == "interface" then
+            -- Small native-drawn palette/monitor glyphs; no screenshot crop
+            -- and no asset file or gameplay dependency.
+            local glyph = CreateFrame("Frame", nil, sub)
+            glyph:SetSize(20, 20)
+            glyph:SetPoint("LEFT", sub, "LEFT", 16, 0)
+            if page.key == "options" then
+                Style.Skin(glyph, C.gold, {
+                    corner=9, edge=C.goldDim, shine=0.18, shade=0.08,
+                })
+                for _, pos in ipairs({{-4,3},{2,4},{5,-2}}) do
+                    local dot = Style.Fill(glyph, C.body, "OVERLAY")
+                    dot:SetSize(3, 3)
+                    dot:SetPoint("CENTER", glyph, "CENTER", pos[1], pos[2])
+                end
+            else
+                local screen = CreateFrame("Frame", nil, glyph)
+                screen:SetSize(18, 12)
+                screen:SetPoint("TOP", glyph, "TOP", 0, -1)
+                Style.Fill(screen, C.body)
+                Style.Border(screen, C.gold, 1)
+                local stem = Style.Fill(glyph, C.gold)
+                stem:SetSize(2, 5)
+                stem:SetPoint("TOP", screen, "BOTTOM", 0, 0)
+                local foot = Style.Fill(glyph, C.gold)
+                foot:SetSize(10, 2)
+                foot:SetPoint("BOTTOM", glyph, "BOTTOM", 0, 0)
+            end
+            text:SetPoint("LEFT", glyph, "RIGHT", 9, 0)
+            text:SetJustifyH("LEFT")
+        else
+            text:SetPoint("CENTER", sub, "CENTER", 0, 0)
+            text:SetJustifyH("CENTER")
+        end
         sub:SetScript("OnClick", function() Select(index, pageIndex) end)
         sub:SetScript("OnEnter", function()
             if currentSection ~= index or currentPage ~= pageIndex then
@@ -379,9 +400,10 @@ end
 
 -- Compact Back control belongs to the footer beside Close, not the Hall rail.
 -- Navigation remains the sole owner of its state and history.
-backButton = Style.Action(Window.footer, "Back", "footer")
+backButton = Style.Action(Window.content, "Back", "footer")
 backButton:SetSize(66, 26)
-backButton:SetPoint("RIGHT", Window.closeButton, "LEFT", -12, 0)
+backButton:SetPoint("TOPRIGHT", Window.content, "TOPRIGHT", -24, -25)
+backButton:SetFrameLevel(Window.content:GetFrameLevel() + 9)
 ns.Tooltips.Bind(backButton, { title = "Back",
     detail = "Return to the previous page. History clears when you close Duels." })
 backButton:SetScript("OnClick", function()
@@ -404,32 +426,46 @@ Window.frame:HookScript("OnHide", function()
     sweep:Hide()
 end)
 
--- Only primary gameplay tabs occupy the expandable horizontal strip.
--- Secondary utility rail buttons never consume primary navigation space.
--- When real future gameplay sections are registered as primary, this
--- geometry automatically shares the available width without polling.
+-- Both geometry passes are event-driven; nothing polls an idle window.
+-- Primary gameplay destinations remain independent of the footer and tabs.
 local function FitTabs(self, width)
     local w = (type(width) == "number" and width > 0) and width or self:GetWidth()
-    if not w or w <= 0 or #primaryButtons == 0 then return end
-    local pad, gutter = 24, 12
-    local slot = math.min(HALL_BUTTON_WIDTH + gutter,
-        math.max(112, (w - 2 * pad) / #primaryButtons))
+    local buttonWidth = math.max(112, math.min(HALL_BUTTON_WIDTH, w - 28))
     for i, item in ipairs(primaryButtons) do
         item.button:ClearAllPoints()
-        item.button:SetPoint("LEFT", self, "LEFT", pad + (i - 1) * slot, 0)
-        item.button:SetWidth(slot - gutter)
-        local tiny = slot < 160
-        item.icon:SetShown(not tiny)
-        item.label:ClearAllPoints()
-        if tiny then
-            item.label:SetPoint("CENTER", item.button, "CENTER")
-        else
-            item.label:SetPoint("LEFT", item.icon, "RIGHT", 12, 0)
-        end
+        item.button:SetPoint("TOP", self, "TOP", 0, -31 - (i - 1) * 99)
+        item.button:SetWidth(buttonWidth)
     end
 end
 Window.rail:SetScript("OnSizeChanged", FitTabs)
 FitTabs(Window.rail, Window.rail:GetWidth())
+
+local function FitSubTabs(self, width)
+    local w = (type(width) == "number" and width > 0) and width or self:GetWidth()
+    for _, group in ipairs(subButtons) do
+        local count = #group
+        if count > 0 then
+            local tabWidth = math.max(76, math.min(174,
+                (math.max(80, w) - 12 - 8 * (count - 1)) / count))
+            for j, item in ipairs(group) do
+                item.button:ClearAllPoints()
+                item.button:SetPoint("LEFT", self, "LEFT",
+                    6 + (j - 1) * (tabWidth + 8), 0)
+                item.button:SetWidth(tabWidth)
+            end
+        end
+    end
+    if movingIndex then PlaceBar(nil, movingIndex) end
+end
+Window.nav:SetScript("OnSizeChanged", FitSubTabs)
+FitSubTabs(Window.nav, Window.nav:GetWidth())
+
+-- A subdued crossed-swords watermark lives in the *primary* rail only.
+local railMark = Chrome.Icon(Window.rail, "Hall")
+railMark:SetSize(145, 145)
+railMark:SetPoint("BOTTOM", Window.rail, "BOTTOM", 0, 48)
+railMark:SetAlpha(0.10)
+railMark:EnableMouse(false)
 
 ns.Navigation = {
     Back = function()

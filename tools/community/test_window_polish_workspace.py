@@ -12,8 +12,8 @@ def read(path):
 class WindowPolishWorkspaceTests(unittest.TestCase):
     def test_logo_is_static_again_but_original_brand_and_drag_remain(self):
         w = read("UI/Window.lua")
-        self.assertIn("BrandLayer(C.gold,       0,    0.25, -4)", w)
-        self.assertIn("BrandLayer(C.headerText, 0.25, 0.50, -4)", w)
+        self.assertIn("BrandLayer(C.red,        0,    0.25)", w)
+        self.assertIn("BrandLayer(C.headerText, 0.25, 0.50)", w)
         self.assertIn("Drag(brandLogo)", w)
         self.assertNotIn('brandLogo:SetScript("OnEnter"', w)
         self.assertNotIn("MakeShimmerBand", w)
@@ -49,9 +49,9 @@ class WindowPolishWorkspaceTests(unittest.TestCase):
 
     def test_compact_back_is_in_footer_with_real_close_anchor(self):
         nav, win = read("UI/Navigation.lua"), read("UI/Window.lua")
-        self.assertIn('Style.Action(Window.footer, "Back", "footer")', nav)
+        self.assertIn('Style.Action(Window.content, "Back", "footer")', nav)
         self.assertIn('backButton:SetSize(66, 26)', nav)
-        self.assertIn('backButton:SetPoint("RIGHT", Window.closeButton, "LEFT", -12, 0)', nav)
+        self.assertIn('backButton:SetPoint("TOPRIGHT", Window.content, "TOPRIGHT", -24, -25)', nav)
         self.assertIn('ns.Tooltips.Bind(backButton', nav)
         self.assertNotIn('Style.Action(Window.rail, "Back")', nav)
         self.assertIn('close:SetSize(120, 30)', win)
@@ -141,9 +141,9 @@ class WindowPolishWorkspaceTests(unittest.TestCase):
             read("DuelsReimagined.toc"), read("UI/Window.lua"),
             read("UI/AccessIcons.lua"), read("Core/Settings.lua"))
         self.assertNotIn('SkinDecor', toc)
-        self.assertIn('if key == "uiTheme" then return "ember" end', settings)
+        self.assertIn('if key == "uiTheme" then return "duelhall" end', settings)
         self.assertIn('CreateFrame("Button", "DuelsReimaginedMinimapButton", UIParent)', access)
-        self.assertIn('local HALL_BUTTON_WIDTH = 156', read("UI/Navigation.lua"))
+        self.assertIn('local HALL_BUTTON_WIDTH = 195', read("UI/Navigation.lua"))
         self.assertIn('UI\\Motion.lua', toc)
         self.assertIn('UI\\Feedback.lua', toc)
         self.assertNotIn('PlaySound(', window)

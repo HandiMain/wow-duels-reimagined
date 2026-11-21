@@ -117,9 +117,9 @@ function Chrome.Shell(frame, header, footer, rail, nav)
         return t
     end
     Line(seams, header, "BOTTOMLEFT", "BOTTOMRIGHT", false, C.shellEdge)
-    Line(seams, rail, "BOTTOMLEFT", "BOTTOMRIGHT", false, C.shellEdge)
     Line(seams, footer, "TOPLEFT", "TOPRIGHT", false, C.shellEdge)
-    Line(seams, nav, "TOPRIGHT", "BOTTOMRIGHT", true, C.border)
+    Line(seams, rail, "TOPRIGHT", "BOTTOMRIGHT", true, C.shellEdge)
+    Line(seams, nav, "BOTTOMLEFT", "BOTTOMRIGHT", false, C.goldDim)
 
     -- Tiny corner insets suggest the selected concept without texture art.
     for _, edge in ipairs({

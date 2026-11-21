@@ -15,7 +15,7 @@ def read(path):
 class ResponsiveSettingsTests(unittest.TestCase):
     def test_whole_cards_reflow_not_individual_settings(self):
         src = read("UI/Options.lua")
-        self.assertIn("local CARD_BREAKPOINT = 930", src)
+        self.assertIn("local CARD_BREAKPOINT = 760", src)
         self.assertIn("width >= (largeText and 1080 or CARD_BREAKPOINT)", src)
         self.assertIn("local columns = twoCards and 2 or 1", src)
         self.assertIn("local cardX = column * (cardWidth + CARD_GAP)", src)
@@ -34,12 +34,12 @@ class ResponsiveSettingsTests(unittest.TestCase):
         self.assertIn("local fullWidth = math.max(1, width - 18)", src)
         self.assertIn("math.floor((fullWidth - CARD_GAP) / 2)", src)
         self.assertIn("page.scrollOwner:SetVerticalScroll(maxScroll)", src)
-        for width in (500, 650, 929):
-            self.assertFalse(width >= 930)
-        for width in (930, 1050, 1250):
-            self.assertTrue(width >= 930)
+        for width in (500, 650, 759):
+            self.assertFalse(width >= 760)
+        for width in (760, 824, 1050):
+            self.assertTrue(width >= 760)
             card = (width - 18 - 14) // 2
-            self.assertGreaterEqual(card - 40, 400)
+            self.assertGreaterEqual(card - 40, 320)
             self.assertLessEqual(2 * card + 14, width - 18)
         self.assertFalse(1050 >= 1080)
         self.assertTrue(1080 >= 1080)
@@ -147,10 +147,10 @@ class ResponsiveSettingsTests(unittest.TestCase):
         for phrase in (
             "if not ready then",
             "elseif matchedColors then",
-            "Duels theme is active. EllesmereUI is unavailable",
-            "EllesmereUI controls the interface colors.",
-            "Duels theme colors are active. Enable Match EllesmereUI colors",
-            "themeChoice:SetAvailable(not matchedColors,",
+            "Duel Hall is active. EllesmereUI matching is unavailable.",
+            "EllesmereUI is providing colors.",
+            "Duel Hall colors are active. Enable matching to use EllesmereUI colors.",
+            "themeChoice:SetAvailable(false,",
             "themeChoice:SetModified(Settings.IsModified(\"uiTheme\"))",
             "availability:SetTextColor(unpack(C.muted))",
         ):
@@ -160,8 +160,8 @@ class ResponsiveSettingsTests(unittest.TestCase):
 
     def test_main_header_themed_and_landing_art_fixed_colors(self):
         win, land = read("UI/Window.lua"), read("UI/BlizzardSettings.lua")
-        self.assertIn("BrandLayer(C.gold,       0,    0.25, -4)", win)
-        self.assertIn("BrandLayer(C.headerText, 0.25, 0.50, -4)", win)
+        self.assertIn("BrandLayer(C.red,        0,    0.25)", win)
+        self.assertIn("BrandLayer(C.headerText, 0.25, 0.50)", win)
         self.assertIn("HeaderOption5TintAtlas.png", land)
         self.assertIn("LockedBrandBand(LANDING_GOLD, 0, 0.25)", land)
         self.assertIn("LockedBrandBand(LANDING_PALE, 0.25, 0.50)", land)
@@ -174,7 +174,7 @@ class ResponsiveSettingsTests(unittest.TestCase):
 
     def test_hall_has_idle_skin_and_click_feedback(self):
         nav = read("UI/Navigation.lua")
-        self.assertIn("if isPrimary then\n        Style.Skin(button, C.rail", nav)
+        self.assertIn("if isPrimary then\n        Style.Skin(button, C.button", nav)
         self.assertIn("local selected, hover = AddOverlay(button, isPrimary)", nav)
         self.assertIn('button:SetScript("OnClick", function() Select(index, 1) end)', nav)
         self.assertIn("ns.Widgets.PressFeedback(button, hover)", nav)
@@ -189,7 +189,7 @@ class ResponsiveSettingsTests(unittest.TestCase):
         self.assertIn("tex:SetTexCoord(unpack(uv))", chrome)
         self.assertIn("tex:SetVertexColor(1, 1, 1, 1)", chrome)
         self.assertIn('patchPulse:SetLooping("BOUNCE")', nav)
-        self.assertIn('label:SetText("PATCH\\nNOTES")', nav)
+        self.assertIn('label:SetText("Patch Notes")', nav)
         self.assertIn("if item.icon.SetVertexColor then", nav)
 
     def test_all_wow_vertical_alignment_literal_values_valid(self):

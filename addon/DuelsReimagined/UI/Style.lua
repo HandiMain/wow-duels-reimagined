@@ -13,84 +13,31 @@ local function Hex(code)
     }
 end
 
--- Obsidian & Ember is the new default; all existing themes remain selectable.
+-- Duel Hall is the single, user-approved house look. Keep one semantic
+-- palette and one repaint owner; future looks can join this registry later.
+-- Reference: approved in-game concept (2026-11-21), not legacy preview skins.
 local schemes = {
-    ivory = {
-        gold="C39A65", goldDim="B4A39E", red="77334A",
-        pale="672540", text="42343C", muted="72686F",
-        window="272126", rail="30292E", nav="E7DDE1",
-        body="F0EAEB", header="29252A", footer="29252A",
-        selected="DDC9D2", hover="E5D6DC", button="783048",
-        shellEdge="B48C65", border="BAA9B0",
-        tabActive="6B3046", tabText="F5E9E7", tabMuted="E8DADB",
-        headerText="F4E8E4", headerMuted="CFBFC5",
-        footerText="F3E8E5", footerMuted="D1C2C9",
-        buttonText="FFFFFF", track="796D78",
-    },
-    slate = {
-        gold="A5B6D2", goldDim="657386", red="41658E",
-        pale="E4EAF5", text="E0E5EC", muted="A7B1C0",
-        window="121923", rail="1D2734", nav="293341",
-        body="222D3A", header="18212D", footer="18212D",
-        selected="3A536E", hover="34475A", button="3C648D",
-        shellEdge="778DA9", border="52687D",
-        tabActive="385575", tabText="F0F4FA", tabMuted="B7C5D3",
-        headerText="F4F6FB", headerMuted="BAC4D1",
-        footerText="EEF2F8", footerMuted="B5C2D2",
-        buttonText="FFFFFF", track="77879E",
-    },
-    verdant = {
-        gold="AD9869", goldDim="A49F8A", red="537665",
-        pale="29473B", text="354238", muted="6A746B",
-        window="203A31", rail="264239", nav="E8E7DC",
-        body="F3F0E4", header="20382F", footer="20382F",
-        selected="CDD9CC", hover="D9E4D7", button="416F58",
-        shellEdge="AE9A70", border="B4B8AA",
-        tabActive="416F58", tabText="F4F3E8", tabMuted="D9E4DA",
-        headerText="F2F3E9", headerMuted="CFDED1",
-        footerText="F2F3E9", footerMuted="CBD9CC",
-        buttonText="FFFFFF", track="768D7D",
-    },
-    ember = {
-        gold="DD9256", goldDim="9E7455", red="AC5436",
-        pale="F2D7BF", text="EEE2D5", muted="B8A99E",
-        window="16171B", rail="262328", nav="29292E",
-        body="202127", header="1F1D21", footer="1F1D21",
-        selected="573B35", hover="423535", button="85472F",
-        shellEdge="B78055", border="60524A",
-        tabActive="833F2A", tabText="FFF1E1", tabMuted="DDC7B2",
-        headerText="FFF0DE", headerMuted="CFBBAB",
-        footerText="F2E3D4", footerMuted="BEB0A4",
-        buttonText="FFFFFF", track="8D6D5B",
-    },
-    moonstone = {
-        gold="9684C7", goldDim="ADA0C5", red="7D5C9C",
-        pale="553F7D", text="423754", muted="766B82",
-        window="292638", rail="343044", nav="E9E5F2",
-        body="F5F1FA", header="302C42", footer="302C42",
-        selected="DAD1EB", hover="E5DDF1", button="715197",
-        shellEdge="9581B7", border="B5ABC8",
-        tabActive="6E4E92", tabText="FCF8FF", tabMuted="DBD3E8",
-        headerText="F9F5FF", headerMuted="D8CCE7",
-        footerText="F5EFFC", footerMuted="CFC3DF",
-        buttonText="FFFFFF", track="9187A6",
+    duelhall = {
+        gold="D6A64E", goldDim="8E6B3C", red="AA1818",
+        pale="F0D59A", text="EEE7DE", muted="B7ADA2",
+        window="171615", rail="141313", nav="1B1918",
+        body="141312", header="100F0E", footer="100F0E",
+        selected="6E460C", hover="39271B", button="821612",
+        shellEdge="B18A50", border="59432C",
+        tabActive="76500D", tabText="FFE4A6", tabMuted="D7C8B2",
+        headerText="F2E9DA", headerMuted="BDB2A3",
+        footerText="EFE4D4", footerMuted="ACA197",
+        buttonText="FFF0C3", track="5F5150",
     },
 }
-
-local choices = {
-    { key = "ember", label = "Obsidian & Ember (Default)" },
-    { key = "ivory", label = "Ivory & Plum" },
-    { key = "slate", label = "Midnight Slate" },
-    { key = "verdant", label = "Forest & Ivory" },
-    { key = "moonstone", label = "Moonstone & Violet" },
-}
+local choices = { { key = "duelhall", label = "Duel Hall (Default)" } }
 function Style.ThemeChoices() return choices end
-function Style.IsTheme(key) return schemes[key] ~= nil end
+function Style.IsTheme(key) return key == "duelhall" end
 
 -- Stable table identities are important. Registered widgets hold references
 -- to these colors and repaint in place on live look changes.
 Style.color = {}
-for token, code in pairs(schemes.ember) do Style.color[token] = Hex(code) end
+for token, code in pairs(schemes.duelhall) do Style.color[token] = Hex(code) end
 local C = Style.color
 local colorTextures, fontStrings, pixelEdges = {}, {}, {}
 
@@ -401,8 +348,8 @@ local function Put(name, v)
 end
 local WHITE, BLACK = {1,1,1}, {0,0,0}
 local function FromTheme()
-    local selected = ns.Settings and ns.Settings.Get("uiTheme") or "ember"
-    for name, hex in pairs(schemes[selected] or schemes.ember) do
+    local selected = ns.Settings and ns.Settings.Get("uiTheme") or "duelhall"
+    for name, hex in pairs(schemes[selected] or schemes.duelhall) do
         Put(name, Hex(hex))
     end
 end

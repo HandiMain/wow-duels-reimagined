@@ -14,12 +14,12 @@ class CompactPageDensityTests(unittest.TestCase):
         w = src("UI/Window.lua")
         for marker in (
             "local BRAND_ASPECT = 4.65",
-            "BRAND_MAX_WIDTH, BRAND_MAX_HEIGHT = 312, 67",
-            'brandLogo:SetPoint("LEFT", brandArea, "LEFT", 24, -3)',
-            'BrandLayer(C.gold,       0,    0.25, -4)',
-            'BrandLayer(C.headerText, 0.25, 0.50, -4)',
-            '-- Text-only branding: the two alpha-masked letter layers above are the',
-            'brandArea:SetPoint("RIGHT", searchBox, "LEFT", -18, 0)',
+            "BRAND_MAX_WIDTH, BRAND_MAX_HEIGHT = 250, 55",
+            'brandLogo:SetPoint("TOPLEFT", brandArea, "TOPLEFT", 66, -3)',
+            'BrandLayer(C.red,        0,    0.25)',
+            'BrandLayer(C.headerText, 0.25, 0.50)',
+            '-- The approved header logo is assembled from INDEPENDENT native regions:',
+            'brandArea:SetPoint("RIGHT", searchBox, "LEFT", -12, 0)',
         ):
             self.assertIn(marker, w)
         landing = src("UI/BlizzardSettings.lua")
@@ -29,19 +29,15 @@ class CompactPageDensityTests(unittest.TestCase):
         self.assertIn("Style.Skin(surface, LANDING_BG", landing)
         self.assertNotIn("DuelsLandingEmblem.png", landing)
 
-    def test_secondary_icons_labels_and_selected_text(self):
+    def test_footer_shortcuts_and_content_tabs_are_compact(self):
         n = src("UI/Navigation.lua")
         for marker in (
-            "button:SetSize(90, 90)",
-            "icon:SetSize(isPrimary and 34 or 50",
-            "isPrimary and 18 or 12, C.tabMuted",
-            "label:SetWidth(88)",
-            "label:SetHeight(30)",
-            'label:SetJustifyH("CENTER")',
-            'label:SetJustifyV("MIDDLE")',
+            "button:SetSize(104, 30)",
+            "icon:SetSize(isPrimary and 48 or 20",
+            'label:SetPoint("LEFT", icon, "RIGHT", 6, 0)',
+            "sub:SetSize(174, 35)",
             "item.label:SetTextColor(unpack(active and C.tabText or C.text))",
-            "sub:SetSize(230, 38)",
-            "-(79 + (pageIndex - 1) * 41)",
+            'Window.nav:SetScript("OnSizeChanged", FitSubTabs)',
         ):
             self.assertIn(marker, n)
         self.assertIn("primaryKeys = { hall = true }", n)
@@ -49,12 +45,12 @@ class CompactPageDensityTests(unittest.TestCase):
 
     def test_appearance_fits_compact_window_viewport(self):
         o = src("UI/Options.lua")
-        self.assertIn('Window.content, "TOPLEFT", 26, -112', o)
+        self.assertIn('Window.content, "TOPLEFT", 26, -153', o)
         self.assertIn('Window.content, "BOTTOMRIGHT", -26, 17', o)
         self.assertIn("local appearance = Page(175)", o)
         self.assertIn("Card(appearance, 0, 165)", o)
-        visible = 650 - 12 - 82 - 57 - 52 - 14
-        viewport = visible - 112 - 17
+        visible = 650 - 12 - 72 - 50 - 14
+        viewport = visible - 153 - 17
         self.assertGreaterEqual(viewport, 175)
         self.assertIn("local ROW_TOP = 38", o)
         self.assertIn("local cardHeight = y + 6", o)
@@ -119,7 +115,7 @@ class CompactPageDensityTests(unittest.TestCase):
     def test_patch_notes_reflow_keeps_version_data_and_link_targets(self):
         p = src("UI/PatchNotes.lua")
         for marker in (
-            'scroll:SetPoint("TOPLEFT", root, "TOPLEFT", 22, -113)',
+            'scroll:SetPoint("TOPLEFT", root, "TOPLEFT", 22, -148',
             "banner:SetHeight(118)",
             "row:SetHeight(82)",
             "-164 - (index - 1) * 90",

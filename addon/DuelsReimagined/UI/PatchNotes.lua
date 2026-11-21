@@ -29,9 +29,10 @@ local hint = Style.Text(root,
     "Select a highlighted entry to jump directly to its setting.", 11, C.muted)
 hint:SetPoint("TOP", subtitle, "BOTTOM", 0, -10)
 hint:SetJustifyH("CENTER")
+hint:Hide() -- Navigation tabs now occupy this row; hint remains in help text.
 
 local scroll = CreateFrame("ScrollFrame", nil, root)
-scroll:SetPoint("TOPLEFT", root, "TOPLEFT", 22, -113)
+scroll:SetPoint("TOPLEFT", root, "TOPLEFT", 22, -148)
 scroll:SetPoint("BOTTOMRIGHT", root, "BOTTOMRIGHT", -22, 16)
 scroll:EnableMouseWheel(true)
 local canvas = CreateFrame("Frame", nil, scroll)

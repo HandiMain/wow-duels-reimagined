@@ -26,13 +26,10 @@ class SecondaryRailRecoveryTests(unittest.TestCase):
                 checked += 1
         self.assertGreater(checked, 0, "Must exercise at least one justifyV call")
 
-    def test_utility_section_creation_reaches_all_click_handlers(self):
+    def test_footer_navigation_reaches_all_click_handlers(self):
         nav = text("UI/Navigation.lua")
-        self.assertIn('label:SetJustifyV("MIDDLE")', nav)
-        self.assertNotIn('label:SetJustifyV("CENTER")', nav)
-        # Valid text alignment happens before the buttons get their OnClick.
-        self.assertLess(nav.index('label:SetJustifyV("MIDDLE")'),
-                        nav.index('button:SetScript("OnClick", function() Select(index, 1) end)'))
+        self.assertIn('button:SetSize(104, 30)', nav)
+        self.assertIn('button:SetPoint("LEFT", Window.utility, "LEFT",', nav)
         self.assertIn('for index, section in ipairs(sections) do', nav)
         for section in ("community", "patchnotes", "options"):
             self.assertIn('{ key = "' + section + '"', nav)
@@ -40,27 +37,18 @@ class SecondaryRailRecoveryTests(unittest.TestCase):
         self.assertIn('if isPrimary then primaryButtons[#primaryButtons + 1] = item end', nav)
         self.assertIn('ns.Search.Register("page:" .. section.key', nav)
 
-    def test_proportions_fit_existing_90_unit_secondary_button(self):
-        nav = text("UI/Navigation.lua")
-        for marker in (
-            'button:SetSize(90, 90)',
-            'icon:SetSize(isPrimary and 34 or 50, isPrimary and 34 or 50)',
-            'isPrimary and 18 or 12, C.tabMuted',
-            'icon:SetPoint("TOP", button, "TOP", 0, -4)',
-            'label:SetPoint("TOP", icon, "BOTTOM", 0, 0)',
-            'label:SetHeight(30)',
-            'label:SetJustifyH("CENTER")',
-            'label:SetJustifyV("MIDDLE")',
-            'label:SetText("PATCH\\nNOTES")',
-        ):
-            self.assertIn(marker, nav)
-        # Top margin 4, glyph 50, gap 0, label box 30, bottom margin 6.
-        self.assertLessEqual(4 + 50 + 0 + 30, 90)
+    def test_primary_hall_and_subcategories_do_not_share_a_rail(self):
+        nav, window = text("UI/Navigation.lua"), text("UI/Window.lua")
+        self.assertIn('button:SetSize(HALL_BUTTON_WIDTH, 84)', nav)
+        self.assertIn('button:SetSize(104, 30)', nav)
+        self.assertIn('sub:SetSize(174, 35)', nav)
+        self.assertIn('Window.nav:SetScript("OnSizeChanged", FitSubTabs)', nav)
+        self.assertIn('nav:SetPoint("TOPLEFT", content, "TOPLEFT", 22, -83)', window)
 
     def test_center_diamond_removed_and_rules_are_mirrored(self):
         window = text("UI/Window.lua")
-        self.assertIn('BrandLayer(C.gold,       0,    0.25, -4)', window)
-        self.assertIn('BrandLayer(C.headerText, 0.25, 0.50, -4)', window)
+        self.assertIn('BrandLayer(C.red,        0,    0.25)', window)
+        self.assertIn('BrandLayer(C.headerText, 0.25, 0.50)', window)
         self.assertNotIn('BrandLayer(C.gold,       0.50, 0.75, 3)', window)
         self.assertNotIn('local underline = CreateFrame(', window)
         self.assertIn('HeaderOption5TintAtlas.png', text("UI/BlizzardSettings.lua"))
@@ -73,7 +61,7 @@ class SecondaryRailRecoveryTests(unittest.TestCase):
         self.assertIn('ns.Tooltips.Bind(button, { title = section.label,',nav)
         self.assertNotIn('Style.Fill(underline, C.gold, "ARTWORK")',window)
         self.assertIn('function Window.PlaceBrandBefore(searchBox)', window)
-        self.assertIn('brandArea:SetPoint("RIGHT", searchBox, "LEFT", -18, 0)',window)
+        self.assertIn('brandArea:SetPoint("RIGHT", searchBox, "LEFT", -12, 0)',window)
         self.assertIn('function Window.ApplyScale(value)',window)
         self.assertNotIn('SetScript("OnUpdate"',nav)
 

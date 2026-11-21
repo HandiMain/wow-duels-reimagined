@@ -141,125 +141,104 @@ end)
 
 -- These bands span the entire window, not individual navigation columns.
 local header = CreateFrame("Frame", nil, frame)
-header:SetHeight(82)
+header:SetHeight(72)
 header:SetPoint("TOPLEFT", interior, "TOPLEFT")
 header:SetPoint("TOPRIGHT", interior, "TOPRIGHT")
 Style.LitBand(header, C.header, { brightness=0.12, edge=C.shellEdge })
 Drag(header)
 
 local footer = CreateFrame("Frame", nil, frame)
-footer:SetHeight(52)
+footer:SetHeight(50)
 footer:SetPoint("BOTTOMLEFT", interior, "BOTTOMLEFT")
 footer:SetPoint("BOTTOMRIGHT", interior, "BOTTOMRIGHT")
 Style.LitBand(footer, C.footer, { brightness=0.12, edge=C.goldDim })
 
--- Approved horizontal concept: command bar, full-width section tabs,
--- light page sidebar + content, and a separate footer.
-local rail = CreateFrame("Frame", nil, frame)
-rail:SetHeight(57)
-rail:SetPoint("TOPLEFT", header, "BOTTOMLEFT", 0, 0)
-rail:SetPoint("TOPRIGHT", header, "BOTTOMRIGHT", 0, 0)
-Style.LitBand(rail, C.rail, { brightness=0.09, edge=C.goldDim })
-Window.rail = rail
-
+-- Approved Duel Hall geometry: a dedicated left gameplay rail, compact
+-- footer shortcuts, and page-specific tabs in the right content region.
 local body = CreateFrame("Frame", nil, frame)
-body:SetPoint("TOPLEFT", rail, "BOTTOMLEFT", 0, 0)
+body:SetPoint("TOPLEFT", header, "BOTTOMLEFT", 0, 0)
 body:SetPoint("BOTTOMRIGHT", footer, "TOPRIGHT", 0, 0)
 Style.Fill(body, C.window)
 
--- Secondary destinations have their own narrow premium utility rail.
--- The horizontal strip above belongs to Hall and future primary gameplay.
--- This is a visual split only; Navigation.lua remains the sole navigation owner.
-local utility = CreateFrame("Frame", nil, body)
-utility:SetPoint("TOPLEFT", body, "TOPLEFT", 7, -7)
-utility:SetPoint("BOTTOMLEFT", body, "BOTTOMLEFT", 7, 7)
-utility:SetWidth(98)
-Style.Skin(utility, C.rail, {
-    corner=11, edge=C.goldDim, shine=0.24, shade=0.32, rim=0.85,
-})
-Window.utility = utility
-
-local nav = CreateFrame("Frame", nil, body)
-nav:SetPoint("TOPLEFT", utility, "TOPRIGHT", 8, 0)
-nav:SetPoint("BOTTOMLEFT", utility, "BOTTOMRIGHT", 8, 0)
-nav:SetWidth(210)
-Style.Skin(nav, C.nav, { corner=12, edge=C.border, shine=0.22, shade=0.28 })
-Window.nav = nav
+local rail = CreateFrame("Frame", nil, body)
+rail:SetPoint("TOPLEFT", body, "TOPLEFT", 0, 0)
+rail:SetPoint("BOTTOMLEFT", body, "BOTTOMLEFT", 0, 0)
+rail:SetWidth(226)
+Style.Skin(rail, C.rail, { corner=8, edge=C.shellEdge, shine=0.12, shade=0.20 })
+Window.rail = rail
 
 local main = CreateFrame("Frame", nil, body)
-main:SetPoint("TOPLEFT", nav, "TOPRIGHT", 9, 0)
-main:SetPoint("BOTTOMRIGHT", body, "BOTTOMRIGHT", -7, 7)
+main:SetPoint("TOPLEFT", rail, "TOPRIGHT", 0, 0)
+main:SetPoint("BOTTOMRIGHT", body, "BOTTOMRIGHT", 0, 0)
 Window.main = main
 
 local content = CreateFrame("Frame", nil, main)
 content:SetAllPoints(main)
-Style.Skin(content, C.body, {
-    corner=12, edge=C.border, shine=0.20, shade=0.19, rim=0.74,
-})
+Style.Skin(content, C.body, { corner=7, edge=C.border, shine=0.12, shade=0.16 })
 Window.content = content
 
-Window.chromeSeams = Chrome.Shell(frame, header, footer, rail, nav, content)
+local utility = CreateFrame("Frame", nil, footer)
+utility:SetSize(336, 36)
+utility:SetPoint("RIGHT", footer, "RIGHT", -147, 0)
+Window.utility = utility
+
+-- Subcategories are NOT primary navigation buttons.
+local nav = CreateFrame("Frame", nil, content)
+nav:SetPoint("TOPLEFT", content, "TOPLEFT", 22, -83)
+nav:SetPoint("TOPRIGHT", content, "TOPRIGHT", -22, -83)
+nav:SetHeight(35)
+nav:SetFrameLevel(content:GetFrameLevel() + 5)
+Window.nav = nav
+
+Window.chromeSeams = Chrome.Shell(frame, header, footer, rail, nav)
 Window.header, Window.footer, Window.body = header, footer, body
 
--- Approved NEW Option 5 wordmark, refined from in-game feedback:
--- DUELS (gold) / REIMAGINED (pale), centered lettering and two balanced,
--- code-drawn horizontal underlines. No center diamond or bent end caps.
---
--- The original neutral PNG atlas still supplies the TWO letter alpha masks;
--- the ornament is drawn with Style.Fill so it is perfectly symmetrical and
--- does not retain the old third-band diamond. The palette live-updates with
--- all five themes and optional EllesmereUI. The Blizzard Settings landing
--- keeps its distinct legacy faction logo; no copied logo engines.
+-- The approved header logo is assembled from INDEPENDENT native regions:
+-- the existing untinted sword glyph, two tinted wordmark masks and real
+-- scalable subtitle text. No screenshot/image overlay is used.
 local brandArea = CreateFrame("Frame", nil, header)
-brandArea:SetSize(440, 76)
-brandArea:SetPoint("LEFT", header, "LEFT", 20, 0)
+brandArea:SetSize(390, 70)
+brandArea:SetPoint("LEFT", header, "LEFT", 14, 0)
 brandArea:EnableMouse(false)
 
-local brandLogo = CreateFrame("Frame", nil, brandArea)
--- The wordmark's rectangle is a hover target, but remains a working drag
--- handle, so it never steals the original header's move interaction.
-Drag(brandLogo)
--- Centered text-only wordmark; both letter bands remain palette-tintable.
-local BRAND_ASPECT = 4.65
-local BRAND_MAX_WIDTH, BRAND_MAX_HEIGHT = 312, 67
-brandLogo:SetSize(BRAND_MAX_WIDTH, BRAND_MAX_HEIGHT)
-brandLogo:SetPoint("LEFT", brandArea, "LEFT", 24, -3)
+local mark = Chrome.Icon(brandArea, "Hall")
+mark:SetSize(54, 54)
+mark:SetPoint("LEFT", brandArea, "LEFT", 2, 0)
+mark:SetAlpha(1)
 
+local brandLogo = CreateFrame("Frame", nil, brandArea)
+Drag(brandLogo)
+local BRAND_ASPECT = 4.65
+local BRAND_MAX_WIDTH, BRAND_MAX_HEIGHT = 250, 55
+brandLogo:SetSize(BRAND_MAX_WIDTH, BRAND_MAX_HEIGHT)
+brandLogo:SetPoint("TOPLEFT", brandArea, "TOPLEFT", 66, -3)
 local BRAND_ATLAS = "Interface\\AddOns\\DuelsReimagined\\Media\\Skin\\HeaderOption5TintAtlas.png"
-local function BrandLayer(color, top, bottom, yOffset)
+local function BrandLayer(color, top, bottom)
     local tex = Style.TintedImage(brandLogo, BRAND_ATLAS, color, "ARTWORK")
-    -- Both letter masks share one visual baseline; keep them vertically
-    -- centered and never move the letters when tuning the underline.
-    tex:SetPoint("TOPLEFT", brandLogo, "TOPLEFT", 0, yOffset)
-    tex:SetPoint("BOTTOMRIGHT", brandLogo, "BOTTOMRIGHT", 0, yOffset)
+    tex:SetAllPoints(brandLogo)
     tex:SetTexCoord(0, 1, top, bottom)
     Chrome.Sharp(tex)
     return tex
 end
-BrandLayer(C.gold,       0,    0.25, -4) -- DUELS lettering
-BrandLayer(C.headerText, 0.25, 0.50, -4) -- REIMAGINED, aligned baseline
-
--- The logo is deliberately static. Preserve brandLogo as a draggable
--- part of the header; no hover reflection or extra animation textures.
-
--- Text-only branding: the two alpha-masked letter layers above are the
--- entire logo. There is deliberately no underline, diamond or frame art.
+BrandLayer(C.red,        0,    0.25) -- DUELS lettering
+BrandLayer(C.headerText, 0.25, 0.50) -- REIMAGINED
+local brandTagline = Style.Text(brandArea, "YOUR DUELING HUB", 10, C.gold)
+brandTagline:SetPoint("LEFT", brandArea, "LEFT", 88, -21)
+brandTagline:SetJustifyH("LEFT")
 
 local function FitBrand(_, width)
-    -- Full artwork scales uniformly and never overlaps the search field.
-    -- Anchor on the LEFT like the approved concept, not in the page center.
-    local availableWidth = math.max(1, (width or brandArea:GetWidth()) - 44)
-    local w = math.min(BRAND_MAX_WIDTH, BRAND_MAX_HEIGHT * BRAND_ASPECT,
-        availableWidth)
+    local space = math.max(1, (width or brandArea:GetWidth()) - 80)
+    local w = math.min(BRAND_MAX_WIDTH, BRAND_MAX_HEIGHT * BRAND_ASPECT, space)
     brandLogo:SetSize(w, w / BRAND_ASPECT)
+    brandTagline:SetShown(w > 170)
 end
 brandArea:SetScript("OnSizeChanged", FitBrand)
 function Window.PlaceBrandBefore(searchBox)
     if not searchBox then return end
     brandArea:ClearAllPoints()
-    brandArea:SetPoint("LEFT", header, "LEFT", 20, 0)
-    brandArea:SetPoint("RIGHT", searchBox, "LEFT", -18, 0)
-    brandArea:SetHeight(76)
+    brandArea:SetPoint("LEFT", header, "LEFT", 14, 0)
+    brandArea:SetPoint("RIGHT", searchBox, "LEFT", -12, 0)
+    brandArea:SetHeight(70)
     FitBrand(brandArea, brandArea:GetWidth())
 end
 
@@ -562,20 +541,25 @@ function Window.SetSizingEnabled(on)
 end
 
 local close = Style.Action(footer, "Close", "footer")
-close:SetSize(120, 30)
+close:SetSize(105, 30)
 -- Centered vertically, with safe padding from the actual interior boundary.
-close:SetPoint("RIGHT", footer, "RIGHT", -32, 0)
+close:SetPoint("RIGHT", footer, "RIGHT", -20, 0)
 close:SetScript("OnClick", function() frame:Hide() end)
 Window.closeButton = close -- Navigation anchors its compact Back beside Close.
 ns.Tooltips.Bind(close, { title = "Close Duels Reimagined",
     detail = "Hide this window without changing your settings." })
 
-local title = Style.Text(content, "Welcome to the Hall", 25, C.pale)
-title:SetPoint("TOP", content, "TOP", 0, -27)
-local titleRule = Chrome.Divider(content, 346, 16)
-titleRule:SetPoint("TOP", title, "BOTTOM", 0, -7)
-local subtitle = Style.Text(content, "Your dueling journey starts here.", 13, C.muted)
-subtitle:SetPoint("TOP", titleRule, "BOTTOM", 0, -8)
+local pageIcon = Chrome.Icon(content, "Options")
+pageIcon:SetSize(30, 30)
+pageIcon:SetPoint("TOPLEFT", content, "TOPLEFT", 23, -20)
+pageIcon:Hide()
+local title = Style.Text(content, "Welcome to the Hall", 24, C.pale)
+title:SetPoint("TOPLEFT", content, "TOPLEFT", 24, -23)
+local titleRule = Chrome.Divider(content, 430, 14)
+titleRule:SetPoint("TOPLEFT", content, "TOPLEFT", 25, -124)
+titleRule:SetPoint("TOPRIGHT", content, "TOPRIGHT", -25, -124)
+local subtitle = Style.Text(content, "Your dueling journey starts here.", 13, C.text)
+subtitle:SetPoint("TOPLEFT", title, "BOTTOMLEFT", 0, -3)
 
 local watermark = content:CreateTexture(nil, "BORDER")
 watermark:SetTexture("Interface\\AddOns\\DuelsReimagined\\Media\\Concept\\Watermark.png")
@@ -591,11 +575,21 @@ emptyHeading:SetPoint("TOP", watermark, "BOTTOM", 0, -8)
 local emptyDetail = Style.Text(content, "Your recent activity will appear here.", 13, C.muted)
 emptyDetail:SetPoint("TOP", emptyHeading, "BOTTOM", 0, -8)
 function Window.ShowPage(page)
-    title:SetText(page.title or "")
-    subtitle:SetText(page.subtitle or "")
+    local isOptions = page.key == "options" or page.key == "interface"
+    title:SetText(isOptions and "Options" or (page.title or ""))
+    subtitle:SetText(isOptions and
+        "Configure the addon to your preference." or (page.subtitle or ""))
+    pageIcon:SetShown(isOptions)
+    title:ClearAllPoints()
+    if isOptions then
+        title:SetPoint("LEFT", pageIcon, "RIGHT", 9, 0)
+    else
+        title:SetPoint("TOPLEFT", content, "TOPLEFT", 24, -23)
+    end
+    subtitle:ClearAllPoints()
+    subtitle:SetPoint("TOPLEFT", title, "BOTTOMLEFT", 0, -3)
     emptyHeading:SetText(page.emptyTitle or "")
     emptyDetail:SetText(page.emptyDetail or "")
-    local isOptions = page.key == "options" or page.key == "interface"
     local isCommunity = page.community == true
     local isPatchNotes = page.patchNotes == true
     local isCustomPage = isOptions or isCommunity or isPatchNotes

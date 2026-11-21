@@ -1176,3 +1176,39 @@ their existing GPL attribution; its unused resize icon is no longer shipped.
 The update does **not** establish live-game verification of every UI state,
 and does not implement duel/ranking/multiplayer features.
 
+## Approved interface baseline — Duel Hall (2026-11-21)
+
+**Status:** CONCEPT APPROVED → BUILD AUTHORIZED → IMPLEMENTED/UNTESTED.
+The supplied screenshot in the design conversation is the visual intent. Source
+files contain separate native WoW frames, buttons, font strings, atlas glyphs,
+and shared controls; the screenshot itself is never overlaid or shipped.
+
+- The compact header contains the crossed-swords emblem, DUELS REIMAGINED,
+  YOUR DUELING HUB, Search, Peek, Fold, Menu Scale, and close X.
+- The **left rail is reserved for Hall and future implemented primary gameplay
+  destinations**. Hall remains visually distinct even when another page is open.
+- Appearance/Interface are **subcategories inside Options**: horizontal tabs
+  above the page's content, not buttons in the primary rail.
+- The footer retains build/BETA, Discord, Reset Window, Reload UI, and Close,
+  with small Community, Patch Notes, and Options links between utilities/Close.
+  Back history remains session-only, surfaced above the content when relevant.
+- One default house palette: **Duel Hall** (dark charcoal, bronze/gold and
+  restrained crimson). Old five-theme preferences migrate to Duel Hall on load;
+  the picker stays present but unavailable while there is only one installed
+  theme. EllesmereUI color/font matching remains optional and cannot be
+  required for basic use.
+- Shared layout/skin/navigation/Options owners remain in their original
+  modules. The Interface page uses two full setting cards per row at a safe
+  desktop width, with single-column/large-font fallbacks. Scroll and Search
+  track the actual page's controls.
+- No ranked statistics, duels, matchmaking, War Games or network logic are
+  added by this visual change. Existing ESC-menu compatibility and SavedVariable
+  owners remain unchanged.
+
+**Regression rule:** assess header search/text clearance, Hall/future primary
+rail, footer minimum-width collisions, page tabs with many choices, current
+community/patch-notes scrolling, theme migration, chat Enter/Escape, fold/peek,
+combat restrictions, menu scaling, tooltip layering, and optional EllesmereUI
+states in the actual WoW client. Static contract tests do not prove visual
+pixel-exactness or live WoW behavior.
+

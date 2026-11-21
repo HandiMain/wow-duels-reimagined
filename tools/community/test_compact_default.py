@@ -50,7 +50,7 @@ class CompactDefaultWindowTests(unittest.TestCase):
     def test_header_logo_only_reduces_its_own_height(self):
         window = source("UI/Window.lua")
         landing = source("UI/BlizzardSettings.lua")
-        self.assertIn("BRAND_MAX_WIDTH, BRAND_MAX_HEIGHT = 312, 67", window)
+        self.assertIn("BRAND_MAX_WIDTH, BRAND_MAX_HEIGHT = 250, 55", window)
         self.assertIn("HeaderOption5TintAtlas.png", window)
         self.assertIn("brandArea:SetPoint(\"RIGHT\", searchBox,", window)
         self.assertIn("HeaderOption5TintAtlas.png", landing)

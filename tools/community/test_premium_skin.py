@@ -41,14 +41,15 @@ class PremiumSkinTests(unittest.TestCase):
         self.assertIn('Style.ApplyTheme(accent, panel, font)', src("UI/Theme.lua"))
         self.assertIn('if panel then', s)
         self.assertIn('if accent then', s)
-        for theme in ("ivory","slate","verdant"):
-            self.assertIn(theme + " = {", s)
+        self.assertIn('duelhall = {', s)
+        self.assertNotIn('ivory = {', s)
+        self.assertNotIn('ember = {', s)
 
     def test_shared_premium_skin_reaches_every_current_page(self):
         for p, expected in (
             ("UI/Window.lua", "Style.Skin(content, C.body"),
             ("UI/Window.lua", "Style.LitBand(header, C.header"),
-            ("UI/Window.lua", "Style.Skin(nav, C.nav"),
+            ("UI/Navigation.lua", "Style.Skin(sub, C.nav"),
             ("UI/Navigation.lua", "Style.Skin(button, C.tabActive"),
             ("UI/Header.lua", "Style.Skin(searchBox, C.window"),
             ("UI/Footer.lua", "Style.Skin(button, C.goldDim"),

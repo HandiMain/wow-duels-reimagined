@@ -37,27 +37,26 @@ class NavigationIconAtlasTests(unittest.TestCase):
         self.assertNotIn("Style.TintedImage(icon", nav)
         self.assertNotIn("local parchment = Style.Fill(icon", nav)
 
-    def test_text_and_icons_fit_buttons_without_replacing_behavior(self):
+    def test_fixed_atlas_icons_fit_new_hall_and_footer_buttons(self):
         nav = source("UI/Navigation.lua")
-        self.assertIn("button:SetSize(HALL_BUTTON_WIDTH, 44)", nav)
-        self.assertIn("local HALL_BUTTON_WIDTH = 156", nav)
-        self.assertIn("math.min(HALL_BUTTON_WIDTH + gutter,", nav)
-        self.assertIn("button:SetSize(90, 90)", nav)
-        self.assertIn("icon:SetSize(isPrimary and 34 or 50", nav)
-        self.assertIn("isPrimary and 18 or 12, C.tabMuted", nav)
-        self.assertIn('icon:SetPoint("RIGHT", button, "CENTER", -11, 0)', nav)
-        self.assertIn('icon:SetPoint("TOP", button, "TOP", 0, -4)', nav)
-        self.assertIn('icon:SetHeight(50 * (1 - trim))', nav)
-        self.assertIn('icon:SetPoint("TOP", button, "TOP", 0, -4 - 50 * trim)', nav)
-        self.assertIn('local trim = 19 / 64', nav)
-        self.assertIn("label:SetWidth(88)", nav)
-        self.assertIn("label:SetHeight(30)", nav)
-        self.assertLessEqual(4 + 50 + 30, 90)
-        self.assertIn("FadeSelection(item, on)", nav)
-        self.assertIn('patchPulse:SetLooping("BOUNCE")', nav)
-        self.assertIn('button:SetScript("OnClick", function() Select(index, 1) end)', nav)
-        self.assertIn('ns.Widgets.PressFeedback(button, hover)', nav)
-        self.assertIn('ns.Search.Register("page:" .. section.key', nav)
+        for token in (
+            "button:SetSize(HALL_BUTTON_WIDTH, 84)",
+            "local HALL_BUTTON_WIDTH = 195",
+            "button:SetSize(104, 30)",
+            "icon:SetSize(isPrimary and 48 or 20",
+            'icon:SetPoint("TOP", button, "TOP", 0, -5)',
+            'label:SetPoint("BOTTOM", button, "BOTTOM", 0, 6)',
+            'label:SetPoint("LEFT", icon, "RIGHT", 6, 0)',
+            "local function FitTabs(self, width)",
+            "local function FitSubTabs(self, width)",
+            "FadeSelection(item, on)",
+            'patchPulse:SetLooping("BOUNCE")',
+            'button:SetScript("OnClick", function() Select(index, 1) end)',
+            "ns.Widgets.PressFeedback(button, hover)",
+            'ns.Search.Register("page:" .. section.key',
+        ):
+            self.assertIn(token, nav)
+
 
 if __name__ == "__main__":
     unittest.main()

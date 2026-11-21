@@ -1,4 +1,4 @@
-"""Structural regression coverage for the approved code-first Hall redesign."""
+"""Regression contracts for the approved Duel Hall design (structural, not live WoW)."""
 from pathlib import Path
 import unittest
 
@@ -7,78 +7,88 @@ def src(p):
     return (BASE / p).read_text(encoding="utf-8")
 
 class ThemeRedesignTests(unittest.TestCase):
-    def test_horizontal_layout_and_fold(self):
+    def test_gameplay_rail_content_tabs_footer_and_fold(self):
         w, n, h = src("UI/Window.lua"), src("UI/Navigation.lua"), src("UI/Header.lua")
-        for fragment in ('header:SetHeight(82)', 'rail:SetHeight(57)',
-                         'rail:SetPoint("TOPLEFT", header, "BOTTOMLEFT"',
-                         'body:SetPoint("TOPLEFT", rail, "BOTTOMLEFT"',
-                         'nav:SetWidth(210)'):
-            self.assertIn(fragment, w)
-        self.assertIn('button:SetSize(HALL_BUTTON_WIDTH, 44)', n)
-        self.assertIn('button:SetSize(90, 90)', n)
-        self.assertIn('Window.utility', w)
-        self.assertNotIn('button:SetSize(86, 68)', n)
-        self.assertIn("Window.rail:Hide()", h)
-        self.assertIn("Window.rail:Show()", h)
+        for token in (
+            'header:SetHeight(72)', 'footer:SetHeight(50)',
+            'rail:SetWidth(226)', 'Window.rail = rail',
+            'utility:SetSize(336, 36)', 'Window.utility = utility',
+            'nav:SetHeight(35)', 'Window.nav = nav',
+            'main:SetPoint("TOPLEFT", rail, "TOPRIGHT", 0, 0)',
+            'Window.header, Window.footer, Window.body = header, footer, body',
+            'local pageIcon = Chrome.Icon(content, "Options")',
+        ):
+            self.assertIn(token, w)
+        self.assertIn('local HALL_BUTTON_WIDTH = 195', n)
+        self.assertIn('button:SetSize(HALL_BUTTON_WIDTH, 84)', n)
+        self.assertIn('button:SetSize(104, 30)', n)
+        self.assertIn('sub:SetSize(174, 35)', n)
+        self.assertIn('local function FitSubTabs(self, width)', n)
+        self.assertIn('Window.nav:SetShown(#section.pages > 1)', n)
+        self.assertIn('Window.rail:Hide()', h)
+        self.assertIn('Window.rail:Show()', h)
 
-    def test_palette_default_choices_and_one_settings_owner(self):
-        style, settings, opts = (src(p) for p in
+    def test_one_house_theme_and_safe_saved_variable_migration(self):
+        st, settings, opts = (src(p) for p in
             ("UI/Style.lua", "Core/Settings.lua", "UI/Options.lua"))
-        for fragment in ('ivory = {', 'slate = {', 'verdant = {',
-                         'Obsidian & Ember (Default)', 'function Style.ApplyTheme',
-                         'function Style.ThemeChoices()'):
-            self.assertIn(fragment, style)
-        self.assertIn('if key == "uiTheme" then return "ember" end', settings)
+        self.assertIn('duelhall = {', st)
+        self.assertIn('key = "duelhall", label = "Duel Hall (Default)"', st)
+        for old in ('ivory = {', 'slate = {', 'verdant = {',
+                    'ember = {', 'moonstone = {'):
+            self.assertNotIn(old, st)
+        self.assertIn('function Style.IsTheme(key) return key == "duelhall" end', st)
+        self.assertIn('if key == "uiTheme" then return "duelhall" end', settings)
         self.assertIn('db.uiTheme = Settings.Get("uiTheme")', settings)
-        self.assertIn('Settings.Set("uiTheme", key)', opts)
-        self.assertIn('RegisterOption("uiTheme", "Color theme"', opts)
         self.assertIn('themeChoice:SetChoices(Style.ThemeChoices()', opts)
+        self.assertIn('themeChoice:SetAvailable(false,', opts)
+        self.assertIn('Settings.Set("uiTheme", key)', opts)
 
     def test_ellesmere_recolors_all_roles(self):
         style = src("UI/Style.lua")
-        for fragment in ('if panel then', 'if accent then',
-                         'for _, entry in ipairs(colorTextures)',
-                         'for _, entry in ipairs(fontStrings)',
-                         '"header","footer","rail"', '"nav","body"',
-                         '"gold","red","button","tabActive"',
-                         '"selected"', '"hover"', '"buttonText"'):
-            self.assertIn(fragment, style)
+        for token in ('if panel then', 'if accent then',
+                      'for _, entry in ipairs(colorTextures)',
+                      'for _, entry in ipairs(fontStrings)',
+                      '"header","footer","rail"', '"nav","body"',
+                      '"gold","red","button","tabActive"',
+                      '"selected"', '"hover"', '"buttonText"'):
+            self.assertIn(token, style)
         self.assertIn('Style.ApplyTheme(accent, panel, font)', src("UI/Theme.lua"))
 
-    def test_major_chrome_is_drawn_in_code(self):
-        chrome, style, patch = (src(p) for p in
-            ("UI/Chrome.lua", "UI/Style.lua", "UI/PatchNotes.lua"))
+    def test_approved_brand_and_shared_code_drawn_chrome(self):
+        w, chrome, style = (src(p) for p in
+            ("UI/Window.lua", "UI/Chrome.lua", "UI/Style.lua"))
+        for token in ('Chrome.Icon(brandArea, "Hall")',
+                      'BrandLayer(C.red,        0,    0.25)',
+                      'BrandLayer(C.headerText, 0.25, 0.50)',
+                      '"YOUR DUELING HUB"', 'HeaderOption5TintAtlas.png'):
+            self.assertIn(token, w)
         self.assertIn('Style.SkinMask(rim, C.shellEdge, "rim"', chrome)
         self.assertIn('function Chrome.Divider(', chrome)
-        self.assertIn('Style.TintedImage(f, HAIRLINE_IMAGE, C.goldDim, "ARTWORK")', chrome)
         self.assertIn('Style.Skin(button, C.button, {', style)
-        self.assertNotIn('TrimTop', chrome)
-        self.assertNotIn('PatchNotesHero.tga', patch)
-        self.assertIn('Style.Fill(banner, C.red, "ARTWORK")', patch)
 
-    def test_original_feature_owners_preserved(self):
+    def test_existing_feature_owners_preserved(self):
         h, f, n, w = (src(p) for p in
             ("UI/Header.lua", "UI/Footer.lua", "UI/Navigation.lua", "UI/Window.lua"))
         for token in ('function Header.Fold(', 'function Header.RefreshAutoPeek()',
                       'function Header.CloseSearch(', 'Search.Register("header:close"'):
             self.assertIn(token, h)
-        for token in ("Window.ResetWindow()", "Settings.NeedsReload()",
-                      "function Footer.ShowCommunityLink(title, url)"):
+        for token in ('Window.ResetWindow()', 'Settings.NeedsReload()',
+                      'function Footer.ShowCommunityLink(title, url)'):
             self.assertIn(token, f)
         for token in ('ns.Search.Register("page:" .. section.key',
                       'SetPatchUnread = function(unread)',
                       'Select(currentSection, currentPage, true, true)'):
             self.assertIn(token, n)
-        self.assertIn("Settings.GetWindowSize()", w)
-        self.assertIn("function Window.ApplyScale(value)", w)
-        self.assertIn('ns.PatchNotes.Show(isPatchNotes and page.key or nil)', w)
-        self.assertIn('ns.Community.Show(isCommunity and page.key or nil)', w)
+        for token in ('Settings.GetWindowSize()', 'function Window.ApplyScale(value)',
+                      'ns.PatchNotes.Show(isPatchNotes and page.key or nil)',
+                      'ns.Community.Show(isCommunity and page.key or nil)'):
+            self.assertIn(token, w)
 
-    def test_no_new_polling_or_duplicate_database(self):
+    def test_no_idle_polling_or_duplicate_storage(self):
         for path in ("UI/Style.lua", "UI/Chrome.lua", "UI/Navigation.lua"):
             s = src(path)
             self.assertNotIn('SetScript("OnUpdate"', s)
-            self.assertNotIn("_G.DuelsReimaginedDB", s)
+            self.assertNotIn('_G.DuelsReimaginedDB', s)
         self.assertIn('local function WriteDB()', src("Core/Settings.lua"))
 
 if __name__ == "__main__":

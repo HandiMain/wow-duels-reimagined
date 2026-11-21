@@ -57,7 +57,7 @@ root:EnableMouse(false)
 root:Hide()
 
 local scroll = CreateFrame("ScrollFrame", nil, root)
-scroll:SetPoint("TOPLEFT", root, "TOPLEFT", 19, -10)
+scroll:SetPoint("TOPLEFT", root, "TOPLEFT", 19, -139)
 scroll:SetPoint("BOTTOMRIGHT", root, "BOTTOMRIGHT", -22, 16)
 scroll:EnableMouseWheel(true)
 local canvas = CreateFrame("Frame", nil, scroll)

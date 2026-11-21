@@ -57,7 +57,7 @@ class BurstFXInteractionPolishTests(unittest.TestCase):
         nav = read("UI/Navigation.lua")
         self.assertIn('local function SweepPage()', nav)
         self.assertIn('ns.Settings.Get("reduceMotion")', nav)
-        self.assertIn('Motion.Value(sweep, 0, 1, 0.39', nav)
+        self.assertIn('Motion.Value(sweep, 0, 1, 0.35', nav)
         self.assertIn('if progress >= 1 then region:Hide() end', nav)
         self.assertIn('if changed and not noMotion then SweepPage() end', nav)
         self.assertNotIn('C_Timer.NewTicker', nav)
@@ -145,10 +145,10 @@ class BurstFXInteractionPolishTests(unittest.TestCase):
         self.assertNotIn('UI\\UISounds.lua', toc)
         self.assertNotIn('PlaySound(', feedback)
         self.assertNotIn('PlaySoundFile(', feedback)
-        self.assertIn('local HALL_BUTTON_WIDTH = 156', nav)
+        self.assertIn('local HALL_BUTTON_WIDTH = 195', nav)
         self.assertIn('local initialMode = Mode()', read("UI/AccessIcons.lua"))
         self.assertIn('local themeChoice = Widgets.ChoiceRow(appearanceCard, "Color theme"', opts)
-        self.assertIn('if key == "uiTheme" then return "ember" end', read("Core/Settings.lua"))
+        self.assertIn('if key == "uiTheme" then return "duelhall" end', read("Core/Settings.lua"))
 
 if __name__ == "__main__":
     unittest.main()

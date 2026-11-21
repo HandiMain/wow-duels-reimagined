@@ -12,7 +12,7 @@ ns.Options = Options
 local function Page(contentHeight)
     local scroll = CreateFrame("ScrollFrame", nil, Window.content)
     -- Leave a comfortable gap below the page subtitle, even with a short card.
-    scroll:SetPoint("TOPLEFT", Window.content, "TOPLEFT", 26, -112)
+    scroll:SetPoint("TOPLEFT", Window.content, "TOPLEFT", 26, -153)
     scroll:SetPoint("BOTTOMRIGHT", Window.content, "BOTTOMRIGHT", -26, 17)
     scroll:EnableMouseWheel(true)
     local content = CreateFrame("Frame", nil, scroll)
@@ -62,7 +62,7 @@ local function Card(page, y, height)
     card:SetPoint("TOPLEFT", page, "TOPLEFT", 0, -y)
     card:SetPoint("TOPRIGHT", page, "TOPRIGHT", -18, -y)
     card:SetHeight(height)
-    Style.Skin(card, C.nav, { corner=11, edge=C.border, shine=0.25, shade=0.25 })
+    Style.Skin(card, C.nav, { corner=7, edge=C.goldDim, shine=0.12, shade=0.16 })
     card.scrollOwner, card.scrollTop = page.scrollOwner, y
     return card
 end
@@ -322,10 +322,10 @@ MarkPosition(resetAccess, accessCard, -332)
 -- One responsive card-layout owner. Keep all controls inside their original
 -- section card; change the number of CARDS per row, never the settings order
 -- inside a card. At compact widths stack complete cards. At wider widths,
--- place two complete cards side by side, with independent measured heights.
+-- two Interface cards fit side by side; Appearance's lone card stays full width.
 -- Polestar's section-height measurement informed this approach; no source
 -- copied, and all Settings/Search/scroll/tooltip owners remain unchanged.
-local CARD_BREAKPOINT = 930
+local CARD_BREAKPOINT = 760
 local CARD_GAP, SECTION_GAP, ROW_GAP = 14, 8, 1
 local ROW_TOP = 38
 
@@ -460,18 +460,21 @@ function Options.Refresh()
     local matchedColors = ready and Settings.Get("matchColors") == true
     themeChoice:SetChoices(Style.ThemeChoices(), Settings.Get("uiTheme"),
         matchedColors and "Managed by EllesmereUI" or nil)
-    themeChoice:SetAvailable(not matchedColors,
-        "Disable Match EllesmereUI colors to choose a Duels color theme.")
+    -- Only Duel Hall ships. Keep the selector visible for the approved layout,
+    -- but never offer a meaningless one-item selection or a retired theme.
+    themeChoice:SetAvailable(false,
+        matchedColors and "Colors currently follow EllesmereUI." or
+        "Duel Hall is the only installed theme; more looks may come later.")
     themeChoice:SetModified(Settings.IsModified("uiTheme"))
     themeChoice.resetIcon:SetVertexColor(unpack(C.gold))
     local compartmentAvailable = AddonCompartmentFrame and
         type(AddonCompartmentFrame.RegisterAddon) == "function"
     if not ready then
-        availability:SetText("Duels theme is active. EllesmereUI is unavailable, so its color and font matching are disabled.")
+        availability:SetText("Duel Hall is active. EllesmereUI matching is unavailable.")
     elseif matchedColors then
-        availability:SetText("EllesmereUI controls the interface colors. Disable color matching below to choose a Duels theme.")
+        availability:SetText("EllesmereUI is providing colors. Disable matching to use Duel Hall.")
     else
-        availability:SetText("Duels theme colors are active. Enable Match EllesmereUI colors below to use its palette instead.")
+        availability:SetText("Duel Hall colors are active. Enable matching to use EllesmereUI colors.")
     end
     availability:SetTextColor(unpack(C.muted))
     for _, entry in ipairs(rows) do

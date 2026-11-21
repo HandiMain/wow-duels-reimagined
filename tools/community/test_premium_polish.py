@@ -13,16 +13,14 @@ def get(path):
 
 
 class PremiumPolishTests(unittest.TestCase):
-    def test_utility_rail_labels_have_more_room(self):
+    def test_compact_footer_shortcuts_preserve_secondary_names(self):
         w, n = get("UI/Window.lua"), get("UI/Navigation.lua")
-        self.assertIn("utility:SetWidth(98)", w)
-        self.assertIn("button:SetSize(90, 90)", n)
-        self.assertIn("label:SetWidth(88)", n)
-        self.assertIn('label:SetHeight(30)', n)
-        self.assertIn('label:SetJustifyV("MIDDLE")', n)
-        self.assertIn("nav:SetWidth(210)", w)
+        self.assertIn('utility:SetSize(336, 36)', w)
+        self.assertIn('button:SetSize(104, 30)', n)
+        self.assertIn('icon:SetSize(isPrimary and 48 or 20', n)
         self.assertIn('Window.utility = utility', w)
         self.assertIn('local primaryKeys = { hall = true }', n)
+        self.assertNotIn('button:SetSize(90, 90)', n)
 
     def test_outer_frame_fills_seam_but_respects_rounded_corners(self):
         w, c = get("UI/Window.lua"), get("UI/Chrome.lua")
@@ -60,46 +58,37 @@ class PremiumPolishTests(unittest.TestCase):
         self.assertIn('self:SetScript("OnUpdate", nil)', w)
         self.assertNotIn('frame:SetScript("OnUpdate"', w)
 
-    def test_five_complete_consistent_theme_palettes(self):
+    def test_single_complete_duel_hall_palette(self):
         s = get("UI/Style.lua")
-        roles = set(re.findall(r'\b([a-zA-Z]+)="[0-9A-F]{6}"', s))
-        block = s[s.index("local schemes = {"):s.index("local choices = {")]
-        expected = ("ivory","slate","verdant","ember","moonstone")
-        role_sets = {}
-        for i, name in enumerate(expected):
-            start = block.index("    " + name + " = {")
-            end = block.index("    },", start)
-            palette = block[start:end]
-            role_sets[name] = set(re.findall(r'\b([a-zA-Z]+)="[0-9A-F]{6}"', palette))
-            self.assertEqual(len(role_sets[name]), 26)
-            self.assertIn('key = "' + name + '"', s)
-        for name in expected[1:]:
-            self.assertEqual(role_sets["ivory"], role_sets[name])
-        self.assertIn('label = "Obsidian & Ember (Default)"', s)
-        self.assertIn('label = "Moonstone & Violet"', s)
+        block = s[s.index("local schemes = {"):s.index("local choices =")]
+        self.assertEqual(block.count('duelhall = {'), 1)
+        roles = set(re.findall(r'\b([a-zA-Z]+)="[0-9A-F]{6}"', block))
+        self.assertEqual(len(roles), 26)
+        self.assertIn('key = "duelhall", label = "Duel Hall (Default)"', s)
         self.assertIn('entry.region:SetVertexColor(unpack(value))', s)
+        for old in ('ivory = {','slate = {','verdant = {',
+                    'ember = {','moonstone = {'):
+            self.assertNotIn(old, s)
 
     def test_saved_theme_validation_uses_single_style_registry(self):
         settings = get("Core/Settings.lua")
         self.assertIn('ns.Style.IsTheme(value)', settings)
-        self.assertIn('if key == "uiTheme" then return "ember" end', settings)
+        self.assertIn('if key == "uiTheme" then return "duelhall" end', settings)
         self.assertIn('db.uiTheme = value', settings)
         self.assertIn('db.uiTheme = Settings.Get("uiTheme")', settings)
         self.assertNotIn('value == "slate" or value == "verdant"', settings)
 
-    def test_ellesmere_color_match_disables_picker_and_restores_manual_pick(self):
+    def test_ellesmere_color_match_and_one_installed_theme(self):
         opt, theme, settings = (get(path) for path in (
             "UI/Options.lua", "UI/Theme.lua", "Core/Settings.lua"))
         self.assertIn('local matchedColors = ready and Settings.Get("matchColors") == true', opt)
         self.assertIn('matchedColors and "Managed by EllesmereUI" or nil', opt)
-        self.assertIn('themeChoice:SetAvailable(not matchedColors,', opt)
-        self.assertIn('Disable Match EllesmereUI colors to choose a Duels color theme.', opt)
+        self.assertIn('themeChoice:SetAvailable(false,', opt)
+        self.assertIn('Duel Hall is the only installed theme', opt)
         self.assertIn('themeChoice:SetModified(Settings.IsModified("uiTheme"))', opt)
         self.assertIn('if Settings.Get("matchColors") then', theme)
         self.assertIn('Style.ApplyTheme(accent, panel, font)', theme)
         self.assertIn('db.uiTheme = value', settings)
-        self.assertNotIn('db.uiTheme = nil', opt)
-        self.assertNotIn('db.uiTheme = nil', theme)
 
     def test_feature_paths_not_replaced_by_visual_edits(self):
         w,n = get("UI/Window.lua"),get("UI/Navigation.lua")
