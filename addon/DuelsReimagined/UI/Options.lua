@@ -62,7 +62,7 @@ local function Card(page, y, height)
     card:SetPoint("TOPLEFT", page, "TOPLEFT", 0, -y)
     card:SetPoint("TOPRIGHT", page, "TOPRIGHT", -18, -y)
     card:SetHeight(height)
-    Style.Skin(card, C.nav, { corner=7, edge=C.shellEdge, shine=0.14, shade=0.21, rim=0.92 })
+    -- ONE extracted ledger skin. The prior generic Skin doubled its edges.
     Style.Plate(card, "cardBody", { corner=15 })
     -- Warcraft ledger heading band: separate from real clickable rows.
     -- Its edges stretch with the card without distorting a bitmap.
@@ -70,14 +70,9 @@ local function Card(page, y, height)
     headingBand:SetPoint("TOPLEFT", card, "TOPLEFT", 4, -4)
     headingBand:SetPoint("TOPRIGHT", card, "TOPRIGHT", -4, -4)
     headingBand:SetHeight(31)
-    Style.Fill(headingBand, C.header)
-    Style.Plate(headingBand, "cardHeading", { corner=9, layer="ARTWORK", sublevel=2 })
-    local rimLight = Style.Fill(headingBand, C.goldDim, "ARTWORK")
-    rimLight:ClearAllPoints()
-    rimLight:SetPoint("BOTTOMLEFT", headingBand, "BOTTOMLEFT", 0, 0)
-    rimLight:SetPoint("BOTTOMRIGHT", headingBand, "BOTTOMRIGHT", 0, 0)
-    rimLight:SetHeight(1)
-    rimLight:SetAlpha(0.68)
+    -- The source header band includes its own gilt lip; don't redraw it.
+    Style.Plate(headingBand, "cardHeading",
+        { corner=9, layer="ARTWORK", sublevel=2 })
     card.scrollOwner, card.scrollTop = page.scrollOwner, y
     return card
 end

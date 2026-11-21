@@ -171,12 +171,13 @@ local function Select(sectionIndex, pageIndex, noMotion, repaintOnly, isBack)
             item.button:SetShown(visible)
             local active = visible and j == pageIndex
             if noMotion then
-                item.selected:SetAlpha(active and 0.94 or 0)
+                item.selected:SetAlpha(active and (item.activeAlpha or 0.94) or 0)
             else
                 FadeSelection(item, active)
             end
             item.bar:SetColorTexture(unpack(C.red))
-            item.bar:SetShown(active)
+            -- The selected gold plate already includes the underline.
+            item.bar:SetShown(false)
             if item.plate then item.plate:SetStyle(active and "gold" or "dark") end
             item.label:SetTextColor(unpack(active and C.tabText or C.text))
         end
@@ -190,7 +191,8 @@ local function Select(sectionIndex, pageIndex, noMotion, repaintOnly, isBack)
             duration, PlaceBar)
         movingIndex = pageIndex
     end
-    movingBar:SetShown(#section.pages > 0)
+    -- Concept has one framed gold divider, not a second moving underline.
+    movingBar:Hide()
     if repaintOnly then return end
     if changed and not noMotion then SweepPage() end
     if ns.Feedback then ns.Feedback.HidePreview() end
@@ -245,18 +247,13 @@ for index, section in ipairs(sections) do
     -- Unlike the discarded procedurally painted plaque, this image is
     -- extracted from the actual approved concept. The button frame remains
     -- responsible for mouse, selection, tooltip and navigation behavior.
-    if isPrimary then
-        Style.Skin(button, C.button, {
-            corner=9, edge=C.goldDim, shine=0.12, shade=0.18, rim=0.65,
-        })
-        if section.key == "hall" then
-            local concept = Style.ConceptImage(button, "hall", "ARTWORK", 2)
-            concept:SetAllPoints(button)
-        end
+    if section.key == "hall" then
+        -- Exact Hall plaque is the only paint owner. Never paint a second
+        -- rim, bevel, glow or live icon beneath or above its baked artwork.
+        local concept = Style.ConceptImage(button, "hall", "ARTWORK", 2)
+        concept:SetAllPoints(button)
     else
-        Style.Skin(button, C.nav, {
-            corner=7, edge=C.goldDim, shine=0.18, shade=0.20, rim=0.86,
-        })
+        -- Reusable live destinations/utility shortcuts have one plate.
         Style.Plate(button, "dark", { corner=9 })
     end
     local selected, hover = AddOverlay(button, isPrimary)
@@ -337,7 +334,7 @@ for index, section in ipairs(sections) do
 
     local item = {
         button = button, primary = isPrimary,
-        activeAlpha = isPrimary and 0.88 or 0.35,
+        activeAlpha = section.key == "hall" and 0 or (isPrimary and 0.88 or 0.20),
         selected = selected, hover = hover, bar = bar, icon = icon, label = label,
     }
     railButtons[index] = item
@@ -348,9 +345,7 @@ for index, section in ipairs(sections) do
         local sub = CreateFrame("Button", nil, Window.nav)
         sub:SetSize(174, 35)
         sub:SetPoint("LEFT", Window.nav, "LEFT", 6 + (pageIndex - 1) * 182, 0)
-        Style.Skin(sub, C.nav, {
-            corner=6, edge=C.goldDim, shine=0.19, shade=0.21, rim=0.89,
-        })
+        -- Single extracted tab plate replaces the old stacked backdrop/rim.
         local plate = Style.Plate(sub, "dark", { corner=10 })
         local subSelected, subHover = AddOverlay(sub, false)
         local subBar = sub:CreateTexture(nil, "OVERLAY")
@@ -358,7 +353,7 @@ for index, section in ipairs(sections) do
         subBar:SetPoint("BOTTOMLEFT", sub, "BOTTOMLEFT", 8, 0)
         subBar:SetPoint("BOTTOMRIGHT", sub, "BOTTOMRIGHT", -8, 0)
         subBar:SetHeight(2)
-        local text = Style.Text(sub, page.label, 14, C.text)
+        local text = Style.Text(sub, page.label, 16, C.text, nil, "display")
         text:SetWordWrap(false)
         if page.key == "options" or page.key == "interface" then
             -- Individually drawn 32-bit icon atlas, not rectangles or a
@@ -391,7 +386,8 @@ for index, section in ipairs(sections) do
             detail = page.subtitle or ("Open the " .. page.label .. " page.")
         })
         pages[#pages + 1] = {
-            button = sub, selected = subSelected, hover = subHover, bar = subBar, label = text, plate = plate
+            button = sub, selected = subSelected, hover = subHover,
+            bar = subBar, label = text, plate = plate, activeAlpha = 0
         }
     end
     subButtons[index] = pages

@@ -17,11 +17,8 @@ local function HeaderButton(name, title, detail)
     b:SetSize(name == "Close" and 34 or 29, name == "Close" and 34 or 29)
     b:RegisterForClicks("LeftButtonUp")
     -- Dark forged controls at rest; the close X gets its crimson plate.
-    Style.Skin(b, name == "Close" and C.button or C.nav, {
-        corner=6, edge=C.goldDim, shine=0.24, shade=0.24, rim=0.92,
-    })
-    -- Sculpted art is the button's inert background, not an image-based
-    -- click target. Peek, Fold and Close retain their native interactions.
+    -- Exactly one extracted button surface. The click/Peek/Fold behavior
+    -- stays native; drawing a second rim caused the doubled gold outline.
     Style.Plate(b, name == "Close" and "hall" or "dark", { corner=7 })
     local hover = Style.Skin(b, C.goldDim, {
         corner=6, edge=C.gold, shine=0.26, shade=0.19, alpha=0,

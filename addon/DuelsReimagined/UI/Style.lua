@@ -18,16 +18,17 @@ end
 -- Reference: approved in-game concept (2026-11-21), not legacy preview skins.
 local schemes = {
     duelhall = {
-        gold="E5B460", goldDim="A17A47", red="BE2820",
-        pale="F0D59A", text="EEE7DE", muted="B7ADA2",
-        window="171615", rail="141313", nav="1B1918",
-        body="141312", header="100F0E", footer="100F0E",
-        selected="543412", hover="39251C", button="65130F",
-        shellEdge="BD9558", border="6C5035",
-        tabActive="704A13", tabText="FFE9B9", tabMuted="D9CBB7",
-        headerText="F2E9DA", headerMuted="BDB2A3",
-        footerText="EFE4D4", footerMuted="ACA197",
-        buttonText="FFF0C3", track="5F5150",
+        -- Source-matched near-black + gilt, not the former sepia/brown wash.
+        gold="E7B53D", goldDim="986E38", red="BB1712",
+        pale="FFDA8B", text="F4F1EB", muted="B8B6B4",
+        window="0F1011", rail="0D0E0F", nav="171719",
+        body="101112", header="090A0B", footer="090A0B",
+        selected="5B3706", hover="2D251B", button="690D09",
+        shellEdge="B88A48", border="4F4132",
+        tabActive="744800", tabText="FFF0D0", tabMuted="DDD7CB",
+        headerText="F7F5F0", headerMuted="BFC0BF",
+        footerText="F4F1EB", footerMuted="A7A9AA",
+        buttonText="FFE6B5", track="4F5052",
     },
 }
 local choices = { { key = "duelhall", label = "Duel Hall (Default)" } }
@@ -290,6 +291,9 @@ function Style.ConceptImage(parent, region, layer, sublevel)
     local tex = parent:CreateTexture(nil, layer or "ARTWORK", nil, sublevel or 1)
     tex:SetTexture(CONCEPT_ATLAS)
     tex:SetTexCoord(unpack(coords))
+    -- Avoid forcing fractional extracted-image pixels onto a second grid.
+    if tex.SetSnapToPixelGrid then tex:SetSnapToPixelGrid(false) end
+    if tex.SetTexelSnappingBias then tex:SetTexelSnappingBias(0) end
     return tex
 end
 
@@ -313,6 +317,8 @@ function Style.Plate(parent, kind, opts)
                 opts.sublevel or 4)
             tex:SetTexture(data.path)
             tex:SetTexCoord(Coord(data, x, y))
+            if tex.SetSnapToPixelGrid then tex:SetSnapToPixelGrid(false) end
+            if tex.SetTexelSnappingBias then tex:SetTexelSnappingBias(0) end
             tiles[#tiles+1] = { tex=tex, x=x, y=y }
         end
     end
@@ -419,14 +425,13 @@ function Style.Action(parent, caption, variant, palette)
             alpha=0,
         })
     else
-        Style.Skin(button, C.button, {
-            corner=footer and 7 or 9, edge=C.gold, shine=0.52, shade=0.42, rim=0.97,
-        })
-        Style.ForgedEdge(button, { inset=3, alpha=0.52 })
         if footer then
-            -- Actual red, independently painted Close plate: all button
-            -- text and callbacks remain separate and dynamic.
+            -- One raised red action plate, with real text and mouse handlers.
             Style.Plate(button, "hall", { corner=9 })
+        else
+            Style.Skin(button, C.button, {
+                corner=9, edge=C.gold, shine=0.52, shade=0.42, rim=0.97,
+            })
         end
         hover = Style.Skin(button, C.gold, {
             corner=11, edge=C.headerText, shine=0.36, shade=0.17, rim=0.74,

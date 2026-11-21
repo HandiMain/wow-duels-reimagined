@@ -122,13 +122,22 @@ function Chrome.Shell(frame, header, footer, rail, nav)
 
     -- Real extracted metal corners from the approved concept, rather than
     -- flat diamonds or generated gold strokes. Purely decorative textures.
-    for _, edge in ipairs({
-        {"TOPLEFT", 7, -7}, {"TOPRIGHT", -7, -7},
-        {"BOTTOMLEFT", 7, 7}, {"BOTTOMRIGHT", -7, 7},
-    }) do
+    -- One extracted motif mirrored to fit all four corners.
+    local corners = {
+        {"TOPLEFT", 7, -7, false, false},
+        {"TOPRIGHT", -7, -7, true, false},
+        {"BOTTOMLEFT", 7, 7, false, true},
+        {"BOTTOMRIGHT", -7, 7, true, true},
+    }
+    for _, edge in ipairs(corners) do
         local cap = Style.ConceptImage(rim, "corner", "OVERLAY", 7)
         cap:SetSize(31, 31)
         cap:SetPoint(edge[1], rim, edge[1], edge[2], edge[3])
+        local l, r = edge[4] and 0.625 or 0.5,
+            edge[4] and 0.5 or 0.625
+        local t, b = edge[5] and 1 or 0.75,
+            edge[5] and 0.75 or 1
+        cap:SetTexCoord(l, r, t, b)
     end
     -- Header and footer gain narrow double-edge highlights, not stretched
     -- screenshot strips, and remain pixel-sharp while resizing.

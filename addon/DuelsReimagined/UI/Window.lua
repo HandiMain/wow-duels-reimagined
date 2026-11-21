@@ -25,7 +25,7 @@ frame:Hide()
 Style.Skin(frame, C.window, {
     corner=12, edge=C.shellEdge, shine=0.16, shade=0.27, rim=0.96,
 })
-Style.ForgedEdge(frame, { inset=5, alpha=0.44 })
+-- Single shell border owner: Chrome.Shell adds sculpted accents.
 local inset = 6
 local interior = CreateFrame("Frame", nil, frame)
 interior:SetPoint("TOPLEFT", frame, "TOPLEFT", inset, -inset)
@@ -166,7 +166,7 @@ rail:SetPoint("TOPLEFT", body, "TOPLEFT", 0, 0)
 rail:SetPoint("BOTTOMLEFT", body, "BOTTOMLEFT", 0, 0)
 rail:SetWidth(226)
 Style.Skin(rail, C.rail, { corner=8, edge=C.shellEdge, shine=0.12, shade=0.20 })
-Style.ForgedEdge(rail, { inset=2, alpha=0.36 })
+-- One rail edge, not a second line on top of its skin.
 Window.rail = rail
 
 local main = CreateFrame("Frame", nil, body)
@@ -195,74 +195,29 @@ Window.nav = nav
 Window.chromeSeams = Chrome.Shell(frame, header, footer, rail, nav)
 Window.header, Window.footer, Window.body = header, footer, body
 
--- Literal brand artwork extracted from the approved source concept.
--- The old native pieces remain underneath as a fallback; the mouse-owning
--- drag frame, search clearance and header behavior stay independent.
+-- The approved static identity has ONE paint owner. The previous
+-- sword, tinted wordmark, subtitle and decorative lines were still created
+-- under the extraction and caused duplicated / blurred text.
+-- Dragging is a separate invisible live frame, not a screenshot hotspot.
 local brandArea = CreateFrame("Frame", nil, header)
 brandArea:SetSize(390, 70)
 brandArea:SetPoint("LEFT", header, "LEFT", 14, 0)
 brandArea:EnableMouse(false)
 
-local mark = Chrome.Icon(brandArea, "Hall")
-mark:SetSize(54, 54)
-mark:SetPoint("LEFT", brandArea, "LEFT", 2, 0)
-mark:SetAlpha(1)
-
-local brandLogo = CreateFrame("Frame", nil, brandArea)
-Drag(brandLogo)
-local BRAND_ASPECT = 4.65
-local BRAND_MAX_WIDTH, BRAND_MAX_HEIGHT = 250, 55
-brandLogo:SetSize(BRAND_MAX_WIDTH, BRAND_MAX_HEIGHT)
-brandLogo:SetPoint("TOPLEFT", brandArea, "TOPLEFT", 66, -3)
-local BRAND_ATLAS = "Interface\\AddOns\\DuelsReimagined\\Media\\Skin\\HeaderOption5TintAtlas.png"
-local function BrandLayer(color, top, bottom)
-    local tex = Style.TintedImage(brandLogo, BRAND_ATLAS, color, "ARTWORK")
-    tex:SetAllPoints(brandLogo)
-    tex:SetTexCoord(0, 1, top, bottom)
-    Chrome.Sharp(tex)
-    return tex
-end
-local oldDuels = BrandLayer(C.red,        0,    0.25)
-local oldReimagined = BrandLayer(C.headerText, 0.25, 0.50)
-local brandTagline = Style.Text(brandArea, "YOUR DUELING HUB", 11, C.gold)
-brandTagline:SetPoint("LEFT", brandArea, "LEFT", 88, -21)
-brandTagline:SetJustifyH("LEFT")
--- Two short gilt rules frame the real subtitle text.
-local markLineLeft = Style.Fill(brandArea, C.gold, "ARTWORK")
-markLineLeft:ClearAllPoints()
-markLineLeft:SetPoint("RIGHT", brandTagline, "LEFT", -7, 0)
-markLineLeft:SetSize(18, 1)
-markLineLeft:SetAlpha(0.65)
-local markLineRight = Style.Fill(brandArea, C.gold, "ARTWORK")
-markLineRight:ClearAllPoints()
-markLineRight:SetPoint("LEFT", brandTagline, "RIGHT", 7, 0)
-markLineRight:SetSize(24, 1)
-markLineRight:SetAlpha(0.65)
-
--- This is not a generative approximation: its pixels were extracted from
--- the approved 1536x1024 concept. The cropped atlas region contains only
--- swords, wordmark, subtitle and gilt rules on transparent pixels.
-local exactBrand = brandArea:CreateTexture(nil, "OVERLAY", nil, 3)
+local brandDrag = CreateFrame("Frame", nil, brandArea)
+brandDrag:SetAllPoints(brandArea)
+Drag(brandDrag)
+local exactBrand = brandArea:CreateTexture(nil, "ARTWORK", nil, 3)
 exactBrand:SetTexture("Interface\\AddOns\\DuelsReimagined\\Media\\Skin\\DuelExactBrand.png")
 exactBrand:SetTexCoord(0, 384/512, 25/128, 93/128)
 exactBrand:SetPoint("LEFT", brandArea, "LEFT", 2, 0)
-exactBrand:SetSize(330, 59)
-mark:SetAlpha(0)
-oldDuels:SetAlpha(0)
-oldReimagined:SetAlpha(0)
-brandTagline:SetAlpha(0)
-markLineLeft:SetAlpha(0)
-markLineRight:SetAlpha(0)
+if exactBrand.SetSnapToPixelGrid then exactBrand:SetSnapToPixelGrid(false) end
+if exactBrand.SetTexelSnappingBias then exactBrand:SetTexelSnappingBias(0) end
 
 local function FitBrand(_, width)
-    local space = math.max(1, (width or brandArea:GetWidth()) - 80)
-    local w = math.min(BRAND_MAX_WIDTH, BRAND_MAX_HEIGHT * BRAND_ASPECT, space)
-    brandLogo:SetSize(w, w / BRAND_ASPECT)
-    local visibleW = math.max(1, math.min(330, (width or brandArea:GetWidth()) - 5))
-    exactBrand:SetSize(visibleW, visibleW * 68 / 384)
-    brandTagline:SetShown(w > 170)
-    markLineLeft:SetShown(w > 170)
-    markLineRight:SetShown(w > 170)
+    local available = math.max(1, (width or brandArea:GetWidth()) - 5)
+    local visualWidth = math.min(330, available)
+    exactBrand:SetSize(visualWidth, visualWidth * 68 / 384)
 end
 brandArea:SetScript("OnSizeChanged", FitBrand)
 function Window.PlaceBrandBefore(searchBox)
