@@ -57,22 +57,32 @@ local function Page(contentHeight)
     return content
 end
 
+-- One exported atlas of real icon/motif crops from the approved screenshot;
+-- labels, interactive controls, borders, hover states and hit targets remain
+-- separate native WoW objects. The 256x128 atlas contains 6 icons (32x32)
+-- and 6 right motifs (64x32), with no screenshot-sized panel texture.
+local BANNER_ART = "Interface\\AddOns\\DuelsReimagined\\Media\\Skin\\DuelOptionsCategoryArt.png"
+local categoryArt = {
+    appearance={icon=5, motif=5, subtitle="FONT MATCHING & VISUAL IDENTITY"},
+    motion={icon=0, motif=0, subtitle="MOVEMENT, BEHAVIOR & PERFORMANCE"},
+    access={icon=1, motif=1, subtitle="GAME MENU & ADDON INTEGRATION"},
+    minimap={icon=2, motif=2, subtitle="MINIMAP ICON & WIDGET DISPLAY"},
+    typography={icon=3, motif=3, subtitle="INTERFACE FONT & TEXT STYLING"},
+    notifications={icon=4, motif=4, subtitle="TOOLTIPS, REMINDERS & GUIDANCE"},
+}
 local function Card(page, y, height)
     local card = CreateFrame("Frame", nil, page)
     card:SetPoint("TOPLEFT", page, "TOPLEFT", 0, -y)
     card:SetPoint("TOPRIGHT", page, "TOPRIGHT", -18, -y)
     card:SetHeight(height)
-    -- ONE extracted ledger skin. The prior generic Skin doubled its edges.
     Style.Plate(card, "cardBody", { corner=15 })
-    -- Warcraft ledger heading band: separate from real clickable rows.
-    -- Its edges stretch with the card without distorting a bitmap.
     local headingBand = CreateFrame("Frame", nil, card)
     headingBand:SetPoint("TOPLEFT", card, "TOPLEFT", 4, -4)
     headingBand:SetPoint("TOPRIGHT", card, "TOPRIGHT", -4, -4)
-    headingBand:SetHeight(31)
-    -- The source header band includes its own gilt lip; don't redraw it.
+    headingBand:SetHeight(50)
     Style.Plate(headingBand, "cardHeading",
         { corner=9, layer="ARTWORK", sublevel=2 })
+    card.optionsBand = headingBand
     card.scrollOwner, card.scrollTop = page.scrollOwner, y
     return card
 end
@@ -89,49 +99,73 @@ local accessCard = Card(interface, 216, 174)
 local typographyCard = Card(interface, 398, 143)
 local notificationsCard = Card(interface, 549, 100)
 
--- Polestar-inspired compact section headers: the heading remains visible,
--- while its explanation is accessible through our existing tooltip owner.
--- Header hover must not cover the first clickable settings row.
-local function Section(card, title, subtitle, top, extra)
-    local header = CreateFrame("Frame", nil, card)
-    header:SetPoint("TOPLEFT", card, "TOPLEFT", 20, top + 6)
-    header:SetPoint("TOPRIGHT", card, "TOPRIGHT", -20, top + 6)
-    header:SetHeight(24)
+-- Shared premium banner owner for BOTH Appearance and Interface.
+-- A compact single-line fallback remains available after responsive resize.
+local function Section(card, key, title, help, extra)
+    local meta = categoryArt[key]
+    local band = card.optionsBand
+    local header = CreateFrame("Frame", nil, band)
+    header:SetAllPoints(band)
     header:EnableMouse(true)
-    local heading = Style.Text(header, title, 22, C.pale, nil, "display")
-    heading:SetPoint("LEFT", header, "LEFT", 0, 0)
-    heading:SetPoint("RIGHT", header, "RIGHT", 0, 0)
+
+    local symbol = header:CreateTexture(nil, "OVERLAY", nil, 1)
+    symbol:SetTexture(BANNER_ART)
+    symbol:SetTexCoord(meta.icon / 8, (meta.icon + 1) / 8, 0, 0.25)
+    symbol:SetSize(36, 36)
+    symbol:SetPoint("LEFT", header, "LEFT", 12, 0)
+    if ns.Chrome then ns.Chrome.Sharp(symbol) end
+
+    local motif = header:CreateTexture(nil, "OVERLAY", nil, 0)
+    motif:SetTexture(BANNER_ART)
+    local col, row = meta.motif % 4, math.floor(meta.motif / 4)
+    motif:SetTexCoord(col / 4, (col + 1) / 4,
+        (row + 1) / 4, (row + 2) / 4)
+    motif:SetSize(104, 42)
+    motif:SetPoint("RIGHT", header, "RIGHT", -12, 0)
+    motif:SetAlpha(0.66)
+    if ns.Chrome then ns.Chrome.Sharp(motif) end
+
+    local heading = Style.Text(header, title, 21, C.pale, nil, "display")
+    heading:SetPoint("TOPLEFT", header, "TOPLEFT", 55, -4)
+    heading:SetPoint("TOPRIGHT", header, "TOPRIGHT", -104, -4)
     heading:SetJustifyH("LEFT")
     heading:SetWordWrap(false)
+
+    local detail = Style.Text(header, meta.subtitle, 10, C.muted)
+    detail:SetPoint("TOPLEFT", header, "TOPLEFT", 55, -31)
+    detail:SetPoint("TOPRIGHT", header, "TOPRIGHT", -104, -31)
+    detail:SetJustifyH("LEFT")
+    detail:SetWordWrap(false)
+
     ns.Tooltips.Bind(header, {
-        title = title,
-        detail = subtitle .. (extra and (" " .. extra) or ""),
-        anchor = "RIGHT",
+        title=title,
+        detail=help .. (extra and (" " .. extra) or ""),
+        anchor="RIGHT",
     })
     card.optionsHeading = header
     return header
 end
 
-local appearanceDescription = Section(appearanceCard, "Appearance",
-    "Duel Hall is our permanent design; optional font matching is available.", -16)
+local appearanceDescription = Section(appearanceCard, "appearance", "Appearance",
+    "Duel Hall is our permanent design; optional font matching is available.")
 local availability = Style.Text(appearanceCard, "", 12, C.muted)
 availability:SetJustifyH("LEFT")
 availability:SetWordWrap(true)
 availability:SetPoint("TOPLEFT", appearanceCard, "TOPLEFT", 20, -131)
-Section(behaviorCard, "Window & motion",
-    "Control how Duels moves, fades and responds while you play.", -16,
+Section(behaviorCard, "motion", "Window & Motion",
+    "Control how Duels moves, fades and responds while you play.",
     "Hold the eye to Peek. Fold leaves the header visible.")
-Section(gameAccessCard, "Game access",
-    "Choose where to open Duels from Blizzard's interface.", -18,
+Section(gameAccessCard, "access", "Game Access",
+    "Choose where to open Duels from Blizzard's interface.",
     "The Escape menu button uses Blizzard's normal look unless EllesmereUI skins it.")
-Section(accessCard, "Minimap & widget",
-    "Choose your minimap button or floating widget.", -18,
+Section(accessCard, "minimap", "Minimap & Widget",
+    "Choose your minimap button or floating widget.",
     "Drag either icon to move it. If both are hidden, type /duels to open this window.")
-Section(typographyCard, "Typography",
-    "Choose text appearance independently of window scale.", -18,
+Section(typographyCard, "typography", "Typography",
+    "Choose text appearance independently of window scale.",
     "Font matching is controlled under Appearance.")
-Section(notificationsCard, "Notifications & help",
-    "Choose which hints and update reminders Duels shows.", -18,
+Section(notificationsCard, "notifications", "Notifications & Help",
+    "Choose which hints and update reminders Duels shows.",
     "These controls do not change gameplay notifications.")
 
 local unavailable = "Enable EllesmereUI and its third-party skinning support to use this setting."
@@ -324,7 +358,8 @@ MarkPosition(resetAccess, accessCard, -332)
 -- copied, and all Settings/Search/scroll/tooltip owners remain unchanged.
 local CARD_BREAKPOINT = 720
 local CARD_GAP, SECTION_GAP, ROW_GAP = 14, 8, 1
-local ROW_TOP = 38
+local BANNER_HEIGHT = 50
+local ROW_TOP = 58
 
 local function LayoutPage(page, groups, width)
     width = math.max(1, width or page:GetWidth())
@@ -341,8 +376,7 @@ local function LayoutPage(page, groups, width)
     local usable = math.max(1, cardWidth - 40)
     local sectionY, tallest = 0, 0
     local isAppearance = page == appearance
-    -- The approved Appearance ledger is deliberately ~35px taller than the
-    -- old dense settings card, while Interface keeps its compact grid.
+    -- Compact banner cards show two columns; larger fonts stack the cards.
     local rowGap = largeText and 4 or (isAppearance and 4 or ROW_GAP)
 
     for index, group in ipairs(groups) do
@@ -357,11 +391,11 @@ local function LayoutPage(page, groups, width)
         card:SetPoint("TOPLEFT", page, "TOPLEFT", cardX, -sectionY)
         card:SetWidth(cardWidth)
         -- At 125-150% text, trade density for fully readable rows.
-        if card.optionsHeading then
-            card.optionsHeading:SetHeight(largeText and 34 or 24)
+        if card.optionsBand then
+            card.optionsBand:SetHeight(largeText and 68 or BANNER_HEIGHT)
         end
 
-        local y = largeText and 52 or ROW_TOP
+        local y = largeText and 77 or ROW_TOP
         for _, entry in ipairs(group.entries) do
             local widget = entry.widget
             widget:ClearAllPoints()

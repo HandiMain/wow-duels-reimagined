@@ -1372,3 +1372,9 @@ does not stretch the copper corners. Test with and without EllesmereUI.
 - First-open and Reset window dimensions are **1240 × 770 UI units at 100% scale**, fitted to the available UIParent screen bounds. The resize minimum stays 1050 × 650 where the screen permits; saved custom dimensions always win. The larger default was selected to match the wider screenshot from the user, not as proof of pixel-perfect in-game parity.
 - Remove retired `uiTheme` and `matchColors` SavedVariables on addon load without touching other preferences. Do not add new color themes unless separately proposed and approved.
 - Verification state: **IMPLEMENTED / UNTESTED IN-GAME** until the user checks both Forever and Retail (when available). Test initial open, Reset window, resize persist + /reload, scale/clamp, both Ellesmere enabled/disabled, font changes, search and tooltips.
+
+## Options banner artwork — approved November 21, 2026
+- Both Options pages (Appearance and Interface) share one screenshot-extracted banner renderer and fixed Duel Hall copper styling. Every category has a left icon, live title/subtitle and a faded motif at right. Header backgrounds preserve the established nine-slice card chrome, not a painted full-window screenshot.
+- Controls, search destinations, settings, tooltips, scrolling, category grouping, tab state and fonts remain under their previous owners. No additional theme or setting added.
+- Polestar reference: compact setting rows and common painter ownership in Theme/Widgets.lua; no source copied.
+- In-game visual verification required at narrow, standard and large text scales.
