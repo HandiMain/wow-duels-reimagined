@@ -16,9 +16,9 @@ def source(path):
 class Concept06CornerTests(unittest.TestCase):
     def test_rgba_base_hover_and_pressed_art(self):
         cases = (
-            ("DuelFactionCorner06.png", "1e8f5545e91e1ddf0dcee361805e4a57acd21954fc04727c028548637961851c"),
-            ("DuelFactionCorner06Hover.png", "f961f243b845831adb40da80b9f1e5831e9ab39aabf0f6c11c34d809cbf6246f"),
-            ("DuelFactionCorner06Press.png", "150c5f5f40af0e17ee3297a31d1d8d0db9d700959bdc83e6555fd770ffe06fb5"),
+            ("DuelFactionCorner06Blended.png", "6a7923d5249901b6231736fa6c03cc5ad44d0d8c2fae2aa3886926dd90b450f2"),
+            ("DuelFactionCorner06BlendedHover.png", "60ff9bfa2f585401ac94a64d5208e6bd819a9169fcf54e55d4382e65f330774a"),
+            ("DuelFactionCorner06BlendedPress.png", "3e38b902c7719ed526e200904f28e4ba45b7e75c8a9a51dd1cae407e94c03218"),
         )
         for name, digest in cases:
             data = (SKIN / name).read_bytes()
@@ -40,7 +40,8 @@ class Concept06CornerTests(unittest.TestCase):
     def test_shared_motion_and_resizing_owner(self):
         w=source("UI/Window.lua")
         for marker in (
-            "resizeArt:SetSize(106, 106)",
+            "resizeArt:SetSize(96, 96)",
+            "resizeArt:SetFrameLevel(frame:GetFrameLevel() + 18)",
             "grip:SetSize(54, 54)",
             "resizeArt:EnableMouse(false)",
             'grip:RegisterForClicks("RightButtonUp")',
@@ -75,6 +76,8 @@ class Concept06CornerTests(unittest.TestCase):
         self.assertIn("DuelMinimalGoldTabs.tga",source("UI/Navigation.lua"))
         self.assertIn("DuelOptionsSoftArt.png",source("UI/Options.lua"))
         self.assertFalse((SKIN/"DuelFilledTriangleCorner.png").exists())
+        for old in ("DuelFactionCorner06.png","DuelFactionCorner06Hover.png","DuelFactionCorner06Press.png"):
+            self.assertFalse((SKIN/old).exists())
 
 if __name__ == "__main__":
     unittest.main()

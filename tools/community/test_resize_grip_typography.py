@@ -11,20 +11,20 @@ def source(path):
 class GripTypographyTests(unittest.TestCase):
     def test_forged_corner_is_transparent_native_png(self):
         import hashlib
-        path = BASE / "Media" / "Skin" / "DuelFactionCorner06.png"
+        path = BASE / "Media" / "Skin" / "DuelFactionCorner06Blended.png"
         data = path.read_bytes()
         self.assertEqual(data[:8], bytes((137,80,78,71,13,10,26,10)))
         self.assertEqual(struct.unpack_from(">IIBB",data,16), (256,256,8,6))
         self.assertEqual(hashlib.sha256(data).hexdigest(),
-                         "1e8f5545e91e1ddf0dcee361805e4a57acd21954fc04727c028548637961851c")
+                         "6a7923d5249901b6231736fa6c03cc5ad44d0d8c2fae2aa3886926dd90b450f2")
 
     def test_integrated_frame_corner_without_second_button_skin(self):
         win = source("UI/Window.lua")
-        for marker in ('resizeArt:SetSize(106, 106)',
+        for marker in ('resizeArt:SetSize(96, 96)',
                        'resizeArt:EnableMouse(false)',
                        'forgedCorner:SetTexture(CORNER_ART)',
                        'grip:SetSize(54, 54)',
-                       'DuelFactionCorner06.png',
+                       'DuelFactionCorner06Blended.png',
                        'gripGlow:SetBlendMode("ADD")',
                        'resizeArt:SetShown(on and true or false)'):
             self.assertIn(marker,win)

@@ -35,9 +35,9 @@ class PremiumPolishTests(unittest.TestCase):
     def test_grip_uses_compact_themeable_glyph_and_existing_motion_engine(self):
         w = get("UI/Window.lua")
         self.assertNotIn('Style.Skin(grip, C.rail, {', w)
-        self.assertIn('resizeArt:SetSize(106, 106)', w)
+        self.assertIn('resizeArt:SetSize(96, 96)', w)
         self.assertIn('grip:SetSize(54, 54)', w)
-        self.assertIn('DuelFactionCorner06.png', w)
+        self.assertIn('DuelFactionCorner06Blended.png', w)
         self.assertIn('gripGlow:SetBlendMode("ADD")', w)
         self.assertIn('gripPress:SetBlendMode("ADD")', w)
         self.assertIn('ShiftCorner(true)', w)

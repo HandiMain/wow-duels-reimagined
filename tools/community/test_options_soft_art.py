@@ -34,12 +34,12 @@ class OptionsSoftArtTests(unittest.TestCase):
         self.assertIn("function interface:Relayout(width)",s)
 
     def test_filled_triangle_preserves_clickable_grip(self):
-        b=(MEDIA/"DuelFactionCorner06.png").read_bytes()
+        b=(MEDIA/"DuelFactionCorner06Blended.png").read_bytes()
         self.assertEqual(struct.unpack_from(">IIBB",b,16),(256,256,8,6))
         self.assertEqual(hashlib.sha256(b).hexdigest(),
-             "1e8f5545e91e1ddf0dcee361805e4a57acd21954fc04727c028548637961851c")
+             "6a7923d5249901b6231736fa6c03cc5ad44d0d8c2fae2aa3886926dd90b450f2")
         s=source("UI/Window.lua")
-        for code in ("resizeArt:SetSize(106, 106)","grip:SetSize(54, 54)",
+        for code in ("resizeArt:SetSize(96, 96)","grip:SetSize(54, 54)",
             'frame:StartSizing("BOTTOMRIGHT")',"Window.CommitResize()",
             'if button == "RightButton" then Window.ResetSize() end',
             "gripPress:SetBlendMode",
