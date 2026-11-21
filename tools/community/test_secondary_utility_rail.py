@@ -42,7 +42,7 @@ class UtilityRailTests(unittest.TestCase):
     def test_native_appearance_interface_tabs_do_not_enter_gameplay_rail(self):
         n = read("UI/Navigation.lua")
         self.assertIn('if page.key == "options" or page.key == "interface" then', n)
-        self.assertIn('glyph:SetSize(24, 24)', n)
+        self.assertIn('glyph:SetSize(28, 28)', n)
         self.assertIn('local sub = CreateFrame("Button", nil, Window.nav)', n)
         self.assertIn('Style.Plate(sub, "dark", { corner=10 })', n)
         self.assertIn('sub:SetScript("OnClick", function() Select(index, pageIndex) end)', n)

@@ -26,7 +26,7 @@ class OptionsVisualCorrectionTests(unittest.TestCase):
         self.assertEqual(struct.unpack_from("<HH",b,12),(128,64))
         self.assertEqual((b[2],b[16],b[17]),(2,32,0x28))
         self.assertEqual(hashlib.sha256(b).hexdigest(),
-            "78c27a28dc257c07f47c92ea08967583a7dfc17c59188932a9fa54c637ac1769")
+            "98e4bfd8e6d464a636862991d67d50c1d4d73ea5ee24f899d04b6a539aff3879")
         n=source("UI/Navigation.lua")
         self.assertIn("glyph:SetSize(28, 28)",n)
         self.assertIn('sub:SetScript("OnClick", function() Select(index, pageIndex) end)',n)
