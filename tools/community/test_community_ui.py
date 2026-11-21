@@ -195,7 +195,7 @@ class CommunityUITests(unittest.TestCase):
         self.assertIn('Window.utility', navigation)
         self.assertIn('button:SetPoint("TOP", Window.rail, "TOP",', navigation)
         self.assertIn('local selected, hover = AddOverlay(button, isPrimary)', navigation)
-        self.assertIn('ns.Widgets.PressFeedback(button, hover)', navigation)
+        self.assertIn('ns.Widgets.PressFeedback(button, hover, {', navigation)
 
     def test_shared_components_and_no_network_in_wow(self):
         source = content("UI/Community.lua")

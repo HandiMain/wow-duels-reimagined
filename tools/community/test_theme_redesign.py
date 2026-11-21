@@ -61,7 +61,7 @@ class ThemeRedesignTests(unittest.TestCase):
                       'DuelExactBrand.png',
                       'exactBrand:SetTexCoord(0, 384/512, 25/128, 93/128)'):
             self.assertIn(token, w)
-        self.assertIn('Style.SkinMask(rim, C.shellEdge, "rim"', chrome)
+        self.assertIn('Style.Plate(rim, "shellCopper"', chrome)
         self.assertIn('function Chrome.Divider(', chrome)
         self.assertIn('Style.Skin(button, C.button, {', style)
 

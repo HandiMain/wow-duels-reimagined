@@ -57,7 +57,7 @@ class SecondaryRailRecoveryTests(unittest.TestCase):
         nav = text("UI/Navigation.lua")
         window = text("UI/Window.lua")
         self.assertIn('local selected, hover = AddOverlay(button, isPrimary)',nav)
-        self.assertIn('ns.Widgets.PressFeedback(button, hover)',nav)
+        self.assertIn('ns.Widgets.PressFeedback(button, hover, {',nav)
         self.assertIn('ns.Tooltips.Bind(button, { title = section.label,',nav)
         self.assertNotIn('Style.Fill(underline, C.gold, "ARTWORK")',window)
         self.assertIn('function Window.PlaceBrandBefore(searchBox)', window)

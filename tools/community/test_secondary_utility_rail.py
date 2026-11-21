@@ -53,7 +53,7 @@ class UtilityRailTests(unittest.TestCase):
                                        "UI/Style.lua", "UI/Header.lua"))
         for token in ('local selected = Style.Skin(button, primary and C.button or C.tabActive',
                       'local hover = Style.Skin(button, C.tabActive',
-                      'Motion.Fade(hover, isPrimary and 0.20 or 0.58, 0.17)',
+                      'Motion.Fade(hover, active and 0.16 or',
                       'ns.Widgets.PressFeedback(button, hover)',
                       'patchPulse:SetLooping("BOUNCE")',
                       'ns.Search.Register("page:" .. section.key',
