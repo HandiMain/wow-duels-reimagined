@@ -44,34 +44,6 @@ jobs:
           persist-credentials: true
           fetch-depth: 1
 
-      - name: Finalize approved Options artwork (single migration)
-        run: |
-          python3 - <<'PY'
-          import base64
-          import hashlib
-          from pathlib import Path
-          p = Path("addon/DuelsReimagined/Media/Skin/DuelOptionsCategoryArt.png")
-          raw = p.read_bytes()
-          def sha(data):
-              return hashlib.sha1(b"blob " + str(len(data)).encode() + bytes([0]) + data).hexdigest()
-          old = "591e3c3dc997b2eafc27c50a342d727ecd29fd06"
-          new = "f0b185f860d73d94ab44cdad41328bf2313ec7ba"
-          if sha(raw) == old:
-              b64 = base64.b64encode(raw).decode()
-              marker = "IDrwP8B"
-              pos = b64.index(marker)
-              left = pos
-              while b64[left - 1] == "A":
-                  left -= 1
-              assert pos - left == 118, "Unexpected source atlas contents"
-              raw = base64.b64decode(b64[:pos] + "A"*8 + b64[pos:])
-              assert len(raw) == 4832 and sha(raw) == new, "Asset recovery digest mismatch"
-              p.write_bytes(raw)
-          else:
-              assert sha(raw) == new, "Unknown Options artwork state"
-          print("Approved screenshot asset SHA:", sha(raw))
-          PY
-
       - name: Parse every addon Lua file (syntax only)
         run: |
           sudo apt-get update -qq
@@ -90,14 +62,14 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
         run: python3 tools/community/generate_credits.py
 
-      - name: Commit approved artwork migration and verified credits
+      - name: Commit changed credits only to develop
         run: |
-          git add -- addon/DuelsReimagined/Community/Credits.lua addon/DuelsReimagined/Media/Skin/DuelOptionsCategoryArt.png
-          if git diff --cached --quiet; then
-            echo 'No generated changes.'
+          if git diff --quiet -- addon/DuelsReimagined/Community/Credits.lua; then
+            echo 'No new verified credits.'
             exit 0
           fi
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git commit -m 'Finalize approved Options artwork and verified credits'
+          git add -- addon/DuelsReimagined/Community/Credits.lua
+          git commit -m 'Refresh verified community credits'
           git push origin HEAD:develop
