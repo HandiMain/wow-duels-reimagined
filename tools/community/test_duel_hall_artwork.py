@@ -77,7 +77,7 @@ class DuelHallArtworkTests(unittest.TestCase):
         self.assertNotIn('for i = 1, 7 do',nav)
         self.assertIn('Style.Plate(rim, "shellCopper"',chrome)
         self.assertIn('Style.Plate(card, "cardBody", { corner=15 })',options)
-        self.assertIn('DuelOptionsBannerInlays.png', options)
+        self.assertIn('DuelOptionsSoftArt.png', options)
         self.assertNotIn('Style.Plate(headingBand, "cardHeading"',options)
         self.assertIn('Style.Plate(b, name == "Close" and "hall" or "dark"',header)
 

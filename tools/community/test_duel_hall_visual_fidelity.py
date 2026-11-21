@@ -42,7 +42,7 @@ class VisualFidelityTests(unittest.TestCase):
         self.assertIn('role=role', style)
         self.assertIn('fontPath or', style)
         self.assertIn('entry.role == "display" and "Fonts\\\\MORPHEUS.TTF"', style)
-        self.assertIn('DuelOptionsBannerInlays.png', options)
+        self.assertIn('DuelOptionsSoftArt.png', options)
         self.assertNotIn('local heading = Style.Text(header, title', options)
         self.assertIn('function Style.ForgedEdge(parent, opts)', style)
         self.assertIn('Style.Plate(card, "cardBody", { corner=15 })', options)

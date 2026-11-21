@@ -75,7 +75,7 @@ class ConceptExtractionTests(unittest.TestCase):
         nav = lua("UI/Navigation.lua")
         chrome = lua("UI/Chrome.lua")
         self.assertIn('Style.Plate(card, "cardBody", { corner=15 })', options)
-        self.assertIn('DuelOptionsBannerInlays.png', options)
+        self.assertIn('DuelOptionsSoftArt.png', options)
         self.assertNotIn('Style.Plate(headingBand, "cardHeading"', options)
         self.assertIn('item.plate:SetStyle(active and "gold" or "dark")', nav)
         self.assertIn('Style.Text(sub, page.label, 15, C.text)', nav)

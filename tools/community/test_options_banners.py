@@ -10,7 +10,7 @@ import unittest
 import zlib
 
 ROOT = Path(__file__).resolve().parents[2] / "addon" / "DuelsReimagined"
-ART = ROOT / "Media" / "Skin" / "DuelOptionsBannerInlays.png"
+ART = ROOT / "Media" / "Skin" / "DuelOptionsSoftArt.png"
 OPTIONS = ROOT / "UI" / "Options.lua"
 
 class ApprovedOptionsBannersTests(unittest.TestCase):
@@ -19,7 +19,7 @@ class ApprovedOptionsBannersTests(unittest.TestCase):
         self.assertEqual(data[:8], bytes((137,80,78,71,13,10,26,10)))
         self.assertEqual(struct.unpack(">IIBB", data[16:26]), (2048,256,8,6))
         self.assertEqual(hashlib.sha256(data).hexdigest(),
-                         "00d03d532fb195d62cd6944e081dd87aac24122d3421e0ba3d872be980863e8b")
+                         "7409daba912b6a9437e836bbbd5ff4fa902deecc1f20a73e19abe8786e7d19ba")
         p = 8
         seen = []
         while p < len(data):
@@ -36,7 +36,9 @@ class ApprovedOptionsBannersTests(unittest.TestCase):
 
     def test_both_tabs_use_exact_graphics_without_reconstructed_icons_or_titles(self):
         src = OPTIONS.read_text(encoding="utf-8")
-        self.assertIn("DuelOptionsBannerInlays.png",src)
+        self.assertIn("DuelOptionsSoftArt.png",src)
+        self.assertIn("DuelBannerAmbient.png",src)
+        self.assertNotIn("local center = Slice(",src)
         self.assertNotIn("DuelOptionsCategoryArt.png",src)
         self.assertNotIn('Style.Plate(headingBand, "cardHeading"',src)
         self.assertNotIn('local heading = Style.Text(header, title',src)
@@ -51,7 +53,7 @@ class ApprovedOptionsBannersTests(unittest.TestCase):
         for needle in (
             "local function Slice(fromX, toX)",
             "local left = Slice(0, BANNER_LEFT)",
-            "local center = Slice(BANNER_LEFT, BANNER_CELL_W - BANNER_RIGHT)",
+            "wash:SetTexture(BANNER_AMBIENT)",
             "local right = Slice(BANNER_CELL_W - BANNER_RIGHT, BANNER_CELL_W)",
             'header:SetScript("OnSizeChanged", FitSlices)',
             "ns.Tooltips.Bind(header, {",

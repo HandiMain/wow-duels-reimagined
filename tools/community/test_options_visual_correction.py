@@ -7,11 +7,11 @@ ROOT=Path(__file__).resolve().parents[2]/"addon"/"DuelsReimagined"
 def source(p):return (ROOT/p).read_text(encoding="utf-8")
 class OptionsVisualCorrectionTests(unittest.TestCase):
     def test_banner_inlays_keep_chrome_on_the_card_frame(self):
-        b=(ROOT/"Media/Skin/DuelOptionsBannerInlays.png").read_bytes()
+        b=(ROOT/"Media/Skin/DuelOptionsSoftArt.png").read_bytes()
         self.assertEqual(b[:8],bytes([137,80,78,71,13,10,26,10]))
         self.assertEqual(struct.unpack_from(">IIBB",b,16),(2048,256,8,6))
         self.assertEqual(hashlib.sha256(b).hexdigest(),
-            "00d03d532fb195d62cd6944e081dd87aac24122d3421e0ba3d872be980863e8b")
+            "7409daba912b6a9437e836bbbd5ff4fa902deecc1f20a73e19abe8786e7d19ba")
         o=source("UI/Options.lua")
         for s in ("BANNER_ATLAS_W, BANNER_ATLAS_H = 2048, 256",
                   "BANNER_CELL_W, BANNER_CELL_H = 640, 80",
@@ -38,10 +38,10 @@ class OptionsVisualCorrectionTests(unittest.TestCase):
         self.assertNotIn("frame:SetClipsChildren(true)",w)
         self.assertIn('Style.Plate(rim, "shellCopper"',source("UI/Chrome.lua"))
     def test_sculpted_corner_and_original_drag_reset_owner(self):
-        b=(ROOT/"Media/Skin/DuelArchitecturalResizeL.png").read_bytes()
-        self.assertEqual(struct.unpack_from(">IIBB",b,16),(128,128,8,6))
+        b=(ROOT/"Media/Skin/DuelFilledTriangleCorner.png").read_bytes()
+        self.assertEqual(struct.unpack_from(">IIBB",b,16),(256,256,8,6))
         self.assertEqual(hashlib.sha256(b).hexdigest(),
-            "5588f4b969689382b228963991a2d91000c456556784346efe234fbc5e7cf6b4")
+            "8c409e2b6133884e41f7afef2cbccf3c9f16ef7abf960c1aa94291a3af069e7d")
         w=source("UI/Window.lua")
         for s in ("resizeArt:SetSize(64, 64)","grip:SetSize(38, 38)",
                   'frame:StartSizing("BOTTOMRIGHT")',"Window.CommitResize()",

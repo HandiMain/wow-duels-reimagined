@@ -47,7 +47,7 @@ class ApprovedOptionsPolishTests(unittest.TestCase):
 
     def test_forged_corner_preserves_original_single_resize_owner(self):
         w = lua("UI/Window.lua")
-        for marker in ('DuelArchitecturalResizeL.png',
+        for marker in ('DuelFilledTriangleCorner.png',
                        'local grip = CreateFrame("Button", nil, frame)',
                        'grip:SetSize(38, 38)',
                        'resizeArt:SetSize(64, 64)',

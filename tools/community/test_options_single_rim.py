@@ -13,11 +13,11 @@ def lua(p):return (ROOT/p).read_text(encoding="utf-8")
 
 class SingleRimOptionsTests(unittest.TestCase):
     def test_banner_inlay_preserves_graphics_without_baked_frame_strokes(self):
-        b=(SKIN/"DuelOptionsBannerInlays.png").read_bytes()
+        b=(SKIN/"DuelOptionsSoftArt.png").read_bytes()
         self.assertEqual(b[:8],bytes((137,80,78,71,13,10,26,10)))
         self.assertEqual(struct.unpack_from(">IIBB",b,16),(2048,256,8,6))
         self.assertEqual(hashlib.sha256(b).hexdigest(),
-                         "00d03d532fb195d62cd6944e081dd87aac24122d3421e0ba3d872be980863e8b")
+                         "7409daba912b6a9437e836bbbd5ff4fa902deecc1f20a73e19abe8786e7d19ba")
         o=lua("UI/Options.lua")
         self.assertEqual(o.count('Style.Plate(card, "cardBody", { corner=15 })'),1)
         self.assertNotIn('Style.Plate(headingBand, "cardHeading"',o)
@@ -45,14 +45,14 @@ class SingleRimOptionsTests(unittest.TestCase):
         self.assertIn('Motion.Fade(subHover, chosen and 0.16 or 0.42',n)
 
     def test_corner_uses_one_subtle_artpiece_and_existing_resize_owner(self):
-        b=(SKIN/"DuelArchitecturalResizeL.png").read_bytes()
-        self.assertEqual(struct.unpack_from(">IIBB",b,16),(128,128,8,6))
+        b=(SKIN/"DuelFilledTriangleCorner.png").read_bytes()
+        self.assertEqual(struct.unpack_from(">IIBB",b,16),(256,256,8,6))
         self.assertEqual(hashlib.sha256(b).hexdigest(),
-                         "5588f4b969689382b228963991a2d91000c456556784346efe234fbc5e7cf6b4")
+                         "8c409e2b6133884e41f7afef2cbccf3c9f16ef7abf960c1aa94291a3af069e7d")
         w=lua("UI/Window.lua")
         for token in ("resizeArt:SetSize(64, 64)",
-                      "grip:SetSize(38, 38)","DuelArchitecturalResizeL.png",
-                      "alpha = math.min(alpha, 0.22)",
+                      "grip:SetSize(38, 38)","DuelFilledTriangleCorner.png",
+                      "alpha = math.min(alpha, 0.18)",
                       'frame:StartSizing("BOTTOMRIGHT")',
                       "Window.CommitResize()",
                       'if button == "RightButton" then Window.ResetSize() end',
@@ -62,7 +62,8 @@ class SingleRimOptionsTests(unittest.TestCase):
 
     def test_superseded_borders_and_icons_are_not_packaged(self):
         for f in ("DuelOptionsCompleteBanners.png","DuelPremiumCategoryIcons.tga",
-                  "DuelSculptedCopperCorner.png"):
+                  "DuelSculptedCopperCorner.png","DuelOptionsBannerInlays.png",
+                  "DuelArchitecturalResizeL.png"):
             self.assertFalse((SKIN/f).exists())
 
 if __name__=="__main__":unittest.main()
