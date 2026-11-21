@@ -12,7 +12,7 @@ class ThemeRedesignTests(unittest.TestCase):
         for token in (
             'header:SetHeight(72)', 'footer:SetHeight(50)',
             'rail:SetWidth(226)', 'Window.rail = rail',
-            'utility:SetSize(336, 36)', 'Window.utility = utility',
+            'utility:SetSize(360, 36)', 'Window.utility = utility',
             'nav:SetHeight(35)', 'Window.nav = nav',
             'main:SetPoint("TOPLEFT", rail, "TOPRIGHT", 0, 0)',
             'Window.header, Window.footer, Window.body = header, footer, body',
@@ -21,7 +21,7 @@ class ThemeRedesignTests(unittest.TestCase):
             self.assertIn(token, w)
         self.assertIn('local HALL_BUTTON_WIDTH = 205', n)
         self.assertIn('button:SetSize(HALL_BUTTON_WIDTH, 84)', n)
-        self.assertIn('button:SetSize(104, 30)', n)
+        self.assertIn('button:SetSize(112, 30)', n)
         self.assertIn('sub:SetSize(174, 35)', n)
         self.assertIn('local function FitSubTabs(self, width)', n)
         self.assertIn('Window.nav:SetShown(#section.pages > 1)', n)

@@ -191,7 +191,7 @@ class CommunityUITests(unittest.TestCase):
         self.assertNotIn('Chrome.PrimaryRail', navigation)
         self.assertNotIn('function Chrome.PrimaryRail', chrome)
         self.assertIn('button:SetSize(HALL_BUTTON_WIDTH, 84)', navigation)
-        self.assertIn('button:SetSize(104, 30)', navigation)
+        self.assertIn('button:SetSize(112, 30)', navigation)
         self.assertIn('Window.utility', navigation)
         self.assertIn('button:SetPoint("TOP", Window.rail, "TOP",', navigation)
         self.assertIn('local selected, hover = AddOverlay(button, isPrimary)', navigation)

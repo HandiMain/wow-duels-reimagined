@@ -14,7 +14,7 @@ class UtilityRailTests(unittest.TestCase):
             'local parent = isPrimary and Window.rail or Window.utility',
             'local HALL_BUTTON_WIDTH = 205',
             'button:SetSize(HALL_BUTTON_WIDTH, 84)',
-            'button:SetSize(104, 30)',
+            'button:SetSize(112, 30)',
             '(utilityIndex - 1) * 112',
             'sub:SetSize(174, 35)',
             'Window.nav:SetShown(#section.pages > 1)',
@@ -23,7 +23,7 @@ class UtilityRailTests(unittest.TestCase):
         ):
             self.assertIn(token, n)
         self.assertIn('Window.utility = utility', w)
-        self.assertIn('utility:SetPoint("RIGHT", footer, "RIGHT", -147, 0)', w)
+        self.assertIn('utility:SetPoint("RIGHT", footer, "RIGHT", -167, 0)', w)
         self.assertIn('nav:SetPoint("TOPLEFT", content, "TOPLEFT", 22, -83)', w)
         self.assertIn('main:SetPoint("TOPLEFT", rail, "TOPRIGHT", 0, 0)', w)
         self.assertNotIn('nav:SetWidth(210)', w)
@@ -37,12 +37,12 @@ class UtilityRailTests(unittest.TestCase):
         self.assertIn('button:SetPoint("LEFT", Window.utility, "LEFT",', n)
         self.assertNotIn('button:SetSize(90, 90)', n)
         self.assertIn('local icon = Chrome.Icon(button, section.icon)', n)
-        self.assertIn('label:SetPoint("LEFT", icon, "RIGHT", 6, 0)', n)
+        self.assertIn('Style.ConstrainButtonLabel(button, label, 35, 7, 9)', n)
 
     def test_native_appearance_interface_tabs_do_not_enter_gameplay_rail(self):
         n = read("UI/Navigation.lua")
         self.assertIn('if page.key == "options" or page.key == "interface" then', n)
-        self.assertIn('glyph:SetSize(22, 22)', n)
+        self.assertIn('glyph:SetSize(24, 24)', n)
         self.assertIn('local sub = CreateFrame("Button", nil, Window.nav)', n)
         self.assertIn('Style.Plate(sub, "dark", { corner=10 })', n)
         self.assertIn('sub:SetScript("OnClick", function() Select(index, pageIndex) end)', n)

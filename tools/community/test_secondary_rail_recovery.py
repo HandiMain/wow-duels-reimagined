@@ -28,7 +28,7 @@ class SecondaryRailRecoveryTests(unittest.TestCase):
 
     def test_footer_navigation_reaches_all_click_handlers(self):
         nav = text("UI/Navigation.lua")
-        self.assertIn('button:SetSize(104, 30)', nav)
+        self.assertIn('button:SetSize(112, 30)', nav)
         self.assertIn('button:SetPoint("LEFT", Window.utility, "LEFT",', nav)
         self.assertIn('for index, section in ipairs(sections) do', nav)
         for section in ("community", "patchnotes", "options"):
@@ -40,7 +40,7 @@ class SecondaryRailRecoveryTests(unittest.TestCase):
     def test_primary_hall_and_subcategories_do_not_share_a_rail(self):
         nav, window = text("UI/Navigation.lua"), text("UI/Window.lua")
         self.assertIn('button:SetSize(HALL_BUTTON_WIDTH, 84)', nav)
-        self.assertIn('button:SetSize(104, 30)', nav)
+        self.assertIn('button:SetSize(112, 30)', nav)
         self.assertIn('sub:SetSize(174, 35)', nav)
         self.assertIn('Window.nav:SetScript("OnSizeChanged", FitSubTabs)', nav)
         self.assertIn('nav:SetPoint("TOPLEFT", content, "TOPLEFT", 22, -83)', window)
