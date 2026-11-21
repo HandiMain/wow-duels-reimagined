@@ -1463,3 +1463,10 @@ User in-game screenshot confirmed the brown stripe was still visible after incre
 - `UI/Window.lua`: Hall left rail and shared content panel adopt the existing Style owner for smooth surfaces. Borders and interactive button feedback remain unchanged.
 - `UI/Options.lua`: all six existing bitmap section headings have 72px bands with vertically centered width-constrained art, no child clipping, 82px divider, and setting rows at 90px (104px with large text). Existing responsive layout, search and tooltips remain owned by the same systems.
 - Static contracts updated; **no claim of a live WoW or full automated suite pass**. Verify Forever and Retail at compact/default sizes, and at 75%, 100%, 125%, 150% UI/text scales. Check all Options cards, Hall backgrounds/header/footer, border/corner layering, scroll, hover/click animation, tooltip and reload.
+
+## Appearance raster title repair — November 21, 2026
+
+- **IMPLEMENTED / UNTESTED IN GAME:** After the shared header-spacing correction, the five Interface card headings rendered correctly but Appearance still showed clipped text. The actual first cell of `DuelOptionsSoftArt.png` contains cut title pixels, so moving or enlarging its frame cannot restore missing glyphs.
+- **Focused correction:** `UI/Options.lua` now crops only the Appearance cell's left texture to its original palette icon (first 104 source pixels) while keeping its separate gold right motif. Only the damaged fixed title/subtitle are rendered as noninteractive, fixed-size WoW FontStrings within the same header and tooltip owner, with font fallback and measured padding. All other five original banner graphics and layout are untouched.
+- The atlas file is intentionally retained unmodified, since replacing the broken glyphs at render time avoids re-encoding all six bitmap banners and risks to the five good cells.
+- Regression source checks cover Appearance-only cropping, no duplicate titles, header padding, maintained scroll/search, and preservation of existing assets. **Actual appearance on Forever and Retail still requires a screenshot at default and compact window size.**
