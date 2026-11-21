@@ -19,7 +19,7 @@ class ApprovedOptionsBannersTests(unittest.TestCase):
         self.assertEqual(data[:8], bytes((137,80,78,71,13,10,26,10)))
         self.assertEqual(struct.unpack(">IIBB", data[16:26]), (2048,256,8,6))
         self.assertEqual(hashlib.sha256(data).hexdigest(),
-                         "7409daba912b6a9437e836bbbd5ff4fa902deecc1f20a73e19abe8786e7d19ba")
+                         "1981b7fc18b5c0e77a5079470524624e2f329fec8a7093e9237279ea5a4755c9")
         p = 8
         seen = []
         while p < len(data):

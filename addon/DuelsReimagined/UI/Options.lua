@@ -57,11 +57,11 @@ local function Page(contentHeight)
     return content
 end
 
--- The approved icon/title/subtitle/motif artwork is alpha-only. Render it
--- DIRECTLY over the card body's near-black fill. The former ambient PNG
--- painted the unwanted light-brown rectangle behind the entire header.
--- One cardBody 9-slice is still the only border owner; no header fill,
--- duplicate frame, font substitution, or stretched center slice.
+-- The approved gold icon/title/subtitle/motif artwork now has genuinely
+-- cleaned alpha. A brown source strip ALSO exists inside the original
+-- cardBody 9-slice's upper edge. Card() masks only its interior inset while
+-- leaving the perimeter texture and its corners intact; no separate banner
+-- backdrop or stretched center slice is needed.
 local BANNER_ART = "Interface\\AddOns\\DuelsReimagined\\Media\\Skin\\DuelOptionsSoftArt.png"
 local BANNER_ATLAS_W, BANNER_ATLAS_H = 2048, 256
 local BANNER_CELL_W, BANNER_CELL_H = 640, 80
@@ -81,6 +81,18 @@ local function Card(page, y, height)
     card:SetPoint("TOPRIGHT", page, "TOPRIGHT", -18, -y)
     card:SetHeight(height)
     Style.Plate(card, "cardBody", { corner=15 })
+
+    -- The brown band was baked into the top of the cardBody 9-slice atlas,
+    -- NOT into the old banner gradient alone. The shared plate retains the
+    -- approved copper outer rim, but this inset, near-black underlay hides
+    -- the source's sepia top fill without covering those outside gold edges.
+    -- BORDER sublevel 5 draws above cardBody's sublevel 4 and below ALL
+    -- interactive rows, titles, icons and gold decorative text.
+    local cleanTop = card:CreateTexture(nil, "BORDER", nil, 5)
+    cleanTop:SetColorTexture(unpack(C.window))
+    cleanTop:SetPoint("TOPLEFT", card, "TOPLEFT", 5, -5)
+    cleanTop:SetPoint("TOPRIGHT", card, "TOPRIGHT", -5, -5)
+    cleanTop:SetHeight(21)
 
     -- The banner is inset past the card's existing gold rim. It has NO
     -- baked strokes: only artwork/title/subtitle/motif can paint here.

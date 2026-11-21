@@ -14,7 +14,7 @@ def source(p):return (ROOT/p).read_text(encoding="utf-8")
 class OptionsSoftArtTests(unittest.TestCase):
     def test_true_alpha_art_without_unwanted_brown_header_fill(self):
         for file, dimensions, sha in (
-            ("DuelOptionsSoftArt.png",(2048,256),"7409daba912b6a9437e836bbbd5ff4fa902deecc1f20a73e19abe8786e7d19ba"),
+            ("DuelOptionsSoftArt.png",(2048,256),"1981b7fc18b5c0e77a5079470524624e2f329fec8a7093e9237279ea5a4755c9"),
         ):
             b=(MEDIA/file).read_bytes()
             self.assertEqual(b[:8],bytes((137,80,78,71,13,10,26,10)))
