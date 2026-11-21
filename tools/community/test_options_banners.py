@@ -12,10 +12,10 @@ ART = ROOT / "Media" / "Skin" / "DuelOptionsCategoryArt.png"
 class ApprovedOptionsBannersTests(unittest.TestCase):
     def test_literal_source_cropped_art_is_valid_png(self):
         data = ART.read_bytes()
-        self.assertEqual(data[:8], b"\\x89PNG\\r\\n\\x1a\\n")
+        self.assertEqual(data[:8], bytes([137,80,78,71,13,10,26,10]))
         self.assertEqual(struct.unpack(">II", data[16:24]), (256, 128))
         self.assertEqual(data[25], 6)  # RGBA: supported by the existing pack
-        self.assertEqual(hashlib.sha1(("blob %s\\0" % len(data)).encode() + data).hexdigest(),
+        self.assertEqual(hashlib.sha1(b"blob " + str(len(data)).encode() + bytes([0]) + data).hexdigest(),
                          "f0b185f860d73d94ab44cdad41328bf2313ec7ba")
         at = 8
         while at < len(data):
