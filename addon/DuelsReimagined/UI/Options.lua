@@ -63,6 +63,7 @@ end
 -- leaving the perimeter texture and its corners intact; no separate banner
 -- backdrop or stretched center slice is needed.
 local BANNER_ART = "Interface\\AddOns\\DuelsReimagined\\Media\\Skin\\DuelOptionsSoftArt.png"
+local COMPLETE_PALETTE = "Interface\\AddOns\\DuelsReimagined\\Media\\Skin\\DuelPaletteComplete.tga"
 local BANNER_ATLAS_W, BANNER_ATLAS_H = 2048, 256
 local BANNER_CELL_W, BANNER_CELL_H = 640, 80
 local BANNER_LEFT, BANNER_RIGHT = 438, 160
@@ -157,27 +158,36 @@ local function Section(card, key, title, help, extra)
     -- There is no center strip to magnify or truncate the approved design.
     local left = Slice(0, BANNER_LEFT)
     local right = Slice(BANNER_CELL_W - BANNER_RIGHT, BANNER_CELL_W)
-    -- The FIRST atlas cell has its Appearance title cut off in the source
-    -- bitmap. Keep that cell's original icon and the right gold motif, but
-    -- never draw the damaged title/subtitle pixels. All five other cells
-    -- continue to render exactly as authored, without Lua text overlays.
-    local appearanceIconWidth = key == "appearance" and 104 or nil
-    if appearanceIconWidth then
-        left:SetTexCoord(spriteX / BANNER_ATLAS_W,
-            (spriteX + appearanceIconWidth) / BANNER_ATLAS_W,
-            spriteY / BANNER_ATLAS_H,
-            (spriteY + BANNER_CELL_H) / BANNER_ATLAS_H)
+    -- The first atlas cell has truncated palette pixels on BOTH ornaments,
+    -- as well as its title. Keep its original gold swoosh at right, but draw
+    -- the two complete palette glyphs on top. All five other section banners
+    -- stay unmodified and use their original, intact atlas iconography.
+    local isAppearance = key == "appearance"
+    if isAppearance then
+        left:Hide() -- remove the damaged left icon and baked lettering
+        local palette = header:CreateTexture(nil, "ARTWORK", nil, 6)
+        palette:SetTexture(COMPLETE_PALETTE)
+        palette:SetSize(37, 37)
+        palette:SetPoint("CENTER", header, "LEFT", 50, 0)
+        local motifPalette = header:CreateTexture(nil, "ARTWORK", nil, 6)
+        motifPalette:SetTexture(COMPLETE_PALETTE)
+        motifPalette:SetSize(33, 33)
+        motifPalette:SetPoint("CENTER", header, "RIGHT", -69, 0)
+        if ns.Chrome and ns.Chrome.Sharp then
+            ns.Chrome.Sharp(palette)
+            ns.Chrome.Sharp(motifPalette)
+        end
+        card.appearancePalette, card.appearanceMotifPalette = palette, motifPalette
     end
     -- Center both bitmap halves vertically so all six fixed headings and
     -- subtitles have breathing space at full and half-card widths.
     left:SetPoint("LEFT", header, "LEFT", 0, 0)
     right:SetPoint("RIGHT", header, "RIGHT", 0, 0)
 
-    -- Only Appearance uses real, fixed-size WoW labels: damaged raster text
-    -- cannot be restored by moving its crop. Unlike interactive settings,
-    -- these decorative headings are intentionally unaffected by font options
-    -- (just like the other five raster headings).
-    if appearanceIconWidth then
+    -- Only Appearance uses real, fixed-size WoW labels: its raster title
+    -- cannot be restored by moving a crop. The other five headings remain
+    -- original atlas art with the same live tooltip and settings owners.
+    if isAppearance then
         local name = header:CreateFontString(nil, "ARTWORK", nil, 5)
         if not name:SetFont("Fonts\\MORPHEUS.TTF", 26, "OUTLINE") then
             name:SetFont(STANDARD_TEXT_FONT or "Fonts\\FRIZQT__.TTF",
@@ -216,9 +226,6 @@ local function Section(card, key, title, help, extra)
             math.max(0.01, (width - 24) / (BANNER_LEFT + BANNER_RIGHT)))
         left:SetSize(math.max(1, BANNER_LEFT * scale),
             math.max(1, BANNER_CELL_H * scale))
-        if appearanceIconWidth then
-            left:SetWidth(math.max(1, appearanceIconWidth * scale))
-        end
         right:SetSize(math.max(1, BANNER_RIGHT * scale),
             math.max(1, BANNER_CELL_H * scale))
     end
