@@ -45,14 +45,14 @@ class SingleRimOptionsTests(unittest.TestCase):
         self.assertIn('Motion.Fade(subHover, chosen and 0.16 or 0.42',n)
 
     def test_corner_uses_one_subtle_artpiece_and_existing_resize_owner(self):
-        b=(SKIN/"DuelFilledTriangleCorner.png").read_bytes()
+        b=(SKIN/"DuelFactionCorner06.png").read_bytes()
         self.assertEqual(struct.unpack_from(">IIBB",b,16),(256,256,8,6))
         self.assertEqual(hashlib.sha256(b).hexdigest(),
-                         "8c409e2b6133884e41f7afef2cbccf3c9f16ef7abf960c1aa94291a3af069e7d")
+                         "1e8f5545e91e1ddf0dcee361805e4a57acd21954fc04727c028548637961851c")
         w=lua("UI/Window.lua")
-        for token in ("resizeArt:SetSize(64, 64)",
-                      "grip:SetSize(38, 38)","DuelFilledTriangleCorner.png",
-                      "alpha = math.min(alpha, 0.18)",
+        for token in ("resizeArt:SetSize(106, 106)",
+                      "grip:SetSize(54, 54)","DuelFactionCorner06.png",
+                      "gripPress:SetBlendMode",
                       'frame:StartSizing("BOTTOMRIGHT")',
                       "Window.CommitResize()",
                       'if button == "RightButton" then Window.ResetSize() end',

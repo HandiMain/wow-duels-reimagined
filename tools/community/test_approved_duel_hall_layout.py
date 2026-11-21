@@ -22,8 +22,8 @@ class ApprovedDuelHallLayoutTests(unittest.TestCase):
         content = width - 2 * inset - rail
         self.assertGreaterEqual(content, 780)
         # Footer utilities + compact secondary links + Close fit at default.
-        utility_left = width - inset - 167 - 360
-        close_left = width - inset - 44 - 112
+        utility_left = width - inset - 187 - 360
+        close_left = width - inset - 64 - 112
         self.assertGreater(utility_left, 500)
         self.assertGreaterEqual(close_left - (utility_left + 360), 8)
         self.assertGreaterEqual(content - 44, 700)

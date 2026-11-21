@@ -47,17 +47,17 @@ class ApprovedOptionsPolishTests(unittest.TestCase):
 
     def test_forged_corner_preserves_original_single_resize_owner(self):
         w = lua("UI/Window.lua")
-        for marker in ('DuelFilledTriangleCorner.png',
+        for marker in ('DuelFactionCorner06.png',
                        'local grip = CreateFrame("Button", nil, frame)',
-                       'grip:SetSize(38, 38)',
-                       'resizeArt:SetSize(64, 64)',
+                       'grip:SetSize(54, 54)',
+                       'resizeArt:SetSize(106, 106)',
                        'frame:StartSizing("BOTTOMRIGHT")',
                        'frame:StopMovingOrSizing()',
                        'Window.CommitResize()',
                        'if button == "RightButton" then Window.ResetSize() end',
                        'resizeArt:SetShown(on and true or false)',
-                       'close:SetPoint("RIGHT", footer, "RIGHT", -44, 0)',
-                       'utility:SetPoint("RIGHT", footer, "RIGHT", -167, 0)'):
+                       'close:SetPoint("RIGHT", footer, "RIGHT", -64, 0)',
+                       'utility:SetPoint("RIGHT", footer, "RIGHT", -187, 0)'):
             self.assertIn(marker,w)
         self.assertNotIn('ResizeGlyph.tga',w)
         self.assertNotIn('gripGlyph',w)

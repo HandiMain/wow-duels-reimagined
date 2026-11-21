@@ -23,7 +23,7 @@ class UtilityRailTests(unittest.TestCase):
         ):
             self.assertIn(token, n)
         self.assertIn('Window.utility = utility', w)
-        self.assertIn('utility:SetPoint("RIGHT", footer, "RIGHT", -167, 0)', w)
+        self.assertIn('utility:SetPoint("RIGHT", footer, "RIGHT", -187, 0)', w)
         self.assertIn('nav:SetPoint("TOPLEFT", content, "TOPLEFT", 22, -83)', w)
         self.assertIn('main:SetPoint("TOPLEFT", rail, "TOPRIGHT", 0, 0)', w)
         self.assertNotIn('nav:SetWidth(210)', w)
