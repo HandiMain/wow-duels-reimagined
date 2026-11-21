@@ -55,7 +55,7 @@ class GripTypographyTests(unittest.TestCase):
         self.assertIn('function Style.TintedImage(parent, path, color, layer)', style)
         self.assertIn('RegisterTexture(tex, color, "vertex")', style)
         self.assertIn('entry.region:SetVertexColor(unpack(value))', style)
-        self.assertIn('function Style.ApplyTheme(accent, panel, fontPath)', style)
+        self.assertIn('function Style.ApplyTheme(fontPath)', style)
 
     def test_burgundy_light_surface_headings_have_no_forced_outlines(self):
         for file in ("UI/Community.lua","UI/PatchNotes.lua","UI/Tooltips.lua"):

@@ -48,11 +48,13 @@ class CompactPageDensityTests(unittest.TestCase):
         o = src("UI/Options.lua")
         self.assertIn('Window.content, "TOPLEFT", 26, -153', o)
         self.assertIn('Window.content, "BOTTOMRIGHT", -26, 17', o)
-        self.assertIn("local appearance = Page(175)", o)
+        self.assertIn("local appearance = Page(130)", o)
         self.assertIn("Card(appearance, 0, 165)", o)
+        self.assertIn("{ widget = matchFontRow }", o)
+        self.assertNotIn("themeChoice", o)
         visible = 650 - 12 - 72 - 50 - 14
         viewport = visible - 153 - 17
-        self.assertGreaterEqual(viewport, 175)
+        self.assertGreaterEqual(viewport, 130)
         self.assertIn("local ROW_TOP = 38", o)
         self.assertIn("local cardHeight = y + (isAppearance and 10 or 6)", o)
 

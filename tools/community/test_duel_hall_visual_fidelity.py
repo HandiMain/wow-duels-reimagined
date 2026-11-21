@@ -51,10 +51,12 @@ class VisualFidelityTests(unittest.TestCase):
         options, settings = lua("UI/Options.lua"), lua("Core/Settings.lua")
         self.assertIn('local CARD_BREAKPOINT = 720', options)
         self.assertIn('width >= (largeText and 1080 or CARD_BREAKPOINT)', options)
-        self.assertIn('if key == "matchColors" or key == "matchFont" then return false end', settings)
+        self.assertIn('if key == "matchFont" then return false end', settings)
         self.assertIn('if type(stored) == "boolean" then return stored end', settings)
-        self.assertIn('db.uiTheme = Settings.Get("uiTheme")', settings)
-        self.assertIn('duelhall = {', lua("UI/Style.lua"))
+        self.assertIn('db.uiTheme = nil', settings)
+        self.assertIn('db.matchColors = nil', settings)
+        self.assertIn('local duelHall = {', lua("UI/Style.lua"))
+        self.assertNotIn('themeChoice', options)
 
     def test_no_extra_gameplay_and_esc_menu_code_unchanged_in_scope(self):
         n = lua("UI/Navigation.lua")
