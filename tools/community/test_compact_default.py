@@ -10,13 +10,16 @@ def source(path):
     return (ADDON / path).read_text(encoding="utf-8")
 
 class CompactDefaultWindowTests(unittest.TestCase):
-    def test_default_is_existing_resize_minimum(self):
+    def test_larger_default_preserves_compact_minimum(self):
         window = source("UI/Window.lua")
-        self.assertIn("local MIN_WIDTH, MIN_HEIGHT, EDGE = 1050, 650, 16", window)
-        self.assertIn("frame:SetSize(MIN_WIDTH, MIN_HEIGHT)", window)
+        self.assertIn("local MIN_WIDTH, MIN_HEIGHT = 1050, 650", window)
+        self.assertIn("local DEFAULT_WIDTH, DEFAULT_HEIGHT, EDGE = 1240, 770, 16", window)
+        self.assertIn("frame:SetSize(DEFAULT_WIDTH, DEFAULT_HEIGHT)", window)
         self.assertIn("math.min(MIN_WIDTH, maxW)", window)
         self.assertIn("math.min(MIN_HEIGHT, maxH)", window)
-        self.assertIn("return minW, minH, minW, minH, maxW, maxH", window)
+        self.assertIn("math.min(DEFAULT_WIDTH, maxW)", window)
+        self.assertIn("math.min(DEFAULT_HEIGHT, maxH)", window)
+        self.assertIn("return defaultW, defaultH, minW, minH, maxW, maxH", window)
         self.assertNotIn("BASE_WIDTH", window)
         self.assertNotIn("GetPhysicalScreenSize", window)
         self.assertIn("frame:SetResizeBounds(minW, minH, maxW, maxH)", window)

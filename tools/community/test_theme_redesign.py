@@ -28,31 +28,32 @@ class ThemeRedesignTests(unittest.TestCase):
         self.assertIn('Window.rail:Hide()', h)
         self.assertIn('Window.rail:Show()', h)
 
-    def test_one_house_theme_and_safe_saved_variable_migration(self):
+    def test_one_fixed_house_palette_and_safe_saved_variable_retirement(self):
         st, settings, opts = (src(p) for p in
             ("UI/Style.lua", "Core/Settings.lua", "UI/Options.lua"))
-        self.assertIn('duelhall = {', st)
-        self.assertIn('key = "duelhall", label = "Duel Hall (Default)"', st)
+        self.assertIn('local duelHall = {', st)
         for old in ('ivory = {', 'slate = {', 'verdant = {',
                     'ember = {', 'moonstone = {'):
             self.assertNotIn(old, st)
-        self.assertIn('function Style.IsTheme(key) return key == "duelhall" end', st)
-        self.assertIn('if key == "uiTheme" then return "duelhall" end', settings)
-        self.assertIn('db.uiTheme = Settings.Get("uiTheme")', settings)
-        self.assertIn('themeChoice:SetChoices(Style.ThemeChoices()', opts)
-        self.assertIn('themeChoice:SetAvailable(false,', opts)
-        self.assertIn('Settings.Set("uiTheme", key)', opts)
+        self.assertNotIn('Style.ThemeChoices', st)
+        self.assertIn('db.uiTheme = nil', settings)
+        self.assertIn('db.matchColors = nil', settings)
+        self.assertNotIn('if key == "uiTheme"', settings)
+        self.assertNotIn('themeChoice', opts)
+        self.assertNotIn('matchColorsRow', opts)
+        self.assertIn('{ widget = matchFontRow }', opts)
 
-    def test_ellesmere_recolors_all_roles(self):
-        style = src("UI/Style.lua")
-        for token in ('if panel then', 'if accent then',
-                      'for _, entry in ipairs(colorTextures)',
+    def test_ellesmere_can_update_fonts_but_not_project_colors(self):
+        style, theme = src("UI/Style.lua"), src("UI/Theme.lua")
+        for token in ('for _, entry in ipairs(colorTextures)',
                       'for _, entry in ipairs(fontStrings)',
-                      '"header","footer","rail"', '"nav","body"',
-                      '"gold","red","button","tabActive"',
-                      '"selected"', '"hover"', '"buttonText"'):
+                      'for name, hex in pairs(duelHall)',
+                      'local opacity = entry.region:GetAlpha()'):
             self.assertIn(token, style)
-        self.assertIn('Style.ApplyTheme(accent, panel, font)', src("UI/Theme.lua"))
+        for retired in ('if panel then', 'if accent then',
+                        'GetAccentColor', 'GetPanelColor'):
+            self.assertNotIn(retired, style + theme)
+        self.assertIn('Style.ApplyTheme(font)', theme)
 
     def test_approved_brand_and_shared_code_drawn_chrome(self):
         w, chrome, style = (src(p) for p in

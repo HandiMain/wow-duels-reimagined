@@ -26,7 +26,6 @@ local allowedModes = { minimap = true, widget = true, both = true, none = true }
 
 -- Every persistent Options toggle belongs here, including future ones.
 local boolDefaults = {
-    matchColors = false,
     matchFont = false,
     autoPeekMoving = true,
     reduceMotion = false,
@@ -51,19 +50,17 @@ local function EllesmereReady()
 end
 
 local function IsMatchPreference(key)
-    return key == "matchColors" or key == "matchFont"
+    return key == "matchFont"
 end
 
 function Settings.GetDefault(key)
     if key == "menuScale" then return 1 end
-    if key == "uiTheme" then return "duelhall" end
     if key == "fontChoice" then return "default" end
     if key == "fontScale" then return 1 end
     if key == "fontOutline" then return "default" end
     if accessDefaults[key] ~= nil then return accessDefaults[key] end
-    -- Fresh installs show the full approved Duel Hall look by default.
-    -- Explicit saved EllesmereUI color/font matching remains respected.
-    if key == "matchColors" or key == "matchFont" then return false end
+    -- Only optional font matching remains; colors always use Duel Hall.
+    if key == "matchFont" then return false end
     return boolDefaults[key]
 end
 
@@ -251,13 +248,6 @@ function Settings.Get(key)
             value == math.huge or value == -math.huge then return 225 end
         return value % 360
     end
-    if key == "uiTheme" then
-        local value = db and db.uiTheme
-        if ns.Style and ns.Style.IsTheme and ns.Style.IsTheme(value) then
-            return value
-        end
-        return "duelhall"
-    end
     if key == "fontChoice" then
         local value = db and db.fontChoice
         if type(value) ~= "string" or #value > 128 or value == "" then return "default" end
@@ -352,14 +342,6 @@ function Settings.Set(key, value)
         if ns.Footer and ns.Footer.Refresh then ns.Footer.Refresh() end
         return
     end
-    if key == "uiTheme" then
-        if not (ns.Style and ns.Style.IsTheme and ns.Style.IsTheme(value)) then return end
-        local db = WriteDB()
-        if Settings.Get(key) == value then return end
-        db.uiTheme = value
-        if ns.Theme and ns.Theme.Refresh then ns.Theme.Refresh() end
-        return
-    end
     -- Typography shares this settings owner and persists immediately.
     if key == "fontChoice" or key == "fontScale" or key == "fontOutline" then
         local nextValue
@@ -435,8 +417,9 @@ loader:SetScript("OnEvent", function(self, _, loadedName)
     end
     db.menuScale = Settings.NormalizeScale(db.menuScale)
     -- Normalize through the same getters, keeping existing SavedVariables.
-    -- Migrate old five-theme selections to the sole approved Duel Hall look.
-    db.uiTheme = Settings.Get("uiTheme")
+    -- Retire old theme/color overrides; retain font and other player settings.
+    db.uiTheme = nil
+    db.matchColors = nil
     db.fontChoice = Settings.Get("fontChoice")
     db.fontScale = Settings.Get("fontScale")
     db.fontOutline = Settings.Get("fontOutline")

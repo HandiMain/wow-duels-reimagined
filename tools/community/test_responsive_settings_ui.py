@@ -68,7 +68,7 @@ class ResponsiveSettingsTests(unittest.TestCase):
         for name in ("appearanceCard", "behaviorCard", "gameAccessCard",
                      "accessCard", "typographyCard", "notificationsCard"):
             self.assertIn("{ card = "+name+", entries = {", src)
-        for name in ("themeChoice", "availability", "matchColorsRow", "matchFontRow",
+        for name in ("availability", "matchFontRow",
                      "autoPeekRow", "reduceMotionRow", "tooltipsRow", "reminderRow",
                      "gameMenuRow",
                      "fontChoice", "fontScale", "fontOutline", "iconMode", "widgetSize",
@@ -142,21 +142,21 @@ class ResponsiveSettingsTests(unittest.TestCase):
         self.assertIn("appearance:Relayout(appearance:GetWidth())", src)
         self.assertIn("interface:Relayout(interface:GetWidth())", src)
 
-    def test_theme_explanations_cover_all_three_runtime_states(self):
-        opts = read("UI/Options.lua")
+    def test_fixed_colors_explain_optional_font_matching(self):
+        opts, theme = read("UI/Options.lua"), read("UI/Theme.lua")
         for phrase in (
-            "if not ready then",
-            "elseif matchedColors then",
-            "Duel Hall is active. EllesmereUI matching is unavailable.",
-            "EllesmereUI is providing colors.",
-            "Duel Hall colors are active. Enable matching to use EllesmereUI colors.",
-            "themeChoice:SetAvailable(false,",
-            "themeChoice:SetModified(Settings.IsModified(\"uiTheme\"))",
-            "availability:SetTextColor(unpack(C.muted))",
+            'if not ready then',
+            'elseif Settings.Get("matchFont") then',
+            'Duel Hall colors are fixed. Font matching requires EllesmereUI.',
+            "Using EllesmereUI's font. Duel Hall colors and artwork stay unchanged.",
+            'Enable font matching to use EllesmereUI',
+            'availability:SetTextColor(unpack(C.muted))',
         ):
             self.assertIn(phrase, opts)
-        self.assertNotIn('db.uiTheme = nil', opts)
-        self.assertIn("pcall(eui.RegisterSkin", read("UI/Theme.lua"))
+        self.assertNotIn("themeChoice", opts)
+        self.assertNotIn("matchColorsRow", opts)
+        self.assertNotIn('GetAccentColor', theme)
+        self.assertIn("pcall(eui.RegisterSkin", theme)
 
     def test_main_header_themed_and_landing_art_fixed_colors(self):
         win, land = read("UI/Window.lua"), read("UI/BlizzardSettings.lua")

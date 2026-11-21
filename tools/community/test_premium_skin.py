@@ -38,10 +38,10 @@ class PremiumSkinTests(unittest.TestCase):
             'function skin:SetAlpha(a)',
             'function Style.LitBand(parent, base, opts)'):
             self.assertIn(token, s)
-        self.assertIn('Style.ApplyTheme(accent, panel, font)', src("UI/Theme.lua"))
-        self.assertIn('if panel then', s)
-        self.assertIn('if accent then', s)
-        self.assertIn('duelhall = {', s)
+        self.assertIn('Style.ApplyTheme(font)', src("UI/Theme.lua"))
+        self.assertNotIn('if panel then', s)
+        self.assertNotIn('if accent then', s)
+        self.assertIn('local duelHall = {', s)
         self.assertNotIn('ivory = {', s)
         self.assertNotIn('ember = {', s)
 

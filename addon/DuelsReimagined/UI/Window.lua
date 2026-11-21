@@ -1,15 +1,16 @@
 local _, ns = ...
 local Style, Chrome, Motion = ns.Style, ns.Chrome, ns.Motion
 local C = Style.color
--- The smallest dimensions supported by the resize grip are now also the
--- default. Keep this as the single owner for first-load and reset sizing.
-local MIN_WIDTH, MIN_HEIGHT, EDGE = 1050, 650, 16
+-- Default matches the approved larger in-game layout. Keep the older
+-- minimum available for players who prefer a compact, resizable window.
+local MIN_WIDTH, MIN_HEIGHT = 1050, 650
+local DEFAULT_WIDTH, DEFAULT_HEIGHT, EDGE = 1240, 770, 16
 
 local Window = {}
 ns.Window = Window
 
 local frame = CreateFrame("Frame", "DuelsReimaginedWindow", UIParent)
-frame:SetSize(MIN_WIDTH, MIN_HEIGHT)
+frame:SetSize(DEFAULT_WIDTH, DEFAULT_HEIGHT)
 frame:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
 frame:SetFrameStrata("DIALOG")
 frame:SetToplevel(true)
@@ -314,15 +315,17 @@ local function PaintScale(value)
 end
 
 -- Like Polestar, constrain the window to the available screen after
--- Menu Scale. Unlike the larger prototype, use the existing resize minimum
--- as the new default on every resolution; custom saved sizes still win.
+-- Menu Scale. The larger default is distinct from the resize minimum;
+-- previously saved custom dimensions still take priority.
 -- The scale slider remains release-to-apply, never resize-on-drag.
 local function WindowGeometry(menuScale)
     local parentH, parentW = UIParent:GetHeight(), UIParent:GetWidth()
     local maxW = math.max(1, math.floor(parentW / menuScale - 2 * EDGE))
     local maxH = math.max(1, math.floor(parentH / menuScale - 2 * EDGE))
     local minW, minH = math.min(MIN_WIDTH, maxW), math.min(MIN_HEIGHT, maxH)
-    return minW, minH, minW, minH, maxW, maxH
+    local defaultW = math.max(minW, math.min(DEFAULT_WIDTH, maxW))
+    local defaultH = math.max(minH, math.min(DEFAULT_HEIGHT, maxH))
+    return defaultW, defaultH, minW, minH, maxW, maxH
 end
 
 frame:SetResizable(true)
@@ -370,8 +373,8 @@ function Window.IsDefault()
     if Settings.IsModified("menuScale") then return false end
     local w, h = Settings.GetWindowSize()
     if not w then return true end
-    -- A player who already resized to the old minimum is visually at the
-    -- new default. Do not misleadingly enable Reset for that saved size.
+    -- A persisted custom size is considered default only if it matches
+    -- the current screen-fitted default at the current scale.
     local dw, dh = Window.DefaultSize()
     return math.abs(w - dw) <= 2 and math.abs(h - dh) <= 2
 end

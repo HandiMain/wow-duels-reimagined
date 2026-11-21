@@ -1,4 +1,4 @@
-"""Regression contracts for refined shell, grip and all five themes.
+"""Regression contracts for refined shell, grip and the fixed Duel Hall palette.
 
 Structural checks are NOT proof of in-game UI appearance or behavior.
 """
@@ -60,35 +60,36 @@ class PremiumPolishTests(unittest.TestCase):
 
     def test_single_complete_duel_hall_palette(self):
         s = get("UI/Style.lua")
-        block = s[s.index("local schemes = {"):s.index("local choices =")]
-        self.assertEqual(block.count('duelhall = {'), 1)
+        block = s[s.index("local duelHall = {"):s.index("Style.color = {}")]
+        self.assertEqual(block.count('local duelHall = {'), 1)
         roles = set(re.findall(r'\b([a-zA-Z]+)="[0-9A-F]{6}"', block))
         self.assertEqual(len(roles), 26)
-        self.assertIn('key = "duelhall", label = "Duel Hall (Default)"', s)
+        self.assertNotIn('local choices =', s)
         self.assertIn('entry.region:SetVertexColor(unpack(value))', s)
         for old in ('ivory = {','slate = {','verdant = {',
                     'ember = {','moonstone = {'):
             self.assertNotIn(old, s)
 
-    def test_saved_theme_validation_uses_single_style_registry(self):
+    def test_obsolete_theme_and_color_overrides_are_retired(self):
         settings = get("Core/Settings.lua")
-        self.assertIn('ns.Style.IsTheme(value)', settings)
-        self.assertIn('if key == "uiTheme" then return "duelhall" end', settings)
-        self.assertIn('db.uiTheme = value', settings)
-        self.assertIn('db.uiTheme = Settings.Get("uiTheme")', settings)
-        self.assertNotIn('value == "slate" or value == "verdant"', settings)
+        self.assertIn('db.uiTheme = nil', settings)
+        self.assertIn('db.matchColors = nil', settings)
+        self.assertNotIn('ns.Style.IsTheme(value)', settings)
+        self.assertNotIn('if key == "uiTheme"', settings)
+        self.assertNotIn('db.uiTheme = value', settings)
 
-    def test_ellesmere_color_match_and_one_installed_theme(self):
+    def test_only_font_matching_can_use_ellesmere(self):
         opt, theme, settings = (get(path) for path in (
             "UI/Options.lua", "UI/Theme.lua", "Core/Settings.lua"))
-        self.assertIn('local matchedColors = ready and Settings.Get("matchColors") == true', opt)
-        self.assertIn('matchedColors and "Managed by EllesmereUI" or nil', opt)
-        self.assertIn('themeChoice:SetAvailable(false,', opt)
-        self.assertIn('Duel Hall is the only installed theme', opt)
-        self.assertIn('themeChoice:SetModified(Settings.IsModified("uiTheme"))', opt)
-        self.assertIn('if Settings.Get("matchColors") then', theme)
-        self.assertIn('Style.ApplyTheme(accent, panel, font)', theme)
-        self.assertIn('db.uiTheme = value', settings)
+        self.assertIn('local matchFontRow = AddToggle(', opt)
+        self.assertIn('Settings.Get("matchFont")', theme)
+        self.assertIn('skin.GetFont', theme)
+        self.assertIn('Style.ApplyTheme(font)', theme)
+        self.assertNotIn('themeChoice', opt)
+        self.assertNotIn('matchColorsRow', opt)
+        self.assertNotIn('GetAccentColor', theme)
+        self.assertNotIn('GetPanelColor', theme)
+        self.assertNotIn('matchColors = false', settings)
 
     def test_feature_paths_not_replaced_by_visual_edits(self):
         w,n = get("UI/Window.lua"),get("UI/Navigation.lua")

@@ -16,8 +16,7 @@ end
 -- Duel Hall is the single, user-approved house look. Keep one semantic
 -- palette and one repaint owner; future looks can join this registry later.
 -- Reference: approved in-game concept (2026-11-21), not legacy preview skins.
-local schemes = {
-    duelhall = {
+local duelHall = {
         -- Source-matched near-black + gilt, not the former sepia/brown wash.
         gold="E7B53D", goldDim="986E38", red="BB1712",
         pale="FFDA8B", text="F4F1EB", muted="B8B6B4",
@@ -29,16 +28,12 @@ local schemes = {
         headerText="F7F5F0", headerMuted="BFC0BF",
         footerText="F4F1EB", footerMuted="A7A9AA",
         buttonText="FFE6B5", track="4F5052",
-    },
 }
-local choices = { { key = "duelhall", label = "Duel Hall (Default)" } }
-function Style.ThemeChoices() return choices end
-function Style.IsTheme(key) return key == "duelhall" end
 
 -- Stable table identities are important. Registered widgets hold references
 -- to these colors and repaint in place on live look changes.
 Style.color = {}
-for token, code in pairs(schemes.duelhall) do Style.color[token] = Hex(code) end
+for token, code in pairs(duelHall) do Style.color[token] = Hex(code) end
 local C = Style.color
 local colorTextures, fontStrings, pixelEdges = {}, {}, {}
 
@@ -486,69 +481,12 @@ function Style.Action(parent, caption, variant, palette)
     return button
 end
 
-local function SetColor(name, r, g, b, a)
-    local target = C[name]
-    if not target then return end
-    target[1], target[2], target[3], target[4] = r, g, b, a or 1
-end
-local function Mix(a, b, amount)
-    return {
-        a[1] * (1-amount) + b[1] * amount,
-        a[2] * (1-amount) + b[2] * amount,
-        a[3] * (1-amount) + b[3] * amount,
-    }
-end
-local function Luma(c)
-    return 0.2126*c[1] + 0.7152*c[2] + 0.0722*c[3]
-end
-local function Put(name, v)
-    SetColor(name, v[1], v[2], v[3], v[4])
-end
-local WHITE, BLACK = {1,1,1}, {0,0,0}
-local function FromTheme()
-    local selected = ns.Settings and ns.Settings.Get("uiTheme") or "duelhall"
-    for name, hex in pairs(schemes[selected] or schemes.duelhall) do
-        Put(name, Hex(hex))
-    end
-end
-
--- A theme changes backgrounds, text, borders, tabs, controls and buttons.
--- EllesmereUI's OPTIONAL public colors override those same roles rather
--- than repainting only one or two lines. Contrast follows dark/light panels.
-function Style.ApplyTheme(accent, panel, fontPath)
-    FromTheme()
-    if panel then
-        local light = Luma(panel) >= 0.48
-        local ink = light and {0.18,0.18,0.20} or {0.92,0.92,0.94}
-        local muted = light and {0.36,0.36,0.40} or {0.71,0.73,0.77}
-        local ground = Mix(panel, light and WHITE or BLACK, light and 0.045 or 0.06)
-        local alt = Mix(panel, light and BLACK or WHITE, light and 0.06 or 0.09)
-        for _, key in ipairs({ "window","header","footer","rail" }) do Put(key, ground) end
-        for _, key in ipairs({ "nav","body" }) do Put(key, alt) end
-        Put("text", ink)
-        Put("pale", ink)
-        Put("muted", muted)
-        Put("headerText", ink)
-        Put("footerText", ink)
-        Put("tabText", ink)
-        Put("tabMuted", muted)
-        Put("headerMuted", muted)
-        Put("footerMuted", muted)
-        Put("border", Mix(panel, ink, 0.22))
-        Put("goldDim", Mix(panel, ink, 0.27))
-        Put("selected", Mix(alt, ink, 0.11))
-        Put("hover", Mix(alt, ink, 0.075))
-        Put("track", Mix(panel, ink, 0.32))
-    end
-    if accent then
-        local a = Mix(accent, (Luma(accent) < 0.32 and WHITE or BLACK),
-            Luma(accent) < 0.32 and 0.14 or 0.06)
-        for _, key in ipairs({ "gold","red","button","tabActive" }) do Put(key, a) end
-        Put("shellEdge", Mix(a, C.header, 0.28))
-        -- Selected rows retain a readable surface, not full-strength accent.
-        Put("selected", Mix(C.body, a, 0.20))
-        Put("hover", Mix(C.body, a, 0.11))
-        Put("buttonText", Luma(a) >= 0.53 and BLACK or WHITE)
+-- One permanent Duel Hall palette. Font repaint may run after the optional
+-- EllesmereUI font changes, but it cannot tint our panels or copper artwork.
+function Style.ApplyTheme(fontPath)
+    for name, hex in pairs(duelHall) do
+        local value, target = Hex(hex), C[name]
+        target[1], target[2], target[3], target[4] = unpack(value)
     end
     for _, entry in ipairs(colorTextures) do
         local value = C[entry.token]

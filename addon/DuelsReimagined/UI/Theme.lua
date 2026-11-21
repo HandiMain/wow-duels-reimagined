@@ -17,27 +17,12 @@ function Theme.IsAvailable()
 end
 
 function Theme.Refresh()
-    local accent, panel, font
-    if Theme.IsAvailable() then
-        if Settings.Get("matchColors") then
-            if type(skin.GetAccentColor) == "function" then
-                local ok, r, g, b = pcall(skin.GetAccentColor)
-                if ok and type(r) == "number" and type(g) == "number" and type(b) == "number" then
-                    accent = { r, g, b }
-                end
-            end
-            if type(skin.GetPanelColor) == "function" then
-                local ok, r, g, b = pcall(skin.GetPanelColor)
-                if ok and type(r) == "number" and type(g) == "number" and type(b) == "number" then
-                    panel = { r, g, b }
-                end
-            end
-        end
-        if Settings.Get("matchFont") and type(skin.GetFont) == "function" then
-            local ok, path = pcall(skin.GetFont)
-            if ok and type(path) == "string" and path ~= "" then
-                font = path
-            end
+    local font
+    if Theme.IsAvailable() and Settings.Get("matchFont") and
+        type(skin.GetFont) == "function" then
+        local ok, path = pcall(skin.GetFont)
+        if ok and type(path) == "string" and path ~= "" then
+            font = path
         end
     end
 
@@ -47,7 +32,7 @@ function Theme.Refresh()
     if not font and ns.Fonts and type(ns.Fonts.Resolve) == "function" then
         font = ns.Fonts.Resolve(Settings.Get("fontChoice"))
     end
-    Style.ApplyTheme(accent, panel, font)
+    Style.ApplyTheme(font)
     if ns.Chrome then ns.Chrome.Refresh() end
     if ns.Window and ns.Window.RefreshTheme then ns.Window.RefreshTheme() end
     if ns.Navigation and ns.Navigation.RefreshSelection then

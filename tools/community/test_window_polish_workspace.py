@@ -141,7 +141,7 @@ class WindowPolishWorkspaceTests(unittest.TestCase):
             read("DuelsReimagined.toc"), read("UI/Window.lua"),
             read("UI/AccessIcons.lua"), read("Core/Settings.lua"))
         self.assertNotIn('SkinDecor', toc)
-        self.assertIn('if key == "uiTheme" then return "duelhall" end', settings)
+        self.assertIn('db.uiTheme = nil', settings)
         self.assertIn('CreateFrame("Button", "DuelsReimaginedMinimapButton", UIParent)', access)
         self.assertIn('local HALL_BUTTON_WIDTH = 205', read("UI/Navigation.lua"))
         self.assertIn('UI\\Motion.lua', toc)

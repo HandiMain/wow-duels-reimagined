@@ -77,7 +77,7 @@ local function Card(page, y, height)
     return card
 end
 
-local appearance = Page(175)
+local appearance = Page(130)
 local interface = Page(740)
 
 -- Every preference stays on the SAME Interface page and uses the existing
@@ -113,11 +113,11 @@ local function Section(card, title, subtitle, top, extra)
 end
 
 local appearanceDescription = Section(appearanceCard, "Appearance",
-    "Choose a complete look, with optional EllesmereUI matching.", -16)
+    "Duel Hall is our permanent design; optional font matching is available.", -16)
 local availability = Style.Text(appearanceCard, "", 12, C.muted)
 availability:SetJustifyH("LEFT")
 availability:SetWordWrap(true)
-availability:SetPoint("TOPLEFT", appearanceCard, "TOPLEFT", 20, -264)
+availability:SetPoint("TOPLEFT", appearanceCard, "TOPLEFT", 20, -131)
 Section(behaviorCard, "Window & motion",
     "Control how Duels moves, fades and responds while you play.", -16,
     "Hold the eye to Peek. Fold leaves the header visible.")
@@ -183,21 +183,8 @@ local function AddToggle(card, pageKey, key, name, detail, top, requiresEllesmer
     return row
 end
 
-local themeChoice = Widgets.ChoiceRow(appearanceCard, "Color theme",
-    "Recolor the whole addon, including panels, tabs, text and buttons.",
-    function(key) Settings.Set("uiTheme", key) end,
-    function() Settings.Reset("uiTheme") end, false)
-themeChoice:SetPoint("TOPLEFT", appearanceCard, "TOPLEFT", 20, -61)
-themeChoice:SetPoint("TOPRIGHT", appearanceCard, "TOPRIGHT", -20, -61)
-MarkPosition(themeChoice, appearanceCard, -61)
-RegisterOption("uiTheme", "Color theme",
-    "Choose a Duels color theme when EllesmereUI color matching is off", "options", themeChoice)
-
-local matchColorsRow = AddToggle(appearanceCard, "options", "matchColors", "Match EllesmereUI colors",
-    "Override all color roles with EllesmereUI's accent and panel palette.",
-    -131, true)
 local matchFontRow = AddToggle(appearanceCard, "options", "matchFont", "Match EllesmereUI font",
-    "Use your selected EllesmereUI interface font.", -191, true)
+    "Use your selected EllesmereUI interface font.", -61, true)
 local autoPeekRow = AddToggle(behaviorCard, "interface", "autoPeekMoving", "Automatic Peek while moving",
     "Fade the window during movement; restore it when you stop.", -64, false)
 local reduceMotionRow = AddToggle(behaviorCard, "interface", "reduceMotion", "Reduce motion",
@@ -380,7 +367,7 @@ local function LayoutPage(page, groups, width)
             widget:ClearAllPoints()
             widget:SetPoint("TOPLEFT", card, "TOPLEFT", 20, -y)
             widget:SetWidth(usable)
-            -- Appearance's multi-line theme explanation grows with font size.
+            -- Appearance's font-status explanation grows with font size.
             if widget == availability then
                 entry.height = math.max(26,
                     math.ceil(widget:GetStringHeight() or 18) + 8)
@@ -427,10 +414,8 @@ end
 
 local appearanceGroups = {
     { card = appearanceCard, entries = {
-        { widget = themeChoice },
-        { widget = availability, height = 26 },
-        { widget = matchColorsRow },
         { widget = matchFontRow },
+        { widget = availability, height = 26 },
     }},
 }
 local interfaceGroups = {
@@ -476,24 +461,14 @@ end
 
 function Options.Refresh()
     local ready = Theme.IsAvailable()
-    local matchedColors = ready and Settings.Get("matchColors") == true
-    themeChoice:SetChoices(Style.ThemeChoices(), Settings.Get("uiTheme"),
-        matchedColors and "Managed by EllesmereUI" or nil)
-    -- Only Duel Hall ships. Keep the selector visible for the approved layout,
-    -- but never offer a meaningless one-item selection or a retired theme.
-    themeChoice:SetAvailable(false,
-        matchedColors and "Colors currently follow EllesmereUI." or
-        "Duel Hall is the only installed theme; more looks may come later.")
-    themeChoice:SetModified(Settings.IsModified("uiTheme"))
-    themeChoice.resetIcon:SetVertexColor(unpack(C.gold))
     local compartmentAvailable = AddonCompartmentFrame and
         type(AddonCompartmentFrame.RegisterAddon) == "function"
     if not ready then
-        availability:SetText("Duel Hall is active. EllesmereUI matching is unavailable.")
-    elseif matchedColors then
-        availability:SetText("EllesmereUI is providing colors. Disable matching to use Duel Hall.")
+        availability:SetText("Duel Hall colors are fixed. Font matching requires EllesmereUI.")
+    elseif Settings.Get("matchFont") then
+        availability:SetText("Using EllesmereUI's font. Duel Hall colors and artwork stay unchanged.")
     else
-        availability:SetText("Duel Hall colors are active. Enable matching to use EllesmereUI colors.")
+        availability:SetText("Duel Hall colors are fixed. Enable font matching to use EllesmereUI's font.")
     end
     availability:SetTextColor(unpack(C.muted))
     for _, entry in ipairs(rows) do

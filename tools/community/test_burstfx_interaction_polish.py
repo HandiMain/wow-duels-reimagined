@@ -147,8 +147,9 @@ class BurstFXInteractionPolishTests(unittest.TestCase):
         self.assertNotIn('PlaySoundFile(', feedback)
         self.assertIn('local HALL_BUTTON_WIDTH = 205', nav)
         self.assertIn('local initialMode = Mode()', read("UI/AccessIcons.lua"))
-        self.assertIn('local themeChoice = Widgets.ChoiceRow(appearanceCard, "Color theme"', opts)
-        self.assertIn('if key == "uiTheme" then return "duelhall" end', read("Core/Settings.lua"))
+        self.assertNotIn('themeChoice', opts)
+        self.assertIn('local matchFontRow = AddToggle(appearanceCard', opts)
+        self.assertIn('db.uiTheme = nil', read("Core/Settings.lua"))
 
 if __name__ == "__main__":
     unittest.main()

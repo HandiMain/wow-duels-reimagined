@@ -12,10 +12,10 @@ def read(name):
 
 class ApprovedDuelHallLayoutTests(unittest.TestCase):
     def test_default_window_has_separate_nonoverlapping_regions(self):
-        # Source constants from the approved composition at its 1050x650
-        # minimum/default. Reflow at smaller effective screen resolutions
+        # Default matches the player's approved larger 1240x770 window.
+        # The smaller minimum remains available via the resize corner. Reflow at smaller effective screen resolutions
         # still requires visual inspection.
-        width, height = 1050, 650
+        width, height = 1240, 770
         inset, header, footer, rail = 6, 72, 50, 226
         self.assertLess(rail, width - 2 * inset)
         self.assertGreater(height - 2 * inset - header - footer, 450)
@@ -48,23 +48,26 @@ class ApprovedDuelHallLayoutTests(unittest.TestCase):
                      'widget:LayoutForWidth(usable, not largeText)',
                      'page.scrollOwner:SetVerticalScroll(maxScroll)'):
             self.assertIn(text, o)
-        self.assertIn('themeChoice:SetAvailable(false,', o)
+        self.assertNotIn('local themeChoice =', o)
+        self.assertIn('{ widget = matchFontRow }', o)
         self.assertIn('function appearance:Relayout(width)', o)
         self.assertIn('function interface:Relayout(width)', o)
 
-    def test_one_theme_and_optional_ellesmere_matching(self):
+    def test_fixed_duel_hall_colors_and_optional_font_matching(self):
         style, theme, settings = (read(name) for name in
             ('UI/Style.lua', 'UI/Theme.lua', 'Core/Settings.lua'))
-        self.assertEqual(style.count('duelhall = {'), 1)
-        self.assertIn('function Style.IsTheme(key) return key == "duelhall" end', style)
+        self.assertEqual(style.count('local duelHall = {'), 1)
+        self.assertNotIn('function Style.ThemeChoices()', style)
+        self.assertNotIn('function Style.IsTheme(', style)
         for obsolete in ('ivory = {', 'slate = {', 'verdant = {',
                          'ember = {', 'moonstone = {'):
             self.assertNotIn(obsolete, style)
-        self.assertIn('if key == "uiTheme" then return "duelhall" end', settings)
-        self.assertIn('db.uiTheme = Settings.Get("uiTheme")', settings)
-        self.assertIn('if key == "matchColors" or key == "matchFont" then return false end', settings)
+        self.assertIn('db.uiTheme = nil', settings)
+        self.assertIn('db.matchColors = nil', settings)
+        self.assertNotIn('if key == "uiTheme"', settings)
+        self.assertNotIn('matchColors', theme)
         self.assertIn('function Theme.IsAvailable()', theme)
-        self.assertIn('Style.ApplyTheme(accent, panel, font)', theme)
+        self.assertIn('Style.ApplyTheme(font)', theme)
 
     def test_no_new_gameplay_data_or_menu_dependency(self):
         n = read("UI/Navigation.lua")

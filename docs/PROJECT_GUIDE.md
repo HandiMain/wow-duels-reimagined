@@ -1364,3 +1364,11 @@ Close, reset/reload and Back. Ensure no double outlines, no hover trapping,
 selected state survives page changes, Peek is only active while held, Fold
 stays highlighted only while collapsed, and resize at minimum and maximum
 does not stretch the copper corners. Test with and without EllesmereUI.
+
+## Fixed Duel Hall look and larger first-open size — November 21, 2026
+
+- Duel Hall's copper/bronze visual design is the **only** addon color palette. Retire the selectable Color theme and Match EllesmereUI colors controls; the optional third-party integration may read **font only**. No external accent/panel colors can repaint our buttons, cards or frame.
+- Keep the Appearance page for the optional **Match EllesmereUI font** setting and its explanatory status. Existing manual font choice, scale and outline under Interface remain.
+- First-open and Reset window dimensions are **1240 × 770 UI units at 100% scale**, fitted to the available UIParent screen bounds. The resize minimum stays 1050 × 650 where the screen permits; saved custom dimensions always win. The larger default was selected to match the wider screenshot from the user, not as proof of pixel-perfect in-game parity.
+- Remove retired `uiTheme` and `matchColors` SavedVariables on addon load without touching other preferences. Do not add new color themes unless separately proposed and approved.
+- Verification state: **IMPLEMENTED / UNTESTED IN-GAME** until the user checks both Forever and Retail (when available). Test initial open, Reset window, resize persist + /reload, scale/clamp, both Ellesmere enabled/disabled, font changes, search and tooltips.
