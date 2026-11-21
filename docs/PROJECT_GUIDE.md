@@ -1308,8 +1308,8 @@ All six regions share one 512×256 power-of-two sprite atlas with explicit
 texture coordinates. The 32-color version is deliberately compact and
 quantized; **source-derived is not identical to every source RGB pixel**.
 The original full screenshot is NOT included as an overlay, and no gameplay
-or ESC-menu behavior was changed. The old procedural TGA masks are retained
-as background/fallback while the new visual pass is evaluated in WoW.
+or ESC-menu behavior was changed. The shared fallback masks remain, but obsolete procedural laurel and tab
+textures were removed because no runtime code uses them.
 
 **Remaining visual verification:** inspect whether the client accepts the
 palette-indexed PNG atlas, the positions match at 100% Menu Scale, Hall

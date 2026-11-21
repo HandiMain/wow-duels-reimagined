@@ -11,9 +11,6 @@ ROOT = Path(__file__).resolve().parents[2] / "addon" / "DuelsReimagined"
 SKIN = ROOT / "Media" / "Skin"
 ASSETS = {
     "DuelHallPlaque.tga": (256, 128),
-    "DuelGiltTab.tga": (256, 64),
-    "DuelDarkTab.tga": (256, 64),
-    "DuelHallLaurel.tga": (128, 128),
     "DuelCornerJewel.tga": (64, 64),
     "DuelCategoryIcons.tga": (128, 64),
 }
@@ -45,8 +42,7 @@ class DuelHallArtworkTests(unittest.TestCase):
                 self.assertEqual(h&(h-1), 0)
 
     def test_plaques_have_transparent_corners_and_sculpted_midpoints(self):
-        for name in ("DuelHallPlaque.tga", "DuelGiltTab.tga",
-                     "DuelDarkTab.tga"):
+        for name in ("DuelHallPlaque.tga",):
             with self.subTest(name=name):
                 data,w,h = pixels(SKIN / name)
                 self.assertEqual(rgba(data,w,0,0)[3], 0)
@@ -59,8 +55,7 @@ class DuelHallArtworkTests(unittest.TestCase):
         self.assertGreater(red, blue*3)
 
     def test_ornament_assets_have_real_transparency(self):
-        for name in ("DuelHallLaurel.tga","DuelCornerJewel.tga",
-                     "DuelCategoryIcons.tga"):
+        for name in ("DuelCornerJewel.tga","DuelCategoryIcons.tga"):
             data,w,h = pixels(SKIN / name)
             alpha = data[21::4]
             self.assertTrue(any(v == 0 for v in alpha), name)
@@ -73,7 +68,7 @@ class DuelHallArtworkTests(unittest.TestCase):
         for token in ('function Style.Plate(parent, kind, opts)',
                       'for y = 1, 3 do', 'for x = 1, 3 do',
                       'function group:SetStyle(newKind)',
-                      'DuelHallPlaque.tga','DuelGiltTab.tga','DuelDarkTab.tga'):
+                      'DuelHallPlaque.tga','DuelExactAtlas.png'):
             self.assertIn(token,style)
         self.assertIn('Style.ConceptImage(button, "hall", "ARTWORK", 2)',nav)
         self.assertNotIn('DuelHallLaurel.tga',nav)
