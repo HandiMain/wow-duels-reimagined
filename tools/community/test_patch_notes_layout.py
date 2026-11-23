@@ -20,12 +20,17 @@ def geometry(root_width, root_height, entries):
     detail_width = usable - 194 - 16
     canvas_width = max(1, min(970, detail_width - 16))
     compact = canvas_width < 620
-    # Body top y=-88; selected patch content scrolls separately.
+    # Mirror the block-to-block anchors, not hardcoded cumulative offsets.
     dense = root_height - 106 < 590
-    if dense:
-        notes_height = 221 + entries*65 + 5 + (220 if compact else 110) + 27
-    else:
-        notes_height = 258 + entries*80 + 12 + (248 if compact else 124) + 40
+    banner_h = 153 if compact else (120 if dense else 141)
+    summary_y = banner_h + 13
+    summary_h = (81 if dense else 84) if compact else (54 if dense else 64)
+    heading_y = summary_y + summary_h + (11 if dense else 14)
+    rows_y = heading_y + (23 if dense else 26)
+    rows_bottom = rows_y + entries * (65 if dense else 80) + (5 if dense else 12)
+    panel_h = 100 if dense else 114
+    panels_h = 2 * panel_h + 20 if compact else panel_h + 10
+    notes_height = rows_bottom + panels_h + (27 if dense else 40)
     return inset, usable, canvas_width, compact, notes_height
 
 
@@ -71,7 +76,8 @@ class PatchNotesLayoutTests(unittest.TestCase):
                 self.assertFalse(compact)
             if root_width < 850:
                 self.assertTrue(compact)
-            self.assertEqual(height, 221+3*65+5+(220 if compact else 110)+27)
+            expected = (728 if compact else 558)
+            self.assertEqual(height, expected)
         for marker in (
             'local usable = math.min(1190, math.max(1, total - 40))',
             'local inset = math.max(20, (total - usable) / 2)',
@@ -82,8 +88,27 @@ class PatchNotesLayoutTests(unittest.TestCase):
             'local dense = scroll:GetHeight() < 590',
             'summaryPanel:SetHeight(summaryH)',
             'frame:SetHeight(rowHeight)',
+            'local bannerHeight = compact and 153 or (dense and 120 or 141)',
+            'local summaryH = compact and (dense and 81 or 84) or (dense and 54 or 64)',
+            'local titleY = summaryY + summaryH + (dense and 11 or 14)',
+            'local rowsY = titleY + (dense and 23 or 26)',
+            'item.title:SetHeight(dense and 20 or 23)',
+            'item.description:SetHeight(dense and 16 or 18)',
+            'summaryDescription:SetHeight(42)',
         ):
             self.assertIn(marker, PAGE)
+
+    def test_compact_geometry_does_not_clip_metadata_or_summary(self):
+        # In compact mode, wrapped title, version badge, and summary all fit
+        # their respective frames. Taller release art remains readable.
+        self.assertLessEqual(107 + 27, 153)
+        self.assertLessEqual(30 + 42, 81)
+        self.assertLessEqual(43 + 16, 61)
+        self.assertIn('compact and -107 or -79', PAGE)
+        self.assertIn('bannerTitle:SetHeight(compact and 75 or 50)', PAGE)
+        self.assertIn('local relatedButton = Style.Action(related, "View Settings", "patchnotes", {', PAGE)
+        self.assertIn('fill=C.nav, edge=C.goldDim, light=C.gold, dark=C.border', PAGE)
+        self.assertNotIn('Style.Action(related, "View Settings", "footer")', PAGE)
 
     def test_two_scroll_owners_and_no_new_persistent_polling(self):
         self.assertIn("function PatchNotes.GetPageScroll(pageKey)", PAGE)
