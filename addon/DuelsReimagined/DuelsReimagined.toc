@@ -11,6 +11,8 @@
 Core\Client.lua
 Core\Settings.lua
 Core\Group.lua
+Core\Communication.lua
+Core\Presence.lua
 UI\Fonts.lua
 UI\Style.lua
 UI\Motion.lua
