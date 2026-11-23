@@ -10,4 +10,10 @@ ns.CommunityCredits = {
     },
     specialThanks = {
     },
+    stats = {
+        contributors = 0,
+        bugReports = 0,
+        communityIdeas = 0,
+        specialThanks = 0,
+    },
 }
