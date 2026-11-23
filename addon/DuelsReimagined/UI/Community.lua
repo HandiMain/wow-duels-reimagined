@@ -199,12 +199,12 @@ Action("idea", "SUGGEST AN IDEA", 105)
 local overviewPieces = {}
 
 local statsPanel = CreateFrame("Frame", nil, canvas)
-statsPanel:SetPoint("TOPLEFT", canvas, "TOPLEFT", 22, -178)
-statsPanel:SetPoint("TOPRIGHT", canvas, "TOPRIGHT", -22, -178)
+statsPanel:SetPoint("TOPLEFT", canvas, "TOPLEFT", 12, -178)
+statsPanel:SetPoint("TOPRIGHT", canvas, "TOPRIGHT", -12, -178)
 statsPanel:SetHeight(58)
 -- The statistic strip is only 58px tall; use short native relief here,
 -- not the 112px fades intended for large card backgrounds.
-Style.Skin(statsPanel, C.nav, { corner=9, edge=C.goldDim,
+Style.Skin(statsPanel, C.window, { corner=9, edge=C.goldDim,
     shine=0.09, shade=0.08, rim=0.96 })
 overviewPieces[#overviewPieces + 1] = statsPanel
 
@@ -223,13 +223,13 @@ for i, def in ipairs(statDefs) do
     local cell = CreateFrame("Frame", nil, statsPanel)
     cell:SetHeight(58)
     cell:EnableMouse(true)
-    local icon = ConceptSymbol(cell, def.icon, 31)
-    icon:SetPoint("LEFT", cell, "LEFT", 14, 0)
-    local value = Style.Text(cell, "—", 23, C.gold, nil, "display")
-    value:SetPoint("TOPLEFT", cell, "TOPLEFT", 51, -8)
+    local icon = ExactSymbol(cell, i - 1, 40)
+    icon:SetPoint("LEFT", cell, "LEFT", 52, 0)
+    local value = Style.Text(cell, "—", 23, C.gold)
+    value:SetPoint("TOPLEFT", cell, "TOPLEFT", 104, -8)
     value:SetPoint("TOPRIGHT", cell, "TOPRIGHT", -8, -8)
     local label = Style.Text(cell, def.label, 12, C.text)
-    label:SetPoint("TOPLEFT", cell, "TOPLEFT", 51, -34)
+    label:SetPoint("TOPLEFT", cell, "TOPLEFT", 104, -34)
     label:SetPoint("TOPRIGHT", cell, "TOPRIGHT", -8, -34)
     label:SetWordWrap(false)
     ns.Tooltips.Bind(cell, { title=def.label,
@@ -259,30 +259,32 @@ FitStats(statsPanel, statsPanel:GetWidth())
 
 local function InfoPanel(left, heading, description, iconIndex)
     local panel = CreateFrame("Frame", nil, canvas)
-    panel:SetHeight(224)
+    panel:SetHeight(203)
     if left then
-        panel:SetPoint("TOPLEFT", canvas, "TOPLEFT", 22, -247)
-        panel:SetPoint("TOPRIGHT", canvas, "TOP", -9, -247)
+        panel:SetPoint("TOPLEFT", canvas, "TOPLEFT", 12, -247)
+        panel:SetPoint("TOPRIGHT", canvas, "TOP", 20, -247)
     else
-        panel:SetPoint("TOPLEFT", canvas, "TOP", 9, -247)
-        panel:SetPoint("TOPRIGHT", canvas, "TOPRIGHT", -22, -247)
+        panel:SetPoint("TOPLEFT", canvas, "TOP", 38, -247)
+        panel:SetPoint("TOPRIGHT", canvas, "TOPRIGHT", -12, -247)
     end
-    -- Use the same line-free large-panel surface as the Hall, preserving
-    -- one copper rim instead of stretching the small shade masks.
-    Style.Skin(panel, C.nav, { corner=10, edge=C.goldDim,
+    Style.Skin(panel, C.window, { corner=10, edge=C.goldDim,
         smooth=true, rim=0.98 })
-    local symbol = ConceptSymbol(panel, iconIndex, 38)
-    symbol:SetPoint("TOPLEFT", panel, "TOPLEFT", 13, -10)
-    local headingText = Style.Text(panel, heading, 19, C.gold, nil, "display")
-    headingText:SetPoint("TOPLEFT", panel, "TOPLEFT", 56, -11)
-    local caption = Style.Text(panel, description, 12, C.muted)
-    caption:SetPoint("TOPLEFT", panel, "TOPLEFT", 56, -36)
-    caption:SetPoint("RIGHT", panel, "RIGHT", -12, 0)
-    caption:SetWordWrap(false)
+    -- Exact source-derived, static panel branding including the original
+    -- serif heading, gold pictogram and caption. The information rows
+    -- below are native responsive text; no duplicate artwork owners.
+    local header = panel:CreateTexture(nil, "ARTWORK", nil, 3)
+    header:SetTexture(conceptHeaders)
+    header:SetPoint("TOPLEFT", panel, "TOPLEFT", 10, -8)
+    header:SetPoint("TOPRIGHT", panel, "TOPRIGHT", -10, -8)
+    header:SetHeight(54)
+    local x = left and 0 or 512
+    header:SetTexCoord(x / 1024, (x + 504) / 1024, 0, 55 / 128)
+    header:EnableMouse(false)
+    Chrome.Sharp(header)
     local separator = Style.Fill(panel, C.goldDim, "ARTWORK")
     separator:ClearAllPoints()
-    separator:SetPoint("TOPLEFT", panel, "TOPLEFT", 12, -63)
-    separator:SetPoint("TOPRIGHT", panel, "TOPRIGHT", -12, -63)
+    separator:SetPoint("TOPLEFT", panel, "TOPLEFT", 12, -62)
+    separator:SetPoint("TOPRIGHT", panel, "TOPRIGHT", -12, -62)
     separator:SetHeight(1)
     separator:SetAlpha(0.45)
     overviewPieces[#overviewPieces + 1] = panel
@@ -425,7 +427,7 @@ function Community.Show(key)
     listing:SetShown(not overview)
     if overview then
         UpdateOverview()
-        canvas:SetHeight(485)
+        canvas:SetHeight(468)
     else
         UpdateList(byKey[key])
     end
