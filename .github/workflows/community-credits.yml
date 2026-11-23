@@ -44,18 +44,6 @@ jobs:
           persist-credentials: true
           fetch-depth: 1
 
-      - name: Prepare Hall-derived War Games plate (temporary asset transfer)
-        run: |
-          python3 tools/community/generate_wargames_plate.py
-          python3 - <<'PY'
-          import base64
-          from pathlib import Path
-          p = Path("addon/DuelsReimagined/Media/Skin/DuelWarGamesPlate.png")
-          print("WARGAMES_PLATE_BASE64_BEGIN")
-          print(base64.b64encode(p.read_bytes()).decode("ascii"))
-          print("WARGAMES_PLATE_BASE64_END")
-          PY
-
       - name: Parse every addon Lua file (syntax only)
         run: |
           sudo apt-get update -qq
