@@ -494,15 +494,23 @@ FitTabs(Window.rail, Window.rail:GetWidth())
 
 local function FitSubTabs(self, width)
     local w = (type(width) == "number" and width > 0) and width or self:GetWidth()
-    for _, group in ipairs(subButtons) do
+    for sectionIndex, group in ipairs(subButtons) do
         local count = #group
         if count > 0 then
             local tabWidth = math.max(76, math.min(174,
                 (math.max(80, w) - 12 - 8 * (count - 1)) / count))
+            local rowStart = 6
+            -- Community's 940px design canvas is centered on oversized
+            -- windows; align its fixed-width tab strip with that canvas.
+            -- Normal/compact sizes and all other sections remain unchanged.
+            if sections[sectionIndex].key == "community" and w > 1000 then
+                local rowWidth = count * tabWidth + (count - 1) * 8
+                rowStart = math.max(6, (w - rowWidth) / 2)
+            end
             for j, item in ipairs(group) do
                 item.button:ClearAllPoints()
                 item.button:SetPoint("LEFT", self, "LEFT",
-                    6 + (j - 1) * (tabWidth + 8), 0)
+                    rowStart + (j - 1) * (tabWidth + 8), 0)
                 item.button:SetWidth(tabWidth)
             end
         end
