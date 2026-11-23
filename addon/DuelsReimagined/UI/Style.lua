@@ -518,6 +518,9 @@ end
 function Style.Action(parent, caption, variant, palette)
     local footer = variant == "footer"
     local community = variant == "community"
+    -- Art-backed Community buttons still use this one interaction owner,
+    -- but their exact approved image supplies the one visible frame/rim.
+    local communityArt = variant == "community-art"
     local button = CreateFrame("Button", nil, parent)
     button:SetSize(footer and 112 or 204, footer and 32 or 36)
     button:RegisterForClicks("LeftButtonUp")
@@ -532,7 +535,7 @@ function Style.Action(parent, caption, variant, palette)
         })
     elseif footer then
         Style.Plate(button, "hall", { corner=9 })
-    else
+    elseif not communityArt then
         Style.Skin(button, C.button, {
             corner=9, edge=C.gold, shine=0.52, shade=0.42, rim=0.97,
         })
