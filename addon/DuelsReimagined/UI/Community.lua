@@ -67,7 +67,7 @@ local communityTagline = Style.Text(root, "The people shaping Duels Reimagined."
 communityTagline:SetPoint("TOPLEFT", communityHeading, "BOTTOMLEFT", 0, -3)
 
 local scroll = CreateFrame("ScrollFrame", nil, root)
-scroll:SetPoint("TOPLEFT", root, "TOPLEFT", 19, -139)
+scroll:SetPoint("TOPLEFT", root, "TOPLEFT", 19, -131)
 scroll:SetPoint("BOTTOMRIGHT", root, "BOTTOMRIGHT", -22, 16)
 scroll:EnableMouseWheel(true)
 local canvas = CreateFrame("Frame", nil, scroll)
@@ -137,7 +137,7 @@ end
 local hero = CreateFrame("Frame", nil, canvas)
 hero:SetPoint("TOPLEFT", canvas, "TOPLEFT", 4, 0)
 hero:SetPoint("TOPRIGHT", canvas, "TOPRIGHT", -4, 0)
-hero:SetHeight(171)
+hero:SetHeight(158)
 Style.Skin(hero, C.window, { corner=8, edge=C.goldDim,
     smooth=true, rim=0.48 })
 
@@ -199,8 +199,8 @@ Action("idea", "SUGGEST AN IDEA", 105)
 local overviewPieces = {}
 
 local statsPanel = CreateFrame("Frame", nil, canvas)
-statsPanel:SetPoint("TOPLEFT", canvas, "TOPLEFT", 12, -178)
-statsPanel:SetPoint("TOPRIGHT", canvas, "TOPRIGHT", -12, -178)
+statsPanel:SetPoint("TOPLEFT", canvas, "TOPLEFT", 12, -163)
+statsPanel:SetPoint("TOPRIGHT", canvas, "TOPRIGHT", -12, -163)
 statsPanel:SetHeight(58)
 -- The statistic strip is only 58px tall; use short native relief here,
 -- not the 112px fades intended for large card backgrounds.
@@ -263,13 +263,13 @@ FitStats(statsPanel, statsPanel:GetWidth())
 -- continue to exist as the five native tabs and detail lists above.
 local function InfoPanel(left, heading, description, iconIndex)
     local panel = CreateFrame("Frame", nil, canvas)
-    panel:SetHeight(196)
+    panel:SetHeight(203)
     if left then
-        panel:SetPoint("TOPLEFT", canvas, "TOPLEFT", 12, -247)
-        panel:SetPoint("TOPRIGHT", canvas, "TOP", 20, -247)
+        panel:SetPoint("TOPLEFT", canvas, "TOPLEFT", 12, -233)
+        panel:SetPoint("TOPRIGHT", canvas, "TOP", 20, -233)
     else
-        panel:SetPoint("TOPLEFT", canvas, "TOP", 38, -247)
-        panel:SetPoint("TOPRIGHT", canvas, "TOPRIGHT", -12, -247)
+        panel:SetPoint("TOPLEFT", canvas, "TOP", 38, -233)
+        panel:SetPoint("TOPRIGHT", canvas, "TOPRIGHT", -12, -233)
     end
     -- Shared background remains, but the original concept crop is the one
     -- border/text paint owner (avoid two overlapping copper rims).
