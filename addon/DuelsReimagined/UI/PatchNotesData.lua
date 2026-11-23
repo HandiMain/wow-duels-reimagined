@@ -66,4 +66,42 @@ ns.PatchNotesData = {
               symbol = "gear", target = "setting:fontChoice" },
         },
     },
+    -- Fictional archive examples: exercise the compact, growing Versions rail.
+    -- They are explicitly NOT released builds or real changelog evidence.
+    {
+        key = "v0-0-9", id = "demo-patch-v0.0.9-archive",
+        version = "v0.0.9", navTitle = "Early Preview", demo = true,
+        title = "Test Build — Early Preview",
+        date = "Nov 16, 2026",
+        summary = "A fictional preview of an earlier Duels interface.",
+        entries = {
+            { category = "DEMO", title = "Sample interface polishing",
+              description = "An illustrative change for testing the version archive.",
+              symbol = "scroll" },
+        },
+    },
+    {
+        key = "v0-0-8", id = "demo-patch-v0.0.8-archive",
+        version = "v0.0.8", navTitle = "Early Layout", demo = true,
+        title = "Test Build — Early Layout",
+        date = "Nov 15, 2026",
+        summary = "A fictional earlier layout experiment.",
+        entries = {
+            { category = "DEMO", title = "Sample panel refinement",
+              description = "A placeholder demonstrating an older note format.",
+              symbol = "gear" },
+        },
+    },
+    {
+        key = "v0-0-7", id = "demo-patch-v0.0.7-archive",
+        version = "v0.0.7", navTitle = "First Concept", demo = true,
+        title = "Test Build — First Concept",
+        date = "Nov 14, 2026",
+        summary = "A fictional foundation for archive navigation tests.",
+        entries = {
+            { category = "DEMO", title = "Sample concept changes",
+              description = "Demonstration-only notes with no gameplay claims.",
+              symbol = "swords" },
+        },
+    },
 }
