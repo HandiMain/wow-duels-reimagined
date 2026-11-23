@@ -7,7 +7,7 @@ local Header = {}
 ns.Header = Header
 local Tooltips = ns.Tooltips
 
-local iconBase = "Interface\\AddOns\\DuelsReimagined\\Media\\Concept\\Header\\"
+local iconBase = "Interface\\AddOns\\DuelsReimagined\\Media\\Artwork\\Header\\"
 local manualPeek, moving, folded = false, false, false
 local expandedHeight = frame:GetHeight()
 local alphaWhilePeeking = 0.16

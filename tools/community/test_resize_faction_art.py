@@ -1,4 +1,4 @@
-"""Concept 06 Alliance/Horde corner: art integrity and mouse state contracts.
+"""Artwork 06 Alliance/Horde corner: art integrity and mouse state contracts.
 Static tests are NOT live WoW visual/interaction verification.
 """
 from pathlib import Path
@@ -13,12 +13,12 @@ SKIN = ROOT / "Media" / "Skin"
 def source(path):
     return (ROOT / path).read_text(encoding="utf-8")
 
-class Concept06CornerTests(unittest.TestCase):
+class Artwork06CornerTests(unittest.TestCase):
     def test_rgba_base_hover_and_pressed_art(self):
         cases = (
-            ("DuelCorner03Copper.png", "e88b09be81d49eb4046bf9aa41936be2568a8ed5a329255c818c9a22bc939bcc"),
-            ("DuelCorner03Hover.png", "b8be31d80cf2f69119950499e2994a39b0b1373af767dd1a3270446d1f8944e5"),
-            ("DuelCorner03Press.png", "8ce544af9cdc3809757eaa9b13906bc1f94dd65f4ffea705b991c665e2b9e065"),
+            ("DuelResizeCopper.png", "e88b09be81d49eb4046bf9aa41936be2568a8ed5a329255c818c9a22bc939bcc"),
+            ("DuelResizeHover.png", "b8be31d80cf2f69119950499e2994a39b0b1373af767dd1a3270446d1f8944e5"),
+            ("DuelResizePress.png", "8ce544af9cdc3809757eaa9b13906bc1f94dd65f4ffea705b991c665e2b9e065"),
         )
         for name, digest in cases:
             data = (SKIN / name).read_bytes()
@@ -73,8 +73,8 @@ class Concept06CornerTests(unittest.TestCase):
         # from Close to utility (187 vs 64+105) is strictly positive.
         self.assertGreater(64-54,0)
         self.assertGreater(187-(64+105),0)
-        self.assertIn("DuelMinimalGoldTabs.tga",source("UI/Navigation.lua"))
-        self.assertIn("DuelOptionsSoftArt.png",source("UI/Options.lua"))
+        self.assertIn("DuelTabIcons.tga",source("UI/Navigation.lua"))
+        self.assertIn("DuelOptionsBanner.png",source("UI/Options.lua"))
         self.assertFalse((SKIN/"DuelFilledTriangleCorner.png").exists())
         for old in ("DuelFactionCorner06.png","DuelFactionCorner06Hover.png","DuelFactionCorner06Press.png",
                     "DuelFactionCorner06Blended.png","DuelFactionCorner06BlendedHover.png","DuelFactionCorner06BlendedPress.png"):

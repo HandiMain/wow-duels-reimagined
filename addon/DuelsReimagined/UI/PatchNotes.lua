@@ -14,9 +14,9 @@ end
 local PatchNotes = {}
 ns.PatchNotes = PatchNotes
 
-local art = "Interface\\AddOns\\DuelsReimagined\\Media\\Concept\\"
+local art = "Interface\\AddOns\\DuelsReimagined\\Media\\Artwork\\"
 local atlas = art .. "PatchNotesAtlas.tga"
-local heroArtPath = art .. "PatchNotesHeroApproved.png"
+local heroArtPath = art .. "PatchNotesHero.png"
 
 local root = CreateFrame("Frame", nil, Window.content)
 root:SetAllPoints(Window.content)
@@ -106,7 +106,7 @@ local railY = 2
 for index, release in ipairs(releases) do
     local archived = index > 3
     if index == 4 then
-        -- Small gold separator matches the concept archive without placing
+        -- Small gold separator matches the artwork archive without placing
         -- another wide divider over the live release banner.
         local archiveLine = Style.Fill(versionCanvas, C.goldDim, "ARTWORK")
         archiveLine:ClearAllPoints()
@@ -220,7 +220,7 @@ bannerArt:SetPoint("BOTTOMRIGHT", banner, "BOTTOMRIGHT", -10, 10)
 bannerArt:SetTexCoord(28 / 1024, 996 / 1024, 51 / 256, 197 / 256)
 bannerArt:EnableMouse(false)
 if Chrome.Sharp then Chrome.Sharp(bannerArt) end
--- Concept hierarchy: one clean title line and a SINGLE metadata row with
+-- Artwork hierarchy: one clean title line and a SINGLE metadata row with
 -- a gold version badge. All content stays dynamic for future releases.
 local bannerTitle = Style.Text(banner, "", 24, C.pale)
 bannerTitle:SetPoint("TOPLEFT", banner, "TOPLEFT", 246, -19)
@@ -340,11 +340,11 @@ end
 for i=1,maxEntries do rows[i] = NewRow(i) end
 
 -- Two useful, genuinely data-driven bottom panels replace redundant links
--- and hard-coded imaginary release achievements from the concept artwork.
+-- and hard-coded imaginary release achievements from the artwork artwork.
 local highlights = CreateFrame("Frame", nil, canvas)
 Style.Skin(highlights, C.nav, { corner=10, edge=C.goldDim,
     shine=0.11, shade=0.11, rim=0.78 })
--- The concept uses one restrained gold jewel for Highlights, not
+-- The artwork uses one restrained gold jewel for Highlights, not
 -- another crossed-swords badge competing with the main Duel Hall identity.
 local highlightsIcon = highlights:CreateTexture(nil, "ARTWORK")
 highlightsIcon:SetTexture("Interface\\AddOns\\DuelsReimagined\\Media\\Skin\\DuelCornerJewel.tga")
@@ -376,7 +376,7 @@ relatedHint:SetPoint("TOPLEFT", related, "TOPLEFT", 47, -37)
 relatedHint:SetPoint("TOPRIGHT", related, "TOPRIGHT", -11, -37)
 relatedHint:SetHeight(25)
 relatedHint:SetWordWrap(true)
--- Dark gold-lined secondary action as pictured in the approved concept.
+-- Dark gold-lined secondary action as pictured in the approved artwork.
 -- Keep Style.Action as the single owner of hover, press and click behavior.
 local relatedButton = Style.Action(related, "View Settings", "patchnotes", {
     fill=C.nav, edge=C.goldDim, light=C.gold, dark=C.border,
@@ -404,9 +404,9 @@ local function Layout()
     local width = math.max(1, math.min(970, scroll:GetWidth() - 16))
     canvas:SetWidth(width)
     -- On minimum window width, a narrow summary places its description below
-    -- the label. On larger widths, keep the exact concept's single-row summary.
+    -- the label. On larger widths, keep the exact artwork's single-row summary.
     local compact = width < 620
-    -- A shorter window uses the concept's proportions at reduced vertical
+    -- A shorter window uses the artwork's proportions at reduced vertical
     -- density instead of hiding Highlights and Related Settings below the
     -- footer. Wider/taller windows retain their spacious presentation.
     local dense = scroll:GetHeight() < 590

@@ -10,14 +10,14 @@ def src(path):
     return (BASE / path).read_text(encoding="utf-8")
 
 class CompactPageDensityTests(unittest.TestCase):
-    def test_wider_wordmark_extracted_from_approved_concept(self):
+    def test_wider_wordmark_extracted_from_approved_artwork(self):
         w = src("UI/Window.lua")
         for marker in (
             "local brandDrag = CreateFrame",
             "local visualWidth = math.min(330, available)",
             'brandArea:SetPoint("LEFT", header, "LEFT", 14, 0)',
             'Drag(brandDrag)',
-            'DuelExactBrand.png',
+            'DuelBrand.png',
             '-- The approved static identity has ONE paint owner.',
             'brandArea:SetPoint("RIGHT", searchBox, "LEFT", -12, 0)',
             'exactBrand:SetTexCoord(0, 384/512, 25/128, 93/128)',

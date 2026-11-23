@@ -3,7 +3,7 @@ local Style, Motion, Settings, Window = ns.Style, ns.Motion, ns.Settings, ns.Win
 local C, footer, frame = Style.color, Window.footer, Window.frame
 local Footer = {}
 ns.Footer = Footer
-local iconBase = "Interface\\AddOns\\DuelsReimagined\\Media\\Polestar\\"
+local iconBase = "Interface\\AddOns\\DuelsReimagined\\Media\\Controls\\"
 
 local version = Style.Text(footer, "Version Test Build", 11, C.footerMuted)
 version:SetPoint("LEFT", footer, "LEFT", 22, 0)

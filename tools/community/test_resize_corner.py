@@ -1,4 +1,4 @@
-"""Approved copper Concept 03 corner: native graphic and interaction checks.
+"""Approved copper Artwork 03 corner: native graphic and interaction checks.
 
 These tests verify packaged pixels and Lua contracts; only WoW verifies visuals.
 """
@@ -17,9 +17,9 @@ def source(filename):
 class ApprovedCorner03Tests(unittest.TestCase):
     def test_source_extracted_copper_filigree_and_distinct_state_layers(self):
         cases = {
-            "DuelCorner03Copper.png": "e88b09be81d49eb4046bf9aa41936be2568a8ed5a329255c818c9a22bc939bcc",
-            "DuelCorner03Hover.png": "b8be31d80cf2f69119950499e2994a39b0b1373af767dd1a3270446d1f8944e5",
-            "DuelCorner03Press.png": "8ce544af9cdc3809757eaa9b13906bc1f94dd65f4ffea705b991c665e2b9e065",
+            "DuelResizeCopper.png": "e88b09be81d49eb4046bf9aa41936be2568a8ed5a329255c818c9a22bc939bcc",
+            "DuelResizeHover.png": "b8be31d80cf2f69119950499e2994a39b0b1373af767dd1a3270446d1f8944e5",
+            "DuelResizePress.png": "8ce544af9cdc3809757eaa9b13906bc1f94dd65f4ffea705b991c665e2b9e065",
         }
         for name,digest in cases.items():
             b=(SKIN/name).read_bytes()
@@ -51,7 +51,7 @@ class ApprovedCorner03Tests(unittest.TestCase):
     def test_approved_hover_click_glow_and_resize_lifecycle_preserved(self):
         w=source("UI/Window.lua")
         for token in (
-            'DuelCorner03Hover.png','DuelCorner03Press.png',
+            'DuelResizeHover.png','DuelResizePress.png',
             'gripGlow:SetBlendMode("ADD")',
             'gripPress:SetBlendMode("ADD")',
             'Motion.Fade(gripGlow, alpha, duration)',
@@ -73,7 +73,7 @@ class ApprovedCorner03Tests(unittest.TestCase):
                      "DuelFactionCorner06Press.png","DuelFactionCorner06Blended.png",
                      "DuelFactionCorner06BlendedHover.png","DuelFactionCorner06BlendedPress.png"):
             self.assertFalse((SKIN/name).exists(),name)
-        self.assertIn("DuelMinimalGoldTabs.tga",source("UI/Navigation.lua"))
-        self.assertIn("DuelOptionsSoftArt.png",source("UI/Options.lua"))
+        self.assertIn("DuelTabIcons.tga",source("UI/Navigation.lua"))
+        self.assertIn("DuelOptionsBanner.png",source("UI/Options.lua"))
 
 if __name__=="__main__": unittest.main()

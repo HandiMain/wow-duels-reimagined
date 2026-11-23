@@ -131,7 +131,7 @@ function Widgets.ToggleRow(parent, label, description, onToggle, onReset)
     reset:RegisterForClicks("LeftButtonUp")
     local icon = reset:CreateTexture(nil, "ARTWORK")
     icon:SetAllPoints(reset)
-    icon:SetTexture("Interface\\AddOns\\DuelsReimagined\\Media\\Polestar\\reset.tga")
+    icon:SetTexture("Interface\\AddOns\\DuelsReimagined\\Media\\Controls\\reset.tga")
     Chrome.Sharp(icon)
     row.resetButton, row.resetIcon = reset, icon
     reset:Hide()
@@ -162,7 +162,7 @@ function Widgets.ToggleRow(parent, label, description, onToggle, onReset)
     -- Layout changes only the presentation; the toggle remains the same
     -- full-row click target, SavedVariables owner and animation.
     function row:LayoutForWidth(width, compact)
-        -- Polestar-like dense compact rows: title and toggle are always
+        -- other UI addons-like dense compact rows: title and toggle are always
         -- visible, while its full explanation remains available on hover.
         self:SetHeight(compact and 28 or 54)
         self.name:ClearAllPoints()
@@ -180,7 +180,7 @@ function Widgets.ToggleRow(parent, label, description, onToggle, onReset)
 end
  
 
--- One interactive-state owner for all addon buttons, based on Polestar's
+-- One interactive-state owner for all addon buttons, based on other UI addons's
 -- short mouse-depth response. Uses our ONE Motion driver (event-driven only).
 -- Hover/selected layers are owned by the caller; this creates a separate
 -- temporary gold sheen for press/release so selected state never flickers.
@@ -245,7 +245,7 @@ function Widgets.AttachModified(row, anchor, onReset)
     reset:RegisterForClicks("LeftButtonUp")
     local tex = reset:CreateTexture(nil, "ARTWORK")
     tex:SetAllPoints(reset)
-    tex:SetTexture("Interface\\AddOns\\DuelsReimagined\\Media\\Polestar\\reset.tga")
+    tex:SetTexture("Interface\\AddOns\\DuelsReimagined\\Media\\Controls\\reset.tga")
     Chrome.Sharp(tex)
     reset:SetScript("OnClick", function()
         if row.available and onReset then onReset() end
@@ -308,7 +308,7 @@ function Widgets.ChoiceRow(parent, caption, detail, onChoose, onReset, above)
     valueText:SetPoint("RIGHT", control, "RIGHT", -25, 0)
     valueText:SetJustifyH("LEFT")
     local arrow = control:CreateTexture(nil, "ARTWORK")
-    arrow:SetTexture("Interface\\AddOns\\DuelsReimagined\\Media\\Concept\\Header\\FoldDown.png")
+    arrow:SetTexture("Interface\\AddOns\\DuelsReimagined\\Media\\Artwork\\Header\\FoldDown.png")
     arrow:SetSize(17, 17)
     arrow:SetPoint("RIGHT", control, "RIGHT", -7, 0)
     Chrome.Sharp(arrow)
@@ -644,7 +644,7 @@ function Widgets.SliderRow(parent, caption, detail, minVal, maxVal, step, onComm
 end
 
 
--- Polestar-reference scroll behavior, independently implemented for Duels.
+-- other UI addons-reference scroll behavior, independently implemented for Duels.
 -- A thin draggable thumb appears only for overflow; its only OnUpdate exists
 -- during an actual mouse drag and is always cleared on mouse up/hide.
 -- A single reusable component serves regular ScrollFrames and dropdown lists.

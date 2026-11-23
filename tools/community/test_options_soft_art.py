@@ -14,7 +14,7 @@ def source(p):return (ROOT/p).read_text(encoding="utf-8")
 class OptionsSoftArtTests(unittest.TestCase):
     def test_true_alpha_art_without_unwanted_brown_header_fill(self):
         for file, dimensions, sha in (
-            ("DuelOptionsSoftArt.png",(2048,256),"1981b7fc18b5c0e77a5079470524624e2f329fec8a7093e9237279ea5a4755c9"),
+            ("DuelOptionsBanner.png",(2048,256),"1981b7fc18b5c0e77a5079470524624e2f329fec8a7093e9237279ea5a4755c9"),
         ):
             b=(MEDIA/file).read_bytes()
             self.assertEqual(b[:8],bytes((137,80,78,71,13,10,26,10)))
@@ -35,7 +35,7 @@ class OptionsSoftArtTests(unittest.TestCase):
         self.assertIn("function interface:Relayout(width)",s)
 
     def test_filled_triangle_preserves_clickable_grip(self):
-        b=(MEDIA/"DuelCorner03Copper.png").read_bytes()
+        b=(MEDIA/"DuelResizeCopper.png").read_bytes()
         self.assertEqual(struct.unpack_from(">IIBB",b,16),(256,256,8,6))
         self.assertEqual(hashlib.sha256(b).hexdigest(),
              "e88b09be81d49eb4046bf9aa41936be2568a8ed5a329255c818c9a22bc939bcc")
@@ -49,7 +49,7 @@ class OptionsSoftArtTests(unittest.TestCase):
 
     def test_tab_icons_unchanged_and_obsolete_art_absent(self):
         n=source("UI/Navigation.lua")
-        self.assertIn("DuelMinimalGoldTabs.tga",n)
+        self.assertIn("DuelTabIcons.tga",n)
         self.assertIn("glyph:SetSize(28, 28)",n)
         for old in ("DuelOptionsBannerInlays.png","DuelArchitecturalResizeL.png"):
             self.assertFalse((MEDIA/old).exists())

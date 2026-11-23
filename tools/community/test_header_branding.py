@@ -5,15 +5,15 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 ADDON = ROOT / "addon" / "DuelsReimagined"
-ART = ADDON / "Media" / "Concept" / "Landing" / "LandingWordmark.png"
+ART = ADDON / "Media" / "Artwork" / "Landing" / "LandingWordmark.png"
 
 class OptionFiveBrandingTests(unittest.TestCase):
-    def test_concept_wordmark_png_with_alpha(self):
+    def test_artwork_wordmark_png_with_alpha(self):
         data = ART.read_bytes()
         self.assertEqual(data[:8], b"\x89PNG\r\n\x1a\n")
         self.assertEqual(struct.unpack(">II", data[16:24]), (544, 74))
         # RGBA wordmark (PNG color type 6) has real transparent pixels.
-        # The main-window DuelExactBrand asset remains separately protected.
+        # The main-window DuelBrand asset remains separately protected.
         self.assertEqual(data[25], 6)
 
     def test_retired_branding_files_not_shipped(self):
@@ -29,7 +29,7 @@ class OptionFiveBrandingTests(unittest.TestCase):
     def test_native_landing_brand_and_exact_main_header_are_separate(self):
         window = (ADDON / "UI" / "Window.lua").read_text()
         landing = (ADDON / "UI" / "BlizzardSettings.lua").read_text()
-        self.assertIn("DuelExactBrand.png", window)
+        self.assertIn("DuelBrand.png", window)
         self.assertNotIn("Option5HeaderLogo.png", window)
         self.assertNotIn("DuelsReimagined-HeaderLogoFlat.png", window)
         self.assertIn("LandingWordmark.png", landing)

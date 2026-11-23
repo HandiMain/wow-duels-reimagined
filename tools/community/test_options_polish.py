@@ -34,20 +34,20 @@ class ApprovedOptionsPolishTests(unittest.TestCase):
         self.assertIn('Style.ConstrainButtonLabel(sub, text, 46, 10, 10)',n)
 
     def test_simplified_gold_tab_symbols_remain_native_rgba(self):
-        b = (ROOT/"Media/Skin/DuelMinimalGoldTabs.tga").read_bytes()
+        b = (ROOT/"Media/Skin/DuelTabIcons.tga").read_bytes()
         self.assertEqual(b[2],2)
         self.assertEqual((b[16],b[17]),(32,0x28))
         self.assertEqual(struct.unpack_from("<HH",b,12),(128,64))
         self.assertEqual(hashlib.sha256(b).hexdigest(),
                          "6a15481f315ab81a7b20f7b5a594080dc93db4bf057ff3708761ad102e8879dd")
         n=lua("UI/Navigation.lua")
-        self.assertIn('DuelMinimalGoldTabs.tga',n)
+        self.assertIn('DuelTabIcons.tga',n)
         self.assertIn('glyph:SetSize(28, 28)',n)
         self.assertIn('sub:SetScript("OnClick"',n)
 
     def test_forged_corner_preserves_original_single_resize_owner(self):
         w = lua("UI/Window.lua")
-        for marker in ('DuelCorner03Copper.png',
+        for marker in ('DuelResizeCopper.png',
                        'local grip = CreateFrame("Button", nil, frame)',
                        'grip:SetSize(54, 54)',
                        'resizeArt:SetSize(96, 96)',

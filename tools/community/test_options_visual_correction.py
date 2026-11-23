@@ -7,7 +7,7 @@ ROOT=Path(__file__).resolve().parents[2]/"addon"/"DuelsReimagined"
 def source(p):return (ROOT/p).read_text(encoding="utf-8")
 class OptionsVisualCorrectionTests(unittest.TestCase):
     def test_banner_inlays_keep_chrome_on_the_card_frame(self):
-        b=(ROOT/"Media/Skin/DuelOptionsSoftArt.png").read_bytes()
+        b=(ROOT/"Media/Skin/DuelOptionsBanner.png").read_bytes()
         self.assertEqual(b[:8],bytes([137,80,78,71,13,10,26,10]))
         self.assertEqual(struct.unpack_from(">IIBB",b,16),(2048,256,8,6))
         self.assertEqual(hashlib.sha256(b).hexdigest(),
@@ -22,7 +22,7 @@ class OptionsVisualCorrectionTests(unittest.TestCase):
                   "function appearance:Relayout(width)"):
             self.assertIn(s,o)
     def test_legible_gold_symbols_preserve_native_tab_interaction(self):
-        b=(ROOT/"Media/Skin/DuelMinimalGoldTabs.tga").read_bytes()
+        b=(ROOT/"Media/Skin/DuelTabIcons.tga").read_bytes()
         self.assertEqual(struct.unpack_from("<HH",b,12),(128,64))
         self.assertEqual((b[2],b[16],b[17]),(2,32,0x28))
         self.assertEqual(hashlib.sha256(b).hexdigest(),
@@ -38,7 +38,7 @@ class OptionsVisualCorrectionTests(unittest.TestCase):
         self.assertNotIn("frame:SetClipsChildren(true)",w)
         self.assertIn('Style.Plate(rim, "shellCopper"',source("UI/Chrome.lua"))
     def test_sculpted_corner_and_original_drag_reset_owner(self):
-        b=(ROOT/"Media/Skin/DuelCorner03Copper.png").read_bytes()
+        b=(ROOT/"Media/Skin/DuelResizeCopper.png").read_bytes()
         self.assertEqual(struct.unpack_from(">IIBB",b,16),(256,256,8,6))
         self.assertEqual(hashlib.sha256(b).hexdigest(),
             "e88b09be81d49eb4046bf9aa41936be2568a8ed5a329255c818c9a22bc939bcc")

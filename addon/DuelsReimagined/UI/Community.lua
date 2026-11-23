@@ -3,7 +3,7 @@ local _, ns = ...
 -- The Duelist's Circle. One passive view over bundled GitHub-generated data:
 -- zero networking, no guessed achievements, and no duplicate data owners.
 local Window, Style, Chrome = ns.Window, ns.Style, ns.Chrome
-local Widgets, Motion, Search = ns.Widgets, ns.Motion, ns.Search
+local Widgets, Search = ns.Widgets, ns.Search
 local C = Style.color
 local Community = {}
 ns.Community = Community
@@ -113,34 +113,20 @@ scroll:SetScript("OnSizeChanged", function(_, width)
 end)
 scroll:HookScript("OnShow", ClampScroll)
 
--- Approved concept art is extracted from the supplied reference image.
+-- Approved artwork art is extracted from the supplied reference image.
 -- Only static decorative content is baked; dynamic stats and clickable buttons
 -- stay owned by the existing Community/UI and GitHub-credit systems.
-local art = "Interface\\AddOns\\DuelsReimagined\\Media\\Concept\\CommunityFactionMarks.png"
-local allianceArt = "Interface\\AddOns\\DuelsReimagined\\Media\\Concept\\CommunityAllianceLion.png"
-local symbolArt = "Interface\\AddOns\\DuelsReimagined\\Media\\Concept\\CommunityConceptSymbols.png"
-local conceptRoot = "Interface\\AddOns\\DuelsReimagined\\Media\\Concept\\"
-local conceptHero = conceptRoot .. "CommunityConceptHero.png"
-local conceptTitle = conceptRoot .. "CommunityConceptTitle.png"
-local conceptButtons = conceptRoot .. "CommunityConceptButtons.png"
-local conceptHeaders = conceptRoot .. "CommunityConceptHeaders.png"
-local conceptIcons = conceptRoot .. "CommunityConceptIcons.png"
+local mediaRoot = "Interface\\AddOns\\DuelsReimagined\\Media\\Artwork\\"
+local heroImage = mediaRoot .. "CommunityHero.png"
+local titleImage = mediaRoot .. "CommunityTitle.png"
+local buttonImages = mediaRoot .. "CommunityButtons.png"
+local tabIcons = mediaRoot .. "CommunityIcons.png"
 local function ExactSymbol(parent, slot, size)
     local tex = parent:CreateTexture(nil, "ARTWORK")
-    tex:SetTexture(conceptIcons)
+    tex:SetTexture(tabIcons)
     local x = slot % 8
     local y = math.floor(slot / 8)
     tex:SetTexCoord(x / 8, (x + 1) / 8, y / 2, (y + 1) / 2)
-    tex:SetSize(size, size)
-    tex:EnableMouse(false)
-    return Chrome.Sharp(tex)
-end
-local function ConceptSymbol(parent, slot, size)
-    local tex = parent:CreateTexture(nil, "ARTWORK")
-    tex:SetTexture(symbolArt)
-    local x, y = slot % 4, math.floor(slot / 4)
-    tex:SetTexCoord(x / 4 + 0.002, (x + 1) / 4 - 0.002,
-        y / 4 + 0.002, (y + 1) / 4 - 0.002)
     tex:SetSize(size, size)
     tex:EnableMouse(false)
     return Chrome.Sharp(tex)
@@ -158,21 +144,21 @@ Style.Skin(hero, C.window, { corner=8, edge=C.goldDim,
 
 -- Real, user-approved hero banner pixels. The transparent center gives
 -- native title/action hit targets clean ownership without image duplicates.
-local exactHeroArt = hero:CreateTexture(nil, "BACKGROUND", nil, 4)
-exactHeroArt:SetTexture(conceptHero)
-exactHeroArt:SetAllPoints(hero)
-exactHeroArt:SetTexCoord(0, 1, 0, 352 / 512)
-exactHeroArt:EnableMouse(false)
-Chrome.Sharp(exactHeroArt)
+local heroBackdrop = hero:CreateTexture(nil, "BACKGROUND", nil, 4)
+heroBackdrop:SetTexture(heroImage)
+heroBackdrop:SetAllPoints(hero)
+heroBackdrop:SetTexCoord(0, 1, 0, 352 / 512)
+heroBackdrop:EnableMouse(false)
+Chrome.Sharp(heroBackdrop)
 
 -- The title and ornament are static approved branding, never gameplay data.
-local exactTitle = hero:CreateTexture(nil, "ARTWORK", nil, 3)
-exactTitle:SetTexture(conceptTitle)
-exactTitle:SetSize(418, 77)
-exactTitle:SetTexCoord(0, 518 / 1024, 0, 93 / 128)
-exactTitle:SetPoint("TOP", hero, "TOP", -24, -10)
-exactTitle:EnableMouse(false)
-Chrome.Sharp(exactTitle)
+local heroTitle = hero:CreateTexture(nil, "ARTWORK", nil, 3)
+heroTitle:SetTexture(titleImage)
+heroTitle:SetSize(418, 77)
+heroTitle:SetTexCoord(0, 518 / 1024, 0, 93 / 128)
+heroTitle:SetPoint("TOP", hero, "TOP", -24, -10)
+heroTitle:EnableMouse(false)
+Chrome.Sharp(heroTitle)
 
 local function SelectableURL(kind)
     if not ns.Footer or not ns.Footer.ShowCommunityLink then return end
@@ -189,7 +175,7 @@ local function Action(kind, heading, xOffset)
     -- Style.Action still owns click, hover, press, focus and tooltips.
     if btn.label then btn.label:Hide() end
     local artTex = btn:CreateTexture(nil, "ARTWORK", nil, 4)
-    artTex:SetTexture(conceptButtons)
+    artTex:SetTexture(buttonImages)
     artTex:SetAllPoints(btn)
     local x = kind == "bug" and 0 or 512
     -- The approved button frame extends beyond the previous 295x55 crop.
@@ -283,7 +269,7 @@ FitStats(statsPanel, statsPanel:GetWidth())
 -- The screenshot's exact gold lettering, icons, borders and body spacing
 -- are one approved visual texture each. Live, actionable subcategories
 -- continue to exist as the five native tabs and detail lists above.
-local function InfoPanel(left, heading, description, iconIndex)
+local function InfoPanel(left)
     local panel = CreateFrame("Frame", nil, stage)
     panel:SetHeight(203)
     if left then
@@ -293,12 +279,12 @@ local function InfoPanel(left, heading, description, iconIndex)
         panel:SetPoint("TOPLEFT", stage, "TOP", 38, -233)
         panel:SetPoint("TOPRIGHT", stage, "TOPRIGHT", -12, -233)
     end
-    -- Shared background remains, but the original concept crop is the one
+    -- Shared background remains, but the original artwork crop is the one
     -- border/text paint owner (avoid two overlapping copper rims).
     Style.Skin(panel, C.window, { corner=10, edge=C.goldDim,
         smooth=true, rim=0 })
     local artTex = panel:CreateTexture(nil, "ARTWORK", nil, 4)
-    artTex:SetTexture(conceptRoot .. "CommunityConceptCards.png")
+    artTex:SetTexture(mediaRoot .. "CommunityCards.png")
     artTex:SetAllPoints(panel)
     if left then
         artTex:SetTexCoord(0, 633 / 2048, 0, 255 / 512)
@@ -311,10 +297,8 @@ local function InfoPanel(left, heading, description, iconIndex)
     return panel
 end
 
-local creditsPanel = InfoPanel(true, "COMMUNITY CREDITS",
-    "A guide to the community pages.", 0)
-local helpPanel = InfoPanel(false, "HOW TO HELP",
-    "Simple ways to improve Duels Reimagined.", 2)
+local creditsPanel = InfoPanel(true)
+local helpPanel = InfoPanel(false)
 
 -- No Community Tools row: Patch Notes and Options are already available
 -- in the permanent footer. Duplicating those buttons would add no value.

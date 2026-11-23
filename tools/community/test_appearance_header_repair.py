@@ -27,7 +27,7 @@ class AppearanceHeaderRepairTests(unittest.TestCase):
         self.assertEqual(SOURCE.count("header:CreateFontString(nil, \"ARTWORK\", nil, 5)"), 2)
 
     def test_visual_height_and_fallback_are_safe(self):
-        self.assertTrue((BASE / "Media" / "Skin" / "DuelPaletteComplete.tga").is_file())
+        self.assertTrue((BASE / "Media" / "Skin" / "DuelPaletteMarks.tga").is_file())
         self.assertIn('name:SetPoint("TOPLEFT", header, "TOPLEFT", 96, -9)', SOURCE)
         self.assertIn('name:SetSize(290, 35)', SOURCE)
         self.assertIn('sub:SetPoint("TOPLEFT", header, "TOPLEFT", 96, -44)', SOURCE)
@@ -39,7 +39,7 @@ class AppearanceHeaderRepairTests(unittest.TestCase):
         self.assertLess(44 + 16, 72)
 
     def test_complete_palette_image_is_wow_compatible(self):
-        data = (BASE / "Media" / "Skin" / "DuelPaletteComplete.tga").read_bytes()
+        data = (BASE / "Media" / "Skin" / "DuelPaletteMarks.tga").read_bytes()
         self.assertEqual(data[2], 2)  # uncompressed true-color TGA
         self.assertEqual(data[12:16], bytes((64, 0, 64, 0)))
         self.assertEqual(data[16:18], bytes((32, 0x28)))  # BGRA + top-left

@@ -31,13 +31,13 @@ class DividerAndWordmarkTests(unittest.TestCase):
         self.assertIn('if ns.Chrome and ns.Chrome.Refresh then ns.Chrome.Refresh() end',win)
         self.assertNotIn('SetScript("OnUpdate"',chrome)
 
-    def test_new_concept_landing_wordmark_and_main_exact_identity(self):
-        p=BASE/"Media"/"Concept"/"Landing"/"LandingWordmark.png"
+    def test_new_artwork_landing_wordmark_and_main_exact_identity(self):
+        p=BASE/"Media"/"Artwork"/"Landing"/"LandingWordmark.png"
         data=p.read_bytes()
         self.assertEqual(data[:8],b"\x89PNG\r\n\x1a\n")
         self.assertEqual(struct.unpack(">II",data[16:24]),(544,74))
         window=src("UI/Window.lua")
-        self.assertIn('DuelExactBrand.png',window)
+        self.assertIn('DuelBrand.png',window)
         self.assertNotIn('BrandLayer(',window)
         self.assertNotIn('BrandLayer(C.gold,       0.50, 0.75, 3)',window)
         self.assertNotIn('local underline = CreateFrame(',window)

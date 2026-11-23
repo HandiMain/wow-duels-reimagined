@@ -2,7 +2,7 @@ local _, ns = ...
 local Style, Chrome, Motion = ns.Style, ns.Chrome, ns.Motion
 
 -- A native Blizzard Settings launcher, not a second settings window.
--- Concept 04 (approved 2026-11-23): the scenic painting, crest, static
+-- Artwork 04 (approved 2026-11-23): the scenic painting, crest, static
 -- wordmark, rule and two empty plated frames are separately authored
 -- from the approved art. ALL clicks, titles, hover, press and tooltips
 -- are WoW widgets, not part of an interactive screenshot.
@@ -19,7 +19,7 @@ local LANDING_BG = { 12/255, 10/255, 13/255, 1 }
 local LANDING_EDGE = { 125/255, 87/255, 53/255, 1 }
 local LANDING_TEXT = { 240/255, 231/255, 215/255, 1 }
 local BASE_W, BASE_H = 547, 267
-local media = "Interface\\AddOns\\DuelsReimagined\\Media\\Concept\\Landing\\"
+local media = "Interface\\AddOns\\DuelsReimagined\\Media\\Artwork\\Landing\\"
 
 local surface = CreateFrame("Frame", nil, panel)
 surface:SetPoint("TOPLEFT", panel, "TOPLEFT", 12, -12)
@@ -95,7 +95,7 @@ local function SourceImage(filename, x, y, width, height, layer)
 end
 
 -- Actual illustrated sword-and-laurel crest and the split red / ivory
--- DUELS REIMAGINED wordmark from the fourth approved concept.
+-- DUELS REIMAGINED wordmark from the fourth approved artwork.
 SourceImage("LandingCrest.png",    215, 3,   118, 70)
 SourceImage("LandingWordmark.png", 139, 73,  272, 37)
 SourceImage("LandingRule.png",     139, 110, 273, 21)

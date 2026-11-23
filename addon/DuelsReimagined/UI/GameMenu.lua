@@ -229,7 +229,7 @@ local function FindSlot(menu, upper, addons)
 end
 
 -- Some menu addons do NOT participate in Blizzard Layout: they position
--- their own full-size buttons with SetPoint (EllesmereUI and Polestar when
+-- their own full-size buttons with SetPoint (EllesmereUI and other UI addons when
 -- paired with it are examples). Another layout entry in this situation
 -- creates ghost gaps and pushes later buttons over Blizzard's AddOns.
 -- Detect that behavior by frame properties, not by addon name.
@@ -254,7 +254,7 @@ local function HasManualButtons(menu)
 end
 
 -- In manual mode we still need to allocate OUR button's vertical space.
--- Use a separate invisible layout child, as the Polestar/EllesmereUI
+-- Use a separate invisible layout child, as the other UI addons/EllesmereUI
 -- combination does, so the manually positioned button itself is not also
 -- laid out by Blizzard. Place this slot after all existing addon slots.
 local function ManualSlot(menu, upper, addons)

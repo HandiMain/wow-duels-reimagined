@@ -54,8 +54,6 @@ local primaryKeys = { hall = true }
 local railButtons, primaryButtons, subButtons = {}, {}, {}
 local patchDot, patchPulse
 -- The page heading now belongs to Window.content, not the subcategory bar.
-local sectionTitle = Style.Text(Window.nav, "HALL", 1, C.pale)
-sectionTitle:Hide()
 
 local currentSection, currentPage
 local history, backButton = {}, nil
@@ -94,22 +92,6 @@ local function RestoreScroll(sectionIndex, pageIndex)
     end
 end
 
--- Only the navigation owner moves this small selection indicator. The
--- existing per-button hover/selection controls and their hitboxes stay put.
-local movingBar = Style.Fill(Window.nav, C.gold, "OVERLAY")
-movingBar:SetSize(80, 2)
-movingBar:Hide()
-local movingIndex
-local function PlaceBar(_, index)
-    local section = sections[currentSection]
-    local count = section and #section.pages or 1
-    local w = math.max(80, Window.nav:GetWidth() - 12)
-    local tabWidth = math.min(174, (w - (count - 1) * 8) / math.max(1, count))
-    movingBar:ClearAllPoints()
-    movingBar:SetPoint("BOTTOMLEFT", Window.nav, "BOTTOMLEFT",
-        6 + (index - 1) * (tabWidth + 8) + 14, 0)
-    movingBar:SetWidth(math.max(24, tabWidth - 28))
-end
 local sweep = Style.Fill(Window.nav, C.gold, "OVERLAY")
 sweep:SetSize(48, 2)
 sweep:Hide()
@@ -148,7 +130,6 @@ local function Select(sectionIndex, pageIndex, noMotion, repaintOnly, isBack)
         ns.Header.CloseSearch(true)
     end
     local section, page = sections[sectionIndex], sections[sectionIndex].pages[pageIndex]
-    sectionTitle:SetText(string.upper(section.label))
     -- Patch Notes versions live in their own scrollable rail, never in the
     -- horizontal subcategory strip (which would overflow with new releases).
     Window.nav:SetShown(#section.pages > 1 and section.key ~= "patchnotes")
@@ -184,17 +165,6 @@ local function Select(sectionIndex, pageIndex, noMotion, repaintOnly, isBack)
             item.label:SetTextColor(unpack(active and C.tabText or C.text))
         end
     end
-    -- Animate on genuine page changes only, never for theme repaints or
-    -- initial loading. Switching a section snaps the bar into its new list.
-    if changed or not movingIndex then
-        local duration = (not noMotion and priorSection == sectionIndex)
-            and 0.19 or 0
-        Motion.Value(movingBar, movingIndex or pageIndex, pageIndex,
-            duration, PlaceBar)
-        movingIndex = pageIndex
-    end
-    -- Concept has one framed gold divider, not a second moving underline.
-    movingBar:Hide()
     if repaintOnly then return end
     if changed and not noMotion then SweepPage() end
     if ns.Feedback then ns.Feedback.HidePreview() end
@@ -246,17 +216,17 @@ for index, section in ipairs(sections) do
     end
 
     -- Unlike the discarded procedurally painted plaque, this image is
-    -- extracted from the actual approved concept. The button frame remains
+    -- extracted from the actual approved artwork. The button frame remains
     -- responsible for mouse, selection, tooltip and navigation behavior.
     if section.key == "hall" then
         -- Exact Hall plaque is the only paint owner. Never paint a second
         -- rim, bevel, glow or live icon beneath or above its baked artwork.
-        local concept = Style.ConceptImage(button, "hall", "ARTWORK", 2)
-        concept:SetAllPoints(button)
+        local artwork = Style.PlateImage(button, "hall", "ARTWORK", 2)
+        artwork:SetAllPoints(button)
         -- Visible gilded hover using the SAME approved plaque artwork:
         -- an additive highlight, not a replacement frame or new border.
         -- It is separate from the existing press/selection owner.
-        local hallGlow = Style.ConceptImage(button, "hall", "OVERLAY", 6)
+        local hallGlow = Style.PlateImage(button, "hall", "OVERLAY", 6)
         hallGlow:SetAllPoints(button)
         hallGlow:SetBlendMode("ADD")
         hallGlow:SetVertexColor(1, 0.78, 0.48)
@@ -295,7 +265,7 @@ for index, section in ipairs(sections) do
         icon:SetPoint("TOP", button, "TOP", 0, -4)
         label:SetPoint("BOTTOM", button, "BOTTOM", 0, 6)
         label:SetJustifyH("CENTER")
-        -- Static Hall lettering and swords are faithful concept pixels.
+        -- Static Hall lettering and swords are faithful artwork pixels.
         -- Never draw an extra WoW fontstring/glyph over the extracted design.
         if section.key == "hall" then
             icon:Hide()
@@ -368,6 +338,7 @@ for index, section in ipairs(sections) do
     if isPrimary then primaryButtons[#primaryButtons + 1] = item end
 
     local pages = {}
+    if section.key ~= "patchnotes" then
     for pageIndex, page in ipairs(section.pages) do
         local sub = CreateFrame("Button", nil, Window.nav)
         sub:SetSize(174, 35)
@@ -387,7 +358,7 @@ for index, section in ipairs(sections) do
             -- Appearance and a clean window for Interface. No busy medallions.
             -- The actual button, selected and hover states remain unchanged.
             local glyph = sub:CreateTexture(nil, "OVERLAY", nil, 4)
-            glyph:SetTexture("Interface\\AddOns\\DuelsReimagined\\Media\\Skin\\DuelMinimalGoldTabs.tga")
+            glyph:SetTexture("Interface\\AddOns\\DuelsReimagined\\Media\\Skin\\DuelTabIcons.tga")
             glyph:SetSize(28, 28)
             glyph:SetPoint("LEFT", sub, "LEFT", 12, 0)
             if page.key == "options" then
@@ -398,7 +369,7 @@ for index, section in ipairs(sections) do
             Style.ConstrainButtonLabel(sub, text, 46, 10, 10)
             text:SetJustifyH("LEFT")
         elseif section.key == "community" then
-            -- The concept uses a small dedicated gold glyph on EACH tab,
+            -- The artwork uses a small dedicated gold glyph on EACH tab,
             -- not duplicated full-size category preview cards below them.
             -- Source is our existing shared Community art: one icon owner.
             -- These are the approved real gold tab icons, not earlier
@@ -407,7 +378,7 @@ for index, section in ipairs(sections) do
             local slot = icons[pageIndex] or 0
             local x, y = slot % 8, math.floor(slot / 8)
             local glyph = sub:CreateTexture(nil, "ARTWORK", nil, 5)
-            glyph:SetTexture("Interface\\AddOns\\DuelsReimagined\\Media\\Concept\\CommunityConceptIcons.png")
+            glyph:SetTexture("Interface\\AddOns\\DuelsReimagined\\Media\\Artwork\\CommunityIcons.png")
             glyph:SetTexCoord(x / 8, (x + 1) / 8, y / 2, (y + 1) / 2)
             glyph:SetSize(23, 23)
             glyph:SetPoint("LEFT", sub, "LEFT", 8, 0)
@@ -437,6 +408,7 @@ for index, section in ipairs(sections) do
             bar = subBar, label = text, plate = plate, activeAlpha = 0.13
         }
     end
+    end -- Patch Notes uses its own vertical selector; no hidden horizontal buttons.
     subButtons[index] = pages
 end
 
@@ -466,7 +438,6 @@ Window.frame:HookScript("OnHide", function()
     -- Back history is ephemeral presentation state, not SavedVariables.
     for i = #history, 1, -1 do history[i] = nil end
     backButton:Hide()
-    Motion.Stop(movingBar)
     Motion.Stop(sweep, 0)
     sweep:Hide()
 end)
@@ -517,7 +488,6 @@ local function FitSubTabs(self, width)
             end
         end
     end
-    if movingIndex then PlaceBar(nil, movingIndex) end
 end
 Window.nav:SetScript("OnSizeChanged", FitSubTabs)
 FitSubTabs(Window.nav, Window.nav:GetWidth())

@@ -15,19 +15,33 @@ class RuntimeAssetManifestTests(unittest.TestCase):
         # their file extensions do not occur in literal source strings.
         dynamic = {"Close.png", "Eye.png", "FoldUp.png"}
         images = [p for p in media.rglob("*")
-                  if p.is_file() and p.suffix.lower() in (".png", ".tga", ".blp")]
+                  if p.is_file() and p.suffix.lower() in (".png", ".tga", ".blp", ".jpg", ".jpeg")]
         self.assertGreater(len(images), 0)
         for image in images:
             with self.subTest(asset=str(image.relative_to(ADDON))):
                 self.assertTrue(image.name in sources or image.name in dynamic,
                                 "Unreferenced addon image: " + str(image))
 
+    def test_no_old_artwork_or_reused_addon_path_names(self):
+        for item in ADDON.rglob("*"):
+            relative = str(item.relative_to(ADDON)).lower()
+            self.assertNotIn("polestar", relative)
+            self.assertNotIn("artworkconcept", relative)
+            self.assertNotIn("concept", relative)
+        sources = "\\n".join(path.read_text(encoding="utf-8")
+                            for path in ADDON.rglob("*.lua"))
+        for obsolete in ("CommunityFactionMarks.png", "CommunityAllianceLion.png",
+                         "CommunitySymbols.png", "CommunityHeaders.png",
+                         "Media\\\\Polestar\\\\", "Style.ArtworkImage",
+                         "Style.Rule(", "Style.ForgedEdge(", "movingBar"):
+            self.assertNotIn(obsolete, sources)
+
     def test_icon_and_toggle_files_exist(self):
         for name in (
             "Media/Icons/DuelsDRIcon.png",
             "Media/Icons/DuelsNavigationAtlas.png",
             "Media/Skin/NeutralMasks.tga",
-            "Media/Concept/Landing/LandingWordmark.png",
+            "Media/Artwork/Landing/LandingWordmark.png",
             "Media/Textures/ToggleTrack.tga",
             "Media/Textures/ToggleThumb.tga",
             "Media/Textures/SliderThumb.tga",

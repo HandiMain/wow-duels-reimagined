@@ -11,7 +11,7 @@ ROOT = Path(__file__).resolve().parents[2] / "addon" / "DuelsReimagined"
 def read(path):
     return (ROOT / path).read_text(encoding="utf-8")
 
-class BurstFXInteractionPolishTests(unittest.TestCase):
+class InteractionPolishTests(unittest.TestCase):
     def test_feedback_loaded_after_owners_before_consumers(self):
         toc = read("DuelsReimagined.toc")
         for before, after in [

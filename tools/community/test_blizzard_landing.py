@@ -1,4 +1,4 @@
-"""Approved Concept 04: source-derived art, native buttons, safe Blizzard handoff."""
+"""Approved Artwork 04: source-derived art, native buttons, safe Blizzard handoff."""
 from pathlib import Path
 import re
 import struct
@@ -31,9 +31,9 @@ class BlizzardLandingTests(unittest.TestCase):
         self.assertNotIn("DuelsReimaginedDB", s)
         self.assertNotIn("v0.9.2", s)
 
-    def test_exact_concept_art_is_separate_from_input(self):
+    def test_exact_artwork_art_is_separate_from_input(self):
         s = read("UI/BlizzardSettings.lua")
-        base = ADDON / "Media" / "Concept" / "Landing"
+        base = ADDON / "Media" / "Artwork" / "Landing"
         art = [
             ("LandingBattlefield.jpg", "jpeg"),
             ("LandingCrest.png", "png"),
@@ -54,7 +54,7 @@ class BlizzardLandingTests(unittest.TestCase):
                     self.assertGreater(h, 32)
                 else:
                     self.assertTrue(data.startswith(b"\xff\xd8"))
-        self.assertIn('media = "Interface\\\\AddOns\\\\DuelsReimagined\\\\Media\\\\Concept\\\\Landing\\\\"', s)
+        self.assertIn('media = "Interface\\\\AddOns\\\\DuelsReimagined\\\\Media\\\\Artwork\\\\Landing\\\\"', s)
         self.assertIn("BASE_W, BASE_H = 547, 267", s)
         self.assertIn('SourceImage("LandingCrest.png",    215, 3,   118, 70)', s)
         self.assertIn('SourceImage("LandingWordmark.png", 139, 73,  272, 37)', s)

@@ -59,7 +59,7 @@ class ThemeRedesignTests(unittest.TestCase):
         w, chrome, style = (src(p) for p in
             ("UI/Window.lua", "UI/Chrome.lua", "UI/Style.lua"))
         for token in ('local brandDrag = CreateFrame', 'Drag(brandDrag)',
-                      'DuelExactBrand.png',
+                      'DuelBrand.png',
                       'exactBrand:SetTexCoord(0, 384/512, 25/128, 93/128)'):
             self.assertIn(token, w)
         self.assertIn('Style.Plate(rim, "shellCopper"', chrome)

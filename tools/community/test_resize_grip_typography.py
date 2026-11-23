@@ -11,7 +11,7 @@ def source(path):
 class GripTypographyTests(unittest.TestCase):
     def test_forged_corner_is_transparent_native_png(self):
         import hashlib
-        path = BASE / "Media" / "Skin" / "DuelCorner03Copper.png"
+        path = BASE / "Media" / "Skin" / "DuelResizeCopper.png"
         data = path.read_bytes()
         self.assertEqual(data[:8], bytes((137,80,78,71,13,10,26,10)))
         self.assertEqual(struct.unpack_from(">IIBB",data,16), (256,256,8,6))
@@ -24,7 +24,7 @@ class GripTypographyTests(unittest.TestCase):
                        'resizeArt:EnableMouse(false)',
                        'forgedCorner:SetTexture(CORNER_ART)',
                        'grip:SetSize(54, 54)',
-                       'DuelCorner03Copper.png',
+                       'DuelResizeCopper.png',
                        'gripGlow:SetBlendMode("ADD")',
                        'resizeArt:SetShown(on and true or false)'):
             self.assertIn(marker,win)

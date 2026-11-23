@@ -12,7 +12,7 @@ def lua(rel):
 
 class CopperChromeTests(unittest.TestCase):
     def test_frame_is_a_real_rgba_texture_not_a_screenshot(self):
-        data = (ROOT / "Media/Skin/DuelCopperRim.png").read_bytes()
+        data = (ROOT / "Media/Skin/DuelFrameRim.png").read_bytes()
         self.assertEqual(data[:8], bytes([137,80,78,71,13,10,26,10]))
         w,h,depth,color = struct.unpack(">IIBB", data[16:26])
         self.assertEqual((w,h,depth,color), (512,512,8,6))
@@ -21,9 +21,9 @@ class CopperChromeTests(unittest.TestCase):
     def test_one_border_owner_and_no_floating_corner_jewels(self):
         st,ch,wi = (lua(p) for p in ("UI/Style.lua","UI/Chrome.lua",
                                     "UI/Window.lua"))
-        self.assertIn('shellCopper = { path=PLATE_ROOT .. "DuelCopperRim.png"',st)
+        self.assertIn('shellCopper = { path=PLATE_ROOT .. "DuelFrameRim.png"',st)
         self.assertIn('Style.Plate(rim, "shellCopper"',ch)
-        self.assertNotIn('Style.ConceptImage(rim, "corner"',ch)
+        self.assertNotIn('Style.PlateImage(rim, "corner"',ch)
         self.assertNotIn('GlowSeam(',ch)
         self.assertIn('corner=12, edge=C.window, shine=0.07, shade=0.11, rim=0',wi)
         self.assertIn('Window.chromeSeams = Chrome.Shell',wi)

@@ -86,108 +86,29 @@ class CommunityUITests(unittest.TestCase):
         self.assertNotIn("328", community)
         self.assertNotIn('item.value:SetText("96")', community)
 
-    def test_faction_texture_truecolor_and_power_of_two(self):
-        png = ADDON / "Media" / "Concept" / "CommunityFactionMarks.png"
-        data = png.read_bytes()
-        self.assertEqual(data[:8], b"\x89PNG\r\n\x1a\n")
-        self.assertEqual(data[12:16], b"IHDR")
-        width, height = struct.unpack(">II", data[16:24])
-        self.assertEqual((width, height), (128, 64))
-        self.assertEqual(data[25], 6, "WoW texture must be truecolor RGBA")
+    def test_runtime_hero_art_is_rgba_and_not_old_badges(self):
         community = content("UI/Community.lua")
-        # The previous tiny/client-dependent badges are preserved as
-        # historical assets, but not drawn over approved reference artwork.
-        for name, dimensions in (
-            ("CommunityConceptHero.png", (2048, 512)),
-            ("CommunityConceptTitle.png", (1024, 128)),
-            ("CommunityConceptButtons.png", (1024, 128)),
-            ("CommunityConceptIcons.png", (512, 128)),
-            ("CommunityConceptHeaders.png", (1024, 128)),
-            ("CommunityConceptCards.png", (2048, 512)),
+        assets = ADDON / "Media" / "Artwork"
+        for filename, dimensions in (
+            ("CommunityHero.png", (2048, 512)),
+            ("CommunityTitle.png", (1024, 128)),
+            ("CommunityButtons.png", (1024, 128)),
+            ("CommunityIcons.png", (512, 128)),
+            ("CommunityCards.png", (2048, 512)),
         ):
-            image = (ADDON / "Media" / "Concept" / name).read_bytes()
-            self.assertEqual(image[:8], b"\x89PNG\r\n\x1a\n")
-            self.assertEqual(struct.unpack(">II", image[16:24]), dimensions)
-            self.assertEqual(image[25], 6, name + ": RGBA source required")
-        for token in ("conceptHero", "conceptTitle", "conceptButtons",
-                      "conceptHeaders", "conceptIcons"):
-            self.assertIn(token, community)
-        self.assertNotIn("local function FactionMark(left)", community)
-        self.assertNotIn("PvPQueueBackgroundAlliance", community)
-
-    def test_concept_assets_have_partial_alpha_and_correct_sources(self):
-        # Explicitly reject the previous flat color squares. The approved
-        # concept textures must retain soft-edged transparent silhouettes.
-        import zlib
-        for filename, dims in (
-            ("CommunityFactionMarks.png", (128, 64)),
-            ("CommunityConceptSymbols.png", (128, 128)),
-        ):
-            raw = (ADDON / "Media" / "Concept" / filename).read_bytes()
-            self.assertEqual(struct.unpack(">II", raw[16:24]), dims)
-            self.assertEqual(raw[25], 6, "Use truecolor RGBA, not palette PNG")
-            pos = 8
-            chunks = []
-            while pos < len(raw):
-                size = struct.unpack(">I", raw[pos:pos+4])[0]
-                kind = raw[pos+4:pos+8]
-                if kind == b"IDAT":
-                    chunks.append(raw[pos+8:pos+8+size])
-                pos += 12 + size
-                if kind == b"IEND":
-                    break
-            packed = zlib.decompress(b"".join(chunks))
-            width, height = dims
-            previous = bytearray(width * 4)
-            offset = 0
-            soft_pixels = 0
-            for _ in range(height):
-                mode = packed[offset]
-                offset += 1
-                line = bytearray(packed[offset:offset+width*4])
-                offset += width*4
-                for x in range(len(line)):
-                    left = line[x-4] if x >= 4 else 0
-                    up = previous[x]
-                    up_left = previous[x-4] if x >= 4 else 0
-                    if mode == 1:
-                        predictor = left
-                    elif mode == 2:
-                        predictor = up
-                    elif mode == 3:
-                        predictor = (left+up)//2
-                    elif mode == 4:
-                        p = left+up-up_left
-                        distances = (abs(p-left), abs(p-up), abs(p-up_left))
-                        predictor = (left, up, up_left)[distances.index(min(distances))]
-                    else:
-                        self.assertEqual(mode, 0)
-                        predictor = 0
-                    line[x] = (line[x] + predictor) & 255
-                soft_pixels += sum(0 < line[i] < 255 for i in range(3, len(line), 4))
-                previous = line
-            self.assertGreater(soft_pixels, 100,
-                "Source-derived artwork needs faded/transparent shapes, not flat colored squares")
-        community = content("UI/Community.lua")
-        self.assertIn("exactHeroArt:SetTexCoord(0, 1, 0, 352 / 512)", community)
-        self.assertIn("exactTitle:SetTexCoord(0, 518 / 1024, 0, 93 / 128)", community)
-        self.assertIn("CommunityConceptSymbols.png", community)
-
-    def test_alliance_lion_detail_and_horde_bytes_unchanged(self):
-        import hashlib
-        path = ADDON / "Media" / "Concept"
-        old = (path / "CommunityFactionMarks.png").read_bytes()
-        self.assertEqual(hashlib.sha256(old).hexdigest(),
-            "ffb1518a5a4b4974d199067ab6961518b862db98159c143ab6a472c68785adac",
-            "The approved Horde artwork must remain byte-for-byte unchanged")
-        lion = (path / "CommunityAllianceLion.png").read_bytes()
-        self.assertEqual(lion[:8], bytes((137, 80, 78, 71, 13, 10, 26, 10)))
-        self.assertEqual(struct.unpack(">II", lion[16:24]), (128, 128))
-        self.assertEqual(lion[24], 8)
-        self.assertEqual(lion[25], 6)
-        self.assertGreater(len(lion), 5000, "Refuse a flat placeholder texture")
-        community = content("UI/Community.lua")
-        self.assertIn("CommunityAllianceLion.png", community)
+            with self.subTest(asset=filename):
+                raw = (assets / filename).read_bytes()
+                self.assertEqual(raw[:8], b"\\x89PNG\\r\\n\\x1a\\n")
+                self.assertEqual(struct.unpack(">II", raw[16:24]), dimensions)
+                self.assertEqual(raw[25], 6, filename + ": truecolor RGBA required")
+                self.assertIn(filename, community if filename != "CommunityIcons.png" else
+                              community + content("UI/Navigation.lua"))
+        for removed in ("CommunityFactionMarks.png", "CommunityAllianceLion.png",
+                        "CommunitySymbols.png", "CommunityHeaders.png"):
+            self.assertFalse((assets / removed).exists(), removed)
+            self.assertNotIn(removed, community)
+        self.assertIn("heroBackdrop:SetTexCoord(0, 1, 0, 352 / 512)", community)
+        self.assertIn("heroTitle:SetTexCoord(0, 518 / 1024, 0, 93 / 128)", community)
 
     def test_circle_has_one_stats_bar_and_two_information_panels(self):
         community = content("UI/Community.lua")
@@ -196,8 +117,8 @@ class CommunityUITests(unittest.TestCase):
         self.assertIn('shine=0.09, shade=0.08, rim=0.96', community)
         self.assertIn('Style.Skin(hero, C.window', community)
         self.assertIn('smooth=true, rim=0', community)
-        self.assertIn('local creditsPanel = InfoPanel(true, "COMMUNITY CREDITS"', community)
-        self.assertIn('local helpPanel = InfoPanel(false, "HOW TO HELP"', community)
+        self.assertIn("local creditsPanel = InfoPanel(true)", community)
+        self.assertIn("local helpPanel = InfoPanel(false)", community)
         self.assertNotIn('"COMMUNITY TOOLS", 16', community)
         self.assertNotIn('UtilityAction(', community)
         self.assertIn('canvas:SetHeight(height)', community)
@@ -209,8 +130,8 @@ class CommunityUITests(unittest.TestCase):
         self.assertIn('stage:SetWidth(width)', community)
         self.assertIn('local communityHeading = Style.Text(root, "Community"', community)
         self.assertIn('Style.Skin(hero, C.window', community)
-        self.assertIn('exactTitle:SetTexture(conceptTitle)', community)
-        self.assertIn('artTex:SetTexture(conceptRoot .. "CommunityConceptCards.png")', community)
+        self.assertIn('heroTitle:SetTexture(titleImage)', community)
+        self.assertIn('artTex:SetTexture(mediaRoot .. "CommunityCards.png")', community)
         self.assertIn('hero:Show()', community)
         self.assertNotIn('hero:SetShown(overview)', community)
         self.assertIn('bugAction:SetShown(overview)', community)
@@ -220,7 +141,7 @@ class CommunityUITests(unittest.TestCase):
         self.assertIn('local ideaAction = Action("idea"', community)
         self.assertIn('artTex:SetTexCoord(0, 633 / 2048, 0, 255 / 512)', community)
         self.assertIn('artTex:SetTexCoord(768 / 2048, 1362 / 2048, 0, 255 / 512)', community)
-        self.assertIn('artTex:SetTexture(conceptButtons)', community)
+        self.assertIn('artTex:SetTexture(buttonImages)', community)
         self.assertIn('for _, item in ipairs(overviewPieces) do item:SetShown(overview) end', community)
         self.assertNotIn('PreviewCard(', community)
         self.assertNotIn('SetScript("OnUpdate"', community)

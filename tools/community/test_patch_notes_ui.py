@@ -43,13 +43,13 @@ class PatchNotesUITests(unittest.TestCase):
         for name, expected in (
             ("PatchNotesAtlas.tga", (256, 256)),
         ):
-            blob = (ADDON / "Media" / "Concept" / name).read_bytes()
+            blob = (ADDON / "Media" / "Artwork" / name).read_bytes()
             self.assertEqual(blob[2], 2)  # uncompressed true-color
             self.assertEqual(struct.unpack_from("<HH", blob, 12), expected)
             self.assertEqual(blob[16], 32)  # BGRA with alpha
             self.assertEqual(blob[17], 0x28)  # upper-left origin, 8-bit alpha
             self.assertEqual(len(blob), 18 + expected[0] * expected[1] * 4)
-        hero = (ADDON / "Media" / "Concept" / "PatchNotesHeroApproved.png").read_bytes()
+        hero = (ADDON / "Media" / "Artwork" / "PatchNotesHero.png").read_bytes()
         self.assertEqual(hero[:8], b"\x89PNG\r\n\x1a\n")
         self.assertEqual(struct.unpack_from(">II", hero, 16), (1024, 256))
         self.assertEqual(hero[25], 6)  # RGBA source, no baked release text
@@ -57,7 +57,7 @@ class PatchNotesUITests(unittest.TestCase):
             ("PatchNotesVersionSelected.png", (256, 128)),
             ("PatchNotesVersionRing.png", (64, 64)),
         ):
-            blob = (ADDON / "Media" / "Concept" / name).read_bytes()
+            blob = (ADDON / "Media" / "Artwork" / name).read_bytes()
             self.assertEqual(blob[:8], b"\x89PNG\r\n\x1a\n")
             self.assertEqual(struct.unpack_from(">II", blob, 16), dimensions)
             self.assertEqual(blob[25], 6)

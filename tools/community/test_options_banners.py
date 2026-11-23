@@ -10,7 +10,7 @@ import unittest
 import zlib
 
 ROOT = Path(__file__).resolve().parents[2] / "addon" / "DuelsReimagined"
-ART = ROOT / "Media" / "Skin" / "DuelOptionsSoftArt.png"
+ART = ROOT / "Media" / "Skin" / "DuelOptionsBanner.png"
 OPTIONS = ROOT / "UI" / "Options.lua"
 
 class ApprovedOptionsBannersTests(unittest.TestCase):
@@ -36,7 +36,7 @@ class ApprovedOptionsBannersTests(unittest.TestCase):
 
     def test_original_atlas_kept_and_appearance_only_text_repair(self):
         src = OPTIONS.read_text(encoding="utf-8")
-        self.assertIn("DuelOptionsSoftArt.png",src)
+        self.assertIn("DuelOptionsBanner.png",src)
         self.assertNotIn("DuelBannerAmbient.png",src)
         self.assertNotIn("local center = Slice(",src)
         self.assertNotIn("DuelOptionsCategoryArt.png",src)
@@ -45,7 +45,7 @@ class ApprovedOptionsBannersTests(unittest.TestCase):
         self.assertNotIn('local detail = Style.Text(header',src)
         self.assertEqual(src.count('Section('),7)
         self.assertIn('local isAppearance = key == "appearance"',src)
-        self.assertIn('DuelPaletteComplete.tga',src)
+        self.assertIn('DuelPaletteMarks.tga',src)
         self.assertIn('motifPalette:SetTexture(COMPLETE_PALETTE)',src)
         self.assertIn('name:SetText(title)',src)
         self.assertIn('sub:SetText("FONT MATCHING & VISUAL IDENTITY")',src)

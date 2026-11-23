@@ -62,8 +62,8 @@ end
 -- cardBody 9-slice's upper edge. Card() masks only its interior inset while
 -- leaving the perimeter texture and its corners intact; no separate banner
 -- backdrop or stretched center slice is needed.
-local BANNER_ART = "Interface\\AddOns\\DuelsReimagined\\Media\\Skin\\DuelOptionsSoftArt.png"
-local COMPLETE_PALETTE = "Interface\\AddOns\\DuelsReimagined\\Media\\Skin\\DuelPaletteComplete.tga"
+local BANNER_ART = "Interface\\AddOns\\DuelsReimagined\\Media\\Skin\\DuelOptionsBanner.png"
+local COMPLETE_PALETTE = "Interface\\AddOns\\DuelsReimagined\\Media\\Skin\\DuelPaletteMarks.tga"
 local BANNER_ATLAS_W, BANNER_ATLAS_H = 2048, 256
 local BANNER_CELL_W, BANNER_CELL_H = 640, 80
 local BANNER_LEFT, BANNER_RIGHT = 438, 160
@@ -296,7 +296,7 @@ local function RegisterOption(key, name, detail, pageKey, widget)
                     Motion.Fade(widget.hover, 0, 0.72)
                 end
             end
-            -- BurstFX's 2-pulse destination outline: it follows the same
+            -- our earlier addon's 2-pulse destination outline: it follows the same
             -- real widget/search target and cancels the previous pulse.
             if widget and ns.Feedback then ns.Feedback.PulseTarget(widget) end
         end)
@@ -366,7 +366,7 @@ MarkPosition(fontOutline, typographyCard, -202)
 RegisterOption("fontOutline", "Text outline",
     "Choose default, none, outline or thick outline", "interface", fontOutline)
 
--- BurstFX access behavior: one shared owner controls minimap and widget.
+-- our earlier addon access behavior: one shared owner controls minimap and widget.
 local accessModes = {
     { key = "minimap", label = "Minimap" },
     { key = "widget", label = "Widget" },
@@ -451,7 +451,7 @@ MarkPosition(resetAccess, accessCard, -332)
 -- section card; change the number of CARDS per row, never the settings order
 -- inside a card. At compact widths stack complete cards. At wider widths,
 -- two Interface cards fit side by side; Appearance's lone card stays full width.
--- Polestar's section-height measurement informed this approach; no source
+-- other UI addons's section-height measurement informed this approach; no source
 -- copied, and all Settings/Search/scroll/tooltip owners remain unchanged.
 local CARD_BREAKPOINT = 720
 local CARD_GAP, SECTION_GAP, ROW_GAP = 14, 8, 1
@@ -473,7 +473,7 @@ local function LayoutPage(page, groups, width)
     local usable = math.max(1, cardWidth - 40)
     local sectionY, tallest = 0, 0
     local isAppearance = page == appearance
-    -- Native, concept-extracted banners follow the same compact/stacked grid.
+    -- Native, artwork-extracted banners follow the same compact/stacked grid.
     local rowGap = largeText and 4 or (isAppearance and 4 or ROW_GAP)
 
     for index, group in ipairs(groups) do

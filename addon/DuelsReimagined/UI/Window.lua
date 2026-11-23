@@ -34,7 +34,7 @@ local interior = CreateFrame("Frame", nil, frame)
 interior:SetPoint("TOPLEFT", frame, "TOPLEFT", inset, -inset)
 interior:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -inset, inset)
 Style.Fill(interior, C.window)
--- Polestar-style optional frame clipping: interior backgrounds and page
+-- native-style optional frame clipping: interior backgrounds and page
 -- canvases must stay within the real metallic frame, not its outside corners.
 if interior.SetClipsChildren then interior:SetClipsChildren(true) end
 Window.frame = frame
@@ -214,7 +214,7 @@ local brandDrag = CreateFrame("Frame", nil, brandArea)
 brandDrag:SetAllPoints(brandArea)
 Drag(brandDrag)
 local exactBrand = brandArea:CreateTexture(nil, "ARTWORK", nil, 3)
-exactBrand:SetTexture("Interface\\AddOns\\DuelsReimagined\\Media\\Skin\\DuelExactBrand.png")
+exactBrand:SetTexture("Interface\\AddOns\\DuelsReimagined\\Media\\Skin\\DuelBrand.png")
 exactBrand:SetTexCoord(0, 384/512, 25/128, 93/128)
 exactBrand:SetPoint("LEFT", brandArea, "LEFT", 2, 0)
 if exactBrand.SetSnapToPixelGrid then exactBrand:SetSnapToPixelGrid(false) end
@@ -293,7 +293,7 @@ scaleReset:SetPoint("RIGHT", scaleDot, "LEFT", -2, 0)
 scaleReset:RegisterForClicks("LeftButtonUp")
 local scaleResetIcon = scaleReset:CreateTexture(nil, "ARTWORK")
 scaleResetIcon:SetAllPoints(scaleReset)
-scaleResetIcon:SetTexture("Interface\\AddOns\\DuelsReimagined\\Media\\Polestar\\reset.tga")
+scaleResetIcon:SetTexture("Interface\\AddOns\\DuelsReimagined\\Media\\Controls\\reset.tga")
 Chrome.Sharp(scaleResetIcon)
 scaleReset:SetScript("OnClick", function()
     Settings.Reset("menuScale")
@@ -451,7 +451,7 @@ end
 Window.ApplyScale(Settings.Get("menuScale") or 1)
 
 -- One resize owner: user-approved copper filigree Corner 03 (round jewel).
--- Exact ornament extracted from concept 03 with transparent, feathered alpha:
+-- Exact ornament extracted from artwork 03 with transparent, feathered alpha:
 -- the established Chrome.Shell (+20) alone draws right/bottom border lines.
 -- This art remains at +18, beneath the rim, and is limited to the corner;
 -- it never overlays footer Close. Hover and press masks use the same source
@@ -462,9 +462,9 @@ resizeArt:SetSize(96, 96)
 resizeArt:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -2, 2)
 resizeArt:SetFrameLevel(frame:GetFrameLevel() + 18)
 resizeArt:EnableMouse(false)
-local CORNER_ART = "Interface\\AddOns\\DuelsReimagined\\Media\\Skin\\DuelCorner03Copper.png"
-local CORNER_HOVER = "Interface\\AddOns\\DuelsReimagined\\Media\\Skin\\DuelCorner03Hover.png"
-local CORNER_PRESS = "Interface\\AddOns\\DuelsReimagined\\Media\\Skin\\DuelCorner03Press.png"
+local CORNER_ART = "Interface\\AddOns\\DuelsReimagined\\Media\\Skin\\DuelResizeCopper.png"
+local CORNER_HOVER = "Interface\\AddOns\\DuelsReimagined\\Media\\Skin\\DuelResizeHover.png"
+local CORNER_PRESS = "Interface\\AddOns\\DuelsReimagined\\Media\\Skin\\DuelResizePress.png"
 local forgedCorner = resizeArt:CreateTexture(nil, "ARTWORK", nil, 2)
 forgedCorner:SetTexture(CORNER_ART)
 forgedCorner:SetAllPoints(resizeArt)
@@ -566,7 +566,6 @@ function Window.SetSizingEnabled(on)
     frame:SetResizable(on and true or false)
     grip:SetShown(on and true or false)
     resizeArt:SetShown(on and true or false)
-    if Chrome.SetResizeCorner then Chrome.SetResizeCorner(on) end
 end
 local close = Style.Action(footer, "Close", "footer")
 close:SetSize(105, 30)
@@ -591,7 +590,7 @@ local subtitle = Style.Text(content, "Your dueling journey starts here.", 13, C.
 subtitle:SetPoint("TOPLEFT", title, "BOTTOMLEFT", 0, -3)
 
 local watermark = content:CreateTexture(nil, "BORDER")
-watermark:SetTexture("Interface\\AddOns\\DuelsReimagined\\Media\\Concept\\Watermark.png")
+watermark:SetTexture("Interface\\AddOns\\DuelsReimagined\\Media\\Artwork\\Watermark.png")
 watermark:SetSize(214, 196)
 watermark:SetPoint("CENTER", content, "CENTER", 0, -12)
 -- Trim uneven transparent padding without stretching the emblem.

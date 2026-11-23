@@ -160,7 +160,7 @@ class ResponsiveSettingsTests(unittest.TestCase):
 
     def test_main_header_themed_and_landing_art_fixed_colors(self):
         win, land = read("UI/Window.lua"), read("UI/BlizzardSettings.lua")
-        self.assertIn("DuelExactBrand.png", win)
+        self.assertIn("DuelBrand.png", win)
         self.assertNotIn("BrandLayer(", win)
         self.assertIn("LandingWordmark.png", land)
         self.assertIn('SourceImage("LandingCrest.png"', land)

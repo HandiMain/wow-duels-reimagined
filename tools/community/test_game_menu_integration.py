@@ -187,7 +187,7 @@ class DuelsEscapeMenuTests(unittest.TestCase):
                           'brandLogo.CreateMaskTexture'):
             self.assertNotIn(forbidden, win)
         self.assertIn('Drag(brandDrag)', win)
-        self.assertIn('DuelExactBrand.png', win)
+        self.assertIn('DuelBrand.png', win)
         self.assertNotIn('BrandLayer(', win)
         self.assertIn('function Window.PlaceBrandBefore(searchBox)', win)
 

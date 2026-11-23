@@ -1,6 +1,6 @@
 local _, ns = ...
 
--- Adapted from Handi's BurstFX minimap/access-widget architecture.
+-- Adapted from Handi's previous addon minimap/access-widget architecture.
 -- ONE owner for both entry points; saved values live only in Core/Settings.
 -- No quick-actions menus or Patch Notes page navigation. The only new
 -- notification is a brief visual-only unread update ring, with no gameplay.
@@ -92,7 +92,7 @@ local function BuildFace(button)
     highlight:SetVertexColor(1, 0.77, 0.52)
     highlight:SetAlpha(0.02)
 
-    -- Reuse BurstFX's masked one-shot sweep when masks are supported.
+    -- Reuse earlier project's masked one-shot sweep when masks are supported.
     local sweep = face:CreateTexture(nil, "OVERLAY")
     sweep:SetColorTexture(1, 0.89, 0.70, 1)
     sweep:SetSize(7, 42)
@@ -258,7 +258,7 @@ local function ConnectClick(button, isWidget)
     end)
 end
 
--- Independent minimap icon (Narcissus/BurstFX): UIParent owns the
+-- Independent minimap icon (Narcissus/previous addon): UIParent owns the
 -- frame and Minimap only anchors its position. EllesmereUI collects
 -- direct Minimap children and cannot sweep this button into its flyout.
 miniButton = CreateFrame("Button", "DuelsReimaginedMinimapButton", UIParent)
@@ -473,7 +473,7 @@ function Access.GetRuntimeState()
 end
 
 -- Applies only on login after SavedVariables load. No unsupported runtime
--- unregister; toggling this preference requires Reload UI (BurstFX pattern).
+-- unregister; toggling this preference requires Reload UI (previous addon pattern).
 Settings.RegisterReloadRequired("showInCompartment")
 local function RegisterCompartment()
     if compartmentRegistered or not Settings.Get("showInCompartment") or

@@ -54,7 +54,7 @@ class CompactDefaultWindowTests(unittest.TestCase):
         window = source("UI/Window.lua")
         landing = source("UI/BlizzardSettings.lua")
         self.assertIn("local visualWidth = math.min(330, available)", window)
-        self.assertIn("DuelExactBrand.png", window)
+        self.assertIn("DuelBrand.png", window)
         self.assertIn("brandArea:SetPoint(\"RIGHT\", searchBox,", window)
         self.assertIn("LandingWordmark.png", landing)
         self.assertNotIn("Option5HeaderLogo.png", landing)

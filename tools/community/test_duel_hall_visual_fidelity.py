@@ -1,7 +1,7 @@
 """Screenshot-driven visual contract checks for the Duel Hall WoW UI.
 
 These are structural tests. They cannot prove the pixels rendered inside WoW.
-The reference is the user's approved 1536x1024 concept and 1119x700
+The reference is the user's approved 1536x1024 artwork and 1119x700
 in-game comparison from the 2026-11-21 review.
 """
 from pathlib import Path
@@ -15,7 +15,7 @@ class VisualFidelityTests(unittest.TestCase):
     def test_header_is_still_compact_with_full_native_controls(self):
         w, h = lua("UI/Window.lua"), lua("UI/Header.lua")
         for token in ('header:SetHeight(72)', 'rail:SetWidth(226)',
-                      'footer:SetHeight(50)', 'DuelExactBrand.png',
+                      'footer:SetHeight(50)', 'DuelBrand.png',
                       'Drag(brandDrag)', 'local brandArea = CreateFrame',
                       'Style.Text(content, "Welcome to the Hall", 27, C.pale, nil, "display")'):
             self.assertIn(token, w)
@@ -28,13 +28,13 @@ class VisualFidelityTests(unittest.TestCase):
         n = lua("UI/Navigation.lua")
         self.assertIn('local HALL_BUTTON_WIDTH = 205', n)
         self.assertIn('button:SetSize(HALL_BUTTON_WIDTH, 84)', n)
-        self.assertIn('Style.ConceptImage(button, "hall", "ARTWORK", 2)', n)
+        self.assertIn('Style.PlateImage(button, "hall", "ARTWORK", 2)', n)
         self.assertNotIn('DuelHallLaurel.tga', n)
         self.assertIn('railDivider:SetPoint("TOP", primaryButtons[#primaryButtons].button', n)
         self.assertIn('Window.rail:SetScript("OnSizeChanged", FitTabs)', n)
         self.assertIn('button:SetSize(112, 30)', n)
         self.assertIn('sub:SetSize(174, 35)', n)
-        self.assertIn('DuelMinimalGoldTabs.tga', n)
+        self.assertIn('DuelTabIcons.tga', n)
 
     def test_readable_display_font_does_not_override_user_font_choice(self):
         style, options = lua("UI/Style.lua"), lua("UI/Options.lua")
@@ -42,7 +42,7 @@ class VisualFidelityTests(unittest.TestCase):
         self.assertIn('role=role', style)
         self.assertIn('fontPath or', style)
         self.assertIn('entry.role == "display" and "Fonts\\\\MORPHEUS.TTF"', style)
-        self.assertIn('DuelOptionsSoftArt.png', options)
+        self.assertIn('DuelOptionsBanner.png', options)
         self.assertNotIn('local heading = Style.Text(header, title', options)
         self.assertIn('function Style.ForgedEdge(parent, opts)', style)
         self.assertIn('Style.Plate(card, "cardBody", { corner=15 })', options)

@@ -24,7 +24,7 @@ class TextSafeOptionsAndHoverTests(unittest.TestCase):
         self.assertEqual(o.count('Section('),7)
         self.assertIn('headingBand:SetClipsChildren(false)',o)
         self.assertIn('(width - 24) / (BANNER_LEFT + BANNER_RIGHT)',o)
-        self.assertIn("DuelOptionsSoftArt.png",o)
+        self.assertIn("DuelOptionsBanner.png",o)
         self.assertNotIn("DuelBannerAmbient.png",o)
         self.assertNotIn("local center = Slice(",o)
         self.assertLess(6+72,82) # card-header end before divider
@@ -52,8 +52,8 @@ class TextSafeOptionsAndHoverTests(unittest.TestCase):
 
     def test_hall_has_distinct_hover_without_changing_its_click_art(self):
         n=lua("Navigation.lua")
-        self.assertIn('local concept = Style.ConceptImage(button, "hall", "ARTWORK", 2)',n)
-        self.assertIn('local hallGlow = Style.ConceptImage(button, "hall", "OVERLAY", 6)',n)
+        self.assertIn('local artwork = Style.PlateImage(button, "hall", "ARTWORK", 2)',n)
+        self.assertIn('local hallGlow = Style.PlateImage(button, "hall", "OVERLAY", 6)',n)
         self.assertIn('hallGlow:SetBlendMode("ADD")',n)
         self.assertIn('hallGlow:SetAlpha(0)',n)
         self.assertIn('Motion.Fade(button.hallGlow, 0.30, Motion.Duration("quick"))',n)

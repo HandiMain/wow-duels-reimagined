@@ -13,7 +13,7 @@ def lua(p):return (ROOT/p).read_text(encoding="utf-8")
 
 class SingleRimOptionsTests(unittest.TestCase):
     def test_banner_inlay_preserves_graphics_without_baked_frame_strokes(self):
-        b=(SKIN/"DuelOptionsSoftArt.png").read_bytes()
+        b=(SKIN/"DuelOptionsBanner.png").read_bytes()
         self.assertEqual(b[:8],bytes((137,80,78,71,13,10,26,10)))
         self.assertEqual(struct.unpack_from(">IIBB",b,16),(2048,256,8,6))
         self.assertEqual(hashlib.sha256(b).hexdigest(),
@@ -33,25 +33,25 @@ class SingleRimOptionsTests(unittest.TestCase):
         ):self.assertIn(marker,o)
 
     def test_simple_icons_remain_two_distinct_live_tabs(self):
-        b=(SKIN/"DuelMinimalGoldTabs.tga").read_bytes()
+        b=(SKIN/"DuelTabIcons.tga").read_bytes()
         self.assertEqual(struct.unpack_from("<HH",b,12),(128,64))
         self.assertEqual((b[2],b[16],b[17]),(2,32,0x28))
         self.assertEqual(hashlib.sha256(b).hexdigest(),
                          "6a15481f315ab81a7b20f7b5a594080dc93db4bf057ff3708761ad102e8879dd")
         n=lua("UI/Navigation.lua")
-        self.assertIn("DuelMinimalGoldTabs.tga",n)
+        self.assertIn("DuelTabIcons.tga",n)
         self.assertIn("glyph:SetSize(28, 28)",n)
         self.assertIn('sub:SetScript("OnClick", function() Select(index, pageIndex) end)',n)
         self.assertIn('Motion.Fade(subHover, chosen and 0.16 or 0.42',n)
 
     def test_corner_uses_one_subtle_artpiece_and_existing_resize_owner(self):
-        b=(SKIN/"DuelCorner03Copper.png").read_bytes()
+        b=(SKIN/"DuelResizeCopper.png").read_bytes()
         self.assertEqual(struct.unpack_from(">IIBB",b,16),(256,256,8,6))
         self.assertEqual(hashlib.sha256(b).hexdigest(),
                          "e88b09be81d49eb4046bf9aa41936be2568a8ed5a329255c818c9a22bc939bcc")
         w=lua("UI/Window.lua")
         for token in ("resizeArt:SetSize(96, 96)",
-                      "grip:SetSize(54, 54)","DuelCorner03Copper.png",
+                      "grip:SetSize(54, 54)","DuelResizeCopper.png",
                       "gripPress:SetBlendMode",
                       'frame:StartSizing("BOTTOMRIGHT")',
                       "Window.CommitResize()",

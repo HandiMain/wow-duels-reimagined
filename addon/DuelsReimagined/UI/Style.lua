@@ -15,7 +15,7 @@ end
 
 -- Duel Hall is the single, user-approved house look. Keep one semantic
 -- palette and one repaint owner; future looks can join this registry later.
--- Reference: approved in-game concept (2026-11-21), not legacy preview skins.
+-- Reference: approved in-game artwork (2026-11-21), not legacy preview skins.
 local duelHall = {
         -- Source-matched near-black + gilt, not the former sepia/brown wash.
         gold="E7B53D", goldDim="986E38", red="BB1712",
@@ -99,16 +99,6 @@ function Style.TintedImage(parent, path, color, layer)
     tex:SetVertexColor(unpack(color))
     RegisterTexture(tex, color, "vertex")
     return tex
-end
-
-function Style.Rule(parent, anchor1, relative, anchor2, width, height, color)
-    local region = parent:CreateTexture(nil, "ARTWORK")
-    local c = color or C.goldDim
-    region:SetColorTexture(unpack(c))
-    RegisterTexture(region, c)
-    region:SetPoint(anchor1, relative, anchor2)
-    region:SetSize(width, height)
-    return region
 end
 
 function Style.Border(parent, color, thickness)
@@ -207,42 +197,6 @@ end
 -- preserving existing hover, pressed and selected-state animations.
 -- Restrained second metal lip: pixel-width bevel lines, all theme-bound.
 -- Unlike a stretched bitmap these anchors follow resizing and UI scale.
-function Style.ForgedEdge(parent, opts)
-    opts = opts or {}
-    local inset = opts.inset or 3
-    local amount = opts.alpha or 0.72
-    local function Edge(color, alpha, points, vertical)
-        local tex = Style.Fill(parent, color, "ARTWORK")
-        tex:ClearAllPoints()
-        for _, point in ipairs(points) do
-            tex:SetPoint(unpack(point))
-        end
-        if vertical then
-            tex:SetWidth(Style.Pixel(parent, 1))
-        else
-            tex:SetHeight(Style.Pixel(parent, 1))
-        end
-        tex:SetAlpha(alpha)
-        return tex
-    end
-    Edge(opts.light or C.gold, amount, {
-        {"TOPLEFT",parent,"TOPLEFT",inset,-inset},
-        {"TOPRIGHT",parent,"TOPRIGHT",-inset,-inset}
-    }, false)
-    Edge(opts.dark or C.goldDim, amount*0.75, {
-        {"BOTTOMLEFT",parent,"BOTTOMLEFT",inset,inset},
-        {"BOTTOMRIGHT",parent,"BOTTOMRIGHT",-inset,inset}
-    }, false)
-    Edge(opts.dark or C.goldDim, amount*0.60, {
-        {"TOPLEFT",parent,"TOPLEFT",inset,-inset},
-        {"BOTTOMLEFT",parent,"BOTTOMLEFT",inset,inset}
-    }, true)
-    Edge(opts.light or C.gold, amount*0.36, {
-        {"TOPRIGHT",parent,"TOPRIGHT",-inset,-inset},
-        {"BOTTOMRIGHT",parent,"BOTTOMRIGHT",-inset,inset}
-    }, true)
-end
-
 function Style.Skin(parent, fill, opts)
     opts = opts or {}
     local corner, inset = opts.corner or 11, opts.inset or 0
@@ -308,7 +262,7 @@ end
 
 -- One reusable live feedback surface ABOVE 9-sliced painted buttons.
 -- The older Style.Skin overlays lived in BACKGROUND/BORDER and were hidden
--- by the approved ARTWORK-level concept plaque. All hover/selected colors
+-- by the approved ARTWORK-level artwork plaque. All hover/selected colors
 -- now stay visible while native buttons and icons retain their input owner.
 function Style.FeedbackOverlay(parent, opts)
     opts = opts or {}
@@ -331,37 +285,37 @@ end
 -- Purpose-built texture atlas pieces, authored independently from the
 -- approved screenshot. Each surface is a 9-slice so corners keep their
 -- sculpted depth at different window sizes; buttons and labels stay native.
--- Concept-derived artwork supplied by the project owner (2026-11-21).
+-- Artwork-derived artwork supplied by the project owner (2026-11-21).
 -- Sprite boundaries refer to the actual approved screenshot extraction, not
 -- imagined brush strokes. The native Lua state and controls still own input.
 local PLATE_ROOT = "Interface\\AddOns\\DuelsReimagined\\Media\\Skin\\"
-local CONCEPT_ATLAS = PLATE_ROOT .. "DuelExactAtlas.png"
+local PLATE_ATLAS = PLATE_ROOT .. "DuelAtlas.png"
 local PLATES = {
     -- A dedicated, power-of-two copper rim with a transparent center:
     -- 9-sliced on ONE non-interactive frame, not repeated corner stamps.
-    shellCopper = { path=PLATE_ROOT .. "DuelCopperRim.png",
+    shellCopper = { path=PLATE_ROOT .. "DuelFrameRim.png",
         w=512, h=512, cutX=56, cutY=56 },
     -- Procedural hall is kept ONLY for generic red controls (Close, header X).
-    -- The primary Hall destination has its own literal concept-image region.
-    hall = { path=PLATE_ROOT .. "DuelHallPlaque.tga", w=256, h=128, cutX=30, cutY=28 },
-    gold = { path=CONCEPT_ATLAS, w=256, h=64, cutX=24, cutY=16,
+    -- The primary Hall destination has its own literal artwork-image region.
+    hall = { path=PLATE_ROOT .. "DuelHallButton.tga", w=256, h=128, cutX=30, cutY=28 },
+    gold = { path=PLATE_ATLAS, w=256, h=64, cutX=24, cutY=16,
         atlasX=256, atlasY=0, atlasW=512, atlasH=256 },
-    dark = { path=CONCEPT_ATLAS, w=256, h=64, cutX=24, cutY=16,
+    dark = { path=PLATE_ATLAS, w=256, h=64, cutX=24, cutY=16,
         atlasX=256, atlasY=64, atlasW=512, atlasH=256 },
-    cardBody = { path=CONCEPT_ATLAS, w=256, h=128, cutX=20, cutY=18,
+    cardBody = { path=PLATE_ATLAS, w=256, h=128, cutX=20, cutY=18,
         atlasX=0, atlasY=128, atlasW=512, atlasH=256 },
-    cardHeading = { path=CONCEPT_ATLAS, w=256, h=64, cutX=22, cutY=12,
+    cardHeading = { path=PLATE_ATLAS, w=256, h=64, cutX=22, cutY=12,
         atlasX=256, atlasY=128, atlasW=512, atlasH=256 },
 }
-local CONCEPT_REGIONS = {
+local PLATE_REGIONS = {
     hall = { 0, 0.5, 0, 0.5 },
     corner = { 0.5, 0.625, 0.75, 1 },
 }
-function Style.ConceptImage(parent, region, layer, sublevel)
-    local coords = assert(CONCEPT_REGIONS[region],
-        "Unknown extracted concept region: " .. tostring(region))
+function Style.PlateImage(parent, region, layer, sublevel)
+    local coords = assert(PLATE_REGIONS[region],
+        "Unknown extracted artwork region: " .. tostring(region))
     local tex = parent:CreateTexture(nil, layer or "ARTWORK", nil, sublevel or 1)
-    tex:SetTexture(CONCEPT_ATLAS)
+    tex:SetTexture(PLATE_ATLAS)
     tex:SetTexCoord(unpack(coords))
     -- Avoid forcing fractional extracted-image pixels onto a second grid.
     if tex.SetSnapToPixelGrid then tex:SetSnapToPixelGrid(false) end

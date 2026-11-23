@@ -37,7 +37,7 @@ class PremiumPolishTests(unittest.TestCase):
         self.assertNotIn('Style.Skin(grip, C.rail, {', w)
         self.assertIn('resizeArt:SetSize(96, 96)', w)
         self.assertIn('grip:SetSize(54, 54)', w)
-        self.assertIn('DuelCorner03Copper.png', w)
+        self.assertIn('DuelResizeCopper.png', w)
         self.assertIn('gripGlow:SetBlendMode("ADD")', w)
         self.assertIn('gripPress:SetBlendMode("ADD")', w)
         self.assertIn('ShiftCorner(true)', w)

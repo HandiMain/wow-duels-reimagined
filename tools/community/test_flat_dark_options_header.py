@@ -13,7 +13,7 @@ ROOT=Path(__file__).resolve().parents[2]/"addon"/"DuelsReimagined"
 
 class FlatDarkOptionsHeaderTests(unittest.TestCase):
     def test_native_clean_gold_art(self):
-        data=(ROOT/"Media/Skin/DuelOptionsSoftArt.png").read_bytes()
+        data=(ROOT/"Media/Skin/DuelOptionsBanner.png").read_bytes()
         self.assertEqual(data[:8],bytes((137,80,78,71,13,10,26,10)))
         self.assertEqual(struct.unpack_from(">IIBB",data,16),(2048,256,8,6))
         self.assertEqual(hashlib.sha256(data).hexdigest(),
@@ -48,9 +48,9 @@ class FlatDarkOptionsHeaderTests(unittest.TestCase):
         style=(ROOT/"UI/Style.lua").read_text(encoding="utf-8")
         nav=(ROOT/"UI/Navigation.lua").read_text(encoding="utf-8")
         win=(ROOT/"UI/Window.lua").read_text(encoding="utf-8")
-        self.assertIn('cardBody = { path=CONCEPT_ATLAS',style)
-        self.assertIn('DuelMinimalGoldTabs.tga',nav)
-        self.assertIn('DuelCorner03Copper.png',win)
+        self.assertIn('cardBody = { path=PLATE_ATLAS',style)
+        self.assertIn('DuelTabIcons.tga',nav)
+        self.assertIn('DuelResizeCopper.png',win)
 
 if __name__=="__main__":
     unittest.main()

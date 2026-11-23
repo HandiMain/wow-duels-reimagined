@@ -13,7 +13,7 @@ Settings.MIN_FONT_SCALE = 0.75
 Settings.MAX_FONT_SCALE = 1.50
 Settings.FONT_SCALE_STEP = 0.05
 
--- From BurstFX's proven minimap + floating-access-widget design.
+-- From earlier project's proven minimap + floating-access-widget design.
 -- Access preferences are account-wide and owned here, never by UI modules.
 Settings.MIN_WIDGET_SIZE, Settings.MAX_WIDGET_SIZE = 24, 128
 Settings.WIDGET_SIZE_STEP = 2
@@ -27,7 +27,7 @@ local allowedModes = { minimap = true, widget = true, both = true, none = true }
 -- Every persistent Options toggle belongs here, including future ones.
 local boolDefaults = {
     matchFont = false,
-    autoPeekMoving = true,
+    autoPeekMoving = false,
     reduceMotion = false,
     showTooltips = true,
     patchNotesReminder = true,
@@ -60,7 +60,7 @@ function Settings.GetDefault(key)
     if key == "fontOutline" then return "default" end
     if accessDefaults[key] ~= nil then return accessDefaults[key] end
     -- Only optional font matching remains; colors always use Duel Hall.
-    if key == "matchFont" then return false end
+    if key == "matchFont" then return EllesmereReady() end
     return boolDefaults[key]
 end
 
