@@ -118,11 +118,22 @@ local function FactionMark(left)
         tex:SetTexCoord(0.5, 1, 0, 1)
         tex:SetPoint("TOPRIGHT", canvas, "TOPRIGHT", -4, 14)
     end
-    -- Slightly clearer Alliance face; Horde alpha stays at its prior 0.76.
-    tex:SetAlpha(left and 0.84 or 0.76)
+    -- The old concept art is now only a smoky backdrop. Real Alliance and
+    -- Horde insignia are sourced from Blizzard's own PvP UI textures (not
+    -- invented or external media). The old art remains a quiet fallback if
+    -- a particular client doesn't ship one of the paths.
+    tex:SetAlpha(0.36)
     tex:EnableMouse(false)
     Chrome.Sharp(tex)
-    return tex
+    local official = canvas:CreateTexture(nil, "ARTWORK", nil, 2)
+    official:SetTexture("Interface\\TargetingFrame\\UI-PVP-" ..
+        (left and "Alliance" or "Horde"))
+    official:SetSize(118, 118)
+    official:SetPoint("CENTER", tex, "CENTER", 0, 1)
+    official:SetAlpha(0.94)
+    official:EnableMouse(false)
+    Chrome.Sharp(official)
+    return tex, official
 end
 FactionMark(true)
 FactionMark(false)
