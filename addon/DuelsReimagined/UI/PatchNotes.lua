@@ -377,6 +377,23 @@ local function Layout()
     -- On minimum window width, a narrow summary places its description below
     -- the label. On larger widths, keep the exact concept's single-row summary.
     local compact = width < 620
+    -- A shorter window uses the concept's proportions at reduced vertical
+    -- density instead of hiding Highlights and Related Settings below the
+    -- footer. Wider/taller windows retain their spacious presentation.
+    local dense = scroll:GetHeight() < 590
+    local summaryY = dense and 133 or 154
+    local summaryH = dense and 54 or 64
+    local titleY = dense and 198 or 232
+    local rowsY = dense and 221 or 258
+    local rowStep = dense and 65 or 80
+    local rowHeight = dense and 61 or 72
+    banner:SetHeight(dense and 120 or 141)
+    summaryPanel:ClearAllPoints()
+    summaryPanel:SetPoint("TOPLEFT", canvas, "TOPLEFT", 2, -summaryY)
+    summaryPanel:SetPoint("TOPRIGHT", canvas, "TOPRIGHT", -9, -summaryY)
+    summaryPanel:SetHeight(summaryH)
+    changesTitle:ClearAllPoints()
+    changesTitle:SetPoint("TOPLEFT", canvas, "TOPLEFT", 7, -titleY)
     -- Shorten only the decorative metadata on compact windows; the release
     -- itself and its demo status are never changed or silently hidden.
     bannerTitle:ClearAllPoints()
@@ -408,29 +425,45 @@ local function Layout()
         summaryDescription:SetHeight(48)
     end
     local count = activeRelease and #(activeRelease.entries or {}) or 0
-    local y = 258 + count * 80 + 12
+    for i, item in ipairs(rows) do
+        local frame = item.frame
+        frame:ClearAllPoints()
+        frame:SetPoint("TOPLEFT", canvas, "TOPLEFT", 2,
+            -rowsY - (i-1) * rowStep)
+        frame:SetPoint("TOPRIGHT", canvas, "TOPRIGHT", -9,
+            -rowsY - (i-1) * rowStep)
+        frame:SetHeight(rowHeight)
+        item.description:ClearAllPoints()
+        item.description:SetPoint("TOPLEFT", frame, "TOPLEFT", 91,
+            dense and -44 or -49)
+        item.description:SetPoint("TOPRIGHT", frame, "TOPRIGHT",
+            frame.target and -117 or -12, dense and -44 or -49)
+        item.description:SetHeight(dense and 16 or 18)
+    end
+    local y = rowsY + count * rowStep + (dense and 5 or 12)
+    local bottomHeight = dense and 100 or 114
     highlights:ClearAllPoints()
     related:ClearAllPoints()
     if compact then
         highlights:SetPoint("TOPLEFT", canvas, "TOPLEFT", 2, -y)
         highlights:SetPoint("TOPRIGHT", canvas, "TOPRIGHT", -9, -y)
-        highlights:SetHeight(114)
-        related:SetPoint("TOPLEFT", canvas, "TOPLEFT", 2, -(y + 124))
-        related:SetPoint("TOPRIGHT", canvas, "TOPRIGHT", -9, -(y + 124))
-        related:SetHeight(114)
-        y = y + 248
+        highlights:SetHeight(bottomHeight)
+        related:SetPoint("TOPLEFT", canvas, "TOPLEFT", 2, -(y + bottomHeight + 10))
+        related:SetPoint("TOPRIGHT", canvas, "TOPRIGHT", -9, -(y + bottomHeight + 10))
+        related:SetHeight(bottomHeight)
+        y = y + 2 * bottomHeight + 20
     else
         highlights:SetPoint("TOPLEFT", canvas, "TOPLEFT", 2, -y)
         highlights:SetPoint("TOPRIGHT", canvas, "TOP", -6, -y)
         related:SetPoint("TOPLEFT", canvas, "TOP", 6, -y)
         related:SetPoint("TOPRIGHT", canvas, "TOPRIGHT", -9, -y)
-        highlights:SetHeight(114)
-        related:SetHeight(114)
-        y = y + 124
+        highlights:SetHeight(bottomHeight)
+        related:SetHeight(bottomHeight)
+        y = y + bottomHeight + 10
     end
     legal:ClearAllPoints()
     legal:SetPoint("TOP", canvas, "TOP", 0, -(y + 5))
-    canvas:SetHeight(y + 40)
+    canvas:SetHeight(y + (dense and 27 or 40))
     if scroll.UpdateScrollChildRect then scroll:UpdateScrollChildRect() end
     Clamp()
 end
