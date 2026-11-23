@@ -313,7 +313,9 @@ local function Position(frame,x,y,w,h)
 end
 local function Layout()
     local w=UsableCanvasWidth()
-    canvas:SetWidth(w)
+    -- Scroll child spans the viewport while panels and VS remain inside
+    -- the scrollbar-safe content width. Prevents auto-size reflow overlap.
+    canvas:SetWidth(w+SCROLLBAR_GUTTER)
     local inArena=Engine.InArena()
     local half=(w-72)/2
     local secondX=w-half
@@ -323,7 +325,7 @@ local function Layout()
             Position(enemyTeam,secondX,0,half,258)
             Position(arenaStatus,0,274,w,78)
             vs:ClearAllPoints()
-            vs:SetPoint("CENTER",canvas,"TOP",0,-145)
+            vs:SetPoint("CENTER",canvas,"TOPLEFT",w/2,-145)
             canvas:SetHeight(366)
         else
             local size=Engine.GetConfig("player").bracket
@@ -339,7 +341,7 @@ local function Layout()
         Position(hostTeam2,secondX,0,half,258)
         Position(hostStatus,0,274,w,78)
         vs:ClearAllPoints()
-        vs:SetPoint("CENTER",canvas,"TOP",0,-145)
+        vs:SetPoint("CENTER",canvas,"TOPLEFT",w/2,-145)
         canvas:SetHeight(366)
     else
         Position(hostForm,0,0,w,236)
@@ -367,7 +369,7 @@ local function Layout()
         Position(hostTeam1,0,253,half,258)
         Position(hostTeam2,secondX,253,half,258)
         vs:ClearAllPoints()
-        vs:SetPoint("CENTER",canvas,"TOP",0,-399)
+        vs:SetPoint("CENTER",canvas,"TOPLEFT",w/2,-399)
         canvas:SetHeight(524)
     end
     local max=math.max(0,canvas:GetHeight()-scroll:GetHeight())

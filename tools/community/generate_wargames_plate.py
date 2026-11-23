@@ -5,7 +5,7 @@ The 256x128 Hall sprite occupies the upper-left quadrant of DuelAtlas.png.
 Only its baked center artwork is replaced with interpolated background;
 the copper frame and laurel artwork stay bit-for-bit unchanged.
 
-The finished plaque bakes our distinct arena-gate emblem and the original
+The finished plaque bakes our simple silver-and-gold arena shield and the original
 gold-serif WAR GAMES raster into one sprite. It keeps Hall's copper frame
 and laurels while using a different motif; no live font is needed.
 """
@@ -20,7 +20,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 SOURCE = ROOT / "addon/DuelsReimagined/Media/Skin/DuelAtlas.png"
 DEST = ROOT / "addon/DuelsReimagined/Media/Skin/DuelWarGamesPlate.png"
-EMBLEM_SOURCE = ROOT / "tools/community/artwork/WarGamesArenaGate.png"
+EMBLEM_SOURCE = ROOT / "tools/community/artwork/WarGamesArenaCrest.png"
 SIGNATURE = b"\x89PNG\r\n\x1a\n"
 # Locally rendered original title raster, 132x30 in 4-bit alpha. No fonts
 # ship with this addon; this deterministic mask cannot change with WoW fonts.
@@ -93,7 +93,7 @@ def read_rgba(data: bytes):
 
 
 def read_emblem() -> list[bytearray]:
-    """Decode our original indexed-colour transparent arena-gate emblem.
+    """Decode our original indexed-colour transparent arena shield emblem.
 
     The final runtime plaque remains one complete texture, but its artwork
     can be regenerated without copying Hall's crossed-swords motif or
@@ -105,7 +105,7 @@ def read_emblem() -> list[bytearray]:
         ">IIBBBBB", header)
     if (width, height, depth, color_type, compression, filtering, interlace) != (
             84, 65, 8, 3, 0, 0, 0):
-        raise ValueError("Unexpected arena emblem format")
+        raise ValueError("Unexpected arena crest format")
     palette = next(value for kind, value in parts if kind == b"PLTE")
     opacity = next(value for kind, value in parts if kind == b"tRNS")
     pixels = zlib.decompress(b"".join(value for kind, value in parts if kind == b"IDAT"))
@@ -197,7 +197,7 @@ def encode_rgba(rows: list[bytearray]) -> bytes:
 
 
 def bake_emblem(rows):
-    """A faction-neutral coliseum gate instead of Hall's crossed swords."""
+    """A crisp faction-neutral shield/star crest instead of Hall's swords."""
     gate=read_emblem()
     left=(256-84)//2
     top=12
@@ -255,7 +255,7 @@ def derive() -> bytes:
     edited = blank_center([line[:] for line in original])
     bake_emblem(edited)
     bake_title(edited)
-    # Outside the arena gate and title, Hall artwork must remain exact.
+    # Outside the shield crest and title, Hall artwork must remain exact.
     for y, (before, after) in enumerate(zip(original, edited)):
         if y < 14 or y > 114:
             if before != after:

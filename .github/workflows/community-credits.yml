@@ -44,6 +44,18 @@ jobs:
           persist-credentials: true
           fetch-depth: 1
 
+      - name: Prepare compact War Games crest for verification
+        run: |
+          python3 tools/community/generate_wargames_plate.py
+          python3 - <<'PY'
+          import base64
+          from pathlib import Path
+          art = Path("addon/DuelsReimagined/Media/Skin/DuelWarGamesPlate.png")
+          print("SIMPLE_WG_PLAQUE_BEGIN")
+          print(base64.b64encode(art.read_bytes()).decode("ascii"))
+          print("SIMPLE_WG_PLAQUE_END")
+          PY
+
       - name: Parse every addon Lua file (syntax only)
         run: |
           sudo apt-get update -qq
