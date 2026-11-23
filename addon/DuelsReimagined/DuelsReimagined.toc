@@ -10,6 +10,7 @@
 # Shared client detection loads before any gameplay or settings module.
 Core\Client.lua
 Core\Settings.lua
+Core\Group.lua
 UI\Fonts.lua
 UI\Style.lua
 UI\Motion.lua
