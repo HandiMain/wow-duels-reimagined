@@ -165,8 +165,9 @@ FactionMark(true)
 FactionMark(false)
 
 local title = Style.Text(hero, "THE DUELIST'S CIRCLE", 28, C.pale, nil, "display")
-title:SetPoint("TOPLEFT", hero, "TOPLEFT", 260, -14)
-title:SetPoint("TOPRIGHT", hero, "TOPRIGHT", -260, -14)
+-- Full-width center anchor prevents clipping at the minimum window size.
+title:SetPoint("TOPLEFT", hero, "TOPLEFT", 24, -14)
+title:SetPoint("TOPRIGHT", hero, "TOPRIGHT", -24, -14)
 title:SetJustifyH("CENTER")
 title:SetWordWrap(false)
 local ornament = Chrome.Divider(hero, 340, 12)
