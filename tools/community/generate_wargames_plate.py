@@ -101,10 +101,16 @@ def blank_center(rows: list[bytearray]):
             edge = min(x - left, right - x, y - 14, 113 - y)
             opacity = min(1.0, max(0.0, (edge + 0.5) / 4))
             horizontal = (x - left) / (right - left)
+            # Above the motif use the actual row colour. Below it, the
+            # original edges include sword shadows and the word HALL;
+            # extend the clean red from row 64 as a smooth vertical fade.
+            source_y = min(y, 64)
+            reference = rows[source_y]
+            fade = 1.0 if y <= 64 else max(0.42, 1 - (y - 64) * 0.012)
             for channel in range(3):
-                l = sum(source[(left - n) * 4 + channel] for n in range(1, 5)) / 4
-                r = sum(source[(right + n) * 4 + channel] for n in range(1, 5)) / 4
-                clean = l * (1 - horizontal) + r * horizontal
+                l = sum(reference[(left - n) * 4 + channel] for n in range(1, 5)) / 4
+                r = sum(reference[(right + n) * 4 + channel] for n in range(1, 5)) / 4
+                clean = (l * (1 - horizontal) + r * horizontal) * fade
                 at = x * 4 + channel
                 rows[y][at] = round(source[at] * (1 - opacity) + clean * opacity)
     return rows

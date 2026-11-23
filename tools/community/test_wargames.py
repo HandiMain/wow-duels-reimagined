@@ -60,14 +60,19 @@ class WarGamesTests(unittest.TestCase):
         nav=src("UI/Navigation.lua")
         self.assertIn("HALL_BUTTON_WIDTH = 205",nav)
         self.assertIn('button:SetSize(HALL_BUTTON_WIDTH, 84)',nav)
-        self.assertIn('Style.Plate(button, "hall", { corner=14 })',nav)
-        self.assertNotIn('Style.Plate(button, "hall", { corner=14, layer="ARTWORK"',nav)
+        self.assertIn('Style.PlateImage(button, "hall", "ARTWORK", 2)',nav)
+        self.assertIn('DuelWarGamesPlate.png',nav)
+        self.assertIn('button.hallGlow = glow',nav)
+        self.assertIn('DuelCornerJewel.tga',nav)
+        self.assertNotIn('Style.Plate(button, "hall", { corner=14',nav)
+        self.assertIn('section.key == "wargames" and 20',nav)
         self.assertIn('local icon = Chrome.Icon(button, section.icon)',nav)
         self.assertIn('section.key == "wargames" and 20',nav)
         self.assertIn('if section.key == "hall" then',nav)
         self.assertIn('elseif section.key == "wargames" then',nav)
         self.assertNotIn("WarGamesPlaque.png",nav)
         self.assertFalse((ADDON/"Media/Artwork/WarGamesPlaque.png").exists())
+        self.assertTrue((ADDON/"Media/Skin/DuelWarGamesPlate.png").is_file())
 
     def test_no_overlapping_cards_and_no_duplicate_divider(self):
         ui=src("UI/WarGames.lua")
@@ -100,3 +105,12 @@ class WarGamesTests(unittest.TestCase):
             self.assertLess(253+258,524)
             self.assertLess(268+63+39*5,280+63+39*5)
 
+
+    def test_derived_hall_artwork_matches_original(self):
+        import subprocess
+        import sys
+        result = subprocess.run(
+            [sys.executable, str(ROOT/"tools/community/generate_wargames_plate.py"), "--check"],
+            cwd=ROOT, capture_output=True, text=True, check=False)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("approved Hall art: PASS", result.stdout)

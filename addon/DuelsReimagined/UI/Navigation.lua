@@ -251,10 +251,22 @@ for index, section in ipairs(sections) do
             Motion.Stop(hallGlow, 0)
         end)
     elseif section.key == "wargames" then
-        -- Reuse our existing red-and-gold Hall button skin at the exact
-        -- same button size; its LIVE label/swords are not baked into a bitmap.
-        -- This deliberately avoids a second mismatched plaque asset.
-        Style.Plate(button, "hall", { corner=14 })
+        -- Same exact copper frame and laurels as Hall, derived pixel-for-
+        -- pixel from DuelAtlas.png with only its old center lettering
+        -- removed. This is the only justified separate primary plaque.
+        local path = "Interface\\AddOns\\DuelsReimagined\\Media\\Skin\\DuelWarGamesPlate.png"
+        local artwork = button:CreateTexture(nil, "ARTWORK", nil, 2)
+        artwork:SetTexture(path)
+        artwork:SetAllPoints(button)
+        Chrome.Sharp(artwork)
+        local glow = button:CreateTexture(nil, "OVERLAY", nil, 6)
+        glow:SetTexture(path)
+        glow:SetAllPoints(button)
+        glow:SetBlendMode("ADD")
+        glow:SetVertexColor(1, 0.78, 0.48)
+        glow:SetAlpha(0)
+        button.hallGlow = glow
+        button:HookScript("OnHide", function() Motion.Stop(glow, 0) end)
     else
         -- Reusable live destinations/utility shortcuts have one plate.
         Style.Plate(button, "dark", { corner=9 })
@@ -299,7 +311,12 @@ for index, section in ipairs(sections) do
             label:SetPoint("BOTTOM", button, "BOTTOM", 0, 10)
             label:SetWidth(HALL_BUTTON_WIDTH - 14)
             label:SetTextColor(unpack(C.pale))
-
+            -- Gold arena jewel distinguishes the crest from Hall's swords
+            -- without introducing an unrelated external button image.
+            local jewel = button:CreateTexture(nil, "OVERLAY", nil, 7)
+            jewel:SetTexture("Interface\\AddOns\\DuelsReimagined\\Media\\Skin\\DuelCornerJewel.tga")
+            jewel:SetSize(11, 11)
+            jewel:SetPoint("CENTER", icon, "CENTER", 0, -2)
         end
     else
         icon:SetPoint("LEFT", button, "LEFT", 9, 0)
