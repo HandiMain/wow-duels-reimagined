@@ -1,7 +1,11 @@
 local _, ns = ...
 local Style, Chrome, Motion = ns.Style, ns.Chrome, ns.Motion
 
--- Launcher only. The main Duels window remains the sole settings owner.
+-- A native Blizzard Settings launcher, not a second settings window.
+-- Concept 04 (approved 2026-11-23): the scenic painting, crest, static
+-- wordmark, rule and two empty plated frames are separately authored
+-- from the approved art. ALL clicks, titles, hover, press and tooltips
+-- are WoW widgets, not part of an interactive screenshot.
 local Landing = {}
 ns.BlizzardLanding = Landing
 local panel = CreateFrame("Frame", "DuelsReimaginedBlizzardSettingsPanel")
@@ -9,84 +13,93 @@ panel.name = "Duels Reimagined"
 panel:Hide()
 Landing.panel = panel
 
--- The landing page is our one fixed charcoal-plum brand surface. These
--- private colors deliberately do NOT use Style.color, so changing Duels
--- themes or EllesmereUI cannot recolor the background, logo or page copy.
--- Sampled from the approved main-window header: #302B30.
-local LANDING_BG = { 48/255, 43/255, 48/255, 1 }
-local LANDING_EDGE = { 111/255, 95/255, 92/255, 1 }
-local LANDING_GOLD = { 195/255, 154/255, 101/255, 1 }
-local LANDING_PALE = { 244/255, 232/255, 228/255, 1 }
-local LANDING_TEXT = { 239/255, 228/255, 225/255, 1 }
-local LANDING_MUTED = { 197/255, 182/255, 185/255, 1 }
--- Identical gold to DUELS lettering, with dark ink for readable button text.
--- This is a local palette, never a new global theme or stored preference.
-local LANDING_BUTTONS = {
-    fill = LANDING_GOLD, edge = LANDING_PALE,
-    light = LANDING_PALE, dark = LANDING_BG,
-    hover = { 231/255, 190/255, 131/255, 1 },
-    text = LANDING_BG,
-}
+-- This page has one intentionally fixed faction palette. Neither EllesmereUI
+-- nor changing main-window fonts recolors its Alliance/Horde background.
+local LANDING_BG = { 12/255, 10/255, 13/255, 1 }
+local LANDING_EDGE = { 125/255, 87/255, 53/255, 1 }
+local LANDING_TEXT = { 240/255, 231/255, 215/255, 1 }
+local BASE_W, BASE_H = 547, 267
+local media = "Interface\\AddOns\\DuelsReimagined\\Media\\Concept\\Landing\\"
 
 local surface = CreateFrame("Frame", nil, panel)
 surface:SetPoint("TOPLEFT", panel, "TOPLEFT", 12, -12)
 surface:SetPoint("BOTTOMRIGHT", panel, "BOTTOMRIGHT", -12, 12)
+-- Exactly ONE thin, bronze frame owner. The interior art does not carry
+-- the Blizzard Settings container, its toolbar, or any clickable labels.
 Style.Skin(surface, LANDING_BG, {
-    corner=12, edge=LANDING_EDGE, shine=0, shade=0, rim=0.70,
+    corner=9, edge=LANDING_EDGE, light=LANDING_EDGE,
+    dark=LANDING_BG, shine=0, shade=0, rim=0.62,
 })
 
--- Use the EXACT same two letter masks/UVs as the main window header,
--- without theme registration. This is the ORIGINAL wordmark, not another
--- raster recreation or the deprecated detailed crest asset.
+-- Keep every source-space coordinate together; uniformly scale the entire
+-- artwork and native click targets at runtime instead of independently
+-- stretching the logo or cropping faction banners when the panel resizes.
 local layout = CreateFrame("Frame", nil, surface)
-layout:SetSize(490, 405)
-layout:SetPoint("CENTER", surface, "CENTER", 0, 6)
-local logo = CreateFrame("Frame", nil, layout)
-logo:SetSize(380, 380 / 4.65)
-logo:SetPoint("TOP", layout, "TOP", 0, -70)
-local BRAND_ATLAS = "Interface\\AddOns\\DuelsReimagined\\Media\\Skin\\HeaderOption5TintAtlas.png"
-local function LockedBrandBand(color, top, bottom)
-    local tex = logo:CreateTexture(nil, "ARTWORK")
-    tex:SetTexture(BRAND_ATLAS)
-    tex:SetVertexColor(unpack(color))
-    tex:SetPoint("TOPLEFT", logo, "TOPLEFT", 0, -4)
-    tex:SetPoint("BOTTOMRIGHT", logo, "BOTTOMRIGHT", 0, -4)
-    tex:SetTexCoord(0, 1, top, bottom)
+layout:SetSize(BASE_W, BASE_H)
+layout:SetPoint("CENTER", surface, "CENTER", 0, 0)
+
+local battlefield = layout:CreateTexture(nil, "BACKGROUND", nil, 1)
+battlefield:SetTexture(media .. "LandingBattlefield.jpg")
+battlefield:SetAllPoints(layout)
+battlefield:EnableMouse(false)
+Chrome.Sharp(battlefield)
+
+local function SourceImage(filename, x, y, width, height, layer)
+    local tex = layout:CreateTexture(nil, layer or "ARTWORK")
+    tex:SetTexture(media .. filename)
+    tex:SetSize(width, height)
+    tex:SetPoint("TOPLEFT", layout, "TOPLEFT", x, -y)
+    tex:EnableMouse(false)
     Chrome.Sharp(tex)
+    return tex
 end
-LockedBrandBand(LANDING_GOLD, 0, 0.25)
-LockedBrandBand(LANDING_PALE, 0.25, 0.50)
+
+-- Actual illustrated sword-and-laurel crest and the split red / ivory
+-- DUELS REIMAGINED wordmark from the fourth approved concept.
+SourceImage("LandingCrest.png",    215, 3,   118, 70)
+SourceImage("LandingWordmark.png", 139, 73,  272, 37)
+SourceImage("LandingRule.png",     139, 110, 273, 21)
 
 local subtitle = Style.Text(layout,
-    "Your dueling companion in World of Warcraft.", 14, LANDING_TEXT)
-subtitle:SetPoint("TOP", logo, "BOTTOM", 0, -16)
-subtitle:SetPoint("LEFT", layout, "LEFT", 18, 0)
-subtitle:SetPoint("RIGHT", layout, "RIGHT", -18, 0)
-subtitle:SetHeight(42)
-subtitle:SetWordWrap(true)
+    "Your dueling companion in World of Warcraft.", 12, LANDING_TEXT)
+subtitle:SetSize(380, 22)
+subtitle:SetPoint("TOP", layout, "TOP", 0, -133)
 subtitle:SetJustifyH("CENTER")
 subtitle:SetJustifyV("MIDDLE")
-local divider = Chrome.Divider(layout, 304, 15)
-divider:SetPoint("TOP", subtitle, "BOTTOM", 0, -7)
+subtitle:SetWordWrap(false)
 
-local open = Style.Action(layout, "Open Duels Reimagined", "community",
-    LANDING_BUTTONS)
-open:SetSize(360, 46)
-open:SetPoint("TOP", divider, "BOTTOM", 0, -12)
-local community = Style.Action(layout, "View Community", "footer",
-    LANDING_BUTTONS)
-community:SetSize(230, 38)
-community:SetPoint("TOP", open, "BOTTOM", 0, -12)
-
--- The screenshot's example version number is not an actual release.
-local build = Style.Text(surface, "Duels Reimagined  |  Test Build", 11, LANDING_MUTED)
-build:SetPoint("BOTTOM", surface, "BOTTOM", 0, 23)
-build:SetJustifyH("CENTER")
+-- Reuse the SHARED native action/feedback machinery. The empty decorative
+-- plates were extracted individually and have their screenshot labels
+-- removed so only a real WoW FontString provides the visible caption.
+local function PlatedButton(caption, art, x, y, width, height)
+    local button = Style.Action(layout, caption, "community-art")
+    button:SetSize(width, height)
+    button:ClearAllPoints()
+    button:SetPoint("TOPLEFT", layout, "TOPLEFT", x, -y)
+    local plate = button:CreateTexture(nil, "ARTWORK", nil, 3)
+    plate:SetTexture(media .. art)
+    plate:SetAllPoints(button)
+    plate:EnableMouse(false)
+    Chrome.Sharp(plate)
+    if button.label then
+        button.label:SetTextColor(unpack(LANDING_TEXT))
+        button.label:SetDrawLayer("OVERLAY", 3)
+    end
+    return button
+end
+local open = PlatedButton("Open Duels Reimagined",
+    "LandingPrimary.png", 159, 157, 230, 44)
+local community = PlatedButton("View Community",
+    "LandingSecondary.png", 175, 200, 197, 40)
 
 local function Fit()
-    local w, h = math.max(1, surface:GetWidth()), math.max(1, surface:GetHeight())
-    local scale = math.min(1, (w - 36) / 490, (h - 57) / 405)
-    layout:SetScale(math.max(0.55, scale))
+    local w = math.max(1, surface:GetWidth())
+    local h = math.max(1, surface:GetHeight())
+    -- 547 x 267 is the approved screenshot's *actual* content size.
+    -- Scale art and hitboxes as one plane. The panel supplies letterbox fill
+    -- for unusual aspect ratios; no image stretch or control dislocation.
+    local scale = math.min(w / BASE_W, h / BASE_H)
+    layout:SetScale(math.max(0.30, scale))
 end
 surface:SetScript("OnSizeChanged", Fit)
 
@@ -107,7 +120,7 @@ local function Later(fn)
 end
 
 local function OpenDuels(section, page)
-    -- Blizzard's SettingsPanel must never be forcibly closed in combat.
+    -- The Blizzard Settings window must never be forcibly closed in combat.
     if InCombat() then
         Notice("Close Blizzard Settings after combat, then use /duels.")
         return
@@ -154,7 +167,6 @@ community:SetScript("OnClick", function()
     OpenDuels("community", "community")
 end)
 
--- Reuse our tooltip owner outside the main window.
 ns.Tooltips.Bind(open, {
     title = "Open Duels Reimagined",
     detail = "Open the main Duels window, preserving your selected page.",
@@ -167,8 +179,6 @@ ns.Tooltips.Bind(community, {
 })
 
 panel:SetScript("OnShow", function()
-    -- EllesmereUI matching is already owned by Theme/Style. Refresh here
-    -- to pick up appearances changed while Blizzard Settings was closed.
     if ns.Theme and ns.Theme.Refresh then ns.Theme.Refresh() end
     Fit()
     Motion.Stop(surface, 0.8)
