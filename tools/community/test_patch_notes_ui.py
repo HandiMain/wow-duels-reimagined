@@ -85,7 +85,7 @@ class PatchNotesUITests(unittest.TestCase):
         self.assertNotIn('local railDivider = Chrome.Divider(rail', page)
         self.assertIn('PatchNotesVersionSelected.png', page)
         self.assertIn('PatchNotesVersionRing.png', page)
-        self.assertIn('item.dot:SetShown(not current)', page)
+        self.assertIn('item.dot:SetShown(not current and not item.archived)', page)
         self.assertIn('versionBadge:SetPoint("TOPLEFT"', page)
         self.assertIn('bannerDate:SetText(compact and', page)
         self.assertIn('local dense = scroll:GetHeight() < 590', page)
