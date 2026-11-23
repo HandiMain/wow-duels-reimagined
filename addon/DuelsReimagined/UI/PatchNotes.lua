@@ -151,7 +151,7 @@ for index, release in ipairs(releases) do
             ". Select to read this version.",
     })
     versions[index] = { frame=button, selected=selected, dot=dot,
-        version=number, description=description }
+        version=number, description=description, offset=railY }
     railY = railY + 67
 end
 versionCanvas:SetHeight(math.max(1, railY + 9))
@@ -516,7 +516,9 @@ function PatchNotes.Show(pageKey)
     -- Left-hand version list scrolls to keep the selection visible.
     local row = versions[item.index]
     if row then
-        local top = math.max(0, (item.index - 1) * 67 - versionScroll:GetHeight() / 3)
+        -- Use the row's actual Y: archived versions include a divider and
+        -- cannot be found reliably by multiplying the normal row height.
+        local top = math.max(0, row.offset - versionScroll:GetHeight() / 3)
         versionScroll:SetVerticalScroll(math.min(
             math.max(0, versionCanvas:GetHeight() - versionScroll:GetHeight()), top))
     end
