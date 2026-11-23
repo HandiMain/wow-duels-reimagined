@@ -216,8 +216,10 @@ local statsPanel = CreateFrame("Frame", nil, canvas)
 statsPanel:SetPoint("TOPLEFT", canvas, "TOPLEFT", 22, -178)
 statsPanel:SetPoint("TOPRIGHT", canvas, "TOPRIGHT", -22, -178)
 statsPanel:SetHeight(58)
+-- The statistic strip is only 58px tall; use short native relief here,
+-- not the 112px fades intended for large card backgrounds.
 Style.Skin(statsPanel, C.nav, { corner=9, edge=C.goldDim,
-    smooth=true, rim=0.96 })
+    shine=0.09, shade=0.08, rim=0.96 })
 overviewPieces[#overviewPieces + 1] = statsPanel
 
 local statDefs = {
