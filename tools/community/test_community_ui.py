@@ -238,7 +238,7 @@ class CommunityUITests(unittest.TestCase):
         self.assertNotIn('function Chrome.SlicedButton(parent)', chrome)
         self.assertNotIn('middle:SetTexCoord', chrome)
         self.assertIn('local btn = Style.Action(hero, heading, "community-art")', community)
-        self.assertIn('elseif not communityArt then', style)
+        self.assertIn('elseif not communityArt and not landingArt then', style)
         self.assertIn('local communityArt = variant == "community-art"', style)
         self.assertIn('artTex:SetTexCoord(x / 1024, (x + 308) / 1024, 0, 60 / 128)', community)
         self.assertNotIn('(x + 295) / 1024, 0, 55 / 128', community)
