@@ -177,7 +177,9 @@ local function Action(kind, heading, xOffset)
     artTex:SetTexture(conceptButtons)
     artTex:SetAllPoints(btn)
     local x = kind == "bug" and 0 or 512
-    artTex:SetTexCoord(x / 1024, (x + 295) / 1024, 0, 55 / 128)
+    -- The approved button frame extends beyond the previous 295x55 crop.
+    -- Include the full outline/corners with a small transparent safety edge.
+    artTex:SetTexCoord(x / 1024, (x + 308) / 1024, 0, 60 / 128)
     artTex:EnableMouse(false)
     Chrome.Sharp(artTex)
     ns.Tooltips.Bind(btn, {
