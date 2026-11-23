@@ -31,11 +31,14 @@ class CopperChromeTests(unittest.TestCase):
     def test_navigation_seam_follows_hidden_navigation(self):
         ch = lua("UI/Chrome.lua")
         nav = lua("UI/Navigation.lua")
-        self.assertIn('local navSeam = Line(seams, nav, "BOTTOMLEFT", "BOTTOMRIGHT"', ch)
-        self.assertIn('navSeam:SetShown(nav:IsShown())', ch)
-        self.assertIn('nav:HookScript("OnShow", function() navSeam:Show() end)', ch)
-        self.assertIn('nav:HookScript("OnHide", function() navSeam:Hide() end)', ch)
-        self.assertNotIn('Line(seams, nav, "BOTTOMLEFT", "BOTTOMRIGHT", false, C.goldDim)\n\n', ch)
+        # A shell-owned texture may remain across the Patch Notes banner.
+        # Parenting the separator to the nav frame makes hide unconditional
+        # and preserves the line when ordinary multi-page tabs are visible.
+        self.assertIn('local navSeam = Line(nav, nav, "BOTTOMLEFT", "BOTTOMRIGHT"', ch)
+        self.assertIn('navSeam:EnableMouse(false)', ch)
+        self.assertNotIn('Line(seams, nav, "BOTTOMLEFT", "BOTTOMRIGHT", false, C.goldDim)', ch)
+        self.assertNotIn('navSeam:SetShown(nav:IsShown())', ch)
+        self.assertNotIn('nav:HookScript("OnHide", function() navSeam:Hide() end)', ch)
         self.assertIn('Window.nav:SetShown(#section.pages > 1 and section.key ~= "patchnotes")', nav)
 
     def test_shared_presses_and_no_new_polling_engine(self):
