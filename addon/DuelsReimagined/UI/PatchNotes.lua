@@ -204,12 +204,19 @@ local banner = CreateFrame("Frame", nil, canvas)
 banner:SetPoint("TOPLEFT", canvas, "TOPLEFT", 1, -2)
 banner:SetPoint("TOPRIGHT", canvas, "TOPRIGHT", -8, -2)
 banner:SetHeight(141)
+-- Single frame owner: the nine-slice skin paints the complete copper rim.
+-- The approved bitmap contains partial, baked corner strokes that do not
+-- follow the resized frame. Display ONLY its interior artwork, inset from
+-- the true frame so neither corners nor edges are drawn twice.
 Style.Skin(banner, C.nav, { corner=11, edge=C.goldDim,
     smooth=true, rim=0.95 })
 local bannerArt = banner:CreateTexture(nil, "ARTWORK", nil, 1)
 bannerArt:SetTexture(heroArtPath)
-bannerArt:SetAllPoints(banner)
-bannerArt:SetTexCoord(0, 1, 37 / 256, 212 / 256)
+bannerArt:SetPoint("TOPLEFT", banner, "TOPLEFT", 7, -7)
+bannerArt:SetPoint("BOTTOMRIGHT", banner, "BOTTOMRIGHT", -7, 7)
+-- The decorative source's copper rim is at y=37..43 and y=207..212;
+-- trim those rows and the two partial source side corners.
+bannerArt:SetTexCoord(14 / 1024, 1008 / 1024, 45 / 256, 204 / 256)
 bannerArt:EnableMouse(false)
 if Chrome.Sharp then Chrome.Sharp(bannerArt) end
 -- Concept hierarchy: one clean title line and a SINGLE metadata row with
