@@ -56,6 +56,16 @@ root:SetAllPoints(Window.content)
 root:EnableMouse(false)
 root:Hide()
 
+-- Approved shared Community heading. The generic Window page heading is
+-- deliberately hidden for custom pages, so the page owner must draw this.
+local communityIcon = Chrome.Icon(root, "Community")
+communityIcon:SetSize(34, 34)
+communityIcon:SetPoint("TOPLEFT", root, "TOPLEFT", 23, -16)
+local communityHeading = Style.Text(root, "Community", 26, C.pale, nil, "display")
+communityHeading:SetPoint("TOPLEFT", root, "TOPLEFT", 64, -16)
+local communityTagline = Style.Text(root, "The people shaping Duels Reimagined.", 13, C.text)
+communityTagline:SetPoint("TOPLEFT", communityHeading, "BOTTOMLEFT", 0, -3)
+
 local scroll = CreateFrame("ScrollFrame", nil, root)
 scroll:SetPoint("TOPLEFT", root, "TOPLEFT", 19, -139)
 scroll:SetPoint("BOTTOMRIGHT", root, "BOTTOMRIGHT", -22, 16)
@@ -89,10 +99,10 @@ scroll:SetScript("OnSizeChanged", function(_, width)
 end)
 scroll:HookScript("OnShow", ClampScroll)
 
--- The approved lion needed a higher-resolution crop: its face was lost when
--- the old 64px left half of the faction atlas was enlarged in-game.
--- Use a separately extracted 128px lion. The Horde keeps its original atlas,
--- UV, position, dimensions and opacity completely unchanged.
+-- Approved Duelist's Circle hero: live labels/buttons over separate faction
+-- decoration. The existing Alliance/Horde imagery is retained; Blizzard's
+-- PvP queue artwork supplies richer atmosphere (and is never copied into
+-- addon files). Image paths are client-owned; fade art is the fallback.
 local art = "Interface\\AddOns\\DuelsReimagined\\Media\\Concept\\CommunityFactionMarks.png"
 local allianceArt = "Interface\\AddOns\\DuelsReimagined\\Media\\Concept\\CommunityAllianceLion.png"
 local symbolArt = "Interface\\AddOns\\DuelsReimagined\\Media\\Concept\\CommunityConceptSymbols.png"
@@ -106,47 +116,66 @@ local function ConceptSymbol(parent, slot, size)
     tex:EnableMouse(false)
     return Chrome.Sharp(tex)
 end
+
+-- One subdued rim encloses the banner; the label/action hitboxes remain in
+-- the same canvas above it and are never baked into a screenshot.
+local hero = CreateFrame("Frame", nil, canvas)
+hero:SetPoint("TOPLEFT", canvas, "TOPLEFT", 4, 0)
+hero:SetPoint("TOPRIGHT", canvas, "TOPRIGHT", -4, 0)
+hero:SetHeight(171)
+Style.Skin(hero, C.window, { corner=8, edge=C.goldDim,
+    smooth=true, rim=0.48 })
+
 local function FactionMark(left)
-    local tex = canvas:CreateTexture(nil, "BACKGROUND")
-    tex:SetSize(192, 192)
+    local background = hero:CreateTexture(nil, "BORDER", nil, 1)
+    background:SetTexture("Interface\\PVPFrame\\" ..
+        (left and "PvPQueueBackgroundAlliance" or "PvPQueueBackgroundHorde"))
+    background:SetSize(304, 171)
     if left then
-        tex:SetTexture(allianceArt)
-        tex:SetTexCoord(0, 1, 0, 1)
-        tex:SetPoint("TOPLEFT", canvas, "TOPLEFT", 4, 14)
+        background:SetPoint("TOPLEFT", hero, "TOPLEFT", 1, -1)
+        background:SetTexCoord(0.05, 0.78, 0.02, 0.96)
     else
-        tex:SetTexture(art)
-        tex:SetTexCoord(0.5, 1, 0, 1)
-        tex:SetPoint("TOPRIGHT", canvas, "TOPRIGHT", -4, 14)
+        background:SetPoint("TOPRIGHT", hero, "TOPRIGHT", -1, -1)
+        background:SetTexCoord(0.02, 0.80, 0.02, 0.96)
     end
-    -- The old concept art is now only a smoky backdrop. Real Alliance and
-    -- Horde insignia are sourced from Blizzard's own PvP UI textures (not
-    -- invented or external media). The old art remains a quiet fallback if
-    -- a particular client doesn't ship one of the paths.
-    tex:SetAlpha(0.36)
-    tex:EnableMouse(false)
-    Chrome.Sharp(tex)
-    local official = canvas:CreateTexture(nil, "ARTWORK", nil, 2)
-    official:SetTexture("Interface\\TargetingFrame\\UI-PVP-" ..
-        (left and "Alliance" or "Horde"))
-    official:SetSize(118, 118)
-    official:SetPoint("CENTER", tex, "CENTER", 0, 1)
-    official:SetAlpha(0.94)
-    official:EnableMouse(false)
-    Chrome.Sharp(official)
-    return tex, official
+    background:SetVertexColor(left and 0.65 or 0.95,
+        left and 0.80 or 0.56, left and 1 or 0.55)
+    background:SetAlpha(0.68)
+    background:EnableMouse(false)
+    Chrome.Sharp(background)
+    -- Actual source faction symbols, enlarged to the hero scale. The tiny
+    -- TargetingFrame PvP shields are not suitable as full-size faction marks.
+    local emblem = hero:CreateTexture(nil, "ARTWORK", nil, 1)
+    if left then
+        emblem:SetTexture(allianceArt)
+        emblem:SetTexCoord(0, 1, 0, 1)
+        emblem:SetPoint("CENTER", background, "CENTER", -15, 1)
+    else
+        emblem:SetTexture(art)
+        emblem:SetTexCoord(0.5, 1, 0, 1)
+        emblem:SetPoint("CENTER", background, "CENTER", 28, 1)
+    end
+    emblem:SetSize(176, 176)
+    emblem:SetAlpha(0.86)
+    emblem:EnableMouse(false)
+    Chrome.Sharp(emblem)
+    return background, emblem
 end
 FactionMark(true)
 FactionMark(false)
 
-local title = Style.Text(canvas, "THE DUELIST'S CIRCLE", 23, C.pale)
-title:SetPoint("TOPLEFT", canvas, "TOPLEFT", 22, -15)
-title:SetPoint("TOPRIGHT", canvas, "TOPRIGHT", -22, -15)
+local title = Style.Text(canvas, "THE DUELIST'S CIRCLE", 28, C.pale, nil, "display")
+title:SetPoint("TOPLEFT", canvas, "TOPLEFT", 265, -14)
+title:SetPoint("TOPRIGHT", canvas, "TOPRIGHT", -265, -14)
 title:SetJustifyH("CENTER")
-local ornament = Chrome.Divider(canvas, 298, 12)
-ornament:SetPoint("TOP", title, "BOTTOM", 0, -5)
-local subtitle = Style.Text(canvas, "The people shaping Duels Reimagined.", 13, C.muted)
-subtitle:SetPoint("TOP", ornament, "BOTTOM", 0, -3)
+title:SetWordWrap(false)
+local ornament = Chrome.Divider(canvas, 340, 12)
+ornament:SetPoint("TOP", title, "BOTTOM", 0, -4)
+local subtitle = Style.Text(canvas, "The people shaping Duels Reimagined.", 13, C.text)
+subtitle:SetPoint("TOP", ornament, "BOTTOM", 0, -2)
 subtitle:SetJustifyH("CENTER")
+subtitle:SetWidth(460)
+subtitle:SetWordWrap(false)
 
 local function SelectableURL(kind)
     if not ns.Footer or not ns.Footer.ShowCommunityLink then return end
@@ -156,33 +185,25 @@ end
 
 local function Action(kind, heading, xOffset)
     local btn = Style.Action(canvas, heading, "community")
-    btn:SetSize(246, 37)
-    btn:SetPoint("TOP", canvas, "TOP", xOffset, -98)
+    btn:SetSize(256, 41)
+    btn:SetPoint("TOP", canvas, "TOP", xOffset, -101)
     btn:SetScript("OnClick", function() SelectableURL(kind) end)
     local actionIcon = ConceptSymbol(btn, kind == "bug" and 8 or 9, 29)
-    actionIcon:SetPoint("LEFT", btn, "LEFT", 10, 0)
-    local githubIcon = ConceptSymbol(btn, 10, 26)
-    githubIcon:SetPoint("RIGHT", btn, "RIGHT", -7, 0)
+    actionIcon:SetPoint("LEFT", btn, "LEFT", 14, 0)
+    local arrow = Style.Text(btn, ">", 15, C.gold)
+    arrow:SetPoint("RIGHT", btn, "RIGHT", -15, 0)
+    arrow:SetJustifyH("RIGHT")
     ns.Tooltips.Bind(btn, {
         title = heading,
-        detail = "Display the GitHub form URL. Copy it with Ctrl+C, then open it in your browser.",
+        detail = (kind == "bug" and "Get a link to report a bug on GitHub."
+            or "Get a link to suggest an improvement.") ..
+            " Copy the URL with Ctrl+C, then open it in your browser.",
     })
-    -- An explanation, not a second button: the main action is the only
-    -- clickable target. The URL dialog still lets players select Ctrl+C.
-    local description = kind == "bug"
-        and "Get a link to report a bug on GitHub."
-        or "Get a link to suggest an improvement."
-    local note = Style.Text(canvas, description, 12, C.muted)
-    note:SetPoint("TOP", btn, "BOTTOM", 0, -3)
-    note:SetWidth(284)
-    note:SetHeight(25)
-    note:SetJustifyH("CENTER")
-    note:SetWordWrap(true)
     return btn
 end
 
-Action("bug", "REPORT A BUG", -151)
-Action("idea", "SUGGEST AN IDEA", 151)
+Action("bug", "REPORT A BUG", -139)
+Action("idea", "SUGGEST AN IDEA", 139)
 
 -- The approved Community landing page: one quiet GitHub statistics strip and
 -- two readable information panels. Its five existing subcategory tabs remain
@@ -195,7 +216,7 @@ statsPanel:SetPoint("TOPLEFT", canvas, "TOPLEFT", 22, -178)
 statsPanel:SetPoint("TOPRIGHT", canvas, "TOPRIGHT", -22, -178)
 statsPanel:SetHeight(58)
 Style.Skin(statsPanel, C.nav, { corner=9, edge=C.goldDim,
-    shine=0.10, shade=0.08, rim=0.74 })
+    smooth=true, rim=0.96 })
 overviewPieces[#overviewPieces + 1] = statsPanel
 
 local statDefs = {
@@ -213,12 +234,12 @@ for i, def in ipairs(statDefs) do
     local cell = CreateFrame("Frame", nil, statsPanel)
     cell:SetHeight(58)
     cell:EnableMouse(true)
-    local icon = ConceptSymbol(cell, def.icon, 27)
+    local icon = ConceptSymbol(cell, def.icon, 31)
     icon:SetPoint("LEFT", cell, "LEFT", 14, 0)
-    local value = Style.Text(cell, "—", 20, C.gold)
+    local value = Style.Text(cell, "—", 23, C.gold, nil, "display")
     value:SetPoint("TOPLEFT", cell, "TOPLEFT", 51, -8)
     value:SetPoint("TOPRIGHT", cell, "TOPRIGHT", -8, -8)
-    local label = Style.Text(cell, def.label, 11, C.text)
+    local label = Style.Text(cell, def.label, 12, C.text)
     label:SetPoint("TOPLEFT", cell, "TOPLEFT", 51, -34)
     label:SetPoint("TOPRIGHT", cell, "TOPRIGHT", -8, -34)
     label:SetWordWrap(false)
@@ -259,13 +280,13 @@ local function InfoPanel(left, heading, description, iconIndex)
     end
     -- Use the same line-free large-panel surface as the Hall, preserving
     -- one copper rim instead of stretching the small shade masks.
-    Style.Skin(panel, C.nav, { corner=10, edge=C.border,
-        smooth=true, rim=0.85 })
-    local symbol = ConceptSymbol(panel, iconIndex, 34)
+    Style.Skin(panel, C.nav, { corner=10, edge=C.goldDim,
+        smooth=true, rim=0.98 })
+    local symbol = ConceptSymbol(panel, iconIndex, 38)
     symbol:SetPoint("TOPLEFT", panel, "TOPLEFT", 13, -10)
-    local headingText = Style.Text(panel, heading, 17, C.gold)
+    local headingText = Style.Text(panel, heading, 19, C.gold, nil, "display")
     headingText:SetPoint("TOPLEFT", panel, "TOPLEFT", 56, -11)
-    local caption = Style.Text(panel, description, 11, C.muted)
+    local caption = Style.Text(panel, description, 12, C.muted)
     caption:SetPoint("TOPLEFT", panel, "TOPLEFT", 56, -36)
     caption:SetPoint("RIGHT", panel, "RIGHT", -12, 0)
     caption:SetWordWrap(false)
@@ -292,11 +313,11 @@ for i, entry in ipairs(creditDescriptions) do
     local y = -75 - (i - 1) * 27
     local icon = ConceptSymbol(creditsPanel, entry[3], 19)
     icon:SetPoint("TOPLEFT", creditsPanel, "TOPLEFT", 15, y + 1)
-    local label = Style.Text(creditsPanel, entry[1], 12, C.gold)
+    local label = Style.Text(creditsPanel, entry[1], 13, C.gold)
     label:SetPoint("TOPLEFT", creditsPanel, "TOPLEFT", 42, y)
     label:SetWidth(143)
     label:SetWordWrap(false)
-    local summary = Style.Text(creditsPanel, entry[2], 11, C.text)
+    local summary = Style.Text(creditsPanel, entry[2], 12, C.text)
     summary:SetPoint("TOPLEFT", creditsPanel, "TOPLEFT", 191, y)
     summary:SetPoint("TOPRIGHT", creditsPanel, "TOPRIGHT", -12, y)
     summary:SetWordWrap(false)
@@ -312,45 +333,25 @@ local helpRows = {
 }
 for i, entry in ipairs(helpRows) do
     local y = -84 - (i - 1) * 33
-    local check = Style.Text(helpPanel, "✓", 19, C.gold)
-    check:SetPoint("TOPLEFT", helpPanel, "TOPLEFT", 20, y - 2)
+    -- Draw an actual Blizzard check texture instead of the unavailable
+    -- unicode font glyph that rendered as a square on both WoW clients.
+    local check = helpPanel:CreateTexture(nil, "ARTWORK")
+    check:SetTexture("Interface\\Buttons\\UI-CheckBox-Check")
+    check:SetVertexColor(unpack(C.gold))
+    check:SetSize(23, 23)
+    check:SetPoint("TOPLEFT", helpPanel, "TOPLEFT", 15, y + 6)
     local label = Style.Text(helpPanel, entry[1], 13, C.gold)
     label:SetPoint("TOPLEFT", helpPanel, "TOPLEFT", 53, y)
     label:SetWidth(119)
     label:SetWordWrap(false)
-    local description = Style.Text(helpPanel, entry[2], 11, C.text)
+    local description = Style.Text(helpPanel, entry[2], 12, C.text)
     description:SetPoint("TOPLEFT", helpPanel, "TOPLEFT", 174, y + 1)
     description:SetPoint("TOPRIGHT", helpPanel, "TOPRIGHT", -10, y + 1)
     description:SetWordWrap(false)
 end
 
--- The accepted concept has two small shortcuts here. They reuse existing
--- navigation actions and never spawn a second settings or patch-notes owner.
-local toolsTitle = Style.Text(canvas, "COMMUNITY TOOLS", 16, C.pale)
-toolsTitle:SetPoint("TOP", canvas, "TOP", 0, -478)
-toolsTitle:SetJustifyH("CENTER")
-overviewPieces[#overviewPieces + 1] = toolsTitle
-
-local function UtilityAction(name, xOffset, click, description, iconIndex)
-    local button = Style.Action(canvas, name, "footer")
-    button:SetSize(222, 32)
-    button:SetPoint("TOP", canvas, "TOP", xOffset, -502)
-    button:SetScript("OnClick", click)
-    ns.Tooltips.Bind(button, { title=name, detail=description })
-    local symbol = ConceptSymbol(button, iconIndex, 22)
-    symbol:SetPoint("LEFT", button, "LEFT", 10, 0)
-    overviewPieces[#overviewPieces + 1] = button
-    return button
-end
-UtilityAction("Patch Notes", -118, function()
-    if ns.Navigation and ns.PatchNotesData and ns.PatchNotesData[1] then
-        ns.Navigation.SelectKey("patchnotes", ns.PatchNotesData[1].key)
-    end
-end, "Read the current patch notes.", 2)
-UtilityAction("Settings & Options", 118, function()
-    if ns.Navigation then ns.Navigation.SelectKey("options", "options") end
-end, "Open the centralized addon settings.", 3)
-
+-- No Community Tools row: Patch Notes and Options are already available
+-- in the permanent footer. Duplicating those buttons would add no value.
 -- A generated snapshot is not a live GitHub connection. Missing stats
 -- must never masquerade as zero; the automation publishes verified numbers.
 local function UpdateOverview()
@@ -435,7 +436,7 @@ function Community.Show(key)
     listing:SetShown(not overview)
     if overview then
         UpdateOverview()
-        canvas:SetHeight(548)
+        canvas:SetHeight(485)
     else
         UpdateList(byKey[key])
     end
