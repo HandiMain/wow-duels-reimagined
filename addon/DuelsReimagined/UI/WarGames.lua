@@ -14,20 +14,15 @@ local unsubscribe
 local openMenu
 local messages = {}
 
-local symbol = root:CreateTexture(nil, "ARTWORK")
-symbol:SetTexture("Interface\\Icons\\Achievement_Arena_2v2_7")
+-- Reuse the same house icon atlas as Navigation and Addon Status.
+local symbol = Chrome.Icon(root, "Hall")
 symbol:SetSize(37, 37)
 symbol:SetPoint("TOPLEFT", root, "TOPLEFT", 24, -16)
 local title = Style.Text(root, "WAR GAMES", 28, C.pale, nil, "display")
 title:SetPoint("TOPLEFT", root, "TOPLEFT", 70, -16)
-local tagline = Style.Text(root, "Private arena challenges and spectating  |  Retail only", 13, C.text)
+local tagline = Style.Text(root,
+    "Private arena challenges and spectating  |  Retail only", 13, C.text)
 tagline:SetPoint("TOPLEFT", title, "BOTTOMLEFT", 0, -4)
-local retail = Style.Text(root, "RETAIL ONLY", 12, C.gold)
-retail:SetPoint("TOPRIGHT", root, "TOPRIGHT", -25, -24)
-local rule = Chrome.Divider(root, 800, 14)
-rule:SetPoint("TOPLEFT", root, "TOPLEFT", 23, -125)
-rule:SetPoint("TOPRIGHT", root, "TOPRIGHT", -23, -125)
-
 local scroll = CreateFrame("ScrollFrame", nil, root)
 scroll:SetPoint("TOPLEFT", root, "TOPLEFT", 25, -147)
 scroll:SetPoint("BOTTOMRIGHT", root, "BOTTOMRIGHT", -30, 14)
@@ -43,6 +38,12 @@ local function Panel(y, height, heading)
         light=C.goldDim, dark=C.window, shade=0.12, shine=0.11, rim=0.82})
     local label = Style.Text(frame, heading, 19, C.pale, nil, "display")
     label:SetPoint("TOPLEFT", frame, "TOPLEFT", 18, -11)
+    local headingRule = Style.Fill(frame, C.goldDim, "BORDER")
+    headingRule:ClearAllPoints()
+    headingRule:SetPoint("TOPLEFT", frame, "TOPLEFT", 17, -43)
+    headingRule:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -17, -43)
+    headingRule:SetHeight(1)
+    headingRule:SetAlpha(0.52)
     frame.heading = label
     return frame
 end
@@ -123,7 +124,14 @@ local function Choose(anchor, items, callback)
     chosen=callback
     openMenu=anchor
     menu:ClearAllPoints()
-    menu:SetPoint("TOPLEFT", anchor, "BOTTOMLEFT", 0, -3)
+    menu:SetClampedToScreen(true)
+    local right = anchor:GetRight()
+    local limit = root:GetRight()
+    if right and limit and right + 20 > limit - 245 then
+        menu:SetPoint("TOPRIGHT", anchor, "BOTTOMRIGHT", 0, -3)
+    else
+        menu:SetPoint("TOPLEFT", anchor, "BOTTOMLEFT", 0, -3)
+    end
     DrawChoices()
     menu:Show()
 end
@@ -151,21 +159,46 @@ local function CaptainPicker(parent, slot, page)
 end
 
 -- Panels belong to canvas and are hidden as a set when the page switches.
-local playerSetup = Panel(0,175,"YOUR TEAM")
-local playerForm = Panel(192,243,"MATCH SETUP")
-local playerArena = Panel(0,344,"ARENA MATCH")
-local hostForm = Panel(0,173,"HOST / SPECTATE")
-local hostStatus = Panel(454,62,"MATCH STATUS")
-local arenaStatus = Panel(305,66,"MATCH STATUS")
+local playerSetup = Panel(0,258,"YOUR TEAM")
+local playerForm = Panel(0,252,"MATCH SETUP")
+local hostForm = Panel(0,236,"HOST / SPECTATE")
+local hostStatus = Panel(0,76,"MATCH STATUS")
+local arenaStatus = Panel(0,76,"MATCH STATUS")
 local playerTeam = Panel(0,300,"YOUR TEAM")
 local enemyTeam = Panel(0,300,"ENEMY TEAM")
-local hostTeam1 = Panel(183,252,"TEAM 1  •  5 FIGHTERS")
-local hostTeam2 = Panel(183,252,"TEAM 2  •  5 FIGHTERS")
+local hostTeam1 = Panel(0,258,"TEAM 1  •  5 FIGHTERS")
+local hostTeam2 = Panel(0,258,"TEAM 2  •  5 FIGHTERS")
+-- Neutral, distinct dark metallic bands; never faction artwork.
+local function TeamBand(panel, tone)
+    local band = Style.Fill(panel, tone, "BACKGROUND")
+    band:ClearAllPoints()
+    band:SetPoint("TOPLEFT",panel,"TOPLEFT",2,-2)
+    band:SetPoint("TOPRIGHT",panel,"TOPRIGHT",-2,-2)
+    band:SetHeight(40)
+    band:SetAlpha(0.60)
+    panel.heading:ClearAllPoints()
+    panel.heading:SetPoint("TOP",panel,"TOP",0,-11)
+    panel.heading:SetJustifyH("CENTER")
+end
+TeamBand(hostTeam1, C.selected)
+TeamBand(hostTeam2, C.track)
 local vs = Style.Text(canvas,"VS",28,C.gold,nil,"display")
-local matchHint = Text(arenaStatus,"Only confirmed Blizzard opponent information is shown.",20,43,12,C.muted)
-local waiting = Text(hostStatus,"Waiting for an arena. A submitted request is not proof of entry.",20,39,12,C.muted)
-local msgPlayer = Text(playerForm,"",18,216,12,C.muted)
-local msgHost = Text(hostForm,"",18,150,12,C.muted)
+local matchHint = Text(arenaStatus,
+    "Only information revealed by Blizzard is shown.",18,47,12,C.muted)
+local waiting = Text(hostStatus,
+    "Spectator rosters remain unknown until verified.",18,47,12,C.muted)
+local msgPlayer = Text(playerForm,"",18,226,12,C.muted)
+msgPlayer:SetPoint("TOPRIGHT",playerForm,"TOPRIGHT",-18,-226)
+local msgHost = Text(hostForm,"",18,207,12,C.muted)
+msgHost:SetPoint("TOPRIGHT",hostForm,"TOPRIGHT",-18,-207)
+msgHost:SetJustifyH("CENTER")
+msgHost:SetWordWrap(true)
+local statusDivider = Style.Fill(hostForm, C.goldDim, "BORDER")
+statusDivider:ClearAllPoints()
+statusDivider:SetPoint("TOPLEFT",hostForm,"TOPLEFT",18,-193)
+statusDivider:SetPoint("TOPRIGHT",hostForm,"TOPRIGHT",-18,-193)
+statusDivider:SetHeight(1)
+statusDivider:SetAlpha(0.65)
 
 -- Engine owns the exact team size; the view is never limited to three.
 local function Roster(parent, slots)
@@ -183,10 +216,18 @@ local function Roster(parent, slots)
         Chrome.Sharp(icon)
         local name=Style.Text(f,"Awaiting player...",13,C.muted)
         name:SetPoint("LEFT",icon,"RIGHT",12,0)
-        name:SetPoint("RIGHT",f,"RIGHT",-9,0)
+        local role
+        if parent==hostTeam1 or parent==hostTeam2 then
+            role=Style.Text(f,"CAPTAIN",11,C.gold)
+            role:SetPoint("RIGHT",f,"RIGHT",-11,0)
+            role:Hide()
+            name:SetPoint("RIGHT",role,"LEFT",-8,0)
+        else
+            name:SetPoint("RIGHT",f,"RIGHT",-9,0)
+        end
         name:SetJustifyH("LEFT")
         name:SetWordWrap(false)
-        rows[i]={frame=f,icon=icon,name=name}
+        rows[i]={frame=f,icon=icon,name=name,role=role}
     end
     return rows
 end
@@ -216,11 +257,18 @@ end
 local function FillRows(rows, members, size, placeholder)
     for i,row in ipairs(rows) do
         row.frame:SetShown(i<=size)
-        if i<=size then SetRow(row,members and members[i],placeholder) end
+        if i<=size then
+            local member=members and members[i]
+            SetRow(row,member,placeholder)
+            if row.role then row.role:SetShown(i==1 and member~=nil) end
+        end
     end
 end
 
-local playerTeamInfo = Text(playerSetup,"Blizzard party / raid roster",18,43,12,C.muted)
+local playerTeamInfo = Text(playerSetup,"Blizzard party / raid roster",18,19,12,C.muted)
+playerTeamInfo:ClearAllPoints()
+playerTeamInfo:SetPoint("TOPRIGHT",playerSetup,"TOPRIGHT",-18,-19)
+playerTeamInfo:SetJustifyH("RIGHT")
 local playerBrackets={}
 local hostBrackets={}
 local function Brackets(parent,page,y,store)
@@ -228,12 +276,18 @@ local function Brackets(parent,page,y,store)
     for i,bracket in ipairs(Engine.Brackets) do
         local b=Small(parent,bracket.."v"..bracket,76)
         b:SetPoint("TOPLEFT",parent,"TOPLEFT",126+(i-1)*84,-y+6)
+        local choiceTint=Style.Fill(b,C.selected,"ARTWORK")
+        choiceTint:SetAllPoints(b)
+        choiceTint:SetAlpha(0)
+        b.choiceTint=choiceTint
         b:SetScript("OnClick",function() Engine.SelectBracket(page,bracket) end)
         store[i]=b
     end
+    return heading
 end
-Brackets(playerForm,"player",43,playerBrackets)
-Brackets(hostForm,"host",16,hostBrackets)
+Brackets(playerForm,"player",53,playerBrackets)
+local hostBracketLabel = Brackets(hostForm,"host",63,hostBrackets)
+hostBracketLabel:SetText("Match Format")
 
 local playerCaptainLabel=Text(playerForm,"Opposing captain",19,102,13)
 local playerCaptain=CaptainPicker(playerForm,1,"player")
@@ -244,17 +298,14 @@ playerMap:SetPoint("TOPLEFT",playerForm,"TOPLEFT",162,-143)
 local playerSend=Action(playerForm,"Send Challenge",180,34)
 playerSend:SetPoint("TOPLEFT",playerForm,"TOPLEFT",416,-174)
 
-local hostCaptain1Label=Text(hostForm,"Team 1 Captain",17,58,13)
+local hostCaptain1Label=Text(hostForm,"Team 1 Captain",17,60,13)
 local hostCaptain1=CaptainPicker(hostForm,1,"host")
-hostCaptain1:SetPoint("TOPLEFT",hostForm,"TOPLEFT",15,-77)
-local hostCaptain2Label=Text(hostForm,"Team 2 Captain",271,58,13)
+local hostCaptain2Label=Text(hostForm,"Team 2 Captain",271,60,13)
 local hostCaptain2=CaptainPicker(hostForm,2,"host")
-hostCaptain2:SetPoint("TOPLEFT",hostForm,"TOPLEFT",269,-77)
-local hostMapLabel=Text(hostForm,"Arena",525,58,13)
+local hostMapLabel=Text(hostForm,"Arena",525,60,13)
 local hostMap=Small(hostForm,"Choose arena",209)
-hostMap:SetPoint("TOPLEFT",hostForm,"TOPLEFT",523,-77)
-local hostSend=Action(hostForm,"Request Spectator Match",215,34)
-hostSend:SetPoint("TOP",hostForm,"TOP",0,-115)
+local hostSend=Action(hostForm,"Request Spectator Match",260,36)
+hostSend:SetPoint("TOP",hostForm,"TOP",0,-142)
 
 local function SelectMap(page,anchor)
     local entries={}
@@ -296,41 +347,64 @@ end
 local function Layout()
     local w=math.max(1,scroll:GetWidth()-5)
     canvas:SetWidth(w)
-    local half=math.max(245,(w-42)/2)
     local inArena=Engine.InArena()
+    local half=math.max(240,(w-72)/2)
+    local secondX=w-half
     if active=="player" then
         if inArena then
-            Position(playerTeam,0,0,half,299)
-            Position(enemyTeam,w-half,0,half,299)
-            Position(arenaStatus,0,312,w,63)
+            Position(playerTeam,0,0,half,258)
+            Position(enemyTeam,secondX,0,half,258)
+            Position(arenaStatus,0,274,w,78)
             vs:ClearAllPoints()
-            vs:SetPoint("CENTER",canvas,"TOP",0,-144)
-            canvas:SetHeight(390)
+            vs:SetPoint("CENTER",canvas,"TOP",0,-145)
+            canvas:SetHeight(366)
         else
-            Position(playerSetup,0,0,w,173)
-            Position(playerForm,0,187,w,243)
-            canvas:SetHeight(448)
+            local size=Engine.GetConfig("player").bracket
+            local teamHeight=63+39*size
+            Position(playerForm,0,0,w,252)
+            Position(playerSetup,0,268,w,teamHeight)
+            canvas:SetHeight(280+teamHeight)
             playerSend:ClearAllPoints()
-            playerSend:SetPoint("TOPRIGHT",playerForm,"TOPRIGHT",-18,-175)
+            playerSend:SetPoint("TOP",playerForm,"TOP",0,-185)
         end
     elseif inArena then
-        Position(hostTeam1,0,0,half,252)
-        Position(hostTeam2,w-half,0,half,252)
-        Position(hostStatus,0,272,w,62)
+        Position(hostTeam1,0,0,half,258)
+        Position(hostTeam2,secondX,0,half,258)
+        Position(hostStatus,0,274,w,78)
         vs:ClearAllPoints()
-        vs:SetPoint("CENTER",canvas,"TOP",0,-146)
-        canvas:SetHeight(354)
+        vs:SetPoint("CENTER",canvas,"TOP",0,-145)
+        canvas:SetHeight(366)
     else
-        Position(hostForm,0,0,w,173)
-        Position(hostTeam1,0,184,half,252)
-        Position(hostTeam2,w-half,184,half,252)
-        Position(hostStatus,0,451,w,62)
+        Position(hostForm,0,0,w,236)
+        -- Four aligned columns prevent labels and captain selectors from
+        -- colliding at the default and minimum supported window sizes.
+        local gap=12
+        local col=(w-36-3*gap)/4
+        local x={18,18+col+gap,18+2*(col+gap),18+3*(col+gap)}
+        local function At(control,left,top,width)
+            control:ClearAllPoints()
+            control:SetPoint("TOPLEFT",hostForm,"TOPLEFT",left,-top)
+            if width then control:SetWidth(width) end
+        end
+        At(hostBracketLabel,x[1],60)
+        At(hostMapLabel,x[2],60)
+        At(hostCaptain1Label,x[3],60)
+        At(hostCaptain2Label,x[4],60)
+        local bracketWidth=(col-8)/3
+        for i,button in ipairs(hostBrackets) do
+            At(button,x[1]+(i-1)*(bracketWidth+4),85,bracketWidth)
+        end
+        At(hostMap,x[2],85,col)
+        At(hostCaptain1,x[3],85,col)
+        At(hostCaptain2,x[4],85,col)
+        Position(hostTeam1,0,253,half,258)
+        Position(hostTeam2,secondX,253,half,258)
         vs:ClearAllPoints()
-        vs:SetPoint("CENTER",canvas,"TOP",0,-306)
-        canvas:SetHeight(528)
+        vs:SetPoint("CENTER",canvas,"TOP",0,-399)
+        canvas:SetHeight(524)
     end
     local max=math.max(0,canvas:GetHeight()-scroll:GetHeight())
-    scroll:SetVerticalScroll(math.min(max,scroll:GetVerticalScroll()))
+    scroll:SetVerticalScroll(math.max(0,math.min(max,scroll:GetVerticalScroll())))
 end
 local scrollbar=Widgets.ScrollBar(scroll,function()
     return scroll:GetHeight(),canvas:GetHeight(),scroll:GetVerticalScroll()
@@ -352,12 +426,14 @@ function View.Refresh()
     local cfgPlayer=Engine.GetConfig("player")
     local cfgHost=Engine.GetConfig("host")
     for i,button in ipairs(playerBrackets) do
-        button.label:SetTextColor(unpack(Engine.Brackets[i]==cfgPlayer.bracket
-            and C.pale or C.text))
+        local chosen=Engine.Brackets[i]==cfgPlayer.bracket
+        button.label:SetTextColor(unpack(chosen and C.pale or C.text))
+        button.choiceTint:SetAlpha(chosen and 0.48 or 0)
     end
     for i,button in ipairs(hostBrackets) do
-        button.label:SetTextColor(unpack(Engine.Brackets[i]==cfgHost.bracket
-            and C.pale or C.text))
+        local chosen=Engine.Brackets[i]==cfgHost.bracket
+        button.label:SetTextColor(unpack(chosen and C.pale or C.text))
+        button.choiceTint:SetAlpha(chosen and 0.48 or 0)
     end
     local playerOther=Engine.GetCaptain("player",1)
     local hostA=Engine.GetCaptain("host",1)
@@ -405,7 +481,7 @@ function View.Refresh()
     hostForm:SetShown(active=="host" and not inArena)
     hostTeam1:SetShown(active=="host")
     hostTeam2:SetShown(active=="host")
-    hostStatus:SetShown(active=="host")
+    hostStatus:SetShown(active=="host" and inArena)
     vs:SetShown(inArena or active=="host")
     if openMenu then menu:Hide() end
     Layout()

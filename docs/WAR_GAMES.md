@@ -10,8 +10,12 @@ Arena: On Retail IsInInstance(... arena), hide match setup. Players see the Bliz
 
 Forever: Core/WarGames.lua and UI/WarGames.lua are excluded at load time by AllowLoadGameType standard, as verified in EllesmereUI and WarGameHelper. The War Games primary navigation plaque is gray, blocked from Search/workspace and click, but displays a helpful tooltip on hover. No Retail APIs run on Forever.
 
-UI integrates with existing Window, Navigation, Theme, Search, Motion, Tooltips, Styles and Group. No added settings, SavedVariables, duplicate communication, polling or fake data. Battle.net friends are offered in a bounded/paged chooser. The original War Games plaque was cropped from the user's approved concept artwork.
+UI integrates with existing Window, Navigation, Theme, Search, Motion, Tooltips, Styles and Group. No added settings, SavedVariables, duplicate communication, polling or fake data. Battle.net friends are offered in a bounded/paged chooser. The War Games plaque reuses the existing red-and-gold Hall button skin with live crossed-swords icon and lettering, matching Hall's 205x84 navigation geometry. The prior separate brown concept crop was removed as unused.
 
 Sources inspected: Polestar Compat, WarGameHelper 1.2.6, ArenaLive Spectator, Wargames+, ArenaCore, EllesmereUI. The code is independently authored. API support and match behavior still require LIVE RETAIL MULTIPLAYER tests. Mocks only establish contract behavior.
 
 Quick tests: Forever disabled hover; Retail open Players/Host, group count and leader restrictions, BNet picker including empty/friends and duplicate captains, map/bracket, disabled buttons, outside/inside arena transitions, minimum window size, tab/search/back/Enter/Escape, reload; friends verify real challenge, acceptance, spectator entry and five enemy slots.
+
+## Visual regression correction (2026-11-23)
+
+The first in-game Retail screenshot revealed a ghost Arena Match panel overlapping Your Team, two separate header dividers, clipped Retail Only copy behind Back, and mismatched warm-brown War Games artwork. Corrected by deleting the unused always-visible panel; removing the redundant title label and divider; reusing the original Hall skin; and giving each UI state independent, non-overlapping geometry. Host controls are four evenly sized columns. The Players setup card is above its team roster, with one card divider and status message. Panels are scrollable rather than drawn beyond the content area. All changes are visual only; no networking, Game API or match request changes.

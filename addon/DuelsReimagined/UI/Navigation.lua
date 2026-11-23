@@ -2,7 +2,7 @@ local _, ns = ...
 local Style, Chrome, Motion = ns.Style, ns.Chrome, ns.Motion
 local C, Window = Style.color, ns.Window
 
--- Navigation is a visual shell prototype, not a gameplay or record engine.
+-- Navigation owns shared gameplay and utility destinations, not game state.
 local sections = {
     { key = "hall", label = "Hall", icon = "Hall", pages = {
         { key = "overview", label = "Overview", title = "Welcome to the Hall",
@@ -251,20 +251,10 @@ for index, section in ipairs(sections) do
             Motion.Stop(hallGlow, 0)
         end)
     elseif section.key == "wargames" then
-        -- Original Duels artwork, extracted from the user's approved
-        -- Host / Spectate concept; never reuse Hall's baked lettering.
-        local art = button:CreateTexture(nil, "ARTWORK", nil, 2)
-        art:SetTexture("Interface\\AddOns\\DuelsReimagined\\Media\\Artwork\\WarGamesPlaque.png")
-        art:SetAllPoints(button)
-        art:SetTexCoord(0,1,0,1)
-        local glow = button:CreateTexture(nil, "OVERLAY", nil, 6)
-        glow:SetTexture("Interface\\AddOns\\DuelsReimagined\\Media\\Artwork\\WarGamesPlaque.png")
-        glow:SetAllPoints(button)
-        glow:SetBlendMode("ADD")
-        glow:SetVertexColor(1, 0.78, 0.48)
-        glow:SetAlpha(0)
-        button.hallGlow = glow
-        button:HookScript("OnHide", function() Motion.Stop(glow, 0) end)
+        -- Reuse our existing red-and-gold Hall button skin at the exact
+        -- same button size; its LIVE label/swords are not baked into a bitmap.
+        -- This deliberately avoids a second mismatched plaque asset.
+        Style.Plate(button, "hall", { corner=14, layer="ARTWORK", sublevel=2 })
     else
         -- Reusable live destinations/utility shortcuts have one plate.
         Style.Plate(button, "dark", { corner=9 })
@@ -290,17 +280,26 @@ for index, section in ipairs(sections) do
     icon:SetSize(isPrimary and 48 or 20, isPrimary and 48 or 20)
     local label = Style.Text(button,
         isPrimary and string.upper(section.label) or section.label,
-        isPrimary and 23 or 12, C.tabMuted, nil,
-        isPrimary and "display" or nil)
+        section.key == "wargames" and 20 or (isPrimary and 23 or 12),
+        C.tabMuted, nil, isPrimary and "display" or nil)
     if isPrimary then
         icon:SetPoint("TOP", button, "TOP", 0, -4)
         label:SetPoint("BOTTOM", button, "BOTTOM", 0, 6)
         label:SetJustifyH("CENTER")
         -- Static Hall lettering and swords are faithful artwork pixels.
         -- Never draw an extra WoW fontstring/glyph over the extracted design.
-        if section.key == "hall" or section.key == "wargames" then
+        if section.key == "hall" then
             icon:Hide()
             label:Hide()
+        elseif section.key == "wargames" then
+            icon:SetSize(40, 40)
+            icon:ClearAllPoints()
+            icon:SetPoint("TOP", button, "TOP", 0, -8)
+            label:ClearAllPoints()
+            label:SetPoint("BOTTOM", button, "BOTTOM", 0, 10)
+            label:SetWidth(HALL_BUTTON_WIDTH - 14)
+            label:SetTextColor(unpack(C.pale))
+
         end
     else
         icon:SetPoint("LEFT", button, "LEFT", 9, 0)

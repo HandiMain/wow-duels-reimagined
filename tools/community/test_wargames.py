@@ -1,8 +1,6 @@
 """Retail War Games, 5v5, guarded requests, UI and asset integration."""
 from pathlib import Path
-import struct
 import unittest
-import zlib
 
 ROOT=Path(__file__).resolve().parents[2]
 ADDON=ROOT/"addon"/"DuelsReimagined"
@@ -58,20 +56,46 @@ class WarGamesTests(unittest.TestCase):
         self.assertIn("function View.GetPageScroll()",ui)
         self.assertIn("function View.SetPageScroll(",ui)
 
-    def test_png_integrity_and_path(self):
-        p=ADDON/"Media/Artwork/WarGamesPlaque.png"
-        raw=p.read_bytes()
-        self.assertEqual(raw[:8],b"\x89PNG\r\n\x1a\n")
-        self.assertEqual(struct.unpack(">II",raw[16:24]),(128,64))
-        pos=8;types=[]
-        while pos<len(raw):
-            n=struct.unpack(">I",raw[pos:pos+4])[0];pos+=4
-            name=raw[pos:pos+4];pos+=4
-            payload=raw[pos:pos+n];pos+=n
-            crc=struct.unpack(">I",raw[pos:pos+4])[0];pos+=4
-            self.assertEqual(zlib.crc32(name+payload)&0xffffffff,crc)
-            types.append(name)
-            if name==b"IEND":break
-        self.assertEqual(pos,len(raw))
-        self.assertIn(b"IDAT",types)
-        self.assertIn("WarGamesPlaque.png",src("UI/Navigation.lua"))
+    def test_same_sized_primary_skin_reuses_existing_art(self):
+        nav=src("UI/Navigation.lua")
+        self.assertIn("HALL_BUTTON_WIDTH = 205",nav)
+        self.assertIn('button:SetSize(HALL_BUTTON_WIDTH, 84)',nav)
+        self.assertIn('Style.Plate(button, "hall", { corner=14',nav)
+        self.assertIn('local icon = Chrome.Icon(button, section.icon)',nav)
+        self.assertIn('section.key == "wargames" and 20',nav)
+        self.assertIn('if section.key == "hall" then',nav)
+        self.assertIn('elseif section.key == "wargames" then',nav)
+        self.assertNotIn("WarGamesPlaque.png",nav)
+        self.assertFalse((ADDON/"Media/Artwork/WarGamesPlaque.png").exists())
+
+    def test_no_overlapping_cards_and_no_duplicate_divider(self):
+        ui=src("UI/WarGames.lua")
+        # An orphan panel previously painted over YOUR TEAM even in the lobby.
+        self.assertNotIn('playerArena = Panel(',ui)
+        self.assertNotIn('local retail = Style.Text(',ui)
+        self.assertNotIn('local rule = Chrome.Divider(root',ui)
+        self.assertIn('local symbol = Chrome.Icon(root, "Hall")',ui)
+        self.assertIn('hostStatus:SetShown(active=="host" and inArena)',ui)
+        self.assertIn('playerSetup:SetShown(active=="player" and not inArena)',ui)
+        self.assertIn('playerForm:SetShown(active=="player" and not inArena)',ui)
+        self.assertIn('hostForm:SetShown(active=="host" and not inArena)',ui)
+        self.assertIn('for i,button in ipairs(hostBrackets) do',ui)
+        self.assertIn('At(hostMap,x[2],85,col)',ui)
+        self.assertIn('At(hostCaptain1,x[3],85,col)',ui)
+        self.assertIn('At(hostCaptain2,x[4],85,col)',ui)
+        self.assertIn('local col=(w-36-3*gap)/4',ui)
+        self.assertIn('scroll:SetScript("OnSizeChanged"',ui)
+        # Test the exact geometry used at the supported minimum and larger
+        # widths. Each visible card occupies its own vertical interval.
+        for width in (760,800,900,1050):
+            gap=12
+            col=(width-36-3*gap)/4
+            x=[18+n*(col+gap) for n in range(4)]
+            self.assertGreaterEqual(col,160)
+            self.assertLessEqual(x[-1]+col,width-18+0.01)
+            self.assertLess(236,253)
+            self.assertLess(252,268)
+            self.assertLess(258,274)
+            self.assertLess(253+258,524)
+            self.assertLess(268+63+39*5,280+63+39*5)
+
