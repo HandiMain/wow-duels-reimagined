@@ -65,6 +65,46 @@ class ArenaGalleryTests(unittest.TestCase):
         self.assertIn('hostMap:Refresh(selectedHostMap)',view)
         self.assertNotIn('SetScript("OnUpdate"',picker)
 
+    def test_concept_fidelity_no_full_card_bleed(self):
+        picker=src("UI/WarGamesArenaPicker.lua")
+        # Regression: Style.Fill adds SetAllPoints by default. Any
+        # replacement line/card edge must clear it BEFORE new anchors.
+        self.assertIn('rule:ClearAllPoints()',picker)
+        self.assertIn('bar:ClearAllPoints()',picker)
+        self.assertIn('rim[i]:ClearAllPoints()',picker)
+        self.assertLess(picker.index('rule:ClearAllPoints()'),
+                        picker.index('rule:SetPoint("TOPLEFT"'))
+        self.assertLess(picker.index('bar:ClearAllPoints()'),
+                        picker.index('bar:SetPoint("BOTTOMLEFT"'))
+        self.assertLess(picker.index('rim[i]:ClearAllPoints()'),
+                        picker.index('rim[1]:SetPoint("TOPLEFT"'))
+        self.assertIn('Style.Plate(popup,"shellCopper"',picker)
+        self.assertIn('smooth=true',picker)
+        self.assertIn('popup:SetPoint("BOTTOM",Window.content,"BOTTOM",55,13)',picker)
+        self.assertIn('ns.Chrome.Icon(headerGroup,"Hall")',picker)
+        self.assertIn('local all = Action("All Arenas",101,"dark")',picker)
+        self.assertIn('Action("Select Arena",142,"gold")',picker)
+        self.assertIn('local colWidth=math.max(160,(scroll:GetWidth()-32)/2)',picker)
+        self.assertIn('col*(colWidth+12)',picker)
+        self.assertNotIn('Action("★ Favorites"',picker)
+        self.assertNotIn('Style.Text(b,"✓"',picker)
+        self.assertNotIn('Style.Text(star,"☆"',picker)
+
+    def test_authored_glyph_atlas_valid(self):
+        import struct
+        asset=ADDON/"Media/Skin/WarGamesPickerGlyphs.tga"
+        data=asset.read_bytes()
+        self.assertEqual(len(data),18+128*32*4)
+        self.assertEqual(data[2],2)  # uncompressed true-color
+        self.assertEqual(struct.unpack_from("<HH",data,12),(128,32))
+        self.assertEqual(data[16],32)  # RGBA8
+        self.assertEqual(data[17],40)  # top-left origin + 8-bit alpha
+        picker=src("UI/WarGamesArenaPicker.lua")
+        self.assertIn("WarGamesPickerGlyphs.tga",picker)
+        self.assertIn('check:SetTexCoord(0.5,0.75,0,1)',picker)
+        self.assertIn('filterJewel:SetTexCoord(0.25,0.5,0,1)',picker)
+        self.assertIn('card.star:SetTexCoord(item.favorite',picker)
+
     def test_favorites_one_owner_and_bounded(self):
         settings=src("Core/Settings.lua")
         picker=src("UI/WarGamesArenaPicker.lua")

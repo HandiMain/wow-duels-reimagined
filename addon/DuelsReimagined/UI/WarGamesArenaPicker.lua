@@ -7,6 +7,9 @@ local _, ns = ...
 local Engine, Window, Style = ns.WarGames, ns.Window, ns.Style
 local Motion, Widgets, Settings = ns.Motion, ns.Widgets, ns.Settings
 local C = Style.color
+-- Three 32px cells: outlined favorite, filled favorite, gold check.
+-- Authored for this addon: no user-font-dependent Unicode icon glyphs.
+local GLYPHS = "Interface\\AddOns\\DuelsReimagined\\Media\\Skin\\WarGamesPickerGlyphs.tga"
 local Picker = {}
 ns.WarGamesArenaPicker = Picker
 
@@ -175,53 +178,87 @@ tint:SetAlpha(0.22)
 shade:Hide()
 local popup = CreateFrame("Frame","DuelsReimaginedArenaPicker",shade)
 popup:SetSize(484,453)
-popup:SetPoint("CENTER",Window.content,"CENTER",0,-6)
+-- Anchor the gallery beneath match setup, close to the content footer as
+-- in the approved in-game concept. It naturally follows taller resizing.
+popup:SetPoint("BOTTOM",Window.content,"BOTTOM",55,13)
 popup:SetFrameLevel(shade:GetFrameLevel()+1)
 popup:EnableMouse(true)
 popup:SetClampedToScreen(true)
+-- Exact visual ownership: the house dark ground and its existing transparent
+-- 9-sliced sculpted copper frame, not an opaque brown/tan overlay.
 Style.Skin(popup,C.nav,{
-    corner=11,edge=C.gold,light=C.goldDim,shine=0.28,shade=0.20,rim=0.92,
+    corner=11,edge=C.goldDim,light=C.goldDim,
+    shine=0.12,shade=0.12,rim=0.44,smooth=true,
 })
-local heading = Style.Text(popup,"CHOOSE ARENA",21,C.pale,nil,"display")
-heading:SetPoint("TOP",popup,"TOP",0,-13)
+Style.Plate(popup,"shellCopper",{
+    corner=20,layer="ARTWORK",sublevel=1,
+})
+local headerGroup=CreateFrame("Frame",nil,popup)
+headerGroup:SetSize(233,34)
+headerGroup:SetPoint("TOP",popup,"TOP",0,-5)
+local swords=ns.Chrome.Icon(headerGroup,"Hall")
+swords:SetSize(32,32)
+swords:SetPoint("LEFT",headerGroup,"LEFT",0,0)
+local heading = Style.Text(headerGroup,"CHOOSE ARENA",21,C.pale,nil,"display")
+heading:SetPoint("LEFT",swords,"RIGHT",7,0)
+heading:SetWidth(195)
 local rule = Style.Fill(popup,C.goldDim,"BORDER")
+-- Style.Fill already fills the parent; clear that anchor before setting
+-- a thin rule, or its gold tint will cover the ENTIRE modal background.
+rule:ClearAllPoints()
 rule:SetPoint("TOPLEFT",popup,"TOPLEFT",13,-42)
 rule:SetPoint("TOPRIGHT",popup,"TOPRIGHT",-13,-42)
 rule:SetHeight(1)
 rule:SetAlpha(0.55)
 
-local function Action(text,width)
+local function Action(text,width,variant)
+    local primary=variant=="gold"
+    local dark=variant=="dark"
     local b = Style.Action(popup,text,"footer",{
-        fill=C.button,edge=C.goldDim,light=C.goldDim,
+        fill=primary and C.tabActive or dark and C.nav or C.button,
+        edge=primary and C.gold or dark and C.border or C.goldDim,
+        light=primary and C.pale or C.goldDim,
         dark=C.window,hover=C.selected,text=C.pale,
     })
     b:SetSize(width,30)
     return b
 end
-local close = Action("X",27)
-close:SetPoint("TOPRIGHT",popup,"TOPRIGHT",-10,-9)
+local close = Action("X",23)
+close:SetHeight(23)
+close:SetPoint("TOPRIGHT",popup,"TOPRIGHT",-10,-10)
 local search = CreateFrame("EditBox",nil,popup)
 search:SetSize(213,29)
-search:SetPoint("TOPLEFT",popup,"TOPLEFT",16,-53)
+search:SetPoint("TOPLEFT",popup,"TOPLEFT",17,-53)
 search:SetAutoFocus(false)
 search:SetMaxLetters(72)
 search:SetFontObject(GameFontHighlightSmall)
-search:SetTextInsets(9,8,0,0)
-Style.Skin(search,C.body,{corner=9,edge=C.border,shine=0.18,shade=0.19})
+search:SetTextInsets(26,8,0,0)
+Style.Skin(search,C.body,{corner=9,edge=C.border,shine=0.12,shade=0.10})
+local searchIcon=search:CreateTexture(nil,"ARTWORK")
+searchIcon:SetTexture("Interface\\Common\\UI-Searchbox-Icon")
+searchIcon:SetSize(14,14)
+searchIcon:SetPoint("LEFT",search,"LEFT",8,0)
 local hint = Style.Text(search,"Search arenas...",12,C.muted)
-hint:SetPoint("LEFT",search,"LEFT",9,0)
-local all = Action("All Arenas",101)
+hint:SetPoint("LEFT",search,"LEFT",26,0)
+local all = Action("All Arenas",101,"dark")
 all:SetPoint("TOPLEFT",search,"TOPRIGHT",9,0)
-local favorites = Action("★ Favorites",108)
+local favorites = Action("Favorites",108,"dark")
 favorites:SetPoint("TOPLEFT",all,"TOPRIGHT",7,0)
-local allSelected=Style.Fill(all,C.selected,"ARTWORK")
+local filterJewel=favorites:CreateTexture(nil,"ARTWORK")
+filterJewel:SetTexture(GLYPHS)
+filterJewel:SetTexCoord(0.25,0.5,0,1)
+filterJewel:SetSize(16,16)
+filterJewel:SetPoint("LEFT",favorites,"LEFT",3,0)
+-- The action label keeps Style.Action's own left/right and press anchors.
+-- Do not re-anchor that shared label: it would jump on mouse-down.
+local allSelected=Style.Fill(all,C.tabActive,"ARTWORK")
 allSelected:SetAllPoints(all)
-local favoritesSelected=Style.Fill(favorites,C.selected,"ARTWORK")
+local favoritesSelected=Style.Fill(favorites,C.tabActive,"ARTWORK")
 favoritesSelected:SetAllPoints(favorites)
 
 local scroll = CreateFrame("ScrollFrame",nil,popup)
-scroll:SetPoint("TOPLEFT",popup,"TOPLEFT",16,-96)
-scroll:SetPoint("BOTTOMRIGHT",popup,"BOTTOMRIGHT",-29,63)
+scroll:SetPoint("TOPLEFT",popup,"TOPLEFT",24,-89)
+scroll:SetPoint("BOTTOMRIGHT",popup,"BOTTOMRIGHT",-33,63)
 scroll:EnableMouseWheel(true)
 local canvas = CreateFrame("Frame",nil,scroll)
 canvas:SetSize(423,296)
@@ -235,7 +272,7 @@ empty:Hide()
 
 local cancel = Action("Cancel",142)
 cancel:SetPoint("BOTTOMRIGHT",popup,"BOTTOM",-6,14)
-local confirm = Action("Select Arena",142)
+local confirm = Action("Select Arena",142,"gold")
 confirm:SetPoint("BOTTOMLEFT",popup,"BOTTOM",6,14)
 
 local currentPage, pending, onlyFavorite = nil, nil, false
@@ -273,6 +310,9 @@ local function Card()
     local missing=Style.Text(b,"PREVIEW UNAVAILABLE",10,C.muted)
     missing:SetPoint("CENTER",art,"CENTER")
     local bar=Style.Fill(b,C.nav,"ARTWORK")
+    -- This is a 21px label strip, NOT an all-over charcoal layer.
+    -- Without ClearAllPoints it darkens every arena thumbnail.
+    bar:ClearAllPoints()
     bar:SetPoint("BOTTOMLEFT",b,"BOTTOMLEFT",3,3)
     bar:SetPoint("BOTTOMRIGHT",b,"BOTTOMRIGHT",-3,3)
     bar:SetHeight(21)
@@ -290,6 +330,10 @@ local function Card()
     local rim={}
     for i=1,4 do
         rim[i]=Style.Fill(b,C.gold,"OVERLAY")
+        -- A Fill starts as full-card. Clear that point before anchoring
+        -- each separate gold edge: otherwise selection paints a solid
+        -- gold rectangle across the actual arena picture.
+        rim[i]:ClearAllPoints()
         rim[i]:Hide()
     end
     rim[1]:SetPoint("TOPLEFT",b,"TOPLEFT",0,0)
@@ -304,14 +348,22 @@ local function Card()
     rim[4]:SetPoint("TOPRIGHT",b,"TOPRIGHT",0,0)
     rim[4]:SetPoint("BOTTOMRIGHT",b,"BOTTOMRIGHT",0,0)
     rim[4]:SetWidth(2)
-    local check=Style.Text(b,"✓",20,C.gold)
-    check:SetPoint("TOPRIGHT",b,"TOPRIGHT",-7,-3)
+    -- Never depend on a Unicode checkmark or star in the user's chosen
+    -- font: unavailable glyphs rendered as empty square boxes in Retail.
+    local check=b:CreateTexture(nil,"OVERLAY",nil,4)
+    check:SetTexture(GLYPHS)
+    check:SetTexCoord(0.5,0.75,0,1)
+    check:SetSize(24,24)
+    check:SetPoint("TOPRIGHT",b,"TOPRIGHT",-5,-3)
     check:Hide()
     local star=CreateFrame("Button",nil,b)
-    star:SetSize(24,24)
-    star:SetPoint("TOPLEFT",b,"TOPLEFT",3,-3)
+    star:SetSize(23,23)
+    star:SetPoint("TOPLEFT",b,"TOPLEFT",4,-4)
     star:RegisterForClicks("LeftButtonUp")
-    local starLabel=Style.Text(star,"☆",18,C.gold)
+    local starLabel=star:CreateTexture(nil,"OVERLAY")
+    starLabel:SetTexture(GLYPHS)
+    starLabel:SetTexCoord(0,0.25,0,1)
+    starLabel:SetSize(17,17)
     starLabel:SetPoint("CENTER",star,"CENTER",0,0)
     local hover=Style.Fill(b,C.goldDim,"OVERLAY")
     hover:SetAllPoints(b)
@@ -376,7 +428,9 @@ function Picker.Refresh()
             entries[#entries+1]={index=index,name=item.name,favorite=favorite}
         end
     end
-    local colWidth=math.max(160,(scroll:GetWidth()-11)/2)
+    -- Keep the 18px scrollbar strip OUTSIDE the right-hand picture card.
+    -- At minimum window size both columns still fit the modal.
+    local colWidth=math.max(160,(scroll:GetWidth()-32)/2)
     local count=#entries
     for i,item in ipairs(entries) do
         if not cards[i] then cards[i]=Card() end
@@ -385,15 +439,17 @@ function Picker.Refresh()
         button.index,button.name=item.index,item.name
         button.hasArt=PaintArt(card.image,card.missing,item.name,true)
         card.label:SetText(item.name)
-        card.star:SetText(item.favorite and "★" or "☆")
+        card.star:SetTexCoord(item.favorite and 0.25 or 0,
+            item.favorite and 0.5 or 0.25,0,1)
+        card.star:SetAlpha(item.favorite and 1 or 0.55)
         local on=item.index==pending
-        card.selected:SetAlpha(on and 0.14 or 0)
+        card.selected:SetAlpha(on and 0.07 or 0)
         card.check:SetShown(on)
         for _,line in ipairs(card.rim) do line:SetShown(on) end
         button:ClearAllPoints()
         local col=(i-1)%2
         local row=math.floor((i-1)/2)
-        button:SetPoint("TOPLEFT",canvas,"TOPLEFT",col*(colWidth+10),
+        button:SetPoint("TOPLEFT",canvas,"TOPLEFT",col*(colWidth+12),
             -row*100)
         button:SetWidth(colWidth)
         button:Show()
@@ -406,8 +462,8 @@ function Picker.Refresh()
     empty:SetShown(count==0)
     confirm:SetEnabled(count>0 and pending~=nil)
     confirm:SetAlpha(count>0 and pending~=nil and 1 or 0.48)
-    allSelected:SetAlpha(not onlyFavorite and 0.36 or 0)
-    favoritesSelected:SetAlpha(onlyFavorite and 0.36 or 0)
+    allSelected:SetAlpha(not onlyFavorite and 0.78 or 0)
+    favoritesSelected:SetAlpha(onlyFavorite and 0.78 or 0)
     all.label:SetTextColor(unpack(not onlyFavorite and C.pale or C.text))
     favorites.label:SetTextColor(unpack(onlyFavorite and C.gold or C.text))
     scrollbar:Refresh()
