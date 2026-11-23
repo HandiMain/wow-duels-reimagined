@@ -92,9 +92,9 @@ class AddonStatusUIContracts(unittest.TestCase):
             utility_left = width - 187 - utility_width
             # Earlier footer: build tag, icon, reset and reload.
             # The left controls shrink with the same ratio.
-            left_edge = 247 + (12 + 12 * ratio - 24) + \\
-                (105 + 27 * ratio) + (6 + 6 * ratio) + \\
-                (85 + 25 * ratio)
+            left_edge = (247 + (12 + 12 * ratio - 24) +
+                         (105 + 27 * ratio) + (6 + 6 * ratio) +
+                         (85 + 25 * ratio))
             self.assertGreaterEqual(utility_left - left_edge, 16)
             self.assertLess(width - 187, width - 169)
 
