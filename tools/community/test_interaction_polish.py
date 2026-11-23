@@ -43,14 +43,14 @@ class InteractionPolishTests(unittest.TestCase):
         self.assertIn('function Motion.Value(', motion)
         self.assertNotIn('SetScript("OnUpdate"', feedback)
 
-    def test_selection_slides_on_real_page_change_not_theme_repaint(self):
+    def test_selection_uses_shared_feedback_without_hidden_underline(self):
         nav = read("UI/Navigation.lua")
-        self.assertIn('local movingBar = Style.Fill(Window.nav, C.gold, "OVERLAY")', nav)
-        self.assertIn('Motion.Value(movingBar, movingIndex or pageIndex, pageIndex,', nav)
-        self.assertIn('priorSection == sectionIndex', nav)
+        self.assertIn('local function FadeSelection(item, active)', nav)
+        self.assertIn('Motion.Fade(item.selected', nav)
         self.assertIn('if repaintOnly then return end', nav)
         self.assertIn('local changed = priorSection ~= sectionIndex or priorPage ~= pageIndex', nav)
-        self.assertIn('local function PlaceBar(_, index)', nav)
+        self.assertNotIn("movingBar", nav)
+        self.assertNotIn("PlaceBar", nav)
         self.assertIn('Window.frame:HookScript("OnHide"', nav)
 
     def test_page_sweep_short_lived_and_reduced_motion_safe(self):

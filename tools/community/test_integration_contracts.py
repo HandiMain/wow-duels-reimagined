@@ -18,7 +18,7 @@ class IntegrationContracts(unittest.TestCase):
         self.assertNotIn('grip:SetScript("OnHide"', w)
         self.assertIn('local function ConnectClick(button, isWidget)', a)
         i = a.index('local function ConnectClick(button, isWidget)')
-        j = a.index('-- Independent minimap icon (Narcissus/BurstFX):', i)
+        j = a.index("miniButton = CreateFrame", i)
         body = a[i:j]
         self.assertLess(body.index('button:SetScript("OnEnter"'),
                         body.index('Tooltips.Bind(button, function()'))

@@ -104,8 +104,8 @@ class CompactPageDensityTests(unittest.TestCase):
         c = src("UI/Community.lua")
         for marker in (
             'local statsPanel = CreateFrame("Frame", nil, stage)',
-            'local creditsPanel = InfoPanel(true, "COMMUNITY CREDITS"',
-            'local helpPanel = InfoPanel(false, "HOW TO HELP"',
+            "local creditsPanel = InfoPanel(true)",
+            "local helpPanel = InfoPanel(false)",
             "canvas:SetHeight(height)", "listing:SetHeight(245)",
             "local listingTop = heroHeight + 17",
             "math.max(245, 116 + #entries * 30)",

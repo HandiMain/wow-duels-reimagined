@@ -44,7 +44,8 @@ class VisualFidelityTests(unittest.TestCase):
         self.assertIn('entry.role == "display" and "Fonts\\\\MORPHEUS.TTF"', style)
         self.assertIn('DuelOptionsBanner.png', options)
         self.assertNotIn('local heading = Style.Text(header, title', options)
-        self.assertIn('function Style.ForgedEdge(parent, opts)', style)
+        self.assertIn('function Style.Skin(parent, fill, opts)', style)
+        self.assertNotIn("function Style.ForgedEdge", style)
         self.assertIn('Style.Plate(card, "cardBody", { corner=15 })', options)
         self.assertIn('local headingBand = CreateFrame("Frame", nil, card)', options)
 
@@ -52,7 +53,7 @@ class VisualFidelityTests(unittest.TestCase):
         options, settings = lua("UI/Options.lua"), lua("Core/Settings.lua")
         self.assertIn('local CARD_BREAKPOINT = 720', options)
         self.assertIn('width >= (largeText and 1080 or CARD_BREAKPOINT)', options)
-        self.assertIn('if key == "matchFont" then return false end', settings)
+        self.assertIn('if key == "matchFont" then return EllesmereReady() end', settings)
         self.assertIn('if type(stored) == "boolean" then return stored end', settings)
         self.assertIn('db.uiTheme = nil', settings)
         self.assertIn('db.matchColors = nil', settings)

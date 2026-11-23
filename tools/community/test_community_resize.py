@@ -99,7 +99,8 @@ class CommunityResizeTests(unittest.TestCase):
         self.assertIn('sections[sectionIndex].key == "community" and w > 1000', nav)
         self.assertIn('rowStart = math.max(6, (w - rowWidth) / 2)', nav)
         self.assertIn('rowStart + (j - 1) * (tabWidth + 8)', nav)
-        self.assertIn("if movingIndex then PlaceBar(nil, movingIndex) end", nav)
+        self.assertIn('Window.nav:SetScript("OnSizeChanged", FitSubTabs)', nav)
+        self.assertNotIn("movingBar", nav)
 
     def test_resize_does_not_add_polling_or_change_global_window_minimum(self):
         self.assertIn("local MIN_WIDTH, MIN_HEIGHT = 1050, 650", WINDOW)

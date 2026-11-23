@@ -98,7 +98,7 @@ class CommunityUITests(unittest.TestCase):
         ):
             with self.subTest(asset=filename):
                 raw = (assets / filename).read_bytes()
-                self.assertEqual(raw[:8], b"\\x89PNG\\r\\n\\x1a\\n")
+                self.assertEqual(raw[:8], bytes((137, 80, 78, 71, 13, 10, 26, 10)))
                 self.assertEqual(struct.unpack(">II", raw[16:24]), dimensions)
                 self.assertEqual(raw[25], 6, filename + ": truecolor RGBA required")
                 self.assertIn(filename, community if filename != "CommunityIcons.png" else
