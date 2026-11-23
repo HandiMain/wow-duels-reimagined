@@ -200,7 +200,7 @@ def bake_emblem(rows):
     """A crisp faction-neutral shield/star crest instead of Hall's swords."""
     gate=read_emblem()
     left=(256-84)//2
-    top=12
+    top=14  # protect Hall's outer rim; shadow stays inside the plaque
     for y, pixels in enumerate(gate):
         for x in range(84):
             i=x*4
