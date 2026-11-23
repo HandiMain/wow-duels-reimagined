@@ -99,12 +99,12 @@ scroll:SetScript("OnSizeChanged", function(_, width)
 end)
 scroll:HookScript("OnShow", ClampScroll)
 
--- Approved Duelist's Circle hero: live labels/buttons over separate faction
--- decoration. The existing Alliance/Horde imagery is retained; Blizzard's
--- PvP queue artwork supplies richer atmosphere (and is never copied into
--- addon files). Image paths are client-owned; fade art is the fallback.
+-- Approved concept art is extracted from the supplied reference image.
+-- Only static decorative content is baked; dynamic stats and clickable buttons
+-- stay owned by the existing Community/UI and GitHub-credit systems.
 local art = "Interface\\AddOns\\DuelsReimagined\\Media\\Concept\\CommunityFactionMarks.png"
 local allianceArt = "Interface\\AddOns\\DuelsReimagined\\Media\\Concept\\CommunityAllianceLion.png"
+local symbolArt = "Interface\\AddOns\\DuelsReimagined\\Media\\Concept\\CommunityConceptSymbols.png"
 local conceptRoot = "Interface\\AddOns\\DuelsReimagined\\Media\\Concept\\"
 local conceptHero = conceptRoot .. "CommunityConceptHero.png"
 local conceptTitle = conceptRoot .. "CommunityConceptTitle.png"
@@ -294,22 +294,22 @@ end
 local creditsPanel = InfoPanel(true, "COMMUNITY CREDITS",
     "A guide to the community pages.", 0)
 local creditDescriptions = {
-    { "The Duelist's Circle", "Overview and ways to help.", 0 },
-    { "Contributors", "Merged pull request authors.", 1 },
-    { "Bug Hunters", "Verified bug-fix reporters.", 8 },
-    { "Community Ideas", "Ideas implemented in the addon.", 9 },
-    { "Special Thanks", "Community acknowledgements.", 3 },
+    { "The Duelist's Circle", "Community hub, updates and ways to get involved.", 0 },
+    { "Contributors", "People who have directly contributed.", 1 },
+    { "Bug Hunters", "Players who reported and helped verify fixes.", 8 },
+    { "Community Ideas", "Player suggestions that help shape the addon.", 9 },
+    { "Special Thanks", "Additional credits and community appreciation.", 3 },
 }
 for i, entry in ipairs(creditDescriptions) do
     local y = -75 - (i - 1) * 27
     local icon = ConceptSymbol(creditsPanel, entry[3], 19)
     icon:SetPoint("TOPLEFT", creditsPanel, "TOPLEFT", 15, y + 1)
     local label = Style.Text(creditsPanel, entry[1], 13, C.gold)
-    label:SetPoint("TOPLEFT", creditsPanel, "TOPLEFT", 42, y)
-    label:SetWidth(143)
+    label:SetPoint("TOPLEFT", creditsPanel, "TOPLEFT", 52, y)
+    label:SetWidth(145)
     label:SetWordWrap(false)
     local summary = Style.Text(creditsPanel, entry[2], 12, C.text)
-    summary:SetPoint("TOPLEFT", creditsPanel, "TOPLEFT", 191, y)
+    summary:SetPoint("TOPLEFT", creditsPanel, "TOPLEFT", 202, y)
     summary:SetPoint("TOPRIGHT", creditsPanel, "TOPRIGHT", -12, y)
     summary:SetWordWrap(false)
 end
@@ -423,6 +423,7 @@ function Community.Show(key)
     root:SetShown(active)
     if not active then return end
     local overview = key == "community"
+    hero:SetShown(overview)
     for _, item in ipairs(overviewPieces) do item:SetShown(overview) end
     listing:SetShown(not overview)
     if overview then
