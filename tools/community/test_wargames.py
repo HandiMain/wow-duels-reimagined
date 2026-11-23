@@ -63,8 +63,8 @@ class WarGamesTests(unittest.TestCase):
         self.assertIn('ns.Search.Register("wargames:spectate"',ui)
         self.assertIn("function View.GetPageScroll()",ui)
         self.assertIn("function View.SetPageScroll(",ui)
-        self.assertIn("Widgets.ChoiceControl(playerForm,235)",ui)
-        self.assertIn("Widgets.ChoiceControl(hostForm,209)",ui)
+        self.assertIn('ns.WarGamesArenaPicker.CreatePreview(playerForm,"player")',ui)
+        self.assertIn('ns.WarGamesArenaPicker.CreatePreview(hostForm,"host")',ui)
         self.assertIn("Widgets.OpenChoices(",ui)
         self.assertIn("Engine.GetMaps()",ui)
         self.assertIn('if captainID==0 then captainID=nil end',ui)
@@ -93,8 +93,8 @@ class WarGamesTests(unittest.TestCase):
                       'local hostTournament=TournamentToggle(hostForm,"host")',
                       'Widgets.ToggleRow(parent,"Tournament Rules"',
                       'toggle:LayoutForWidth(toggleWidth,true)',
-                      'PlaceMatchControls(playerForm,playerTournament,playerSend,w,185)',
-                      'PlaceMatchControls(hostForm,hostTournament,hostSend,w,142)',
+                      'PlaceMatchControls(playerForm,playerTournament,playerSend,w,229)',
+                      'PlaceMatchControls(hostForm,hostTournament,hostSend,w,180)',
                       'playerTournament:SetChecked(cfgPlayer.tournamentRules)',
                       'hostTournament:SetChecked(cfgHost.tournamentRules)',
                       'ns.Search.Register("wargames:tournament:player"',
@@ -104,8 +104,8 @@ class WarGamesTests(unittest.TestCase):
         self.assertNotIn('SetScript("OnUpdate"',core+ui)
         self.assertIn('sends[2]=="OneAccount nagrand 1"',runtime)
         self.assertIn('spectates[2][5]==true',runtime)
-        self.assertIn('Position(playerForm,0,0,w,252)',ui)
-        self.assertIn('Position(hostForm,0,0,w,236)',ui)
+        self.assertIn('Position(playerForm,0,0,w,301)',ui)
+        self.assertIn('Position(hostForm,0,0,w,277)',ui)
         for width in (683,720,820,1000):
             for action in (180,260):
                 toggle=max(160,min(290,width-36-action-18))
@@ -152,7 +152,7 @@ class WarGamesTests(unittest.TestCase):
         self.assertIn('local w=UsableCanvasWidth()',ui)
         self.assertIn('canvas:SetWidth(w+SCROLLBAR_GUTTER)',ui)
         self.assertIn('vs:SetPoint("CENTER",canvas,"TOPLEFT",w/2,-145)',ui)
-        self.assertIn('vs:SetPoint("CENTER",canvas,"TOPLEFT",w/2,-399)',ui)
+        self.assertIn('vs:SetPoint("CENTER",canvas,"TOPLEFT",w/2,-440)',ui)
         self.assertNotIn('canvas:SetWidth(w)\n',ui)
         self.assertEqual(ui.count('vs:SetPoint("CENTER",canvas,"TOPLEFT",w/2,-145)'),2)
         self.assertIn('root:HookScript("OnSizeChanged"',ui)
@@ -176,11 +176,11 @@ class WarGamesTests(unittest.TestCase):
             x=[18+n*(col+gap) for n in range(4)]
             self.assertGreaterEqual(col,150)
             self.assertLessEqual(x[-1]+col,width-18+0.01)
-            self.assertLess(236,253)
-            self.assertLess(252,268)
+            self.assertLess(277,294)
+            self.assertLess(301,317)
             self.assertLess(258,274)
-            self.assertLess(253+258,524)
-            self.assertLess(268+63+39*5,280+63+39*5)
+            self.assertLess(294+258,565)
+            self.assertLess(317+63+39*5,329+63+39*5)
 
 
     def test_approved_coliseum_artwork_is_current(self):

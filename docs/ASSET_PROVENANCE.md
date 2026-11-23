@@ -20,3 +20,9 @@ The public interface itself has no third-party branding or internal `Concept` / 
 - Original artwork was cropped and fitted into an RGBA 256x128 power-of-two plate, with transparent corners and the full gold WAR GAMES title safely inside the copper frame.
 - Master: `tools/community/artwork/WarGamesColiseumPlate.png`. Runtime: `addon/DuelsReimagined/Media/Skin/DuelWarGamesPlate.png`.
 - The War Games button retains its existing game-frame behavior and hover/press feedback; only the baked visual plate changed. No other addon's artwork was used.
+
+## Retail War Games arena thumbnail browser (2026-11-23)
+
+No arena thumbnails are distributed in the addon. The visual arena picker (`UI/WarGamesArenaPicker.lua`) queries the **player's own installed World of Warcraft Retail client** for Blizzard arena-specific loading screen art. The only mapped loading-screen candidates are the eight entries explicitly documented in Details! (`boot.lua`, `_detalhes.arena_info`): Nagrand, Blade's Edge, Ruins of Lordaeron, Dalaran Sewers, Tol'viron, Tiger's Peak, Ashamane's Fall and Black Rook Hold. Older Blizzard `PVPFrame.lua` documents the specific arena LFG icons that can act as fallbacks for Nagrand, Blade's Edge, Ruins and Dalaran. Runtime texture fileIDs are required: nonexistent paths or newer arenas without corroborated game art receive the honest **PREVIEW UNAVAILABLE** treatment. The entire arena list remains selectable.
+
+No third-party screenshot files were downloaded or rehosted; no generated concept images or synthetic map artwork were bundled or labeled as real arenas. The screenshot concept remains UI design inspiration only. Game artwork is the property of Blizzard Entertainment and remains in the user's WoW installation. The path mapping derives from publicly accessible reference tables only; no reference addon code was copied. The Retail client must verify those fileIDs in-game before any thumbnail resolution is marked VERIFIED.

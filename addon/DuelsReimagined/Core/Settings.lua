@@ -201,6 +201,50 @@ local function WorkspaceScroll(value)
         value == math.huge or value == -math.huge then return 0 end
     return math.floor(math.max(0, math.min(60000, value)) + 0.5)
 end
+-- Arena favorites are the only persistent part of the visual War Games
+-- chooser. Settings remains the one storage owner, not the transient picker.
+local function CleanArenaFavorites(source)
+    local out, seen = {}, {}
+    if type(source) ~= "table" then return out end
+    for i=1,math.min(#source,32) do
+        local name=source[i]
+        if type(name)=="string" and #name>=3 and #name<=96 and
+            not name:find("[%c]") and not seen[name] then
+            out[#out+1]=name
+            seen[name]=true
+        end
+    end
+    return out
+end
+function Settings.GetWarGamesArenaFavorites()
+    local db=ReadDB()
+    return CleanArenaFavorites(db and db.warGamesArenaFavorites)
+end
+function Settings.IsWarGamesArenaFavorite(name)
+    if type(name)~="string" then return false end
+    for _,item in ipairs(Settings.GetWarGamesArenaFavorites()) do
+        if item==name then return true end
+    end
+    return false
+end
+function Settings.ToggleWarGamesArenaFavorite(name)
+    if type(name)~="string" or #name<3 or #name>96 or
+        name:find("[%c]") then return false end
+    local list=Settings.GetWarGamesArenaFavorites()
+    local nextList={}
+    local removed=false
+    for _,item in ipairs(list) do
+        if item==name then removed=true
+        else nextList[#nextList+1]=item end
+    end
+    if not removed then
+        if #nextList>=32 then return false end
+        nextList[#nextList+1]=name
+    end
+    WriteDB().warGamesArenaFavorites=nextList
+    return true,not removed
+end
+
 function Settings.GetWorkspace()
     local db = ReadDB()
     local state = db and db.lastWorkspace

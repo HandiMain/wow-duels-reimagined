@@ -27,6 +27,7 @@ UI\Search.lua
 UI\Header.lua
 UI\PatchNotesData.lua
 UI\AddonStatus.lua
+UI\WarGamesArenaPicker.lua [AllowLoadGameType standard]
 UI\WarGames.lua [AllowLoadGameType standard]
 UI\Navigation.lua
 Community\Credits.lua

@@ -1,0 +1,96 @@
+"""Native-art-only visual War Games arena picker contract checks."""
+from pathlib import Path
+import re
+import unittest
+
+ROOT=Path(__file__).resolve().parents[2]
+ADDON=ROOT/"addon"/"DuelsReimagined"
+
+def src(path): return (ADDON/path).read_text(encoding="utf-8")
+
+class ArenaGalleryTests(unittest.TestCase):
+    def test_retail_load_order_and_ownership(self):
+        toc=src("DuelsReimagined.toc")
+        self.assertIn("UI\\WarGamesArenaPicker.lua [AllowLoadGameType standard]",toc)
+        self.assertLess(toc.index("UI\\Widgets.lua"),toc.index("UI\\WarGamesArenaPicker.lua"))
+        self.assertLess(toc.index("UI\\WarGamesArenaPicker.lua"),toc.index("UI\\WarGames.lua"))
+        self.assertLess(toc.index("UI\\WarGames.lua"),toc.index("UI\\Navigation.lua"))
+        view=src("UI/WarGames.lua")
+        picker=src("UI/WarGamesArenaPicker.lua")
+        self.assertIn('Picker.CreatePreview(parent, page)',picker)
+        self.assertIn('Picker.Open(page)',picker)
+        self.assertIn('local playerMap = ns.WarGamesArenaPicker.CreatePreview(playerForm,"player")',view)
+        self.assertIn('local hostMap=ns.WarGamesArenaPicker.CreatePreview(hostForm,"host")',view)
+        for unsafe in ('StartWarGameByName','StartSpectatorWarGame',
+                       'SendAddonMessage','CHAT_MSG_ADDON','SetScript("OnUpdate"',
+                       '_G.DuelsReimaginedDB'):
+            self.assertNotIn(unsafe,picker)
+        self.assertNotIn('function SelectMap(page,anchor)',view)
+        self.assertIn('Engine.SelectMap(page,index)',picker)
+
+    def test_client_game_art_only_and_no_false_arena(self):
+        picker=src("UI/WarGamesArenaPicker.lua")
+        for marker in ('GetFileIDFromPath','PaintArt(art,missing,name)',
+                       'image:SetTexture(id)','PREVIEW UNAVAILABLE',
+                       '["Nagrand Arena"]',"[\"Blade's Edge Arena\"]",
+                       '["Ruins of Lordaeron"]','["Dalaran Sewers"]',
+                       "[\"Tol'viron Arena\"]","[\"The Tiger's Peak\"]",
+                       "[\"Ashamane's Fall\"]",'["Black Rook Hold Arena"]'):
+            self.assertIn(marker,picker)
+        self.assertNotIn('http://',picker)
+        self.assertNotIn('https://',picker)
+        self.assertNotIn('Media\\Arenas',picker)
+        self.assertNotIn('C_Map.GetMapArtLayers',picker)
+        self.assertIn('for index,item in ipairs(known) do',picker)
+        self.assertIn('local known=Engine.GetMaps()',picker)
+
+    def test_modal_cancel_confirm_filter_and_lifecycle(self):
+        picker=src("UI/WarGamesArenaPicker.lua")
+        view=src("UI/WarGames.lua")
+        for marker in ('CHOOSE ARENA','Search arenas...', 'All Arenas',
+                       'Favorites','Select Arena','Cancel','No matching arenas',
+                       'function Picker.Close()', 'function Picker.Refresh()',
+                       'search:SetScript("OnEscapePressed"',
+                       'scroll:SetScript("OnMouseWheel"',
+                       'scrollbar=Widgets.ScrollBar(scroll',
+                       'if Engine.InArena() then return end',
+                       'if not popup:IsShown() then return end'):
+            self.assertIn(marker,picker)
+        self.assertIn('Engine.SelectMap(page,index)',picker)
+        self.assertEqual(picker.count('Engine.SelectMap(page,index)'),1)
+        self.assertIn('ns.Search.Register("wargames:arena:"..pageKey',picker)
+        self.assertIn('ns.WarGamesArenaPicker.Close()',view)
+        self.assertIn('View.Refresh()',view)
+        self.assertIn('playerMap:Refresh(selectedPlayerMap)',view)
+        self.assertIn('hostMap:Refresh(selectedHostMap)',view)
+        self.assertNotIn('SetScript("OnUpdate"',picker)
+
+    def test_favorites_one_owner_and_bounded(self):
+        settings=src("Core/Settings.lua")
+        picker=src("UI/WarGamesArenaPicker.lua")
+        for marker in ('function Settings.GetWarGamesArenaFavorites()',
+                       'function Settings.IsWarGamesArenaFavorite(name)',
+                       'function Settings.ToggleWarGamesArenaFavorite(name)',
+                       'math.min(#source,32)','warGamesArenaFavorites'):
+            self.assertIn(marker,settings)
+        self.assertIn('Settings.ToggleWarGamesArenaFavorite(b.name)',picker)
+        self.assertNotIn('_G.DuelsReimaginedDB',picker)
+
+    def test_responsive_geometry_safe_gutter(self):
+        view=src("UI/WarGames.lua")
+        self.assertIn('SCROLLBAR_GUTTER = 25, 30, 22',view)
+        self.assertIn('Position(playerForm,0,0,w,301)',view)
+        self.assertIn('Position(hostForm,0,0,w,277)',view)
+        self.assertIn('Position(hostTeam1,0,294,half,258)',view)
+        self.assertIn('PlaceMatchControls(hostForm,hostTournament,hostSend,w,180)',view)
+        self.assertIn('PlaceMatchControls(playerForm,playerTournament,playerSend,w,229)',view)
+        for width in (760,800,900,1050):
+            useful=width-25-30-22
+            col=(useful-36-3*12)/4
+            self.assertGreater(col,140)
+            self.assertLess(277,294)
+            self.assertLess(301,317)
+            self.assertLess(294+258,565)
+
+if __name__=="__main__":
+    unittest.main()

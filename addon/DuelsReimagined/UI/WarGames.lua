@@ -109,8 +109,8 @@ end
 
 -- Panels belong to canvas and are hidden as a set when the page switches.
 local playerSetup = Panel(0,258,"YOUR TEAM")
-local playerForm = Panel(0,252,"MATCH SETUP")
-local hostForm = Panel(0,236,"HOST / SPECTATE")
+local playerForm = Panel(0,301,"MATCH SETUP")
+local hostForm = Panel(0,277,"HOST / SPECTATE")
 local hostStatus = Panel(0,76,"MATCH STATUS")
 local arenaStatus = Panel(0,76,"MATCH STATUS")
 local playerTeam = Panel(0,300,"YOUR TEAM")
@@ -136,16 +136,16 @@ local matchHint = Text(arenaStatus,
     "Only information revealed by Blizzard is shown.",18,47,12,C.muted)
 local waiting = Text(hostStatus,
     "Spectator rosters remain unknown until verified.",18,47,12,C.muted)
-local msgPlayer = Text(playerForm,"",18,226,12,C.muted)
-msgPlayer:SetPoint("TOPRIGHT",playerForm,"TOPRIGHT",-18,-226)
-local msgHost = Text(hostForm,"",18,207,12,C.muted)
-msgHost:SetPoint("TOPRIGHT",hostForm,"TOPRIGHT",-18,-207)
+local msgPlayer = Text(playerForm,"",18,276,12,C.muted)
+msgPlayer:SetPoint("TOPRIGHT",playerForm,"TOPRIGHT",-18,-276)
+local msgHost = Text(hostForm,"",18,250,12,C.muted)
+msgHost:SetPoint("TOPRIGHT",hostForm,"TOPRIGHT",-18,-250)
 msgHost:SetJustifyH("CENTER")
 msgHost:SetWordWrap(true)
 local statusDivider = Style.Fill(hostForm, C.goldDim, "BORDER")
 statusDivider:ClearAllPoints()
-statusDivider:SetPoint("TOPLEFT",hostForm,"TOPLEFT",18,-193)
-statusDivider:SetPoint("TOPRIGHT",hostForm,"TOPRIGHT",-18,-193)
+statusDivider:SetPoint("TOPLEFT",hostForm,"TOPLEFT",18,-233)
+statusDivider:SetPoint("TOPRIGHT",hostForm,"TOPRIGHT",-18,-233)
 statusDivider:SetHeight(1)
 statusDivider:SetAlpha(0.65)
 
@@ -242,8 +242,9 @@ local playerCaptainLabel=Text(playerForm,"Opposing captain",19,102,13)
 local playerCaptain=CaptainPicker(playerForm,1,"player")
 playerCaptain:SetPoint("TOPLEFT",playerForm,"TOPLEFT",162,-99)
 local playerMapLabel=Text(playerForm,"Arena",19,148,13)
-local playerMap = Widgets.ChoiceControl(playerForm,235)
+local playerMap = ns.WarGamesArenaPicker.CreatePreview(playerForm,"player")
 playerMap:SetPoint("TOPLEFT",playerForm,"TOPLEFT",162,-143)
+playerMap:Resize(235)
 -- Match mode uses the same compact switch and tooltip treatment as Options.
 -- It is not an addon preference; no SavedVariables or Reset control.
 local function TournamentToggle(parent,page)
@@ -263,25 +264,13 @@ local hostCaptain1=CaptainPicker(hostForm,1,"host")
 local hostCaptain2Label=Text(hostForm,"Team 2 Captain",271,60,13)
 local hostCaptain2=CaptainPicker(hostForm,2,"host")
 local hostMapLabel=Text(hostForm,"Arena",525,60,13)
-local hostMap=Widgets.ChoiceControl(hostForm,209)
+local hostMap=ns.WarGamesArenaPicker.CreatePreview(hostForm,"host")
 local hostTournament=TournamentToggle(hostForm,"host")
 local hostSend=Action(hostForm,"Request Spectator Match",260,36)
-hostSend:SetPoint("TOPRIGHT",hostForm,"TOPRIGHT",-18,-142)
+hostSend:SetPoint("TOPRIGHT",hostForm,"TOPRIGHT",-18,-180)
 
-local function SelectMap(page,anchor)
-    local entries={}
-    for index, map in ipairs(Engine.GetMaps()) do
-        entries[#entries+1]={key=index,label=map.name,
-            detail=map.clientReported and "Reported by this Retail client." or
-                "Arena reference. Blizzard determines War Game availability."}
-    end
-    local cfg=Engine.GetConfig(page)
-    Widgets.OpenChoices(anchor,entries,cfg and cfg.map,function(index)
-        Engine.SelectMap(page,index)
-    end)
-end
-playerMap:SetScript("OnClick",function(self) SelectMap("player",self) end)
-hostMap:SetScript("OnClick",function(self) SelectMap("host",self) end)
+-- Both arena controls use one shared, visual Blizzard-art-only selector.
+-- Selection is committed to Engine only after Select Arena; Cancel is inert.
 ns.Tooltips.Bind(playerSend,function()
     return {title="Send Challenge",
         detail=Engine.GetReason("player") or
@@ -353,10 +342,10 @@ local function Layout()
         else
             local size=Engine.GetConfig("player").bracket
             local teamHeight=63+39*size
-            Position(playerForm,0,0,w,252)
-            Position(playerSetup,0,268,w,teamHeight)
-            canvas:SetHeight(280+teamHeight)
-            PlaceMatchControls(playerForm,playerTournament,playerSend,w,185)
+            Position(playerForm,0,0,w,301)
+            Position(playerSetup,0,317,w,teamHeight)
+            canvas:SetHeight(329+teamHeight)
+            PlaceMatchControls(playerForm,playerTournament,playerSend,w,229)
         end
     elseif inArena then
         Position(hostTeam1,0,0,half,258)
@@ -366,7 +355,7 @@ local function Layout()
         vs:SetPoint("CENTER",canvas,"TOPLEFT",w/2,-145)
         canvas:SetHeight(366)
     else
-        Position(hostForm,0,0,w,236)
+        Position(hostForm,0,0,w,277)
         -- Four aligned columns prevent labels and captain selectors from
         -- colliding at the default and minimum supported window sizes.
         local gap=12
@@ -386,14 +375,15 @@ local function Layout()
             At(button,x[1]+(i-1)*(bracketWidth+4),85,bracketWidth)
         end
         At(hostMap,x[2],85,col)
+        hostMap:Resize(col)
         At(hostCaptain1,x[3],85,col)
         At(hostCaptain2,x[4],85,col)
-        PlaceMatchControls(hostForm,hostTournament,hostSend,w,142)
-        Position(hostTeam1,0,253,half,258)
-        Position(hostTeam2,secondX,253,half,258)
+        PlaceMatchControls(hostForm,hostTournament,hostSend,w,180)
+        Position(hostTeam1,0,294,half,258)
+        Position(hostTeam2,secondX,294,half,258)
         vs:ClearAllPoints()
-        vs:SetPoint("CENTER",canvas,"TOPLEFT",w/2,-399)
-        canvas:SetHeight(524)
+        vs:SetPoint("CENTER",canvas,"TOPLEFT",w/2,-440)
+        canvas:SetHeight(565)
     end
     local max=math.max(0,canvas:GetHeight()-scroll:GetHeight())
     scroll:SetVerticalScroll(math.max(0,math.min(max,scroll:GetVerticalScroll())))
@@ -418,6 +408,9 @@ end)
 function View.Refresh()
     if not root:IsShown() then return end
     local inArena=Engine.InArena()
+    if inArena and ns.WarGamesArenaPicker then
+        ns.WarGamesArenaPicker.Close()
+    end
     local c=Engine.GetConfig(active)
     if not c then return end
     local cfgPlayer=Engine.GetConfig("player")
@@ -446,8 +439,8 @@ function View.Refresh()
     local maps=Engine.GetMaps()
     local selectedPlayerMap=maps[cfgPlayer.map]
     local selectedHostMap=maps[cfgHost.map]
-    playerMap.label:SetText(selectedPlayerMap and selectedPlayerMap.name or "Choose arena")
-    hostMap.label:SetText(selectedHostMap and selectedHostMap.name or "Choose arena")
+    playerMap:Refresh(selectedPlayerMap)
+    hostMap:Refresh(selectedHostMap)
     local team=Engine.GetTeam()
     local own=team.complete and not team.stale and team.members or {}
     FillRows(setupRows,own,math.min(5,cfgPlayer.bracket))
@@ -492,13 +485,17 @@ function View.Refresh()
     scrollbar:Refresh()
 end
 local function Visible(tab)
+    if ns.WarGamesArenaPicker then ns.WarGamesArenaPicker.Close() end
     if active~=tab then Widgets.CloseChoices() end
     active=tab
     root:Show()
     View.Refresh()
 end
 function View.Show(tab)
-    if tab~="player" and tab~="host" then root:Hide(); return end
+    if tab~="player" and tab~="host" then
+        if ns.WarGamesArenaPicker then ns.WarGamesArenaPicker.Close() end
+        root:Hide(); return
+    end
     Visible(tab)
 end
 function View.GetPageScroll() return scroll:GetVerticalScroll() end
@@ -520,6 +517,7 @@ root:SetScript("OnShow",function()
 end)
 root:SetScript("OnHide",function()
     if unsubscribe then unsubscribe(); unsubscribe=nil end
+    if ns.WarGamesArenaPicker then ns.WarGamesArenaPicker.Close() end
     Widgets.CloseChoices()
     ns.Tooltips.Hide(nil,true)
 end)
