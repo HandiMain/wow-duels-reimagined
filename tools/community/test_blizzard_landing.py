@@ -26,7 +26,7 @@ class BlizzardLandingTests(unittest.TestCase):
         self.assertIn('OpenDuels("community", "community")', s)
         self.assertIn("ns.Navigation.SelectKey(section, page)", s)
         self.assertIn("ns.Window.Toggle()", s)
-        self.assertIn('Style.Action(layout, caption, "community-art")', s)
+        self.assertIn('Style.Action(layout, caption, "landing-art")', s)
         self.assertIn('button:RegisterForClicks("LeftButtonUp")', read("UI/Style.lua"))
         self.assertNotIn("DuelsReimaginedDB", s)
         self.assertNotIn("v0.9.2", s)
@@ -75,6 +75,35 @@ class BlizzardLandingTests(unittest.TestCase):
         self.assertNotIn("LockedBrandBand", s)
         self.assertNotIn("Test Build", s)
 
+    def test_faction_feathering_matches_dark_center(self):
+        s = read("UI/BlizzardSettings.lua")
+        # A continuous pair of gradients frames the fully dark center;
+        # all foreground text, crest and buttons stay outside this shading.
+        self.assertIn("FadeFaction(90, 145, 0, 1)", s)
+        self.assertIn("FadeFaction(313, 145, 1, 0)", s)
+        self.assertIn("quietCenter:SetSize(78, BASE_H)", s)
+        self.assertIn('shade:SetGradient("HORIZONTAL"', s)
+        self.assertIn('type(CreateColor) == "function"', s)
+        self.assertIn("local steps = 24", s)
+        self.assertLess(s.index("FadeFaction(313, 145, 1, 0)"),
+                        s.index("local function SourceImage"))
+        self.assertEqual(s.count('Style.Skin(surface, LANDING_BG'), 1)
+
+    def test_art_silhouette_owns_hover_and_press_not_rectangular_mask(self):
+        s = read("UI/BlizzardSettings.lua")
+        style = read("UI/Style.lua")
+        self.assertIn('Style.Action(layout, caption, "landing-art")', s)
+        self.assertIn('local landingArt = variant == "landing-art"', style)
+        self.assertIn('if not landingArt then\n        hover = Style.FeedbackOverlay', style)
+        self.assertIn("if not landingArt and ns.Widgets and ns.Widgets.PressFeedback", style)
+        self.assertIn("if not landingArt and ns.Tooltips then", style)
+        self.assertIn('glow:SetTexture(media .. art)', s)
+        self.assertIn('glow:SetBlendMode("ADD")', s)
+        self.assertIn('glow:SetAlpha(0)', s)
+        self.assertIn('Motion.Fade(glow, 0.23', s)
+        self.assertIn('Motion.Stop(glow, 0.42)', s)
+        self.assertIn('button:HookScript("OnHide"', s)
+
     def test_native_api_safe_handoff(self):
         s = read("UI/BlizzardSettings.lua")
         for token in ["RegisterCanvasLayoutCategory", "RegisterAddOnCategory",
@@ -83,9 +112,10 @@ class BlizzardLandingTests(unittest.TestCase):
                       'event:RegisterEvent("PLAYER_LOGIN")',
                       'Motion.Fade(surface, 1, Motion.Duration("gentle"))']:
             self.assertIn(token, s)
-        self.assertEqual(s.count("outsideWindow = true"), 2)
-        self.assertIn('ns.Tooltips.Bind(open', s)
-        self.assertIn('ns.Tooltips.Bind(community', s)
+        # Landing hover stays visual-only; boxed help popups obscured the art.
+        self.assertNotIn('ns.Tooltips.Bind(open', s)
+        self.assertNotIn('ns.Tooltips.Bind(community', s)
+        self.assertNotIn("outsideWindow = true", s)
 
     def test_ellesmere_remains_optional_not_second_skin(self):
         s = read("UI/BlizzardSettings.lua")
