@@ -191,7 +191,7 @@ class CommunityUITests(unittest.TestCase):
 
     def test_circle_has_one_stats_bar_and_two_information_panels(self):
         community = content("UI/Community.lua")
-        self.assertIn('local statsPanel = CreateFrame("Frame", nil, canvas)', community)
+        self.assertIn('local statsPanel = CreateFrame("Frame", nil, stage)', community)
         self.assertIn('Style.Skin(statsPanel, C.window', community)
         self.assertIn('shine=0.09, shade=0.08, rim=0.96', community)
         self.assertIn('Style.Skin(hero, C.window', community)
@@ -200,7 +200,13 @@ class CommunityUITests(unittest.TestCase):
         self.assertIn('local helpPanel = InfoPanel(false, "HOW TO HELP"', community)
         self.assertNotIn('"COMMUNITY TOOLS", 16', community)
         self.assertNotIn('UtilityAction(', community)
-        self.assertIn('canvas:SetHeight(460)', community)
+        self.assertIn('canvas:SetHeight(height)', community)
+        self.assertIn('local DESIGN_WIDTH, CARD_BREAKPOINT = 940, 930', community)
+        self.assertIn('ReflowCommunity = function()', community)
+        self.assertIn('hero:SetScale(heroScale)', community)
+        self.assertIn('local statsHeight = compact and 116 or 58', community)
+        self.assertIn('local cardWidth = math.min(510, math.max(1, width - 24))', community)
+        self.assertIn('stage:SetWidth(width)', community)
         self.assertIn('local communityHeading = Style.Text(root, "Community"', community)
         self.assertIn('Style.Skin(hero, C.window', community)
         self.assertIn('exactTitle:SetTexture(conceptTitle)', community)
