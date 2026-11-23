@@ -6,10 +6,10 @@
 
 1. Verify the release really occurred. Put a reviewed record **at the beginning** of `ns.PatchNotesData`; the first record is the latest and controls the unread reminder.
 2. Use a **unique, stable** `key` (navigation), `id` (seen/reminder state), and user-facing `version` (release name). Once published, avoid renaming `id`.
-3. Set `demo = false` **only for genuine releases**. The existing three demo records deliberately use `demo = true`; they are fictional examples and must never be presented as published changes.
+3. Set `demo = false` **only for genuine releases**. The existing six demo records deliberately use `demo = true`; they are fictional examples and must never be presented as published changes.
 4. Write truthful `title`, `date`, `summary`, optional `overview`, optional `highlights`, and `entries`. Do not invent ranked/multiplayer or untested functionality.
 5. A change entry can link to an actual registered setting via `target = "setting:..."`. The link is visible/clickable **only when Search contains that exact target**; omit `target` for ordinary updates.
-6. Test the version rail at 3 and many versions, normal/compact/extra-wide window sizes, mouse wheel, keyboard chat Enter/Escape, Back, Search, peek/fold, /reload, and the latest-version unread reminder. Verify the output in Forever and Retail independently.
+6. Test the version rail at six and many versions, normal/compact/extra-wide window sizes, mouse wheel, keyboard chat Enter/Escape, Back, Search, peek/fold, /reload, and the latest-version unread reminder. Verify the output in Forever and Retail independently.
 
 ### Record schema (example placeholders, not a release)
 
