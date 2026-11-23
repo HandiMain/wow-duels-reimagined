@@ -399,8 +399,7 @@ ReflowCommunity = function()
     statsColumns = compact and 2 or 4
     statsPanel:ClearAllPoints()
     statsPanel:SetPoint("TOPLEFT", stage, "TOPLEFT", 12, -statsTop)
-    statsPanel:SetPoint("TOPRIGHT", stage, "TOPRIGHT", -12, -statsTop)
-    statsPanel:SetHeight(statsHeight)
+    statsPanel:SetSize(math.max(1, width - 24), statsHeight)
     FitStats(statsPanel, math.max(1, width - 24))
 
     creditsPanel:ClearAllPoints()
@@ -415,19 +414,19 @@ ReflowCommunity = function()
         helpPanel:SetPoint("TOP", stage, "TOP", 0, -(cardsTop + 213))
         contentBottom = cardsTop + 213 + 203
     else
-        creditsPanel:SetHeight(203)
-        helpPanel:SetHeight(203)
+        -- Keep the original asymmetrical (credits slightly wider) design
+        -- without fighting a previous compact frame width constraint.
+        creditsPanel:SetSize(width / 2 + 8, 203)
+        helpPanel:SetSize(width / 2 - 50, 203)
         creditsPanel:SetPoint("TOPLEFT", stage, "TOPLEFT", 12, -cardsTop)
-        creditsPanel:SetPoint("TOPRIGHT", stage, "TOP", 20, -cardsTop)
         helpPanel:SetPoint("TOPLEFT", stage, "TOP", 38, -cardsTop)
-        helpPanel:SetPoint("TOPRIGHT", stage, "TOPRIGHT", -12, -cardsTop)
         contentBottom = cardsTop + 203
     end
 
     local listingTop = heroHeight + 17
     listing:ClearAllPoints()
     listing:SetPoint("TOPLEFT", stage, "TOPLEFT", 22, -listingTop)
-    listing:SetPoint("TOPRIGHT", stage, "TOPRIGHT", -22, -listingTop)
+    listing:SetWidth(math.max(1, width - 44))
 
     local height
     if selectedKey == "community" then
