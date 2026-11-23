@@ -54,7 +54,7 @@ class PremiumSkinTests(unittest.TestCase):
             ("UI/Header.lua", "Style.Skin(searchBox, C.window"),
             ("UI/Footer.lua", "local hover = Style.FeedbackOverlay(button"),
             ("UI/Options.lua", 'Style.Plate(card, "cardBody"'),
-            ("UI/Community.lua", "Style.Skin(card, C.nav"),
+            ("UI/Community.lua", "Style.Skin(panel, C.nav"),
             ("UI/Community.lua", "Style.Skin(listing, C.nav"),
             ("UI/PatchNotes.lua", "Style.Skin(banner, C.nav"),
             ("UI/PatchNotes.lua", "Style.Skin(row, C.nav"),
