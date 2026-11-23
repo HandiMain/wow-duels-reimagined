@@ -103,7 +103,7 @@ class CommunityUITests(unittest.TestCase):
             ("CommunityConceptButtons.png", (1024, 128)),
             ("CommunityConceptIcons.png", (512, 128)),
             ("CommunityConceptHeaders.png", (1024, 128)),
-            ("CommunityConceptCards.png", (2048, 256)),
+            ("CommunityConceptCards.png", (2048, 512)),
         ):
             image = (ADDON / "Media" / "Concept" / name).read_bytes()
             self.assertEqual(image[:8], b"\x89PNG\r\n\x1a\n")
@@ -212,8 +212,8 @@ class CommunityUITests(unittest.TestCase):
         self.assertIn('listing:SetShown(not overview)', community)
         self.assertIn('local bugAction = Action("bug"', community)
         self.assertIn('local ideaAction = Action("idea"', community)
-        self.assertIn('artTex:SetTexCoord(0, 618 / 2048, 0, 242 / 256)', community)
-        self.assertIn('artTex:SetTexCoord(768 / 2048, 1337 / 2048, 0, 242 / 256)', community)
+        self.assertIn('artTex:SetTexCoord(0, 633 / 2048, 0, 255 / 512)', community)
+        self.assertIn('artTex:SetTexCoord(768 / 2048, 1362 / 2048, 0, 255 / 512)', community)
         self.assertIn('artTex:SetTexture(conceptButtons)', community)
         self.assertIn('for _, item in ipairs(overviewPieces) do item:SetShown(overview) end', community)
         self.assertNotIn('PreviewCard(', community)
