@@ -257,9 +257,13 @@ end
 statsPanel:SetScript("OnSizeChanged", FitStats)
 FitStats(statsPanel, statsPanel:GetWidth())
 
+-- Both cards contain explanatory, static text, never live statistics.
+-- The screenshot's exact gold lettering, icons, borders and body spacing
+-- are one approved visual texture each. Live, actionable subcategories
+-- continue to exist as the five native tabs and detail lists above.
 local function InfoPanel(left, heading, description, iconIndex)
     local panel = CreateFrame("Frame", nil, canvas)
-    panel:SetHeight(203)
+    panel:SetHeight(196)
     if left then
         panel:SetPoint("TOPLEFT", canvas, "TOPLEFT", 12, -247)
         panel:SetPoint("TOPRIGHT", canvas, "TOP", 20, -247)
@@ -267,79 +271,28 @@ local function InfoPanel(left, heading, description, iconIndex)
         panel:SetPoint("TOPLEFT", canvas, "TOP", 38, -247)
         panel:SetPoint("TOPRIGHT", canvas, "TOPRIGHT", -12, -247)
     end
+    -- Shared background remains, but the original concept crop is the one
+    -- border/text paint owner (avoid two overlapping copper rims).
     Style.Skin(panel, C.window, { corner=10, edge=C.goldDim,
-        smooth=true, rim=0.98 })
-    -- Exact source-derived, static panel branding including the original
-    -- serif heading, gold pictogram and caption. The information rows
-    -- below are native responsive text; no duplicate artwork owners.
-    local header = panel:CreateTexture(nil, "ARTWORK", nil, 3)
-    header:SetTexture(conceptHeaders)
-    header:SetPoint("TOPLEFT", panel, "TOPLEFT", 10, -8)
-    header:SetPoint("TOPRIGHT", panel, "TOPRIGHT", -10, -8)
-    header:SetHeight(54)
-    local x = left and 0 or 512
-    header:SetTexCoord(x / 1024, (x + 504) / 1024, 0, 55 / 128)
-    header:EnableMouse(false)
-    Chrome.Sharp(header)
-    local separator = Style.Fill(panel, C.goldDim, "ARTWORK")
-    separator:ClearAllPoints()
-    separator:SetPoint("TOPLEFT", panel, "TOPLEFT", 12, -62)
-    separator:SetPoint("TOPRIGHT", panel, "TOPRIGHT", -12, -62)
-    separator:SetHeight(1)
-    separator:SetAlpha(0.45)
+        smooth=true, rim=0 })
+    local artTex = panel:CreateTexture(nil, "ARTWORK", nil, 4)
+    artTex:SetTexture(conceptRoot .. "CommunityConceptCards.png")
+    artTex:SetAllPoints(panel)
+    if left then
+        artTex:SetTexCoord(0, 617 / 2048, 0, 242 / 256)
+    else
+        artTex:SetTexCoord(768 / 2048, 1336 / 2048, 0, 242 / 256)
+    end
+    artTex:EnableMouse(false)
+    Chrome.Sharp(artTex)
     overviewPieces[#overviewPieces + 1] = panel
     return panel
 end
 
 local creditsPanel = InfoPanel(true, "COMMUNITY CREDITS",
     "A guide to the community pages.", 0)
-local creditDescriptions = {
-    { "The Duelist's Circle", "Community hub, updates and ways to get involved.", 0 },
-    { "Contributors", "People who have directly contributed.", 1 },
-    { "Bug Hunters", "Players who reported and helped verify fixes.", 8 },
-    { "Community Ideas", "Player suggestions that help shape the addon.", 9 },
-    { "Special Thanks", "Additional credits and community appreciation.", 3 },
-}
-for i, entry in ipairs(creditDescriptions) do
-    local y = -75 - (i - 1) * 27
-    local icon = ConceptSymbol(creditsPanel, entry[3], 19)
-    icon:SetPoint("TOPLEFT", creditsPanel, "TOPLEFT", 15, y + 1)
-    local label = Style.Text(creditsPanel, entry[1], 13, C.gold)
-    label:SetPoint("TOPLEFT", creditsPanel, "TOPLEFT", 52, y)
-    label:SetWidth(145)
-    label:SetWordWrap(false)
-    local summary = Style.Text(creditsPanel, entry[2], 12, C.text)
-    summary:SetPoint("TOPLEFT", creditsPanel, "TOPLEFT", 202, y)
-    summary:SetPoint("TOPRIGHT", creditsPanel, "TOPRIGHT", -12, y)
-    summary:SetWordWrap(false)
-end
-
 local helpPanel = InfoPanel(false, "HOW TO HELP",
     "Simple ways to improve Duels Reimagined.", 2)
-local helpRows = {
-    { "Report bugs", "Help us find and fix issues." },
-    { "Share ideas", "Suggest improvements." },
-    { "Test builds", "Try changes and report problems." },
-    { "Give feedback", "Share your experience." },
-}
-for i, entry in ipairs(helpRows) do
-    local y = -84 - (i - 1) * 33
-    -- Draw an actual Blizzard check texture instead of the unavailable
-    -- unicode font glyph that rendered as a square on both WoW clients.
-    local check = helpPanel:CreateTexture(nil, "ARTWORK")
-    check:SetTexture("Interface\\Buttons\\UI-CheckBox-Check")
-    check:SetVertexColor(unpack(C.gold))
-    check:SetSize(23, 23)
-    check:SetPoint("TOPLEFT", helpPanel, "TOPLEFT", 15, y + 6)
-    local label = Style.Text(helpPanel, entry[1], 13, C.gold)
-    label:SetPoint("TOPLEFT", helpPanel, "TOPLEFT", 53, y)
-    label:SetWidth(119)
-    label:SetWordWrap(false)
-    local description = Style.Text(helpPanel, entry[2], 12, C.text)
-    description:SetPoint("TOPLEFT", helpPanel, "TOPLEFT", 174, y + 1)
-    description:SetPoint("TOPRIGHT", helpPanel, "TOPRIGHT", -10, y + 1)
-    description:SetWordWrap(false)
-end
 
 -- No Community Tools row: Patch Notes and Options are already available
 -- in the permanent footer. Duplicating those buttons would add no value.
@@ -428,7 +381,7 @@ function Community.Show(key)
     listing:SetShown(not overview)
     if overview then
         UpdateOverview()
-        canvas:SetHeight(468)
+        canvas:SetHeight(460)
     else
         UpdateList(byKey[key])
     end
