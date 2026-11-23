@@ -34,6 +34,10 @@ class PatchNotesUITests(unittest.TestCase):
         self.assertIn('Settings.MarkPatchNotesSeen(item.data.id)', page)
         self.assertIn("if item.index == 1 then", page)
         self.assertIn("not an actual changelog", page)
+        self.assertEqual(data.count("demo = true"), 3)
+        self.assertIn("overview =", data)
+        self.assertIn("highlights = {", data)
+        self.assertIn('section.key ~= "patchnotes"', nav)
 
     def test_art_assets_and_wow_tga_headers(self):
         for name, expected in (
@@ -45,6 +49,10 @@ class PatchNotesUITests(unittest.TestCase):
             self.assertEqual(blob[16], 32)  # BGRA with alpha
             self.assertEqual(blob[17], 0x28)  # upper-left origin, 8-bit alpha
             self.assertEqual(len(blob), 18 + expected[0] * expected[1] * 4)
+        hero = (ADDON / "Media" / "Concept" / "PatchNotesHeroApproved.png").read_bytes()
+        self.assertEqual(hero[:8], b"\x89PNG\r\n\x1a\n")
+        self.assertEqual(struct.unpack_from(">II", hero, 16), (1024, 256))
+        self.assertEqual(hero[25], 6)  # RGBA source, no baked release text
 
     def test_shared_owners_and_font_consistency(self):
         nav, page = load("UI/Navigation.lua"), load("UI/PatchNotes.lua")
@@ -61,7 +69,14 @@ class PatchNotesUITests(unittest.TestCase):
         self.assertNotIn('SetScript("OnUpdate"', page)
         self.assertNotIn("DuelsReimaginedDB", page)
         self.assertIn("Search.entries[entry.target]", page)
-        self.assertIn("ns.Navigation.SelectKey(\"patchnotes\", PatchNotes.nextRelease.key)", page)
+        self.assertIn('ns.Navigation.SelectKey("patchnotes", release.key)', page)
+        self.assertIn('versionScroll:SetScript("OnMouseWheel"', page)
+        self.assertIn('scroll:SetScript("OnMouseWheel"', page)
+        self.assertIn('relatedButton:SetShown(hasSetting)', page)
+        self.assertIn('PatchNotes.relatedTarget = nil', page)
+        self.assertIn('release.demo == false', page)
+        self.assertIn('local maxEntries = 0', page)
+        self.assertIn('if index == 4 then', page)
 
 if __name__ == "__main__":
     unittest.main()
