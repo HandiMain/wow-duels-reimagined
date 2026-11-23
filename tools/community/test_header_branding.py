@@ -5,16 +5,16 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 ADDON = ROOT / "addon" / "DuelsReimagined"
-ART = ADDON / "Media" / "Skin" / "HeaderOption5TintAtlas.png"
+ART = ADDON / "Media" / "Concept" / "Landing" / "LandingWordmark.png"
 
 class OptionFiveBrandingTests(unittest.TestCase):
-    def test_power_of_two_png_with_alpha(self):
+    def test_concept_wordmark_png_with_alpha(self):
         data = ART.read_bytes()
         self.assertEqual(data[:8], b"\x89PNG\r\n\x1a\n")
-        self.assertEqual(struct.unpack(">II", data[16:24]), (256, 256))
-        # Palette PNG with tRNS transparency. The texture must not leave an
-        # opaque rectangle over our customizable Duels header.
-        self.assertIn(b"tRNS", data)
+        self.assertEqual(struct.unpack(">II", data[16:24]), (544, 74))
+        # RGBA wordmark (PNG color type 6) has real transparent pixels.
+        # The main-window DuelExactBrand asset remains separately protected.
+        self.assertEqual(data[25], 6)
 
     def test_retired_branding_files_not_shipped(self):
         # Git history remains the rollback source; the addon package should
