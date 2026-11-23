@@ -399,13 +399,14 @@ for index, section in ipairs(sections) do
             -- The concept uses a small dedicated gold glyph on EACH tab,
             -- not duplicated full-size category preview cards below them.
             -- Source is our existing shared Community art: one icon owner.
-            local icons = { [1]=0, [2]=1, [3]=8, [4]=9, [5]=3 }
+            -- These are the approved real gold tab icons, not earlier
+            -- placeholders: Circle people, crossed tools, bug, bulb, heart.
+            local icons = { [1]=0, [2]=8, [3]=1, [4]=2, [5]=3 }
             local slot = icons[pageIndex] or 0
-            local x, y = slot % 4, math.floor(slot / 4)
+            local x, y = slot % 8, math.floor(slot / 8)
             local glyph = sub:CreateTexture(nil, "ARTWORK", nil, 5)
-            glyph:SetTexture("Interface\\AddOns\\DuelsReimagined\\Media\\Concept\\CommunityConceptSymbols.png")
-            glyph:SetTexCoord(x / 4 + 0.002, (x + 1) / 4 - 0.002,
-                y / 4 + 0.002, (y + 1) / 4 - 0.002)
+            glyph:SetTexture("Interface\\AddOns\\DuelsReimagined\\Media\\Concept\\CommunityConceptIcons.png")
+            glyph:SetTexCoord(x / 8, (x + 1) / 8, y / 2, (y + 1) / 2)
             glyph:SetSize(23, 23)
             glyph:SetPoint("LEFT", sub, "LEFT", 8, 0)
             if ns.Chrome and ns.Chrome.Sharp then ns.Chrome.Sharp(glyph) end
