@@ -55,7 +55,7 @@ rail:SetPoint("BOTTOMLEFT", root, "BOTTOMLEFT", 20, 18)
 rail:SetWidth(194)
 Style.Skin(rail, C.window, { corner=11, edge=C.goldDim,
     smooth=true, rim=0.96 })
-local versionsTitle = Style.Text(rail, "Versions", 20, C.pale, nil, "display")
+local versionsTitle = Style.Text(rail, "Versions", 20, C.pale)
 versionsTitle:SetPoint("TOP", rail, "TOP", 0, -8)
 versionsTitle:SetJustifyH("CENTER")
 -- The approved Versions heading uses two short flanking lines, NOT a
@@ -243,7 +243,7 @@ Style.Skin(summaryPanel, C.nav, { corner=10, edge=C.border,
     shine=0.13, shade=0.12, rim=0.80 })
 local summaryIcon = TileIcon(summaryPanel, "scroll", 42)
 summaryIcon:SetPoint("LEFT", summaryPanel, "LEFT", 16, 0)
-local summaryHeading = Style.Text(summaryPanel, "Version Summary", 19, C.gold, nil, "display")
+local summaryHeading = Style.Text(summaryPanel, "Version Summary", 19, C.gold)
 summaryHeading:SetPoint("LEFT", summaryPanel, "LEFT", 72, 0)
 local summarySeparator = Style.Fill(summaryPanel, C.goldDim, "ARTWORK")
 summarySeparator:ClearAllPoints()
@@ -336,9 +336,13 @@ for i=1,maxEntries do rows[i] = NewRow(i) end
 local highlights = CreateFrame("Frame", nil, canvas)
 Style.Skin(highlights, C.nav, { corner=10, edge=C.goldDim,
     shine=0.11, shade=0.11, rim=0.78 })
-local highlightsIcon = TileIcon(highlights, "swords", 29)
-highlightsIcon:SetPoint("TOPLEFT", highlights, "TOPLEFT", 10, -7)
-local highlightsTitle = Style.Text(highlights, "Highlights", 18, C.pale, nil, "display")
+-- The concept uses one restrained gold jewel for Highlights, not
+-- another crossed-swords badge competing with the main Duel Hall identity.
+local highlightsIcon = highlights:CreateTexture(nil, "ARTWORK")
+highlightsIcon:SetTexture("Interface\\AddOns\\DuelsReimagined\\Media\\Skin\\DuelCornerJewel.tga")
+highlightsIcon:SetSize(32, 32)
+highlightsIcon:SetPoint("TOPLEFT", highlights, "TOPLEFT", 11, -6)
+local highlightsTitle = Style.Text(highlights, "Highlights", 18, C.pale)
 highlightsTitle:SetPoint("TOPLEFT", highlights, "TOPLEFT", 44, -8)
 local highlightLines = {}
 for i=1,3 do
@@ -357,14 +361,19 @@ Style.Skin(related, C.nav, { corner=10, edge=C.goldDim,
     shine=0.11, shade=0.11, rim=0.78 })
 local relatedIcon = TileIcon(related, "gear", 35)
 relatedIcon:SetPoint("TOPLEFT", related, "TOPLEFT", 11, -9)
-local relatedTitle = Style.Text(related, "Related Settings", 18, C.pale, nil, "display")
+local relatedTitle = Style.Text(related, "Related Settings", 18, C.pale)
 relatedTitle:SetPoint("TOPLEFT", related, "TOPLEFT", 47, -8)
 local relatedHint = Style.Text(related, "", 11, C.text)
 relatedHint:SetPoint("TOPLEFT", related, "TOPLEFT", 47, -37)
 relatedHint:SetPoint("TOPRIGHT", related, "TOPRIGHT", -11, -37)
 relatedHint:SetHeight(25)
 relatedHint:SetWordWrap(true)
-local relatedButton = Style.Action(related, "View Settings", "footer")
+-- Dark gold-lined secondary action as pictured in the approved concept.
+-- Keep Style.Action as the single owner of hover, press and click behavior.
+local relatedButton = Style.Action(related, "View Settings", "patchnotes", {
+    fill=C.nav, edge=C.goldDim, light=C.gold, dark=C.border,
+    hover=C.gold, text=C.pale,
+})
 relatedButton:SetSize(137, 28)
 relatedButton:SetPoint("BOTTOMRIGHT", related, "BOTTOMRIGHT", -12, 9)
 relatedButton:SetScript("OnClick", function()
@@ -393,13 +402,17 @@ local function Layout()
     -- density instead of hiding Highlights and Related Settings below the
     -- footer. Wider/taller windows retain their spacious presentation.
     local dense = scroll:GetHeight() < 590
-    local summaryY = dense and 133 or 154
-    local summaryH = dense and 54 or 64
-    local titleY = dense and 198 or 232
-    local rowsY = dense and 221 or 258
+    -- Derive each section from the previous block's measured bottom.
+    -- Compact windows require a taller banner for a wrapped release title,
+    -- and a taller summary for two lines of readable description.
+    local bannerHeight = compact and 153 or (dense and 120 or 141)
+    local summaryY = bannerHeight + 13
+    local summaryH = compact and (dense and 81 or 84) or (dense and 54 or 64)
+    local titleY = summaryY + summaryH + (dense and 11 or 14)
+    local rowsY = titleY + (dense and 23 or 26)
     local rowStep = dense and 65 or 80
     local rowHeight = dense and 61 or 72
-    banner:SetHeight(dense and 120 or 141)
+    banner:SetHeight(bannerHeight)
     summaryPanel:ClearAllPoints()
     summaryPanel:SetPoint("TOPLEFT", canvas, "TOPLEFT", 2, -summaryY)
     summaryPanel:SetPoint("TOPRIGHT", canvas, "TOPRIGHT", -9, -summaryY)
@@ -410,13 +423,14 @@ local function Layout()
     -- itself and its demo status are never changed or silently hidden.
     bannerTitle:ClearAllPoints()
     bannerTitle:SetPoint("TOPLEFT", banner, "TOPLEFT",
-        compact and 188 or 246, -19)
-    bannerTitle:SetPoint("TOPRIGHT", banner, "TOPRIGHT", -13, -19)
+        compact and 188 or 246, compact and -14 or -19)
+    bannerTitle:SetPoint("TOPRIGHT", banner, "TOPRIGHT", -13,
+        compact and -14 or -19)
     bannerTitle:SetWordWrap(compact)
-    bannerTitle:SetHeight(compact and 69 or 50)
+    bannerTitle:SetHeight(compact and 75 or 50)
     versionBadge:ClearAllPoints()
     versionBadge:SetPoint("TOPLEFT", banner, "TOPLEFT",
-        compact and 188 or 246, compact and -104 or -79)
+        compact and 188 or 246, compact and -107 or -79)
     local date = activeRelease and activeRelease.date or "Date not set"
     local demo = not activeRelease or activeRelease.demo ~= false
     local kind = demo and "DEMO NOTES" or "RELEASE NOTES"
@@ -426,9 +440,9 @@ local function Layout()
     if compact then
         summarySeparator:Hide()
         summaryDescription:ClearAllPoints()
-        summaryDescription:SetPoint("TOPLEFT", summaryPanel, "TOPLEFT", 73, -31)
-        summaryDescription:SetPoint("RIGHT", summaryPanel, "RIGHT", -12, 0)
-        summaryDescription:SetHeight(30)
+        summaryDescription:SetPoint("TOPLEFT", summaryPanel, "TOPLEFT", 73, -30)
+        summaryDescription:SetPoint("TOPRIGHT", summaryPanel, "TOPRIGHT", -12, -30)
+        summaryDescription:SetHeight(42)
     else
         summarySeparator:Show()
         summaryDescription:ClearAllPoints()
@@ -445,11 +459,17 @@ local function Layout()
         frame:SetPoint("TOPRIGHT", canvas, "TOPRIGHT", -9,
             -rowsY - (i-1) * rowStep)
         frame:SetHeight(rowHeight)
+        item.title:ClearAllPoints()
+        item.title:SetPoint("TOPLEFT", frame, "TOPLEFT", 91,
+            dense and -21 or -23)
+        item.title:SetPoint("TOPRIGHT", frame, "TOPRIGHT",
+            frame.target and -117 or -12, dense and -21 or -23)
+        item.title:SetHeight(dense and 20 or 23)
         item.description:ClearAllPoints()
         item.description:SetPoint("TOPLEFT", frame, "TOPLEFT", 91,
-            dense and -44 or -49)
+            dense and -43 or -49)
         item.description:SetPoint("TOPRIGHT", frame, "TOPRIGHT",
-            frame.target and -117 or -12, dense and -44 or -49)
+            frame.target and -117 or -12, dense and -43 or -49)
         item.description:SetHeight(dense and 16 or 18)
     end
     local y = rowsY + count * rowStep + (dense and 5 or 12)
