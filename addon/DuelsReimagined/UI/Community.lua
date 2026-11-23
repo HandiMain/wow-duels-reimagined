@@ -146,7 +146,7 @@ Style.Skin(hero, C.window, { corner=8, edge=C.goldDim,
 local exactHeroArt = hero:CreateTexture(nil, "BACKGROUND", nil, 4)
 exactHeroArt:SetTexture(conceptHero)
 exactHeroArt:SetAllPoints(hero)
-exactHeroArt:SetTexCoord(0, 1, 0, 192 / 256)
+exactHeroArt:SetTexCoord(0, 1, 0, 352 / 512)
 exactHeroArt:EnableMouse(false)
 Chrome.Sharp(exactHeroArt)
 
@@ -166,7 +166,7 @@ local function SelectableURL(kind)
 end
 
 local function Action(kind, heading, xOffset)
-    local btn = Style.Action(hero, heading, "community")
+    local btn = Style.Action(hero, heading, "community-art")
     btn:SetSize(242, 42)
     btn:SetPoint("TOP", hero, "TOP", xOffset, -103)
     btn:SetScript("OnClick", function() SelectableURL(kind) end)
@@ -177,7 +177,7 @@ local function Action(kind, heading, xOffset)
     artTex:SetTexture(conceptButtons)
     artTex:SetAllPoints(btn)
     local x = kind == "bug" and 0 or 512
-    artTex:SetTexCoord(x / 1024, (x + 290) / 1024, 0, 51 / 64)
+    artTex:SetTexCoord(x / 1024, (x + 295) / 1024, 0, 55 / 128)
     artTex:EnableMouse(false)
     Chrome.Sharp(artTex)
     ns.Tooltips.Bind(btn, {
@@ -189,8 +189,10 @@ local function Action(kind, heading, xOffset)
     return btn
 end
 
-Action("bug", "REPORT A BUG", -139)
-Action("idea", "SUGGEST AN IDEA", 105)
+-- These two native controls belong to the overview only. Detail tabs use
+-- the same hero artwork but never show redundant call-to-action buttons.
+local bugAction = Action("bug", "REPORT A BUG", -133)
+local ideaAction = Action("idea", "SUGGEST AN IDEA", 133)
 
 -- The approved Community landing page: one quiet GitHub statistics strip and
 -- two readable information panels. Its five existing subcategory tabs remain
@@ -279,9 +281,9 @@ local function InfoPanel(left, heading, description, iconIndex)
     artTex:SetTexture(conceptRoot .. "CommunityConceptCards.png")
     artTex:SetAllPoints(panel)
     if left then
-        artTex:SetTexCoord(0, 617 / 2048, 0, 242 / 256)
+        artTex:SetTexCoord(0, 618 / 2048, 0, 242 / 256)
     else
-        artTex:SetTexCoord(768 / 2048, 1336 / 2048, 0, 242 / 256)
+        artTex:SetTexCoord(768 / 2048, 1337 / 2048, 0, 242 / 256)
     end
     artTex:EnableMouse(false)
     Chrome.Sharp(artTex)
@@ -376,7 +378,11 @@ function Community.Show(key)
     root:SetShown(active)
     if not active then return end
     local overview = key == "community"
-    hero:SetShown(overview)
+    -- Every Community tab keeps the same decorative Alliance/Horde banner.
+    -- Only the Circle overview shows its two actions, statistics and panels.
+    hero:Show()
+    bugAction:SetShown(overview)
+    ideaAction:SetShown(overview)
     for _, item in ipairs(overviewPieces) do item:SetShown(overview) end
     listing:SetShown(not overview)
     if overview then
