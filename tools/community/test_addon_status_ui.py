@@ -24,7 +24,7 @@ class AddonStatusUIContracts(unittest.TestCase):
         nav = read("UI/Navigation.lua")
         self.assertIn('key = "addonstatus", label = "Addon Status", icon = "Community"', nav)
         self.assertIn('key = "status", label = "Addon Status", addonStatus = true', nav)
-        self.assertIn('local primaryKeys = { hall = true }', nav)
+        self.assertIn('local primaryKeys = { hall = true, wargames = true }', nav)
         self.assertIn('if section.key ~= "patchnotes" and section.key ~= "addonstatus"', nav)
         self.assertIn('if page.addonStatus then return ns.AddonStatus end', nav)
         self.assertIn('local utilityButtons = {}', nav)

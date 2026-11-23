@@ -61,7 +61,7 @@ class CopperChromeTests(unittest.TestCase):
         header=lua("UI/Header.lua")
         footer=lua("UI/Footer.lua")
         self.assertIn('Hover is visible even on the currently selected destination.',nav)
-        self.assertIn('activeAlpha = section.key == "hall" and 0.15',nav)
+        self.assertIn('activeAlpha = isPrimary and 0.15 or 0.33',nav)
         self.assertIn('activeAlpha = 0.13',nav)
         self.assertIn('item.plate:SetStyle(active and "gold" or "dark")',nav)
         self.assertIn('Motion.Fade(foldButton.chosen, folded and 0.58',header)

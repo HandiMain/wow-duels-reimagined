@@ -62,7 +62,7 @@ class VisualFidelityTests(unittest.TestCase):
 
     def test_no_extra_gameplay_and_esc_menu_code_unchanged_in_scope(self):
         n = lua("UI/Navigation.lua")
-        self.assertIn('local primaryKeys = { hall = true }', n)
+        self.assertIn('local primaryKeys = { hall = true, wargames = true }', n)
         self.assertIn('ns.Search.Register("page:" .. section.key', n)
         self.assertIn('SetPatchUnread = function(unread)', n)
         self.assertNotIn('SetScript("OnUpdate"', n)

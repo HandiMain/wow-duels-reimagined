@@ -86,8 +86,9 @@ class RuntimeAssetManifestTests(unittest.TestCase):
 
     def test_toc_loads_every_lua_file_once(self):
         toc = (ADDON / "DuelsReimagined.toc").read_text(encoding="utf-8")
-        listed = [line.strip().replace("\\", "/")
-                  for line in toc.splitlines() if line.strip().endswith(".lua")]
+        listed = [line.strip().split(" [", 1)[0].replace("\\", "/")
+                  for line in toc.splitlines()
+                  if ".lua" in line and not line.lstrip().startswith("#")]
         actual = [str(path.relative_to(ADDON)).replace("\\", "/")
                   for path in ADDON.rglob("*.lua")]
         self.assertEqual(len(listed), len(set(listed)))

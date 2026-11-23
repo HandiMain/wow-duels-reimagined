@@ -33,7 +33,7 @@ class SecondaryRailRecoveryTests(unittest.TestCase):
         self.assertIn('for index, section in ipairs(sections) do', nav)
         for section in ("community", "patchnotes", "options"):
             self.assertIn('{ key = "' + section + '"', nav)
-        self.assertIn('local primaryKeys = { hall = true }', nav)
+        self.assertIn('local primaryKeys = { hall = true, wargames = true }', nav)
         self.assertIn('if isPrimary then primaryButtons[#primaryButtons + 1] = item end', nav)
         self.assertIn('ns.Search.Register("page:" .. section.key', nav)
 
