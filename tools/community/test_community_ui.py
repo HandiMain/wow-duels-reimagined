@@ -95,14 +95,24 @@ class CommunityUITests(unittest.TestCase):
         self.assertEqual((width, height), (128, 64))
         self.assertEqual(data[25], 6, "WoW texture must be truecolor RGBA")
         community = content("UI/Community.lua")
-        self.assertIn("CommunityFactionMarks.png", community)
-        self.assertIn("emblem:SetTexture(allianceArt)", community)
-        self.assertIn("emblem:SetTexture(art)", community)
-        self.assertIn("PvPQueueBackgroundAlliance", community)
-        self.assertIn("PvPQueueBackgroundHorde", community)
-        self.assertIn("background:SetSize(304, 171)", community)
-        self.assertIn("emblem:SetSize(176, 176)", community)
-        self.assertNotIn("UI-PVP-Alliance", community)
+        # The previous tiny/client-dependent badges are preserved as
+        # historical assets, but not drawn over approved reference artwork.
+        for name, dimensions in (
+            ("CommunityConceptHero.png", (1024, 256)),
+            ("CommunityConceptTitle.png", (1024, 128)),
+            ("CommunityConceptButtons.png", (1024, 64)),
+            ("CommunityConceptIcons.png", (512, 128)),
+            ("CommunityConceptHeaders.png", (1024, 128)),
+        ):
+            image = (ADDON / "Media" / "Concept" / name).read_bytes()
+            self.assertEqual(image[:8], b"\\x89PNG\\r\\n\\x1a\\n")
+            self.assertEqual(struct.unpack(">II", image[16:24]), dimensions)
+            self.assertEqual(image[25], 6, name + ": RGBA source required")
+        for token in ("conceptHero", "conceptTitle", "conceptButtons",
+                      "conceptHeaders", "conceptIcons"):
+            self.assertIn(token, community)
+        self.assertNotIn("local function FactionMark(left)", community)
+        self.assertNotIn("PvPQueueBackgroundAlliance", community)
 
     def test_concept_assets_have_partial_alpha_and_correct_sources(self):
         # Explicitly reject the previous flat color squares. The approved
@@ -158,8 +168,8 @@ class CommunityUITests(unittest.TestCase):
             self.assertGreater(soft_pixels, 100,
                 "Source-derived artwork needs faded/transparent shapes, not flat colored squares")
         community = content("UI/Community.lua")
-        self.assertIn("emblem:SetTexCoord(0, 1, 0, 1)", community)
-        self.assertIn("emblem:SetTexCoord(0.5, 1, 0, 1)", community)
+        self.assertIn("exactHeroArt:SetTexCoord(0, 1, 0, 192 / 256)", community)
+        self.assertIn("exactTitle:SetTexCoord(0, 518 / 1024, 0, 93 / 128)", community)
         self.assertIn("CommunityConceptSymbols.png", community)
 
     def test_alliance_lion_detail_and_horde_bytes_unchanged(self):
@@ -181,7 +191,7 @@ class CommunityUITests(unittest.TestCase):
     def test_circle_has_one_stats_bar_and_two_information_panels(self):
         community = content("UI/Community.lua")
         self.assertIn('local statsPanel = CreateFrame("Frame", nil, canvas)', community)
-        self.assertIn('Style.Skin(statsPanel, C.nav', community)
+        self.assertIn('Style.Skin(statsPanel, C.window', community)
         self.assertIn('shine=0.09, shade=0.08, rim=0.96', community)
         self.assertIn('Style.Skin(hero, C.window', community)
         self.assertIn('smooth=true, rim=0.98', community)
@@ -189,11 +199,14 @@ class CommunityUITests(unittest.TestCase):
         self.assertIn('local helpPanel = InfoPanel(false, "HOW TO HELP"', community)
         self.assertNotIn('"COMMUNITY TOOLS", 16', community)
         self.assertNotIn('UtilityAction(', community)
-        self.assertIn('canvas:SetHeight(485)', community)
+        self.assertIn('canvas:SetHeight(468)', community)
         self.assertIn('local communityHeading = Style.Text(root, "Community"', community)
         self.assertIn('Style.Skin(hero, C.window', community)
-        self.assertIn('local title = Style.Text(hero, "THE DUELIST\'S CIRCLE"', community)
+        self.assertIn('exactTitle:SetTexture(conceptTitle)', community)
         self.assertIn('check:SetTexture("Interface\\\\Buttons\\\\UI-CheckBox-Check")', community)
+        self.assertIn('hero:SetShown(overview)', community)
+        self.assertIn('header:SetTexture(conceptHeaders)', community)
+        self.assertIn('artTex:SetTexture(conceptButtons)', community)
         self.assertIn('for _, item in ipairs(overviewPieces) do item:SetShown(overview) end', community)
         self.assertNotIn('PreviewCard(', community)
         self.assertNotIn('SetScript("OnUpdate"', community)
