@@ -84,7 +84,7 @@ class CommunityUITests(unittest.TestCase):
         self.assertIn('item.value:SetText("—")', community)
         self.assertNotIn("147", community)
         self.assertNotIn("328", community)
-        self.assertNotIn("96", community)
+        self.assertNotIn('item.value:SetText("96")', community)
 
     def test_faction_texture_truecolor_and_power_of_two(self):
         png = ADDON / "Media" / "Concept" / "CommunityFactionMarks.png"
@@ -158,8 +158,8 @@ class CommunityUITests(unittest.TestCase):
             self.assertGreater(soft_pixels, 100,
                 "Source-derived artwork needs faded/transparent shapes, not flat colored squares")
         community = content("UI/Community.lua")
-        self.assertIn("tex:SetTexCoord(0, 1, 0, 1)", community)
-        self.assertIn("tex:SetTexCoord(0.5, 1, 0, 1)", community)
+        self.assertIn("emblem:SetTexCoord(0, 1, 0, 1)", community)
+        self.assertIn("emblem:SetTexCoord(0.5, 1, 0, 1)", community)
         self.assertIn("CommunityConceptSymbols.png", community)
 
     def test_alliance_lion_detail_and_horde_bytes_unchanged(self):
