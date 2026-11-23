@@ -148,11 +148,34 @@ def build_data(config: dict, issues: list, pulls: list, repo: str) -> dict:
         name = display(item["name"])
         if name:
             ideas.append({"name": name, "ref": item["ref"]})
+    # Overview counters come from the SAME complete GitHub response as the
+    # detailed credits. Bug reports count submitted bug issues, not only
+    # verified fixes; Community Ideas count suggestion issues, not only
+    # ideas selected for implementation. Never count PRs as issues.
+    bug_reports = 0
+    submitted_ideas = 0
+    for issue in issues:
+        if not isinstance(issue, dict) or "pull_request" in issue:
+            continue
+        labels = {x["name"].casefold() for x in issue.get("labels", [])
+                  if isinstance(x, dict) and isinstance(x.get("name"), str)}
+        if "bug" in labels:
+            bug_reports += 1
+        if "enhancement" in labels:
+            submitted_ideas += 1
+
+    credit_contributors = sorted_counts(contributors, "prs")
     return {
-        "contributors": sorted_counts(contributors, "prs"),
+        "contributors": credit_contributors,
         "bugHunters": sorted_counts(hunters, "reports"),
         "ideas": ideas,
         "specialThanks": thanks,
+        "stats": {
+            "contributors": len(credit_contributors),
+            "bugReports": bug_reports,
+            "communityIdeas": submitted_ideas,
+            "specialThanks": len(thanks),
+        },
     }
 
 
@@ -175,6 +198,13 @@ def lua_render(data: dict) -> str:
                         part.append(f"{key} = {int(item[key])}")
                 out.append("        { " + ", ".join(part) + " },")
         out.append("    },")
+    # Static bundled snapshot: WoW has no supported direct GitHub HTTP API.
+    # Presence of stats distinguishes a successfully generated snapshot from
+    # an old pre-integration credits file. Values may legitimately be zero.
+    out.append("    stats = {")
+    for field in ("contributors", "bugReports", "communityIdeas", "specialThanks"):
+        out.append(f"        {field} = {int(data['stats'][field])},")
+    out.append("    },")
     out.append("}")
     return "\n".join(out) + "\n"
 
