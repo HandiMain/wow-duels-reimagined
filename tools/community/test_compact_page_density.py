@@ -133,7 +133,10 @@ class CompactPageDensityTests(unittest.TestCase):
             "canvas:SetHeight(y + (dense and 27 or 40))",
             'local dense = scroll:GetHeight() < 590',
             'local rowHeight = dense and 61 or 72',
-            'banner:SetHeight(dense and 120 or 141)',
+            'local bannerHeight = compact and 153 or (dense and 120 or 141)',
+            'banner:SetHeight(bannerHeight)',
+            'local summaryH = compact and (dense and 81 or 84) or (dense and 54 or 64)',
+            'local titleY = summaryY + summaryH + (dense and 11 or 14)',
             "Settings.MarkPatchNotesSeen(item.data.id)",
             "Search.entries[entry.target]",
         ):
