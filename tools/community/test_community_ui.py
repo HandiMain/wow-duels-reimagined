@@ -98,9 +98,9 @@ class CommunityUITests(unittest.TestCase):
         # The previous tiny/client-dependent badges are preserved as
         # historical assets, but not drawn over approved reference artwork.
         for name, dimensions in (
-            ("CommunityConceptHero.png", (1024, 256)),
+            ("CommunityConceptHero.png", (2048, 512)),
             ("CommunityConceptTitle.png", (1024, 128)),
-            ("CommunityConceptButtons.png", (1024, 64)),
+            ("CommunityConceptButtons.png", (1024, 128)),
             ("CommunityConceptIcons.png", (512, 128)),
             ("CommunityConceptHeaders.png", (1024, 128)),
             ("CommunityConceptCards.png", (2048, 256)),
@@ -169,7 +169,7 @@ class CommunityUITests(unittest.TestCase):
             self.assertGreater(soft_pixels, 100,
                 "Source-derived artwork needs faded/transparent shapes, not flat colored squares")
         community = content("UI/Community.lua")
-        self.assertIn("exactHeroArt:SetTexCoord(0, 1, 0, 192 / 256)", community)
+        self.assertIn("exactHeroArt:SetTexCoord(0, 1, 0, 352 / 512)", community)
         self.assertIn("exactTitle:SetTexCoord(0, 518 / 1024, 0, 93 / 128)", community)
         self.assertIn("CommunityConceptSymbols.png", community)
 
@@ -205,8 +205,15 @@ class CommunityUITests(unittest.TestCase):
         self.assertIn('Style.Skin(hero, C.window', community)
         self.assertIn('exactTitle:SetTexture(conceptTitle)', community)
         self.assertIn('artTex:SetTexture(conceptRoot .. "CommunityConceptCards.png")', community)
-        self.assertIn('hero:SetShown(overview)', community)
-        self.assertIn('artTex:SetTexCoord(0, 617 / 2048, 0, 242 / 256)', community)
+        self.assertIn('hero:Show()', community)
+        self.assertNotIn('hero:SetShown(overview)', community)
+        self.assertIn('bugAction:SetShown(overview)', community)
+        self.assertIn('ideaAction:SetShown(overview)', community)
+        self.assertIn('listing:SetShown(not overview)', community)
+        self.assertIn('local bugAction = Action("bug"', community)
+        self.assertIn('local ideaAction = Action("idea"', community)
+        self.assertIn('artTex:SetTexCoord(0, 618 / 2048, 0, 242 / 256)', community)
+        self.assertIn('artTex:SetTexCoord(768 / 2048, 1337 / 2048, 0, 242 / 256)', community)
         self.assertIn('artTex:SetTexture(conceptButtons)', community)
         self.assertIn('for _, item in ipairs(overviewPieces) do item:SetShown(overview) end', community)
         self.assertNotIn('PreviewCard(', community)
@@ -224,7 +231,10 @@ class CommunityUITests(unittest.TestCase):
         self.assertNotIn('ns.Chrome.SlicedButton(button)', style)
         self.assertNotIn('function Chrome.SlicedButton(parent)', chrome)
         self.assertNotIn('middle:SetTexCoord', chrome)
-        self.assertIn('local btn = Style.Action(hero, heading, "community")', community)
+        self.assertIn('local btn = Style.Action(hero, heading, "community-art")', community)
+        self.assertIn('elseif not communityArt then', style)
+        self.assertIn('local communityArt = variant == "community-art"', style)
+        self.assertIn('artTex:SetTexCoord(x / 1024, (x + 295) / 1024, 0, 55 / 128)', community)
         self.assertEqual(community.count('btn:SetScript("OnClick"'), 1)
         self.assertNotIn('local copy = CreateFrame("Button"', community)
         self.assertNotIn('copy:SetScript("OnClick"', community)
