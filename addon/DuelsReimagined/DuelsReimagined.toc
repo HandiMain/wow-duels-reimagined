@@ -7,6 +7,8 @@
 ## SavedVariables: DuelsReimaginedDB
 ## IconTexture: Interface\AddOns\DuelsReimagined\Media\Icons\DuelsDRIcon.png
 
+# Shared client detection loads before any gameplay or settings module.
+Core\Client.lua
 Core\Settings.lua
 UI\Fonts.lua
 UI\Style.lua

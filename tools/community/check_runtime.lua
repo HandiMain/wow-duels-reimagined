@@ -4,6 +4,39 @@ local function Check(value, message)
     if not value then error(message, 2) end
 end
 
+-- Client identity is independent of any UI or SavedVariables.
+-- Mock the fourth value of GetBuildInfo (interface number) for each client.
+local originalGetBuildInfo = _G.GetBuildInfo
+local function ClientFor(interface)
+    local scope = {}
+    if interface == "missing" then
+        _G.GetBuildInfo = nil
+    else
+        _G.GetBuildInfo = function()
+            if interface == "error" then error("GetBuildInfo unavailable") end
+            return "mock", "mock", "mock", interface
+        end
+    end
+    local chunk = assert(loadfile("addon/DuelsReimagined/Core/Client.lua"))
+    chunk("DuelsReimagined", scope)
+    return scope.Client
+end
+local retail = ClientFor(120105)
+Check(retail.Kind() == "retail" and retail.IsRetail() and not retail.IsForever()
+    and retail.IsSupported(), "Retail must be recognized")
+local retailText = ClientFor("120105")
+Check(retailText.IsRetail(), "String-encoded Retail interface must be recognized")
+local forever = ClientFor(16001)
+Check(forever.Kind() == "forever" and forever.IsForever() and not forever.IsRetail()
+    and forever.IsSupported(), "Forever must be recognized")
+for _, iface in ipairs({ 11507, 50500, 12000, "invalid", "missing", "error" }) do
+    local other = ClientFor(iface)
+    Check(other.Kind() == "unsupported" and not other.IsRetail()
+        and not other.IsForever() and not other.IsSupported(),
+        "Unknown interface must fail closed: " .. tostring(iface))
+end
+_G.GetBuildInfo = originalGetBuildInfo
+
 local ns = {}
 local searchChunk = assert(loadfile("addon/DuelsReimagined/UI/Search.lua"))
 searchChunk("DuelsReimagined", ns)
