@@ -246,8 +246,10 @@ local function InfoPanel(left, heading, description, iconIndex)
         panel:SetPoint("TOPLEFT", canvas, "TOP", 9, -247)
         panel:SetPoint("TOPRIGHT", canvas, "TOPRIGHT", -22, -247)
     end
+    -- Use the same line-free large-panel surface as the Hall, preserving
+    -- one copper rim instead of stretching the small shade masks.
     Style.Skin(panel, C.nav, { corner=10, edge=C.border,
-        shine=0.12, shade=0.10, rim=0.85 })
+        smooth=true, rim=0.85 })
     local symbol = ConceptSymbol(panel, iconIndex, 34)
     symbol:SetPoint("TOPLEFT", panel, "TOPLEFT", 13, -10)
     local headingText = Style.Text(panel, heading, 17, C.gold)
