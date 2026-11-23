@@ -195,7 +195,7 @@ class CommunityUITests(unittest.TestCase):
         self.assertIn('Style.Skin(statsPanel, C.window', community)
         self.assertIn('shine=0.09, shade=0.08, rim=0.96', community)
         self.assertIn('Style.Skin(hero, C.window', community)
-        self.assertIn('smooth=true, rim=0.98', community)
+        self.assertIn('smooth=true, rim=0', community)
         self.assertIn('local creditsPanel = InfoPanel(true, "COMMUNITY CREDITS"', community)
         self.assertIn('local helpPanel = InfoPanel(false, "HOW TO HELP"', community)
         self.assertNotIn('"COMMUNITY TOOLS", 16', community)
