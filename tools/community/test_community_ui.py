@@ -105,7 +105,7 @@ class CommunityUITests(unittest.TestCase):
             ("CommunityConceptHeaders.png", (1024, 128)),
         ):
             image = (ADDON / "Media" / "Concept" / name).read_bytes()
-            self.assertEqual(image[:8], b"\\x89PNG\\r\\n\\x1a\\n")
+            self.assertEqual(image[:8], b"\x89PNG\r\n\x1a\n")
             self.assertEqual(struct.unpack(">II", image[16:24]), dimensions)
             self.assertEqual(image[25], 6, name + ": RGBA source required")
         for token in ("conceptHero", "conceptTitle", "conceptButtons",
