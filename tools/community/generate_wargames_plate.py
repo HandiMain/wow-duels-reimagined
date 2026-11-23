@@ -5,12 +5,13 @@ The 256x128 Hall sprite occupies the upper-left quadrant of DuelAtlas.png.
 Only its baked center artwork is replaced with interpolated background;
 the copper frame and laurel artwork stay bit-for-bit unchanged.
 
-The game's existing navigation draws a distinct live emblem and label on top.
-This keeps all navigation behavior, theme, scale and motion in one UI owner.
+The finished plaque bakes original Hall swords and a gold-serif WAR GAMES
+raster into one sprite. No live font or icon is needed in Navigation.
 """
 from __future__ import annotations
 
 import argparse
+import base64
 import struct
 import zlib
 from pathlib import Path
@@ -19,6 +20,11 @@ ROOT = Path(__file__).resolve().parents[2]
 SOURCE = ROOT / "addon/DuelsReimagined/Media/Skin/DuelAtlas.png"
 DEST = ROOT / "addon/DuelsReimagined/Media/Skin/DuelWarGamesPlate.png"
 SIGNATURE = b"\x89PNG\r\n\x1a\n"
+# Locally rendered original title raster, 132x30 in 4-bit alpha. No fonts
+# ship with this addon; this deterministic mask cannot change with WoW fonts.
+TITLE_W, TITLE_H = 132, 30
+TITLE_MASK_B64 = "eNp1lc+LG2UYx5+ZTHazyUaCB0Gl2S2Cl1azIB60QoJXlQQPRVBIqJDr5A+QZit4KjaLVw+7f4A6e6nVprBL6aG3RFQsWHzZrV4K7tD8TmYyj9/nfWe2bqEDCe+83/f9vM+v95nr3Vv0bfcm0QfdH2ntFhFd6na7PxUoed5Vf+iXWNsisro/YwuemyL/xRzZzAuiXV5SMcRcm/H8mgBWfObfZbBhtB1MMZ+XNRzo8df8wPpB1nzoP6ByhOPe4/COv0yMaPNtxQ0MyjJ1iftEOX5c8PihYt6kOt9eATXLLdim38VIv08XeNsAHP6HXuEhRi50In9EVORDbKm9eJUblj+jFF5XeQ9rl0QdrhHZIFj+kSGsy/m9KcWa7MA5+0Igx99Ps1nriG2riIUnR9v+LxiNDaEu3pfl5UAb6i9llSFQ+0hb3xthfkCUxUE9MUZsoM7MEHoTcUVcUqJZPm/hFxPO7ayL27tTTaG8kMQYTXDnGpDi2BvMwl1ZsZ3mhGBRXoLjivWglI4ptVTHZwmrWGweaEea0M+eEnAsV+BkaCjVQ0oHu6OY0DaEnPhp6mLhDYWghi8s/VPCurhWjJBFxKe9Q5mZO0kiOSVzRi0mZGbtiRBuTKszQ7C+RPB4IsdUUDab5DUQzOo8yeZI7ytJpIw1kyqCa6lPA+8344WDzYhJizL4eaCoCq2PNgIh/F24ICGVPOoy0tYMRbPUZeZvnhKQvQCYPWSqZaOgi4GHf0T9X479r0ZCeO2tTSotvKUQPmZ+XxP+vCOEN5mRsD6u1p4TyolS6iAwh+ZeVMWGFPMxRqJZqtGLUprAEgJKKcbkwGHur86l9BmR04S79JQAeai1ihDaC+d/BNwglOt4NVCDLN4796/Dett/yPcoIUgk3ahGu1oDoTw2hK8+0QS6KgWcnXijPLLtbTsIiu3fl/KLIynZLEY4pyUBAyH/xHhRcQwhhcuzyA870w1UnKrJTbX9ezyICUUd0RLiazQQ0i1DqKXGSRcqLUtP6vOqbN2Sm4qKUtMkh9KThGCz1kCQyJqaTEqF8pHbL4edHXJwVG8oFdUJYy2r/QEh1s4QTp8c9/aKUa9BK9jnTYRQTvQV7Q8IWhs/h5BB+eQYQc8sdF+AF+tJKG2eGsLaXGtnCVbtZemgUtuVDMPKHFbXAyGkOYnSQWgIornBM4S1UX1gzokKacbK/Fg6sr6bKunVdVkJwjlo1eUzhPLENa1MhaDAytJA0rcpvdqVe28aAHrORlTQmk5qQqigogf684AIYbdCebiP0Pq44fAjbJwX4jYXblm7c629wY2U3xK379KrfOVtjw9zOtskreNgiIieNCzFsypHW7aftDeXg+95f41PatCmVbG1zdF5xRGzv22r4DspfhR050guy7bFPHflCn0UNwj91Zsj47j/Wgvl+xh/9ZC/i7jdRBevEX3WILvZ3KTLzSsvNZtoEs1KnI131GO4fKp9TvR6s4mxPJC/OPkPUdHp4w=="
+
 
 
 def _iter_chunks(data: bytes):
@@ -132,15 +138,64 @@ def encode_rgba(rows: list[bytearray]) -> bytes:
     return SIGNATURE + chunk(b"IHDR", ihdr) + chunk(b"IDAT", zlib.compress(data, 9)) + chunk(b"IEND", b"")
 
 
+def bake_logo(rows, original):
+    # Native metallic Hall swords, fully visible. Fade only the boundary
+    # of their central crop; keep the approved copper rim and laurels.
+    for y in range(15, 78):
+        for x in range(95, 165):
+            opacity = min(1., max(0.,
+                          (min(x-95, 164-x, y-15, 77-y)+.5)/5))
+            for k in range(3):
+                i=x*4+k
+                rows[y][i]=round(rows[y][i]*(1-opacity) +
+                                 original[y][i]*opacity)
+
+
+def bake_title(rows):
+    packed=zlib.decompress(base64.b64decode(TITLE_MASK_B64))
+    if len(packed)!=TITLE_W*TITLE_H//2:
+        raise AssertionError("Invalid baked title raster")
+    alpha=[]
+    for b in packed:
+        alpha.append((b>>4)*17)
+        alpha.append((b&15)*17)
+    x0,y0=(256-TITLE_W)//2,80
+    mask=[[0]*256 for _ in range(128)]
+    for y in range(TITLE_H):
+        for x in range(TITLE_W):
+            mask[y0+y][x0+x]=alpha[y*TITLE_W+x]
+    for y in range(y0-2,y0+TITLE_H+2):
+        for x in range(x0-2,x0+TITLE_W+2):
+            v=mask[y][x]/255.
+            halo=max(mask[yy][xx] for yy in range(max(y0,y-2),min(y0+TITLE_H,y+3))
+                     for xx in range(max(x0,x-2),min(x0+TITLE_W,x+3)))/255.
+            if not halo: continue
+            i=x*4
+            shadow=max(0.,halo-v)*.90
+            for k in range(3):
+                rows[y][i+k]=round(rows[y][i+k]*(1-shadow))
+            if v:
+                color=(252,246,202) if y<90 else (
+                    (250,212,102) if y<100 else (200,119,26))
+                for k in range(3):
+                    rows[y][i+k]=round(rows[y][i+k]*(1-v)+color[k]*v)
+
+
 def derive() -> bytes:
     original = read_rgba(SOURCE.read_bytes())
     edited = blank_center([line[:] for line in original])
-    # Prove nothing outside the actual logo/lettering was painted.
+    bake_logo(edited, original)
+    bake_title(edited)
+    # Outside the central motif, Hall artwork must remain exact.
     for y, (before, after) in enumerate(zip(original, edited)):
-        if not 14 <= y <= 113 and before != after:
-            raise AssertionError("Generated frame differs from approved Hall artwork")
+        if y < 14 or y > 114:
+            if before != after:
+                raise AssertionError("Approved Hall outer rim changed")
+        for x in list(range(48))+list(range(208,256)):
+            if before[x*4:x*4+4] != after[x*4:x*4+4]:
+                raise AssertionError("Approved Hall laurels changed")
         if before[3::4] != after[3::4]:
-            raise AssertionError("Hall alpha channel must remain pixel-perfect")
+            raise AssertionError("Hall alpha must remain unchanged")
     return encode_rgba(edited)
 
 
@@ -152,7 +207,7 @@ if __name__ == "__main__":
     if args.check:
         if not DEST.is_file() or DEST.read_bytes() != content:
             raise SystemExit("War Games plate not derived from current Hall art")
-        print("War Games plate matches approved Hall art: PASS")
+        print("War Games finished plaque matches approved Hall art: PASS")
     else:
         DEST.write_bytes(content)
         print(f"Generated {DEST.relative_to(ROOT)} ({len(content)} bytes)")

@@ -252,8 +252,8 @@ for index, section in ipairs(sections) do
         end)
     elseif section.key == "wargames" then
         -- Same exact copper frame and laurels as Hall, derived pixel-for-
-        -- pixel from DuelAtlas.png with only its old center lettering
-        -- removed. This is the only justified separate primary plaque.
+        -- pixel from DuelAtlas.png, including baked metallic swords
+        -- and gilded WAR GAMES title. No live label or icon.
         local path = "Interface\\AddOns\\DuelsReimagined\\Media\\Skin\\DuelWarGamesPlate.png"
         local artwork = button:CreateTexture(nil, "ARTWORK", nil, 2)
         artwork:SetTexture(path)
@@ -298,25 +298,11 @@ for index, section in ipairs(sections) do
         icon:SetPoint("TOP", button, "TOP", 0, -4)
         label:SetPoint("BOTTOM", button, "BOTTOM", 0, 6)
         label:SetJustifyH("CENTER")
-        -- Static Hall lettering and swords are faithful artwork pixels.
-        -- Never draw an extra WoW fontstring/glyph over the extracted design.
-        if section.key == "hall" then
+        -- Both primary plaques are finished images. Never draw extra
+        -- Blizzard font strings or small icons over the fixed artwork.
+        if section.key == "hall" or section.key == "wargames" then
             icon:Hide()
             label:Hide()
-        elseif section.key == "wargames" then
-            icon:SetSize(40, 40)
-            icon:ClearAllPoints()
-            icon:SetPoint("TOP", button, "TOP", 0, -8)
-            label:ClearAllPoints()
-            label:SetPoint("BOTTOM", button, "BOTTOM", 0, 10)
-            label:SetWidth(HALL_BUTTON_WIDTH - 14)
-            label:SetTextColor(unpack(C.pale))
-            -- Gold arena jewel distinguishes the crest from Hall's swords
-            -- without introducing an unrelated external button image.
-            local jewel = button:CreateTexture(nil, "OVERLAY", nil, 7)
-            jewel:SetTexture("Interface\\AddOns\\DuelsReimagined\\Media\\Skin\\DuelCornerJewel.tga")
-            jewel:SetSize(11, 11)
-            jewel:SetPoint("CENTER", icon, "CENTER", 0, -2)
         end
     else
         icon:SetPoint("LEFT", button, "LEFT", 9, 0)
