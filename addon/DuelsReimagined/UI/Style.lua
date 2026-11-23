@@ -485,7 +485,12 @@ function Style.Action(parent, caption, variant, palette)
     -- passes ALL paint roles explicitly, including the hidden gloss/shade,
     -- so EllesmereUI and theme refresh cannot silently recolor the buttons.
     local hover
-    if palette then
+    -- An optional house plate keeps themed modal actions visually identical
+    -- to the existing footer Close button. All other callers keep their
+    -- current Skin/Plate choice and the SAME input, label and motion owner.
+    if palette and palette.plate then
+        button.plate = Style.Plate(button, palette.plate, { corner=footer and 9 or 11 })
+    elseif palette then
         Style.Skin(button, palette.fill, {
             corner=11, edge=palette.edge, light=palette.light,
             dark=palette.dark, shine=0.28, shade=0.20, rim=0.88,

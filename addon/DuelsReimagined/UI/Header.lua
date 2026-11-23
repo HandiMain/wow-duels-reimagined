@@ -12,8 +12,8 @@ local manualPeek, moving, folded = false, false, false
 local expandedHeight = frame:GetHeight()
 local alphaWhilePeeking = 0.16
 
-local function HeaderButton(name, title, detail)
-    local b = CreateFrame("Button", nil, header)
+local function HeaderButton(name, title, detail, parent, withoutTooltip)
+    local b = CreateFrame("Button", nil, parent or header)
     -- The red X is deliberately smaller than Peek/Fold, while its native
     -- button retains ordinary hover, pressed and tooltip behavior.
     b:SetSize(name == "Close" and 24 or 29, name == "Close" and 24 or 29)
@@ -61,10 +61,19 @@ local function HeaderButton(name, title, detail)
         art:ClearAllPoints()
         art:SetPoint("CENTER")
     end)
-    Tooltips.Bind(b, function()
-        return { title = b.tooltipTitle, detail = b.tooltipDetail }
-    end)
+    if not withoutTooltip then
+        Tooltips.Bind(b, function()
+            return { title = b.tooltipTitle, detail = b.tooltipDetail }
+        end)
+    end
     return b
+end
+
+-- Keep one close-button art/interaction owner: the small popup X is exactly
+-- the normal header X (same forged red plate, icon, hover and click feedback),
+-- but has no tooltip in an already self-explanatory dialog.
+function Header.CreateCloseButton(parent)
+    return HeaderButton("Close", "Close", "Close dialog", parent, true)
 end
 
 local function RefreshFade()

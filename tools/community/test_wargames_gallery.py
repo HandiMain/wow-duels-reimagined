@@ -123,6 +123,40 @@ class ArenaGalleryTests(unittest.TestCase):
         self.assertNotIn('Style.Text(b,"✓"',picker)
         self.assertNotIn('Style.Text(star,"☆"',picker)
 
+    def test_popup_actions_share_real_footer_and_header_button_owners(self):
+        picker=src("UI/WarGamesArenaPicker.lua")
+        style=src("UI/Style.lua")
+        header=src("UI/Header.lua")
+        window=src("UI/Window.lua")
+        toc=src("DuelsReimagined.toc")
+        # These are the EXISTING artwork and interaction owners, not new
+        # button images or a second independent hover/press engine.
+        self.assertIn('local close=ns.Header.CreateCloseButton(popup)',picker)
+        self.assertIn('function Header.CreateCloseButton(parent)',header)
+        self.assertIn('return HeaderButton("Close", "Close", "Close dialog", parent, true)',header)
+        self.assertIn('local b = CreateFrame("Button", nil, parent or header)',header)
+        self.assertIn('Style.Plate(b, name == "Close" and "hall" or "dark"',header)
+        self.assertIn('art:SetTexture(iconBase .. name .. ".png")',header)
+        self.assertIn('if not withoutTooltip then',header)
+        self.assertIn('Style.Plate(button, palette.plate',style)
+        self.assertIn('button.plate = Style.Plate(',style)
+        self.assertIn('plate=kind, tooltip=false',picker)
+        self.assertIn('local cancel = Action("Cancel",142)',picker)
+        self.assertIn('local confirm = Action("Select Arena",142,"gold")',picker)
+        self.assertIn('local all = Action("All Arenas",101,"dark")',picker)
+        self.assertIn('local favorites = Action("Favorites",108,"dark")',picker)
+        self.assertIn('all.plate:SetStyle(not onlyFavorite and "gold" or "dark")',picker)
+        self.assertIn('favorites.plate:SetStyle(onlyFavorite and "gold" or "dark")',picker)
+        self.assertIn('local close = Style.Action(footer, "Close", "footer")',window)
+        self.assertIn('Style.Plate(button, "hall", { corner=9 })',style)
+        self.assertLess(toc.index("UI\\Header.lua"),toc.index("UI\\WarGamesArenaPicker.lua"))
+        self.assertNotIn('Action("X",23)',picker)
+        self.assertNotIn('allSelected=Style.Fill',picker)
+        self.assertNotIn('favoritesSelected=Style.Fill',picker)
+        self.assertNotIn('ns.Tooltips.Bind(',picker)
+        # Shared styles still preserve the tooltip opt-out for modal buttons.
+        self.assertIn('not (palette and palette.tooltip == false)',style)
+
     def test_authored_glyph_atlas_valid(self):
         import struct
         asset=ADDON/"Media/Skin/WarGamesPickerGlyphs.tga"

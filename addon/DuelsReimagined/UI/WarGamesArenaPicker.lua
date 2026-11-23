@@ -234,21 +234,20 @@ rule:SetPoint("TOPRIGHT",popup,"TOPRIGHT",-13,-42)
 rule:SetHeight(1)
 rule:SetAlpha(0.55)
 
+-- Same forged action family as the main footer Close, not a separate
+-- painted capsule. Red for Cancel, dark for filters, gold for confirmation.
+-- Style.Action retains all shared hover/pressed/label behavior.
 local function Action(text,width,variant)
-    local primary=variant=="gold"
-    local dark=variant=="dark"
-    local b = Style.Action(popup,text,"footer",{
-        fill=primary and C.tabActive or dark and C.nav or C.button,
-        edge=primary and C.gold or dark and C.border or C.goldDim,
-        light=primary and C.pale or C.goldDim,
-        dark=C.window,hover=C.selected,text=C.pale,
-        tooltip=false, -- This modal is visual and self-explanatory.
+    local kind=variant=="gold" and "gold" or
+        variant=="dark" and "dark" or "hall"
+    local b=Style.Action(popup,text,"footer",{
+        plate=kind, tooltip=false,
     })
     b:SetSize(width,30)
     return b
 end
-local close = Action("X",23)
-close:SetHeight(23)
+-- The popup X comes from the SAME shared maker as the main header X.
+local close=ns.Header.CreateCloseButton(popup)
 close:SetPoint("TOPRIGHT",popup,"TOPRIGHT",-10,-10)
 local search = CreateFrame("EditBox",nil,popup)
 search:SetSize(213,29)
@@ -275,10 +274,9 @@ filterJewel:SetSize(16,16)
 filterJewel:SetPoint("LEFT",favorites,"LEFT",3,0)
 -- The action label keeps Style.Action's own left/right and press anchors.
 -- Do not re-anchor that shared label: it would jump on mouse-down.
-local allSelected=Style.Fill(all,C.tabActive,"ARTWORK")
-allSelected:SetAllPoints(all)
-local favoritesSelected=Style.Fill(favorites,C.tabActive,"ARTWORK")
-favoritesSelected:SetAllPoints(favorites)
+-- Switch the existing forged plates, rather than covering their bevels
+-- with flat rectangular selected-state fills.
+-- Selection stays persistent; hover/click is still owned by Style.Action.
 
 local scroll = CreateFrame("ScrollFrame",nil,popup)
 scroll:SetPoint("TOPLEFT",popup,"TOPLEFT",24,-89)
@@ -476,8 +474,8 @@ function Picker.Refresh()
     empty:SetShown(count==0)
     confirm:SetEnabled(count>0 and pending~=nil)
     confirm:SetAlpha(count>0 and pending~=nil and 1 or 0.48)
-    allSelected:SetAlpha(not onlyFavorite and 0.78 or 0)
-    favoritesSelected:SetAlpha(onlyFavorite and 0.78 or 0)
+    all.plate:SetStyle(not onlyFavorite and "gold" or "dark")
+    favorites.plate:SetStyle(onlyFavorite and "gold" or "dark")
     all.label:SetTextColor(unpack(not onlyFavorite and C.pale or C.text))
     favorites.label:SetTextColor(unpack(onlyFavorite and C.gold or C.text))
     scrollbar:Refresh()
