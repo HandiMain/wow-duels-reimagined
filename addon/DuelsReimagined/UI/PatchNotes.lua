@@ -58,8 +58,19 @@ Style.Skin(rail, C.window, { corner=11, edge=C.goldDim,
 local versionsTitle = Style.Text(rail, "Versions", 20, C.pale, nil, "display")
 versionsTitle:SetPoint("TOP", rail, "TOP", 0, -8)
 versionsTitle:SetJustifyH("CENTER")
-local railDivider = Chrome.Divider(rail, 154, 12)
-railDivider:SetPoint("TOP", versionsTitle, "BOTTOM", 0, -3)
+-- The approved Versions heading uses two short flanking lines, NOT a
+-- full-width divider below the title (which visually crossed the hero).
+local function VersionFlank(side)
+    local line = Style.Fill(rail, C.goldDim, "ARTWORK")
+    line:ClearAllPoints()
+    line:SetPoint(side, versionsTitle, side == "LEFT" and "LEFT" or "RIGHT",
+        side == "LEFT" and -12 or 12, 0)
+    line:SetSize(24, Style.Pixel(rail, 2))
+    line:SetAlpha(0.80)
+    return line
+end
+VersionFlank("LEFT")
+VersionFlank("RIGHT")
 
 local versionScroll = CreateFrame("ScrollFrame", nil, rail)
 versionScroll:SetPoint("TOPLEFT", rail, "TOPLEFT", 11, -51)
@@ -109,22 +120,23 @@ for index, release in ipairs(releases) do
     button:RegisterForClicks("LeftButtonUp")
     Style.Skin(button, C.nav, { corner=9, edge=C.border,
         shine=0.17, shade=0.13, rim=0.72 })
-    local selected = Style.Skin(button, C.selected, { corner=9,
-        edge=C.gold, shine=0.54, shade=0.19, rim=0.95, alpha=0 })
+    -- Use the approved gold spear-edged selection plate, minus baked text.
+    -- The native font strings remain the only version labels.
+    local selected = button:CreateTexture(nil, "ARTWORK", nil, 3)
+    selected:SetTexture(art .. "PatchNotesVersionSelected.png")
+    selected:SetAllPoints(button)
+    selected:SetTexCoord(0, 199/256, 0, 70/128)
+    selected:SetAlpha(0)
+    selected:EnableMouse(false)
     local hover = Style.FeedbackOverlay(button, {
         corner=9, inset=2, fill=C.gold, edge=C.goldDim,
         shine=0.32, rim=0.60,
     })
-    local dot = CreateFrame("Frame", nil, button)
-    dot:SetSize(13, 13)
-    dot:SetPoint("LEFT", button, "LEFT", 11, 0)
-    Style.Skin(dot, C.nav, { corner=6, edge=C.goldDim, rim=0.86 })
-    local dotCenter = Style.Fill(dot, C.gold, "ARTWORK")
-    dotCenter:ClearAllPoints()
-    dotCenter:SetPoint("CENTER", dot, "CENTER", 0, 0)
-    dotCenter:SetSize(5, 5)
-    dotCenter:Hide()
-    dot.inner = dotCenter
+    local dot = button:CreateTexture(nil, "ARTWORK", nil, 4)
+    dot:SetTexture(art .. "PatchNotesVersionRing.png")
+    dot:SetSize(18, 18)
+    dot:SetPoint("LEFT", button, "LEFT", 9, 0)
+    dot:EnableMouse(false)
     local number = Style.Text(button, release.version or "?", 17, C.pale)
     number:SetPoint("TOPLEFT", button, "TOPLEFT", 35, -8)
     number:SetPoint("TOPRIGHT", button, "TOPRIGHT", -6, -8)
@@ -188,19 +200,27 @@ bannerArt:SetAllPoints(banner)
 bannerArt:SetTexCoord(0, 1, 37 / 256, 212 / 256)
 bannerArt:EnableMouse(false)
 if Chrome.Sharp then Chrome.Sharp(bannerArt) end
-local bannerTitle = Style.Text(banner, "", 22, C.pale, nil, "display")
-bannerTitle:SetPoint("TOPLEFT", banner, "TOPLEFT", 202, -18)
-bannerTitle:SetPoint("TOPRIGHT", banner, "TOPRIGHT", -12, -18)
-bannerTitle:SetHeight(62)
+-- Concept hierarchy: one clean title line and a SINGLE metadata row with
+-- a gold version badge. All content stays dynamic for future releases.
+local bannerTitle = Style.Text(banner, "", 24, C.pale)
+bannerTitle:SetPoint("TOPLEFT", banner, "TOPLEFT", 246, -19)
+bannerTitle:SetPoint("TOPRIGHT", banner, "TOPRIGHT", -13, -19)
+bannerTitle:SetHeight(50)
 bannerTitle:SetJustifyV("TOP")
-bannerTitle:SetWordWrap(true)
-local bannerVersion = Style.Text(banner, "", 12, C.gold)
-bannerVersion:SetPoint("TOPLEFT", banner, "TOPLEFT", 202, -94)
-bannerVersion:SetPoint("RIGHT", banner, "RIGHT", -12, 0)
+bannerTitle:SetWordWrap(false)
+local versionBadge = CreateFrame("Frame", nil, banner)
+versionBadge:SetSize(82, 27)
+versionBadge:SetPoint("TOPLEFT", banner, "TOPLEFT", 246, -79)
+Style.Skin(versionBadge, C.selected, { corner=8, edge=C.goldDim,
+    shine=0.25, shade=0.12, rim=0.92 })
+local bannerVersion = Style.Text(versionBadge, "", 14, C.pale)
+bannerVersion:SetPoint("CENTER", versionBadge, "CENTER")
+bannerVersion:SetJustifyH("CENTER")
 bannerVersion:SetWordWrap(false)
 local bannerDate = Style.Text(banner, "", 11, C.text)
-bannerDate:SetPoint("TOPLEFT", banner, "TOPLEFT", 202, -116)
+bannerDate:SetPoint("LEFT", versionBadge, "RIGHT", 12, 0)
 bannerDate:SetPoint("RIGHT", banner, "RIGHT", -12, 0)
+bannerDate:SetHeight(27)
 bannerDate:SetWordWrap(false)
 
 local summaryPanel = CreateFrame("Frame", nil, canvas)
@@ -357,6 +377,23 @@ local function Layout()
     -- On minimum window width, a narrow summary places its description below
     -- the label. On larger widths, keep the exact concept's single-row summary.
     local compact = width < 620
+    -- Shorten only the decorative metadata on compact windows; the release
+    -- itself and its demo status are never changed or silently hidden.
+    bannerTitle:ClearAllPoints()
+    bannerTitle:SetPoint("TOPLEFT", banner, "TOPLEFT",
+        compact and 188 or 246, -19)
+    bannerTitle:SetPoint("TOPRIGHT", banner, "TOPRIGHT", -13, -19)
+    bannerTitle:SetWordWrap(compact)
+    bannerTitle:SetHeight(compact and 69 or 50)
+    versionBadge:ClearAllPoints()
+    versionBadge:SetPoint("TOPLEFT", banner, "TOPLEFT",
+        compact and 188 or 246, compact and -104 or -79)
+    local date = activeRelease and activeRelease.date or "Date not set"
+    local demo = not activeRelease or activeRelease.demo ~= false
+    local kind = demo and "DEMO NOTES" or "RELEASE NOTES"
+    bannerDate:SetText(compact and (date .. "  •  " .. kind) or
+        (date .. "  •  " .. kind ..
+            (demo and "  •  Fictional test update" or "")))
     if compact then
         summarySeparator:Hide()
         summaryDescription:ClearAllPoints()
@@ -427,17 +464,14 @@ root:HookScript("OnShow", LayoutWorkspace)
 local function Populate(release, index)
     activeRelease, selectedIndex = release, index
     bannerTitle:SetText(release.title or release.version or "Patch Notes")
-    bannerVersion:SetText((release.version or "") ..
-        (release.demo == false and "   •   RELEASE NOTES" or "   •   DEMO NOTES"))
-    bannerDate:SetText((release.date or "Date not set") ..
-        (release.demo == false and "" or "   •   Fictional test update"))
+    bannerVersion:SetText(release.version or "")
     summaryDescription:SetText(release.overview or release.summary or "")
     subheading:SetText("A more polished home for Duels updates.")
 
     for i, item in ipairs(versions) do
         local current = i == index
         item.selected:SetAlpha(current and 1 or 0)
-        item.dot.inner:SetShown(current)
+        item.dot:SetShown(not current)
         item.version:SetTextColor(unpack(current and C.tabText or C.pale))
     end
     for i, row in ipairs(rows) do
