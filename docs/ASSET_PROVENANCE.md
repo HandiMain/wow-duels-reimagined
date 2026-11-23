@@ -14,3 +14,9 @@ A future replacement with newly authored art should be documented here, rather t
 Polestar, EllesmereUI, Horizon Suite, and Handi's BurstFX have been studied for design and engineering patterns. Study alone does not imply copied assets or code. EllesmereUI's optional integration necessarily retains its external addon name in code and the TOC so it can detect that plugin at runtime.
 
 The public interface itself has no third-party branding or internal `Concept` / `Polestar` media directories.
+
+## Duels Reimagined War Games coliseum plaque
+- Source: the project's approved 2026-11-23 coliseum concept, chosen by the project owner.
+- Original artwork was cropped and fitted into an RGBA 256x128 power-of-two plate, with transparent corners and the full gold WAR GAMES title safely inside the copper frame.
+- Master: `tools/community/artwork/WarGamesColiseumPlate.png`. Runtime: `addon/DuelsReimagined/Media/Skin/DuelWarGamesPlate.png`.
+- The War Games button retains its existing game-frame behavior and hover/press feedback; only the baked visual plate changed. No other addon's artwork was used.

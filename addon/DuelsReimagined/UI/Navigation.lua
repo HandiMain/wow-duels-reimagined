@@ -251,9 +251,9 @@ for index, section in ipairs(sections) do
             Motion.Stop(hallGlow, 0)
         end)
     elseif section.key == "wargames" then
-        -- Same exact copper frame and laurels as Hall, derived pixel-for-
-        -- pixel from DuelAtlas.png, including baked metallic swords
-        -- and gilded WAR GAMES title. No live label or icon.
+        -- The approved Coliseum War Games plate keeps its own arena emblem,
+        -- gold lettering with a safe lower inset, and Hall-matched framing.
+        -- This finished artwork is the sole paint owner: no duplicate label.
         local path = "Interface\\AddOns\\DuelsReimagined\\Media\\Skin\\DuelWarGamesPlate.png"
         local artwork = button:CreateTexture(nil, "ARTWORK", nil, 2)
         artwork:SetTexture(path)

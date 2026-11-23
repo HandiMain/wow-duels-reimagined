@@ -150,21 +150,27 @@ class WarGamesTests(unittest.TestCase):
             self.assertLess(268+63+39*5,280+63+39*5)
 
 
-    def test_derived_hall_artwork_matches_original(self):
+    def test_approved_coliseum_artwork_is_current(self):
+        import hashlib
+        import struct
         import subprocess
         import sys
         result = subprocess.run(
             [sys.executable, str(ROOT/"tools/community/generate_wargames_plate.py"), "--check"],
             cwd=ROOT, capture_output=True, text=True, check=False)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-        self.assertIn("finished plaque matches approved Hall art: PASS", result.stdout)
-        generator=src("../../tools/community/generate_wargames_plate.py")
-        self.assertIn("display_width, display_height = 112, 24",generator)
-        self.assertIn("def bake_emblem(rows):",generator)
-        self.assertIn('EMBLEM_SOURCE = ROOT / "tools/community/artwork/WarGamesArenaCrest.png"',generator)
-        self.assertNotIn("WarGamesArenaGate.png",generator)
-        self.assertNotIn("def bake_logo(",generator)
-        emblem=ROOT/"tools/community/artwork/WarGamesArenaCrest.png"
-        self.assertTrue(emblem.is_file())
-        self.assertEqual(emblem.read_bytes()[:8],b"\x89PNG\r\n\x1a\n")
-        self.assertFalse((ROOT/"tools/community/artwork/WarGamesArenaGate.png").exists())
+        self.assertIn("Coliseum War Games plaque matches approved artwork: PASS", result.stdout)
+        source = ROOT/"tools/community/artwork/WarGamesColiseumPlate.png"
+        plate = ADDON/"Media/Skin/DuelWarGamesPlate.png"
+        self.assertTrue(source.is_file())
+        self.assertEqual(source.read_bytes(), plate.read_bytes())
+        data = plate.read_bytes()
+        self.assertEqual(data[:8], b"\x89PNG\r\n\x1a\n")
+        self.assertEqual(struct.unpack_from(">IIBB", data, 16), (256, 128, 8, 6))
+        self.assertEqual(
+            hashlib.sha256(data).hexdigest(),
+            "79c3d68a4040f5b8cb169ebd3d41b71826b1b8e136e630118bf079c15b1bb2c2")
+        self.assertFalse((ROOT/"tools/community/artwork/WarGamesArenaCrest.png").exists())
+        generator = src("../../tools/community/generate_wargames_plate.py")
+        self.assertIn("WarGamesColiseumPlate.png", generator)
+        self.assertNotIn("WarGamesArenaCrest.png", generator)
