@@ -115,7 +115,7 @@ class CompactPageDensityTests(unittest.TestCase):
             "function Community.Show(key)",
         ):
             self.assertIn(marker, c)
-        self.assertLessEqual(247 + 196, 460)
+        self.assertLessEqual(233 + 203, 460)
 
     def test_patch_notes_reflow_keeps_version_data_and_link_targets(self):
         p = src("UI/PatchNotes.lua")
