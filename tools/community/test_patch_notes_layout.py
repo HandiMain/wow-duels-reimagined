@@ -21,7 +21,11 @@ def geometry(root_width, root_height, entries):
     canvas_width = max(1, min(970, detail_width - 16))
     compact = canvas_width < 620
     # Body top y=-88; selected patch content scrolls separately.
-    notes_height = 258 + entries * 80 + 12 + (248 if compact else 124) + 40
+    dense = root_height - 106 < 590
+    if dense:
+        notes_height = 221 + entries*65 + 5 + (220 if compact else 110) + 27
+    else:
+        notes_height = 258 + entries*80 + 12 + (248 if compact else 124) + 40
     return inset, usable, canvas_width, compact, notes_height
 
 
@@ -60,19 +64,22 @@ class PatchNotesLayoutTests(unittest.TestCase):
             self.assertGreaterEqual(inset, 20)
             self.assertLessEqual(canvas, 970)
             self.assertGreater(canvas, 500 if root_width >= 770 else 1)
-            self.assertGreater(height, 620)
+            self.assertGreater(height, 520)
             if root_width >= 1240:
                 self.assertFalse(compact)
             if root_width < 850:
                 self.assertTrue(compact)
-            self.assertEqual(height, 258+3*80+12+(248 if compact else 124)+40)
+            self.assertEqual(height, 221+3*65+5+(220 if compact else 110)+27)
         for marker in (
             'local usable = math.min(1190, math.max(1, total - 40))',
             'local inset = math.max(20, (total - usable) / 2)',
             'root:HookScript("OnSizeChanged", LayoutWorkspace)',
             'scroll:SetPoint("TOPLEFT", rail, "TOPRIGHT", 16, 0)',
             'local compact = width < 620',
-            'canvas:SetHeight(y + 40)',
+            'canvas:SetHeight(y + (dense and 27 or 40))',
+            'local dense = scroll:GetHeight() < 590',
+            'summaryPanel:SetHeight(summaryH)',
+            'frame:SetHeight(rowHeight)',
         ):
             self.assertIn(marker, PAGE)
 
