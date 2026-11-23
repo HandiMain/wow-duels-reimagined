@@ -17,7 +17,7 @@ class UtilityRailTests(unittest.TestCase):
             'button:SetSize(112, 30)',
             '(utilityIndex - 1) * 120',
             'sub:SetSize(174, 35)',
-            'Window.nav:SetShown(#section.pages > 1)',
+            'Window.nav:SetShown(#section.pages > 1 and section.key ~= "patchnotes")',
             'local function FitTabs(self, width)',
             'local function FitSubTabs(self, width)',
         ):
