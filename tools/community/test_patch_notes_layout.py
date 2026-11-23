@@ -39,13 +39,15 @@ class PatchNotesLayoutTests(unittest.TestCase):
             'ns.Navigation.SelectKey("patchnotes", release.key)',
             'button:SetScript("OnClick"',
             'if index == 4 then',
+            'local archived = index > 3',
+            'railY = railY + (archived and 47 or 67)',
         ):
             self.assertIn(item, PAGE)
         self.assertIn('Window.nav:SetShown(#section.pages > 1 and section.key ~= "patchnotes")', NAV)
         self.assertIn('for index, release in ipairs(ns.PatchNotesData or {})', NAV)
 
     def test_template_keeps_demo_and_live_release_metadata_distinct(self):
-        self.assertEqual(DATA.count("demo = true"), 3)
+        self.assertEqual(DATA.count("demo = true"), 6)
         self.assertIn('overview =', DATA)
         self.assertIn('highlights = {', DATA)
         self.assertIn('release.demo == false', PAGE)
