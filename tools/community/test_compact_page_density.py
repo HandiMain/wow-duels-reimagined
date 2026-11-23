@@ -123,18 +123,22 @@ class CompactPageDensityTests(unittest.TestCase):
     def test_patch_notes_reflow_keeps_version_data_and_link_targets(self):
         p = src("UI/PatchNotes.lua")
         for marker in (
-            'scroll:SetPoint("TOPLEFT", root, "TOPLEFT", 22, -148',
-            "banner:SetHeight(118)",
-            "row:SetHeight(82)",
-            "-164 - (index - 1) * 90",
-            "local y = 164 + count * 90 + 11",
-            "canvas:SetHeight(y + 110)",
+            'rail:SetPoint("TOPLEFT", root, "TOPLEFT", 20, -88)',
+            'versionScroll:SetPoint("TOPLEFT", rail, "TOPLEFT", 11, -51)',
+            'scroll:SetPoint("TOPLEFT", rail, "TOPRIGHT", 16, 0)',
+            "banner:SetHeight(141)",
+            "row:SetHeight(72)",
+            "-258 - (index - 1) * 80",
+            "local y = 258 + count * 80 + 12",
+            "canvas:SetHeight(y + 40)",
             "Settings.MarkPatchNotesSeen(item.data.id)",
             "Search.entries[entry.target]",
         ):
             self.assertIn(marker, p)
-        self.assertGreaterEqual(164 - (3 + 118), 15)
-        self.assertLess(82, 90)
+        self.assertGreaterEqual(258 - (154 + 64), 24)
+        self.assertLess(72, 80)
+        self.assertIn('local compact = width < 620', p)
+        self.assertIn('local versionBar = Widgets.ScrollBar(versionScroll,', p)
 
     def test_visual_changes_do_not_create_gameplay_or_polling_owner(self):
         for p in ("UI/Options.lua", "UI/Navigation.lua",
