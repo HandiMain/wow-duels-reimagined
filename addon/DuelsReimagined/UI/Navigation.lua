@@ -149,7 +149,9 @@ local function Select(sectionIndex, pageIndex, noMotion, repaintOnly, isBack)
     end
     local section, page = sections[sectionIndex], sections[sectionIndex].pages[pageIndex]
     sectionTitle:SetText(string.upper(section.label))
-    Window.nav:SetShown(#section.pages > 1)
+    -- Patch Notes versions live in their own scrollable rail, never in the
+    -- horizontal subcategory strip (which would overflow with new releases).
+    Window.nav:SetShown(#section.pages > 1 and section.key ~= "patchnotes")
 
     for i, item in ipairs(railButtons) do
         local on = i == sectionIndex

@@ -2,14 +2,22 @@ local _, ns = ...
 
 -- Prototype-only version catalogue. ONE owner supplies both sidebar navigation
 -- and the patch page. These are not addon versions or actual release notes.
--- Add a reviewed record at the front to create a new version subcategory.
+-- Add one reviewed record at the front to populate the version rail, Search
+-- and all update cards automatically. Set demo=false only for a real release.
+-- Optional fields: overview, highlights={...}, entry.target=registered setting.
 ns.PatchNotesData = {
     {
         key = "v0-1-2", id = "demo-patch-v0.1.2-interface",
-        version = "v0.1.2", navTitle = "Latest Update",
+        version = "v0.1.2", navTitle = "Latest Update", demo = true,
         title = "Test Build — Interface Refinement",
         date = "Nov 19, 2026",
         summary = "A more polished home for Duels updates.",
+        overview = "A focused update that refines the interface, improves core controls, and polishes key interaction flows based on ongoing testing and feedback.",
+        highlights = {
+            "Redesigned Patch Notes experience",
+            "Clearer update summaries and change types",
+            "Improved discoverability of related settings",
+        },
         entries = {
             { category = "NEW", title = "A new home for Patch Notes",
               description = "Explore each update by version and discover related settings.",
@@ -24,7 +32,7 @@ ns.PatchNotesData = {
     },
     {
         key = "v0-1-1", id = "demo-patch-v0.1.1-patch-notes",
-        version = "v0.1.1", navTitle = "Patch Notes",
+        version = "v0.1.1", navTitle = "Patch Notes", demo = true,
         title = "Test Build — Patch Notes",
         date = "Nov 18, 2026",
         summary = "A sample changelog from an earlier test iteration.",
@@ -42,7 +50,7 @@ ns.PatchNotesData = {
     },
     {
         key = "v0-1-0", id = "demo-patch-v0.1.0-foundation",
-        version = "v0.1.0", navTitle = "Foundation",
+        version = "v0.1.0", navTitle = "Foundation", demo = true,
         title = "Test Build — The Foundation",
         date = "Nov 17, 2026",
         summary = "A fictional look back at the beginning.",
