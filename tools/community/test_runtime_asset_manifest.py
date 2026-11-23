@@ -36,6 +36,41 @@ class RuntimeAssetManifestTests(unittest.TestCase):
                          "Style.Rule(", "Style.ForgedEdge(", "movingBar"):
             self.assertNotIn(obsolete, sources)
 
+    def test_no_dead_asset_aliases_or_comment_only_references(self):
+        import re
+        lua_sources = {p: p.read_text(encoding="utf-8")
+                       for p in ADDON.rglob("*.lua")}
+        media = ADDON / "Media"
+        for image in media.rglob("*"):
+            if not image.is_file() or image.suffix.lower() not in (
+                    ".png", ".tga", ".jpg", ".jpeg", ".blp"):
+                continue
+            # Literal media names must be present in active Lua, not solely
+            # in obsolete comments or a single unused local declaration.
+            active = [src for src in lua_sources.values()
+                      if image.name in "\\n".join(
+                          line.split("--", 1)[0] for line in src.splitlines())]
+            if image.name in {"Close.png", "Eye.png", "FoldUp.png"}:
+                continue  # Header constructs these filenames at runtime.
+            self.assertTrue(active, "Unreferenced runtime media: " + image.name)
+            for src in active:
+                for match in re.finditer(
+                    r"\\blocal\\s+(\\w+)\\s*=\\s*[^\\n]*" +
+                    re.escape(image.name), src):
+                    symbol = match.group(1)
+                    uses = re.findall(r"\\b" + re.escape(symbol) + r"\\b", src)
+                    self.assertGreater(len(uses), 1,
+                        "Unused media alias: " + symbol + " for " + image.name)
+
+    def test_no_runtime_reference_addon_branding(self):
+        # Names required to call EllesmereUI APIs are functional integration
+        # contracts; study references must not become Duels product labels.
+        for path in ADDON.rglob("*.lua"):
+            body = path.read_text(encoding="utf-8")
+            for obsolete in ("Polestar", "BurstFX", "Narcissus", "Horizon",
+                             "First Concept", "CommunityConcept"):
+                self.assertNotIn(obsolete, body, str(path))
+
     def test_icon_and_toggle_files_exist(self):
         for name in (
             "Media/Icons/DuelsDRIcon.png",

@@ -46,8 +46,8 @@ local function TileIcon(parent, symbol, size)
     return tex
 end
 
--- The original top-level horizontal tabs remain registered for Search and
--- Back, but this page owns their ONLY visible representation: a vertical,
+-- Patch Notes pages remain registered for Search and Back, but only this
+-- page draws their selection controls: a vertical,
 -- independently scrollable version list that grows with the data table.
 local rail = CreateFrame("Frame", nil, root)
 rail:SetPoint("TOPLEFT", root, "TOPLEFT", 20, -88)

@@ -319,7 +319,7 @@ local function PaintScale(value)
     scalePercent:SetText(math.floor(v * 100 + 0.5) .. "%")
 end
 
--- Like Polestar, constrain the window to the available screen after
+-- Constrain the window to the available screen after
 -- Menu Scale. The larger default is distinct from the resize minimum;
 -- previously saved custom dimensions still take priority.
 -- The scale slider remains release-to-apply, never resize-on-drag.

@@ -7,7 +7,7 @@ ns.Motion = Motion
 local driver = CreateFrame("Frame")
 local active = {}
 
--- Polestar-inspired reduced-motion contract, driven by our existing single
+-- Reduced-motion behavior uses our existing single
 -- tween owner. Never create a second animator or a permanent polling loop.
 Motion.Presets = { quick = 0.12, normal = 0.17, gentle = 0.22 }
 function Motion.Duration(kind)

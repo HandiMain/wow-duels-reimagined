@@ -94,12 +94,12 @@ ns.PatchNotesData = {
     },
     {
         key = "v0-0-7", id = "demo-patch-v0.0.7-archive",
-        version = "v0.0.7", navTitle = "First Concept", demo = true,
-        title = "Test Build — First Concept",
+        version = "v0.0.7", navTitle = "First Steps", demo = true,
+        title = "Test Build — First Steps",
         date = "Nov 14, 2026",
         summary = "A fictional foundation for archive navigation tests.",
         entries = {
-            { category = "DEMO", title = "Sample concept changes",
+            { category = "DEMO", title = "Sample early changes",
               description = "Demonstration-only notes with no gameplay claims.",
               symbol = "swords" },
         },

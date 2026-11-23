@@ -390,7 +390,7 @@ local function PlaceManual(menu)
     end
 
     -- Fill the earliest safe gap, 4px below the button above. Do not
-    -- center in a large gap: Horizon-like late buttons need the room below.
+    -- center in a large gap: later addon buttons may need the room below.
     -- Anchor only to the menu to avoid reciprocal addon-to-addon anchors.
     local targetTop = aboveBottom - GAP
     local offset = menuTop - targetTop

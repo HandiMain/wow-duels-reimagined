@@ -258,7 +258,7 @@ local function ConnectClick(button, isWidget)
     end)
 end
 
--- Independent minimap icon (Narcissus/previous addon): UIParent owns the
+-- Independent minimap icon: UIParent owns the
 -- frame and Minimap only anchors its position. EllesmereUI collects
 -- direct Minimap children and cannot sweep this button into its flyout.
 miniButton = CreateFrame("Button", "DuelsReimaginedMinimapButton", UIParent)
