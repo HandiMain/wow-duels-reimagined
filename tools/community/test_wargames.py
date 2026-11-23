@@ -72,7 +72,7 @@ class WarGamesTests(unittest.TestCase):
         self.assertNotIn('menuNext',ui)
         widgets=src("UI/Widgets.lua")
         self.assertIn("function Widgets.ChoiceControl(parent, width)",widgets)
-        self.assertIn("function Widgets.OpenChoices(anchor, choices, selected, onChoose)",widgets)
+        self.assertIn("function Widgets.OpenChoices(anchor, choices, selected, onChoose, searchable)",widgets)
         self.assertIn("scrollbar=Widgets.ScrollBar(popup",widgets)
         self.assertIn('choiceCounter = choiceCounter + 1',widgets)
         self.assertIn('row.dot:SetShown(type(status) == "boolean")',widgets)

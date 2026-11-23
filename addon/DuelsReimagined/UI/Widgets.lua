@@ -322,7 +322,7 @@ end
 -- captain. Looks and scrolls like the Options > Interface font menu.
 -- Rows may carry an optional boolean .online; unknown shows no indicator.
 local warChoiceMenu
-function Widgets.OpenChoices(anchor, choices, selected, onChoose)
+function Widgets.OpenChoices(anchor, choices, selected, onChoose, searchable)
     if not anchor or type(choices) ~= "table" or
         type(onChoose) ~= "function" then return end
     if not warChoiceMenu then
@@ -342,11 +342,19 @@ function Widgets.OpenChoices(anchor, choices, selected, onChoose)
         })
         local rowHeight, visible = 31, 7
         local entries, offset = {}, 0
-        local options, selectedKey, callback, currentAnchor = {}, nil, nil, nil
+        local options, sourceOptions, selectedKey, callback, currentAnchor = {}, {}, nil, nil, nil
+        local filterText, searchEnabled = "", false
         local scrollbar
+        local empty=Style.Text(popup,"No matching entries",12,C.muted)
+        empty:SetPoint("TOPLEFT",popup,"TOPLEFT",14,-52)
+        empty:Hide()
 
         local function Render()
             local n = #options
+            empty:SetShown(n==0)
+            empty:ClearAllPoints()
+            empty:SetPoint("TOPLEFT",popup,"TOPLEFT",14,
+                searchEnabled and -52 or -16)
             offset = math.max(0, math.min(offset, math.max(0, n-visible)))
             for i, row in ipairs(entries) do
                 local option = options[offset+i]
@@ -368,9 +376,45 @@ function Widgets.OpenChoices(anchor, choices, selected, onChoose)
                     row.option = nil
                 end
             end
-            popup:SetHeight(12+math.max(1,math.min(visible,n))*rowHeight)
+            popup:SetHeight(12+(searchEnabled and 36 or 0)+
+                math.max(1,math.min(visible,n))*rowHeight)
             if scrollbar then scrollbar:Refresh() end
         end
+
+        local search=CreateFrame("EditBox",nil,popup)
+        search:SetSize(256,27)
+        search:SetPoint("TOPLEFT",popup,"TOPLEFT",9,-7)
+        search:SetAutoFocus(false)
+        search:SetMaxLetters(64)
+        search:SetFontObject(GameFontHighlightSmall)
+        local hint=Style.Text(search,"Search friends or arenas...",11,C.muted)
+        hint:SetPoint("LEFT",search,"LEFT",9,0)
+        search:SetTextInsets(9,7,0,0)
+        Style.Skin(search,C.body,{corner=9,edge=C.border,
+            shine=0.20,shade=0.22})
+        search:Hide()
+        local function Filter()
+            local q=filterText:lower():gsub("^%s+",""):gsub("%s+$","")
+            options={}
+            for _,entry in ipairs(sourceOptions) do
+                if q=="" or (type(entry.label)=="string" and
+                    entry.label:lower():find(q,1,true)) then
+                    options[#options+1]=entry
+                end
+            end
+            offset=0
+            Render()
+        end
+        search:SetScript("OnTextChanged",function(self)
+            filterText=self:GetText() or ""
+            hint:SetShown(filterText=="")
+            Filter()
+        end)
+        search:SetScript("OnEnterPressed",function(self)self:ClearFocus()end)
+        search:SetScript("OnEscapePressed",function(self)
+            self:ClearFocus()
+            Widgets.CloseChoices()
+        end)
 
         for i=1,visible do
             local button = CreateFrame("Button", nil, popup)
@@ -441,19 +485,30 @@ function Widgets.OpenChoices(anchor, choices, selected, onChoose)
             if openChoicePopup==popup then openChoicePopup=nil end
             if clickCatcher then clickCatcher:Hide() end
             currentAnchor=nil
+            search:ClearFocus()
         end)
-        function popup:Open(target, list, key, action)
+        function popup:Open(target, list, key, action, allowSearch)
             if currentAnchor==target and popup:IsShown() then
                 Widgets.CloseChoices()
                 return
             end
             Widgets.CloseChoices()
-            options=list
+            sourceOptions=list
+            searchEnabled=allowSearch==true
             selectedKey=key
             callback=action
             currentAnchor=target
-            offset=0
-            Render()
+            filterText=""
+            search:SetShown(searchEnabled)
+            search:SetText("")
+            Filter()
+            for i,row in ipairs(entries) do
+                row.button:ClearAllPoints()
+                row.button:SetPoint("TOPLEFT",popup,"TOPLEFT",6,
+                    -(searchEnabled and 42 or 6)-(i-1)*rowHeight)
+                row.button:SetPoint("TOPRIGHT",popup,"TOPRIGHT",-21,
+                    -(searchEnabled and 42 or 6)-(i-1)*rowHeight)
+            end
             popup:ClearAllPoints()
             local bottom=target:GetBottom()
             local right=target:GetRight()
@@ -473,7 +528,7 @@ function Widgets.OpenChoices(anchor, choices, selected, onChoose)
         warChoiceMenu=popup
         popup:Hide()
     end
-    warChoiceMenu:Open(anchor,choices,selected,onChoose)
+    warChoiceMenu:Open(anchor,choices,selected,onChoose,searchable)
 end
 
 -- Reusable compact picker for SharedMedia fonts, outlines, and later Options.

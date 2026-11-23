@@ -12,6 +12,7 @@ local state = {
 }
 local arena = false
 local lastResult
+local requestState={player="idle",host="idle"}
 
 -- Arena names / unambiguous /wargame keywords verified against the Retail
 -- WarGameHelper 1.2.6 map list. Never let a player enter an arbitrary map ID.
@@ -130,11 +131,17 @@ function WarGames.GetConfig(page)
     return { bracket=s.bracket, map=s.map, tournamentRules=s.tournamentRules, captain=s.captain,
         captain1=s.captain1, captain2=s.captain2 }
 end
+function WarGames.GetRequestState(page)
+    if not state[page] then return "unavailable" end
+    if IsArena() then return "in_arena" end
+    return requestState[page] or "idle"
+end
 function WarGames.SelectBracket(page, count)
     if not state[page] or (count ~= 2 and count ~= 3 and count ~= 5) then
         return false
     end
     state[page].bracket = count
+    requestState[page]="idle"
     Notify()
     return true
 end
@@ -145,6 +152,7 @@ function WarGames.SelectTournamentRules(page, enabled)
     if not s or type(enabled) ~= "boolean" then return false end
     if s.tournamentRules ~= enabled then
         s.tournamentRules = enabled
+        requestState[page]="idle"
         Notify()
     end
     return true
@@ -154,6 +162,7 @@ function WarGames.SelectMap(page, index)
     if not state[page] or type(index) ~= "number" or
         index ~= math.floor(index) or not WarGames.GetMaps()[index] then return false end
     state[page].map = index
+    requestState[page]="idle"
     Notify()
     return true
 end
@@ -182,16 +191,20 @@ function WarGames.GetFriends()
                 type(account) == "string" and account ~= "" then
                 local display = type(tag) == "string" and
                     tag ~= "" and tag or account
+                local game=SafeField(info, "gameAccountInfo")
+                local character=SafeField(game, "characterName")
+                local characterRealm=SafeField(game, "realmName")
                 local online = SafeField(info, "isOnline")
                 local source = "Battle.net"
                 if type(online) ~= "boolean" then
-                    local game = SafeField(info, "gameAccountInfo")
                     online = SafeField(game, "isOnline")
                     source = "World of Warcraft"
                 end
                 if type(online) ~= "boolean" then online = nil end
                 result[#result + 1] = {
                     id=id, accountName=account, displayName=display,
+                    characterName=type(character)=="string" and character or nil,
+                    characterRealm=type(characterRealm)=="string" and characterRealm or nil,
                     online=online, onlineSource=online ~= nil and source or nil,
                 }
             end
@@ -223,6 +236,7 @@ function WarGames.SelectCaptain(page, slot, id)
     if not key then return false end
     if id ~= nil and not FriendByID(id) then return false end
     s[key] = id
+    requestState[page]="idle"
     Notify()
     return true
 end
@@ -311,12 +325,14 @@ function WarGames.Request(page)
         return false, "Select a War Games page."
     end
     if not ok or (Readable(result) and result == false) then
+        requestState[page]="refused"
         lastResult = "Blizzard refused this request. Check the team and try again."
         Notify()
         return false, lastResult
     end
     -- A protected Blizzard function returning normally does NOT prove
     -- either captain accepted, teams entered, or a spectator was admitted.
+    requestState[page]="submitted"
     lastResult = "Request handed to Blizzard; acceptance and entry are not confirmed."
     Notify()
     return true, lastResult

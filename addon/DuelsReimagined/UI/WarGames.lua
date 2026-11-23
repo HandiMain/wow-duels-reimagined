@@ -13,6 +13,7 @@ local active = "player"
 local unsubscribe
 local openMenu
 local messages = {}
+local studio
 
 -- Reuse the same house icon atlas as Navigation and Addon Status.
 local symbol = Chrome.Icon(root, "Hall")
@@ -83,11 +84,10 @@ local function CaptainPicker(parent, slot, page)
             {key=0, label="Clear captain", detail="Leave this team captain unselected."},
         }
         local friends=Engine.GetFriends()
-        for _, friend in ipairs(friends) do
-            entries[#entries+1]={
-                key=friend.id, label=friend.displayName,
-                online=friend.online, onlineSource=friend.onlineSource,
-            }
+        local tools=ns.WarGamesSession
+        local choices=tools and tools.Choices("captain") or {}
+        for _, friend in ipairs(choices) do
+            entries[#entries+1]=friend
         end
         if #friends==0 then
             entries[#entries+1]={
@@ -101,8 +101,11 @@ local function CaptainPicker(parent, slot, page)
         Widgets.OpenChoices(self, entries, id or 0, function(key)
             local captainID=key
             if captainID==0 then captainID=nil end
-            Engine.SelectCaptain(page,slot,captainID)
-        end)
+            if Engine.SelectCaptain(page,slot,captainID) and captainID and
+                ns.WarGamesSession then
+                ns.WarGamesSession.Remember("captain",captainID)
+            end
+        end,true)
     end)
     return button
 end
@@ -269,16 +272,15 @@ local hostSend=Action(hostForm,"Request Spectator Match",260,36)
 hostSend:SetPoint("TOPRIGHT",hostForm,"TOPRIGHT",-18,-142)
 
 local function SelectMap(page,anchor)
-    local entries={}
-    for index, map in ipairs(Engine.GetMaps()) do
-        entries[#entries+1]={key=index,label=map.name,
-            detail=map.clientReported and "Reported by this Retail client." or
-                "Arena reference. Blizzard determines War Game availability."}
-    end
+    local tools=ns.WarGamesSession
+    local entries=tools and tools.Choices("map") or {}
     local cfg=Engine.GetConfig(page)
     Widgets.OpenChoices(anchor,entries,cfg and cfg.map,function(index)
-        Engine.SelectMap(page,index)
-    end)
+        if Engine.SelectMap(page,index) and tools then
+            local map=Engine.GetMaps()[index]
+            if map then tools.Remember("map",map.name) end
+        end
+    end,true)
 end
 playerMap:SetScript("OnClick",function(self) SelectMap("player",self) end)
 hostMap:SetScript("OnClick",function(self) SelectMap("host",self) end)
@@ -293,12 +295,18 @@ ns.Tooltips.Bind(hostSend,function()
             "Ask Blizzard to arrange a match for two team captains. Spectator entry is not guaranteed."}
 end)
 playerSend:SetScript("OnClick",function()
-    local _, reason=Engine.Request("player")
+    local ok, reason=Engine.Request("player")
+    if ok and ns.WarGamesSession then
+        ns.WarGamesSession.CaptureRequest("player")
+    end
     messages.player=reason
     View.Refresh()
 end)
 hostSend:SetScript("OnClick",function()
-    local _, reason=Engine.Request("host")
+    local ok, reason=Engine.Request("host")
+    if ok and ns.WarGamesSession then
+        ns.WarGamesSession.CaptureRequest("host")
+    end
     messages.host=reason
     View.Refresh()
 end)
@@ -333,6 +341,12 @@ local function Position(frame,x,y,w,h)
     frame:ClearAllPoints()
     frame:SetPoint("TOPLEFT",canvas,"TOPLEFT",x,-y)
     frame:SetSize(w,h)
+end
+function View.GetCanvas() return canvas end
+function View.GetActivePage() return active end
+function View.AttachStudio(panel)
+    studio=panel
+    if root:IsShown() then View.Refresh() end
 end
 local function Layout()
     local w=UsableCanvasWidth()
@@ -394,6 +408,23 @@ local function Layout()
         vs:ClearAllPoints()
         vs:SetPoint("CENTER",canvas,"TOPLEFT",w/2,-399)
         canvas:SetHeight(524)
+    end
+    if studio then
+        if inArena then
+            studio:Hide()
+        else
+            local y
+            if active=="player" then
+                local size=Engine.GetConfig("player").bracket
+                y=268+(63+39*size)+16
+            else
+                y=527
+            end
+            Position(studio,0,y,w,342)
+            studio.studioY=y
+            studio:Show()
+            canvas:SetHeight(y+356)
+        end
     end
     local max=math.max(0,canvas:GetHeight()-scroll:GetHeight())
     scroll:SetVerticalScroll(math.max(0,math.min(max,scroll:GetVerticalScroll())))
@@ -457,10 +488,10 @@ function View.Refresh()
     local first, second = {}, {}
     if hostA then first[1]={name=hostA.displayName} end
     if hostB then second[1]={name=hostB.displayName} end
-    FillRows(hostRows1,first,math.min(5,cfgHost.bracket))
-    FillRows(hostRows2,second,math.min(5,cfgHost.bracket))
-    hostTeam1.heading:SetText("TEAM 1  •  "..cfgHost.bracket.." FIGHTERS")
-    hostTeam2.heading:SetText("TEAM 2  •  "..cfgHost.bracket.." FIGHTERS")
+    FillRows(hostRows1,first,math.min(5,cfgHost.bracket),"Not observed")
+    FillRows(hostRows2,second,math.min(5,cfgHost.bracket),"Not observed")
+    hostTeam1.heading:SetText("TEAM 1  •  "..cfgHost.bracket.." SLOTS")
+    hostTeam2.heading:SetText("TEAM 2  •  "..cfgHost.bracket.." SLOTS")
     local playerReason=Engine.GetReason("player")
     local hostReason=Engine.GetReason("host")
     playerSend:SetEnabled(not playerReason)
@@ -489,7 +520,15 @@ function View.Refresh()
     vs:SetShown(inArena or active=="host")
 
     Layout()
+    if studio and studio.Refresh and not inArena then studio:Refresh() end
     scrollbar:Refresh()
+end
+function View.ScrollToStudio()
+    if not studio or not studio:IsShown() then return false end
+    local max=math.max(0,canvas:GetHeight()-scroll:GetHeight())
+    scroll:SetVerticalScroll(math.min(max,math.max(0,(studio.studioY or 0)-10)))
+    scrollbar:Refresh()
+    return true
 end
 local function Visible(tab)
     if active~=tab then Widgets.CloseChoices() end
