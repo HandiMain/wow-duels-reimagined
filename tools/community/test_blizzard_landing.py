@@ -96,7 +96,10 @@ class BlizzardLandingTests(unittest.TestCase):
         self.assertIn('local landingArt = variant == "landing-art"', style)
         self.assertIn('if not landingArt then\n        hover = Style.FeedbackOverlay', style)
         self.assertIn("if not landingArt and ns.Widgets and ns.Widgets.PressFeedback", style)
-        self.assertIn("if not landingArt and ns.Tooltips then", style)
+        self.assertIn("if not landingArt and ns.Tooltips and", style)
+        # New arena modal opts out by palette; landing-art still must stay
+        # excluded while every other Action keeps its tooltip by default.
+        self.assertIn("not (palette and palette.tooltip == false)", style)
         self.assertIn('glow:SetTexture(media .. art)', s)
         self.assertIn('glow:SetBlendMode("ADD")', s)
         self.assertIn('glow:SetAlpha(0)', s)
