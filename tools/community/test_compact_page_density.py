@@ -109,8 +109,8 @@ class CompactPageDensityTests(unittest.TestCase):
             "canvas:SetHeight(460)", "listing:SetHeight(245)",
             "canvas:SetHeight(185 + h + 20)",
             "math.max(245, 116 + #entries * 30)",
-            'Action("bug", "REPORT A BUG", -139)',
-            'Action("idea", "SUGGEST AN IDEA", 105)',
+            'Action("bug", "REPORT A BUG", -133)',
+            'Action("idea", "SUGGEST AN IDEA", 133)',
             "ns.CommunityCredits or {}",
             "function Community.Show(key)",
         ):
