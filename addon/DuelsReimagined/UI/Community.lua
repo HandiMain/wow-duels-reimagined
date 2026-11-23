@@ -281,9 +281,9 @@ local function InfoPanel(left, heading, description, iconIndex)
     artTex:SetTexture(conceptRoot .. "CommunityConceptCards.png")
     artTex:SetAllPoints(panel)
     if left then
-        artTex:SetTexCoord(0, 618 / 2048, 0, 242 / 256)
+        artTex:SetTexCoord(0, 633 / 2048, 0, 255 / 512)
     else
-        artTex:SetTexCoord(768 / 2048, 1337 / 2048, 0, 242 / 256)
+        artTex:SetTexCoord(768 / 2048, 1362 / 2048, 0, 255 / 512)
     end
     artTex:EnableMouse(false)
     Chrome.Sharp(artTex)
