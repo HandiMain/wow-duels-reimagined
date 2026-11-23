@@ -98,7 +98,11 @@ class CommunityUITests(unittest.TestCase):
         self.assertIn("CommunityFactionMarks.png", community)
         self.assertIn("tex:SetTexture(allianceArt)", community)
         self.assertIn("tex:SetTexture(art)", community)
-        self.assertIn("tex:SetAlpha(left and 0.84 or 0.76)", community)
+        self.assertIn('official:SetTexture("Interface\\\\TargetingFrame\\\\UI-PVP-"', community)
+        self.assertIn('(left and "Alliance" or "Horde")', community)
+        self.assertIn('official:SetSize(118, 118)', community)
+        self.assertIn('tex:SetAlpha(0.36)', community)
+        self.assertIn('official:SetAlpha(0.94)', community)
 
     def test_concept_assets_have_partial_alpha_and_correct_sources(self):
         # Explicitly reject the previous flat color squares. The approved
