@@ -34,7 +34,7 @@ class AddonStatusUIContracts(unittest.TestCase):
 
     def test_responsive_footer_avoids_crowding(self):
         nav, foot = read("UI/Navigation.lua"), read("UI/Footer.lua")
-        self.assertIn('local minWidths = { 112, 82, 98, 78 }', nav)
+        self.assertIn('local minWidths = { 112, 102, 98, 82 }', nav)
         self.assertIn('local maxWidths = { 136, 110, 124, 104 }', nav)
         self.assertIn('Window.utility:SetWidth(offset)', nav)
         self.assertIn('local function FitFooter()', foot)
@@ -86,7 +86,7 @@ class AddonStatusUIContracts(unittest.TestCase):
         for width in (1050, 1075, 1120, 1175, 1200, 1240):
             ratio = max(0, min(1, (width - 1050) / 190))
             buttons = [small + (large - small) * ratio
-                       for small, large in zip((112, 82, 98, 78),
+                       for small, large in zip((112, 102, 98, 82),
                                                (136, 110, 124, 104))]
             utility_width = sum(buttons) + 3 * (5 + 3 * ratio)
             utility_left = width - 187 - utility_width

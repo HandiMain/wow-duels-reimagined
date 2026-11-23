@@ -458,7 +458,7 @@ end)
 local function FitUtilityButtons()
     local ratio = math.max(0, math.min(1,
         (Window.frame:GetWidth() - 1050) / 190))
-    local minWidths = { 112, 82, 98, 78 }
+    local minWidths = { 112, 102, 98, 82 }
     local maxWidths = { 136, 110, 124, 104 }
     local gap = 5 + 3 * ratio
     local offset = 0
