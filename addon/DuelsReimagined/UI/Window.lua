@@ -621,14 +621,18 @@ function Window.ShowPage(page)
     local isCommunity = page.community == true
     local isPatchNotes = page.patchNotes == true
     local isAddonStatus = page.addonStatus == true
-    local isCustomPage = isOptions or isCommunity or isPatchNotes or isAddonStatus
+    local isWarGames = page.warGames == true
+    local isCustomPage = isOptions or isCommunity or isPatchNotes or isAddonStatus or isWarGames
     -- Hall artwork stays Hall-only. Other owners present their own pages.
-    title:SetShown(not isCommunity and not isPatchNotes and not isAddonStatus)
-    titleRule:SetShown(not isCommunity and not isPatchNotes and not isAddonStatus)
-    subtitle:SetShown(not isCommunity and not isPatchNotes and not isAddonStatus)
+    title:SetShown(not isCommunity and not isPatchNotes and not isAddonStatus and not isWarGames)
+    titleRule:SetShown(not isCommunity and not isPatchNotes and not isAddonStatus and not isWarGames)
+    subtitle:SetShown(not isCommunity and not isPatchNotes and not isAddonStatus and not isWarGames)
     watermark:SetShown(not isCustomPage)
     emptyHeading:SetShown(not isCustomPage)
     emptyDetail:SetShown(not isCustomPage)
+    if ns.WarGamesUI then
+        ns.WarGamesUI.Show(isWarGames and page.key or nil)
+    end
     if ns.AddonStatus then ns.AddonStatus.Show(isAddonStatus) end
     if ns.Options then ns.Options.Show(isOptions and page.key or nil) end
     if ns.Community then ns.Community.Show(isCommunity and page.key or nil) end

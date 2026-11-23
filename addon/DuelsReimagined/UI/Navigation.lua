@@ -10,6 +10,14 @@ local sections = {
           emptyTitle = "No duels recorded yet",
           emptyDetail = "Your recent activity will appear here." },
     } },
+    { key = "wargames", label = "War Games", icon = "Hall", pages = {
+        { key = "player", label = "Players", warGames = true,
+          title = "War Games: Players",
+          subtitle = "Challenge another team to a private arena match." },
+        { key = "host", label = "Host / Spectate", warGames = true,
+          title = "War Games: Host / Spectate",
+          subtitle = "Organize a private arena match as a spectator." },
+    } },
     { key = "addonstatus", label = "Addon Status", icon = "Community", pages = {
         { key = "status", label = "Addon Status", addonStatus = true,
           title = "Addon Status",
@@ -55,7 +63,7 @@ end
 -- Only primary gameplay destinations live in the expandable upper strip.
 -- Secondary utility sections remain in the narrow left rail. New gameplay
 -- sections can be promoted here only when their real pages are implemented.
-local primaryKeys = { hall = true }
+local primaryKeys = { hall = true, wargames = true }
 local railButtons, primaryButtons, subButtons = {}, {}, {}
 local patchDot, patchPulse
 -- The page heading now belongs to Window.content, not the subcategory bar.
@@ -69,6 +77,7 @@ local scrollMemory = {}
 local function ScrollOwner(page)
     if not page then return nil end
     if page.key == "options" or page.key == "interface" then return ns.Options end
+    if page.warGames then return ns.WarGamesUI end
     if page.addonStatus then return ns.AddonStatus end
     if page.community then return ns.Community end
     if page.patchNotes then return ns.PatchNotes end
@@ -122,6 +131,9 @@ end
 local function Select(sectionIndex, pageIndex, noMotion, repaintOnly, isBack)
     local section = sections[sectionIndex]
     if not section or not section.pages[pageIndex] then return end
+    -- War Games stays visible but unavailable in Forever. Guard every
+    -- entry point, including workspace restoration and Search navigation.
+    if section.key == "wargames" and not ns.Client.IsRetail() then return end
     local priorSection, priorPage = currentSection, currentPage
     local changed = priorSection ~= sectionIndex or priorPage ~= pageIndex
     if not repaintOnly and priorSection then CapturePage() end
@@ -238,6 +250,21 @@ for index, section in ipairs(sections) do
         button:HookScript("OnHide", function()
             Motion.Stop(hallGlow, 0)
         end)
+    elseif section.key == "wargames" then
+        -- Original Duels artwork, extracted from the user's approved
+        -- Host / Spectate concept; never reuse Hall's baked lettering.
+        local art = button:CreateTexture(nil, "ARTWORK", nil, 2)
+        art:SetTexture("Interface\\AddOns\\DuelsReimagined\\Media\\Artwork\\WarGamesPlaque.png")
+        art:SetAllPoints(button)
+        art:SetTexCoord(0,1,0,1)
+        local glow = button:CreateTexture(nil, "OVERLAY", nil, 6)
+        glow:SetTexture("Interface\\AddOns\\DuelsReimagined\\Media\\Artwork\\WarGamesPlaque.png")
+        glow:SetAllPoints(button)
+        glow:SetBlendMode("ADD")
+        glow:SetVertexColor(1, 0.78, 0.48)
+        glow:SetAlpha(0)
+        button.hallGlow = glow
+        button:HookScript("OnHide", function() Motion.Stop(glow, 0) end)
     else
         -- Reusable live destinations/utility shortcuts have one plate.
         Style.Plate(button, "dark", { corner=9 })
@@ -261,7 +288,8 @@ for index, section in ipairs(sections) do
     -- original icon meanings while theme skins remain on the buttons.
     local icon = Chrome.Icon(button, section.icon)
     icon:SetSize(isPrimary and 48 or 20, isPrimary and 48 or 20)
-    local label = Style.Text(button, isPrimary and "HALL" or section.label,
+    local label = Style.Text(button,
+        isPrimary and string.upper(section.label) or section.label,
         isPrimary and 23 or 12, C.tabMuted, nil,
         isPrimary and "display" or nil)
     if isPrimary then
@@ -270,7 +298,7 @@ for index, section in ipairs(sections) do
         label:SetJustifyH("CENTER")
         -- Static Hall lettering and swords are faithful artwork pixels.
         -- Never draw an extra WoW fontstring/glyph over the extracted design.
-        if section.key == "hall" then
+        if section.key == "hall" or section.key == "wargames" then
             icon:Hide()
             label:Hide()
         end
@@ -337,12 +365,27 @@ for index, section in ipairs(sections) do
         corner=isPrimary and 13 or 9,
         hoverAlpha=0.24, clickAlpha=isPrimary and 0.39 or 0.50,
     })
+    local unavailable = section.key == "wargames" and
+        not ns.Client.IsRetail()
     ns.Tooltips.Bind(button, { title = section.label,
-        detail = "Open the " .. section.label .. " section." })
+        detail = section.key == "wargames" and
+            "Retail War Games let groups arrange private arena fights or let a host spectate two teams." or
+            ("Open the " .. section.label .. " section.") })
+    if unavailable then
+        button:SetEnabled(false)
+        button:SetAlpha(0.42)
+        -- Disabled buttons are not consistently hoverable on both clients.
+        -- A non-interactive-to-navigation overlay owns the explanation.
+        local help = CreateFrame("Frame", nil, button)
+        help:SetAllPoints(button)
+        help:EnableMouse(true)
+        ns.Tooltips.Bind(help, { title="War Games — Retail only",
+            detail="Private arena challenges and spectator matches are not available in WoW Forever." })
+    end
 
     local item = {
         button = button, primary = isPrimary,
-        activeAlpha = section.key == "hall" and 0.15 or (isPrimary and 0.26 or 0.33),
+        activeAlpha = isPrimary and 0.15 or 0.33,
         selected = selected, hover = hover, bar = bar, icon = icon, label = label,
     }
     railButtons[index] = item
@@ -546,7 +589,8 @@ ns.Navigation = {
         if workspaceReady then return end
         workspaceReady = true
         local sectionKey, pageKey, offset = ns.Settings.GetWorkspace()
-        if sectionKey and pageKey then
+        if sectionKey and pageKey and
+            not (sectionKey == "wargames" and not ns.Client.IsRetail()) then
             for i, section in ipairs(sections) do
                 if section.key == sectionKey then
                     for j, page in ipairs(section.pages) do
@@ -617,7 +661,8 @@ for sectionIndex, section in ipairs(sections) do
         ns.Search.Register("page:" .. section.key .. ":" .. page.key,
             page.label, section.label,
             (page.title or "") .. " " .. (page.subtitle or ""),
-            function() Select(si, pi) end)
+            function() Select(si, pi) end,
+            function() return section.key ~= "wargames" or ns.Client.IsRetail() end)
     end
 end
 

@@ -13,6 +13,7 @@ Core\Settings.lua
 Core\Group.lua
 Core\Communication.lua
 Core\Presence.lua
+Core\WarGames.lua [AllowLoadGameType standard]
 UI\Fonts.lua
 UI\Style.lua
 UI\Motion.lua
@@ -26,6 +27,7 @@ UI\Search.lua
 UI\Header.lua
 UI\PatchNotesData.lua
 UI\AddonStatus.lua
+UI\WarGames.lua [AllowLoadGameType standard]
 UI\Navigation.lua
 Community\Credits.lua
 UI\Community.lua

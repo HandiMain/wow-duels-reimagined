@@ -44,6 +44,9 @@ function Theme.Refresh()
     if ns.AddonStatus and ns.AddonStatus.Refresh then
         ns.AddonStatus.Refresh()
     end
+    if ns.WarGamesUI and ns.WarGamesUI.Refresh then
+        ns.WarGamesUI.Refresh()
+    end
     if ns.Footer and ns.Footer.Refresh then ns.Footer.Refresh() end
 end
 
