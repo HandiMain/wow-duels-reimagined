@@ -103,8 +103,10 @@ class CompactPageDensityTests(unittest.TestCase):
     def test_community_cards_are_denser_but_data_still_dynamic(self):
         c = src("UI/Community.lua")
         for marker in (
-            "card:SetHeight(155)", "local y = upper and -175 or -345",
-            "canvas:SetHeight(523)", "listing:SetHeight(245)",
+            'local statsPanel = CreateFrame("Frame", nil, canvas)',
+            'local creditsPanel = InfoPanel(true, "COMMUNITY CREDITS"',
+            'local helpPanel = InfoPanel(false, "HOW TO HELP"',
+            "canvas:SetHeight(548)", "listing:SetHeight(245)",
             "canvas:SetHeight(185 + h + 20)",
             "math.max(245, 116 + #entries * 30)",
             'Action("bug", "REPORT A BUG", -151)',
@@ -113,7 +115,7 @@ class CompactPageDensityTests(unittest.TestCase):
             "function Community.Show(key)",
         ):
             self.assertIn(marker, c)
-        self.assertLessEqual(345 + 155, 523)
+        self.assertLessEqual(247 + 224, 548)
 
     def test_patch_notes_reflow_keeps_version_data_and_link_targets(self):
         p = src("UI/PatchNotes.lua")
