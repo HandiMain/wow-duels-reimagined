@@ -49,7 +49,11 @@ class CommunityUITests(unittest.TestCase):
             self.assertIn(key, nav)
         self.assertIn('Search.Register("community:report-bug"', community)
         self.assertIn('Search.Register("community:suggest-idea"', community)
-        self.assertIn('ns.Navigation.SelectKey("community", data.key)', community)
+        # Category navigation is supplied by the five existing upper tabs.
+        self.assertIn("local overviewPieces = {}", community)
+        self.assertNotIn("PreviewCard(", community)
+        self.assertIn('UpdateOverview()', community)
+        self.assertIn('listing:SetShown(not overview)', community)
 
     def test_copyable_links_and_focus_restoration(self):
         footer = content("UI/Footer.lua")
@@ -74,6 +78,13 @@ class CommunityUITests(unittest.TestCase):
         self.assertIn("No verified reports yet.", community)
         self.assertIn("No implemented ideas yet.", community)
         self.assertIn("No acknowledgements yet.", community)
+        for key in ("contributors", "bugReports", "communityIdeas", "specialThanks"):
+            self.assertIn(key + " = 0,", credits)
+        self.assertIn("local stats = source.stats", community)
+        self.assertIn('item.value:SetText("—")', community)
+        self.assertNotIn("147", community)
+        self.assertNotIn("328", community)
+        self.assertNotIn("96", community)
 
     def test_faction_texture_truecolor_and_power_of_two(self):
         png = ADDON / "Media" / "Concept" / "CommunityFactionMarks.png"
@@ -162,6 +173,19 @@ class CommunityUITests(unittest.TestCase):
         self.assertGreater(len(lion), 5000, "Refuse a flat placeholder texture")
         community = content("UI/Community.lua")
         self.assertIn("CommunityAllianceLion.png", community)
+
+    def test_circle_has_one_stats_bar_and_two_information_panels(self):
+        community = content("UI/Community.lua")
+        self.assertIn('local statsPanel = CreateFrame("Frame", nil, canvas)', community)
+        self.assertIn('Style.Skin(statsPanel, C.nav', community)
+        self.assertIn('local creditsPanel = InfoPanel(true, "COMMUNITY CREDITS"', community)
+        self.assertIn('local helpPanel = InfoPanel(false, "HOW TO HELP"', community)
+        self.assertIn('local toolsTitle = Style.Text(canvas, "COMMUNITY TOOLS"', community)
+        self.assertIn('canvas:SetHeight(548)', community)
+        self.assertIn('for _, item in ipairs(overviewPieces) do item:SetShown(overview) end', community)
+        self.assertNotIn('PreviewCard(', community)
+        self.assertNotIn('SetScript("OnUpdate"', community)
+        self.assertNotIn('GetNumGuildMembers', community)
 
     def test_community_buttons_are_coded_and_have_one_click_target(self):
         style = content("UI/Style.lua")
