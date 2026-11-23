@@ -56,7 +56,7 @@ class CompactDefaultWindowTests(unittest.TestCase):
         self.assertIn("local visualWidth = math.min(330, available)", window)
         self.assertIn("DuelExactBrand.png", window)
         self.assertIn("brandArea:SetPoint(\"RIGHT\", searchBox,", window)
-        self.assertIn("HeaderOption5TintAtlas.png", landing)
+        self.assertIn("LandingWordmark.png", landing)
         self.assertNotIn("Option5HeaderLogo.png", landing)
 
 if __name__ == "__main__":

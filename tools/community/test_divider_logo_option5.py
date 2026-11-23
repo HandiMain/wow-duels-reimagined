@@ -31,12 +31,11 @@ class DividerAndWordmarkTests(unittest.TestCase):
         self.assertIn('if ns.Chrome and ns.Chrome.Refresh then ns.Chrome.Refresh() end',win)
         self.assertNotIn('SetScript("OnUpdate"',chrome)
 
-    def test_old_landing_atlas_remains_but_main_uses_exact_identity(self):
-        p=BASE/"Media"/"Skin"/"HeaderOption5TintAtlas.png"
+    def test_new_concept_landing_wordmark_and_main_exact_identity(self):
+        p=BASE/"Media"/"Concept"/"Landing"/"LandingWordmark.png"
         data=p.read_bytes()
         self.assertEqual(data[:8],b"\x89PNG\r\n\x1a\n")
-        self.assertEqual(struct.unpack(">II",data[16:24]),(256,256))
-        self.assertIn(b"tRNS",data)
+        self.assertEqual(struct.unpack(">II",data[16:24]),(544,74))
         window=src("UI/Window.lua")
         self.assertIn('DuelExactBrand.png',window)
         self.assertNotIn('BrandLayer(',window)
@@ -59,7 +58,7 @@ class DividerAndWordmarkTests(unittest.TestCase):
         self.assertIn('brandArea:SetScript("OnSizeChanged", FitBrand)',window)
         self.assertIn('function Window.PlaceBrandBefore(searchBox)',window)
         self.assertIn('brandArea:SetPoint("RIGHT", searchBox, "LEFT", -12, 0)',window)
-        self.assertIn('HeaderOption5TintAtlas.png',landing)
+        self.assertIn('LandingWordmark.png',landing)
         self.assertNotIn('DuelsReimagined-HeaderLogoFlat.png',landing)
         self.assertIn('function Window.ResetWindow()',window)
 

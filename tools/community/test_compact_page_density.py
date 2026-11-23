@@ -24,9 +24,9 @@ class CompactPageDensityTests(unittest.TestCase):
         ):
             self.assertIn(marker, w)
         landing = src("UI/BlizzardSettings.lua")
-        self.assertIn("HeaderOption5TintAtlas.png", landing)
-        self.assertIn("LockedBrandBand(LANDING_GOLD, 0, 0.25)", landing)
-        self.assertIn("LockedBrandBand(LANDING_PALE, 0.25, 0.50)", landing)
+        self.assertIn("LandingWordmark.png", landing)
+        self.assertIn('SourceImage("LandingCrest.png"', landing)
+        self.assertIn('SourceImage("LandingRule.png"', landing)
         self.assertIn("Style.Skin(surface, LANDING_BG", landing)
         self.assertNotIn("DuelsLandingEmblem.png", landing)
 

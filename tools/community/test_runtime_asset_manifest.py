@@ -27,7 +27,7 @@ class RuntimeAssetManifestTests(unittest.TestCase):
             "Media/Icons/DuelsDRIcon.png",
             "Media/Icons/DuelsNavigationAtlas.png",
             "Media/Skin/NeutralMasks.tga",
-            "Media/Skin/HeaderOption5TintAtlas.png",
+            "Media/Concept/Landing/LandingWordmark.png",
             "Media/Textures/ToggleTrack.tga",
             "Media/Textures/ToggleThumb.tga",
             "Media/Textures/SliderThumb.tga",
