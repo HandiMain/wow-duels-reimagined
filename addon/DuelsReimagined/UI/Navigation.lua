@@ -254,7 +254,7 @@ for index, section in ipairs(sections) do
         -- Reuse our existing red-and-gold Hall button skin at the exact
         -- same button size; its LIVE label/swords are not baked into a bitmap.
         -- This deliberately avoids a second mismatched plaque asset.
-        Style.Plate(button, "hall", { corner=14, layer="ARTWORK", sublevel=2 })
+        Style.Plate(button, "hall", { corner=14 })
     else
         -- Reusable live destinations/utility shortcuts have one plate.
         Style.Plate(button, "dark", { corner=9 })
