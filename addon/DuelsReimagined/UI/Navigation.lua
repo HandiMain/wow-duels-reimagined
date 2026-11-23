@@ -395,6 +395,22 @@ for index, section in ipairs(sections) do
             end
             Style.ConstrainButtonLabel(sub, text, 46, 10, 10)
             text:SetJustifyH("LEFT")
+        elseif section.key == "community" then
+            -- The concept uses a small dedicated gold glyph on EACH tab,
+            -- not duplicated full-size category preview cards below them.
+            -- Source is our existing shared Community art: one icon owner.
+            local icons = { [1]=0, [2]=1, [3]=8, [4]=9, [5]=3 }
+            local slot = icons[pageIndex] or 0
+            local x, y = slot % 4, math.floor(slot / 4)
+            local glyph = sub:CreateTexture(nil, "ARTWORK", nil, 5)
+            glyph:SetTexture("Interface\\AddOns\\DuelsReimagined\\Media\\Concept\\CommunityConceptSymbols.png")
+            glyph:SetTexCoord(x / 4 + 0.002, (x + 1) / 4 - 0.002,
+                y / 4 + 0.002, (y + 1) / 4 - 0.002)
+            glyph:SetSize(23, 23)
+            glyph:SetPoint("LEFT", sub, "LEFT", 8, 0)
+            if ns.Chrome and ns.Chrome.Sharp then ns.Chrome.Sharp(glyph) end
+            Style.ConstrainButtonLabel(sub, text, 34, 8, 10)
+            text:SetJustifyH("LEFT")
         else
             Style.ConstrainButtonLabel(sub, text, 9, 9, 9)
             text:SetJustifyH("CENTER")
