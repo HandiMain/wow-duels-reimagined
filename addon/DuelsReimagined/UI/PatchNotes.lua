@@ -407,6 +407,23 @@ scroll:SetScript("OnMouseWheel", function(self, delta)
 end)
 scroll:HookScript("OnShow", Layout)
 
+-- One centered width cap for the entire version rail + notes composition.
+-- Resize only on frame size changes; the global resizer remains Window-owned.
+local function LayoutWorkspace()
+    local total = math.max(1, root:GetWidth())
+    local usable = math.min(1190, math.max(1, total - 40))
+    local inset = math.max(20, (total - usable) / 2)
+    rail:ClearAllPoints()
+    rail:SetPoint("TOPLEFT", root, "TOPLEFT", inset, -88)
+    rail:SetPoint("BOTTOMLEFT", root, "BOTTOMLEFT", inset, 18)
+    scroll:ClearAllPoints()
+    scroll:SetPoint("TOPLEFT", rail, "TOPRIGHT", 16, 0)
+    scroll:SetPoint("BOTTOMRIGHT", root, "BOTTOMRIGHT", -inset, 18)
+    Layout()
+end
+root:HookScript("OnSizeChanged", LayoutWorkspace)
+root:HookScript("OnShow", LayoutWorkspace)
+
 local function Populate(release, index)
     activeRelease, selectedIndex = release, index
     bannerTitle:SetText(release.title or release.version or "Patch Notes")
