@@ -17,6 +17,8 @@ local friends={
 }
 BNGetNumFriends=function() return 2 end
 C_BattleNet={GetFriendAccountInfo=function(i) return friends[i] end}
+friends[1].isOnline=true
+friends[2].isOnline=false
 local group={mode="party",complete=true,members={{name="One",unit="player"},{name="Two",unit="party1"}}}
 local sends,spectates={},{}
 StartWarGameByName=function(cmd) sends[#sends+1]=cmd end
@@ -37,18 +39,34 @@ end
 local W=Load(true)
 Check(#W.Brackets==3 and W.Brackets[3]==5,"full 5v5 bracket")
 Check(W.GetReason("player")~=nil,"must require captain")
+local maps=W.GetMaps()
+Check(#maps>=16,"expanded Retail arena references")
+Check(maps[1].name=="Nagrand Arena","preserve current arena selection")
 Check(W.SelectCaptain("player",1,101),"known friend")
 Check(W.GetReason("player")==nil,"ready 2v2")
+local roster=W.GetFriends()
+Check(roster[1].online==true and roster[2].online==false,
+ "online and offline status from Blizzard is preserved")
 Check(#sends==0 and #spectates==0,"no automatic requests")
 local ok,msg=W.Request("player")
 Check(ok and sends[1]=="OneAccount nagrand 0","Retail challenge arguments")
 Check(msg:find("not confirmed",1,true)~=nil,"never claim entry")
 Check(not W.SelectCaptain("host",1,999),"reject unknown ID")
 Check(W.SelectCaptain("host",1,101),"first host captain")
+Check(W.GetCaptain("host",1).id==101,"team 1 selection")
+Check(W.GetCaptain("host",2)==nil,"team 2 must remain unselected")
+Check(W.GetReason("host"):find("both captains",1,true)~=nil,
+ "unselected captain cannot silently inherit team 1")
 Check(W.SelectCaptain("host",2,101),"duplicate can be selected")
 Check(W.GetReason("host"):find("different",1,true)~=nil,
  "must reject matching captains")
 Check(W.SelectCaptain("host",2,202),"second captain")
+Check(W.GetCaptain("host",1).id==101 and W.GetCaptain("host",2).id==202,
+ "two team captains are independent")
+Check(W.SelectCaptain("host",2,nil),"clear captain 2")
+Check(W.GetCaptain("host",2)==nil and W.GetCaptain("host",1).id==101,
+ "clearing team 2 preserves team 1")
+Check(W.SelectCaptain("host",2,202),"restore captain 2")
 Check(W.SelectBracket("host",5),"5v5 spectator setup")
 Check(W.GetReason("host")==nil,"two BNet captains ready")
 ok,msg=W.Request("host")

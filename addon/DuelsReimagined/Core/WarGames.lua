@@ -22,9 +22,24 @@ WarGames.Maps = {
     { name = "Dalaran Sewers", keyword = "dalaran" },
     { name = "Tol'viron Arena", keyword = "tol'viron" },
     { name = "The Tiger's Peak", keyword = "tiger's" },
+    -- Full map names are safer than ambiguous shortened /wargame tokens.
+    -- These additional Retail arenas are not present in old helper addons.
+    { name = "Ashamane's Fall", keyword = "Ashamane's Fall" },
+    { name = "Black Rook Hold Arena", keyword = "Black Rook Hold Arena" },
+    { name = "Cage of Carnage", keyword = "Cage of Carnage" },
+    { name = "Empyrean Domain", keyword = "Empyrean Domain" },
+    { name = "Enigma Crucible", keyword = "Enigma Crucible" },
+    { name = "Hook Point", keyword = "Hook Point" },
+    { name = "Maldraxxus Coliseum", keyword = "Maldraxxus Coliseum" },
+    { name = "Mugambala", keyword = "Mugambala" },
+    { name = "Nokhudon Proving Grounds", keyword = "Nokhudon Proving Grounds" },
+    { name = "The Robodrome", keyword = "The Robodrome" },
 }
 WarGames.Brackets = { 2, 3, 5 }
 
+-- Retail's optional War Game type catalogue can expose newer arenas than
+-- any hardcoded reference. Add only entries explicitly categorized as Arena;
+-- preserve existing indices/previous selections throughout this session.
 local function Readable(v)
     if type(issecretvalue) == "function" then
         local ok, secret = pcall(issecretvalue, v)
@@ -32,6 +47,49 @@ local function Readable(v)
     end
     return true
 end
+
+local function AddClientArenas()
+    if not (Client and Client.IsRetail and Client.IsRetail()) then return end
+    if type(GetNumWarGameTypes) ~= "function" or
+        type(GetWarGameTypeInfo) ~= "function" then return end
+    local ok, count = pcall(GetNumWarGameTypes)
+    if not ok or not Readable(count) or type(count) ~= "number" or count < 1 or count > 150
+        or count ~= math.floor(count) then return end
+    local existing = {}
+    for _, item in ipairs(WarGames.Maps) do
+        existing[item.name:lower()] = true
+    end
+    for i = 1, count do
+        local success, name, kind, _, _, _, _, random =
+            pcall(GetWarGameTypeInfo, i)
+        if success and Readable(name) and Readable(kind) and Readable(random) and
+            type(name) == "string" and #name >= 3 and
+            #name <= 96 and type(kind) == "string" and
+            kind:upper() == "ARENA" and random ~= true and
+            name:lower() ~= "arena" and name:lower() ~= "arenas" and
+            not existing[name:lower()] then
+            WarGames.Maps[#WarGames.Maps + 1] =
+                { name = name, keyword = name, clientReported = true }
+            existing[name:lower()] = true
+        end
+    end
+    return true
+end
+local arenaCatalogRead = false
+function WarGames.GetMaps()
+    -- Retry when the PvP UI loads its optional catalogue later in the
+    -- session; a failed query never removes our known map references.
+    if not arenaCatalogRead then
+        arenaCatalogRead = AddClientArenas() == true
+    end
+    local copy = {}
+    for i, map in ipairs(WarGames.Maps) do
+        copy[i] = { name = map.name, keyword = map.keyword,
+                    clientReported = map.clientReported }
+    end
+    return copy
+end
+
 local function One(fn, ...)
     if type(fn) ~= "function" then return nil end
     local ok, a = pcall(fn, ...)
@@ -82,10 +140,16 @@ function WarGames.SelectBracket(page, count)
 end
 function WarGames.SelectMap(page, index)
     if not state[page] or type(index) ~= "number" or
-        index ~= math.floor(index) or not WarGames.Maps[index] then return false end
+        index ~= math.floor(index) or not WarGames.GetMaps()[index] then return false end
     state[page].map = index
     Notify()
     return true
+end
+
+local function SafeField(object, name)
+    if not Readable(object) or type(object) ~= "table" then return nil end
+    local ok, value = pcall(function() return object[name] end)
+    if ok and Readable(value) then return value end
 end
 
 -- Blizzard requires opaque Battle.net account IDs for spectator invitations.
@@ -99,20 +163,35 @@ function WarGames.GetFriends()
     for index = 1, number do
         local info = One(api, index)
         if type(info) == "table" then
-            local id, account, tag = info.bnetAccountID, info.accountName,
-                info.battleTag
-            if Readable(id) and type(id) == "number" and id > 0 and
-                Readable(account) and type(account) == "string" and
-                account ~= "" then
-                local display = Readable(tag) and type(tag) == "string" and
+            local id = SafeField(info, "bnetAccountID")
+            local account = SafeField(info, "accountName")
+            local tag = SafeField(info, "battleTag")
+            if type(id) == "number" and id > 0 and
+                type(account) == "string" and account ~= "" then
+                local display = type(tag) == "string" and
                     tag ~= "" and tag or account
+                local online = SafeField(info, "isOnline")
+                local source = "Battle.net"
+                if type(online) ~= "boolean" then
+                    local game = SafeField(info, "gameAccountInfo")
+                    online = SafeField(game, "isOnline")
+                    source = "World of Warcraft"
+                end
+                if type(online) ~= "boolean" then online = nil end
                 result[#result + 1] = {
                     id=id, accountName=account, displayName=display,
+                    online=online, onlineSource=online ~= nil and source or nil,
                 }
             end
         end
     end
     table.sort(result, function(a,b)
+        if a.online ~= b.online then
+            if a.online == true then return true end
+            if b.online == true then return false end
+            if a.online == false then return false end
+            if b.online == false then return true end
+        end
         return a.displayName:lower() < b.displayName:lower()
     end)
     return result
@@ -138,8 +217,20 @@ end
 function WarGames.GetCaptain(page, slot)
     local s = state[page]
     if not s then return nil end
-    return FriendByID(slot == 2 and s.captain2 or
-        page == "player" and s.captain or s.captain1)
+    -- Never use a Lua 'and/or' fallback here: nil captain2 previously
+    -- returned captain1 and falsely displayed both teams as identical.
+    local id
+    if page == "player" and slot == 1 then
+        id = s.captain
+    elseif page == "host" and slot == 1 then
+        id = s.captain1
+    elseif page == "host" and slot == 2 then
+        id = s.captain2
+    else
+        return nil
+    end
+    if id == nil then return nil end
+    return FriendByID(id)
 end
 function WarGames.GetTeam()
     return Group and Group.GetSnapshot and Group.GetSnapshot() or {
@@ -152,7 +243,7 @@ function WarGames.GetReason(page)
     if IsArena() then return "Match setup is unavailable inside an arena." end
     local s = state[page]
     if not s then return "Select a War Games page." end
-    if not WarGames.Maps[s.map] then return "Choose an arena." end
+    if not WarGames.GetMaps()[s.map] then return "Choose an arena." end
     if page == "player" then
         if type(StartWarGameByName) ~= "function" then
             return "This client does not provide the War Game challenge API."
@@ -191,7 +282,7 @@ end
 function WarGames.Request(page)
     local reason = WarGames.GetReason(page)
     if reason then return false, reason end
-    local s, map = state[page], WarGames.Maps[state[page].map]
+    local s, map = state[page], WarGames.GetMaps()[state[page].map]
     local ok, result
     if page == "player" then
         local captain = WarGames.GetCaptain("player", 1)

@@ -44,6 +44,18 @@ jobs:
           persist-credentials: true
           fetch-depth: 1
 
+      - name: Prepare resized War Games plaque for committed asset
+        run: |
+          python3 tools/community/generate_wargames_plate.py
+          python3 - <<'PY'
+          import base64
+          from pathlib import Path
+          png=Path("addon/DuelsReimagined/Media/Skin/DuelWarGamesPlate.png")
+          print("RESIZED_WARGAMES_PLATE_BEGIN")
+          print(base64.b64encode(png.read_bytes()).decode("ascii"))
+          print("RESIZED_WARGAMES_PLATE_END")
+          PY
+
       - name: Parse every addon Lua file (syntax only)
         run: |
           sudo apt-get update -qq

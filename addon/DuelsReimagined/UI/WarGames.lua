@@ -70,89 +70,38 @@ local function Small(parent, caption, width)
     return b
 end
 
--- One short-lived chooser, owned by this page. It creates no Blizzard menus,
--- focus-stealing EditBoxes or permanent updates, and works for many friends.
-local menu = CreateFrame("Frame", nil, root)
-menu:SetSize(270, 220)
-menu:SetFrameLevel(root:GetFrameLevel()+28)
-Style.Skin(menu, C.nav, { corner=8, edge=C.gold, rim=0.96 })
-menu:Hide()
-local choices = {}
-local menuPrev = Small(menu, "Previous", 112)
-menuPrev:SetPoint("BOTTOMLEFT", menu, "BOTTOMLEFT", 13, 10)
-local menuNext = Small(menu, "Next", 112)
-menuNext:SetPoint("BOTTOMRIGHT", menu, "BOTTOMRIGHT", -13, 10)
-local choicePage, choiceItems, chosen
-local function DrawChoices()
-    local start = (choicePage-1)*5
-    for i=1,5 do
-        local b = choices[i]
-        local item = choiceItems[start+i]
-        if item then
-            b.label:SetText(item.label)
-            b.item = item
-            b:Show()
-        else
-            b:Hide()
-        end
-    end
-    menuPrev:SetEnabled(choicePage>1)
-    menuNext:SetEnabled(start+5<#choiceItems)
-end
-for i=1,5 do
-    local button = Small(menu, "", 242)
-    button:SetHeight(27)
-    button:SetPoint("TOP", menu, "TOP", 0, -10-(i-1)*31)
-    button:SetScript("OnClick", function(self)
-        if self.item and chosen then chosen(self.item) end
-        menu:Hide()
-    end)
-    choices[i]=button
-end
-menuPrev:SetScript("OnClick", function()
-    choicePage=math.max(1,choicePage-1); DrawChoices()
-end)
-menuNext:SetScript("OnClick", function()
-    choicePage=math.min(math.ceil(#choiceItems/5), choicePage+1)
-    DrawChoices()
-end)
-menu:SetScript("OnHide", function() openMenu=nil end)
-local function Choose(anchor, items, callback)
-    if openMenu==anchor then menu:Hide(); return end
-    choiceItems=items
-    choicePage=1
-    chosen=callback
-    openMenu=anchor
-    menu:ClearAllPoints()
-    menu:SetClampedToScreen(true)
-    local right = anchor:GetRight()
-    local limit = root:GetRight()
-    if right and limit and right + 20 > limit - 245 then
-        menu:SetPoint("TOPRIGHT", anchor, "BOTTOMRIGHT", 0, -3)
-    else
-        menu:SetPoint("TOPLEFT", anchor, "BOTTOMLEFT", 0, -3)
-    end
-    DrawChoices()
-    menu:Show()
-end
+-- Reuse the exact Options font-menu controls and virtual scrolling.
+-- The popup owner lives in Widgets; this page only supplies real choices.
 local function CaptainPicker(parent, slot, page)
-    local button = Small(parent, "Select Battle.net captain", 235)
+    local button=Widgets.ChoiceControl(parent, 235)
     ns.Tooltips.Bind(button, {
         title="Battle.net captain",
-        detail="Choose an existing Battle.net friend. Blizzard requires real Battle.net IDs for spectator hosting."
+        detail="Choose a Battle.net friend. Online dots are shown only when Blizzard reports their status.",
     })
-    button:SetScript("OnClick", function(self)
-        local entries={}
-        for _, friend in ipairs(Engine.GetFriends()) do
-            entries[#entries+1] = {
-                label=friend.displayName, id=friend.id,
+    button:SetScript("OnClick",function(self)
+        local entries={
+            {key=0, label="Clear captain", detail="Leave this team captain unselected."},
+        }
+        local friends=Engine.GetFriends()
+        for _, friend in ipairs(friends) do
+            entries[#entries+1]={
+                key=friend.id, label=friend.displayName,
+                online=friend.online, onlineSource=friend.onlineSource,
             }
         end
-        if #entries==0 then
-            entries[1]={label="No Battle.net friends available", id=nil}
+        if #friends==0 then
+            entries[#entries+1]={
+                key=-1,label="No Battle.net friends available",disabled=true,
+                detail="Add a Battle.net friend before choosing a captain.",
+            }
         end
-        Choose(self,entries,function(item)
-            if item.id then Engine.SelectCaptain(page,slot,item.id) end
+        local cfg=Engine.GetConfig(page)
+        local id=page=="player" and cfg.captain or
+            slot==1 and cfg.captain1 or cfg.captain2
+        Widgets.OpenChoices(self, entries, id or 0, function(key)
+            local captainID=key
+            if captainID==0 then captainID=nil end
+            Engine.SelectCaptain(page,slot,captainID)
         end)
     end)
     return button
@@ -293,7 +242,7 @@ local playerCaptainLabel=Text(playerForm,"Opposing captain",19,102,13)
 local playerCaptain=CaptainPicker(playerForm,1,"player")
 playerCaptain:SetPoint("TOPLEFT",playerForm,"TOPLEFT",162,-99)
 local playerMapLabel=Text(playerForm,"Arena",19,148,13)
-local playerMap = Small(playerForm,"Choose arena",235)
+local playerMap = Widgets.ChoiceControl(playerForm,235)
 playerMap:SetPoint("TOPLEFT",playerForm,"TOPLEFT",162,-143)
 local playerSend=Action(playerForm,"Send Challenge",180,34)
 playerSend:SetPoint("TOPLEFT",playerForm,"TOPLEFT",416,-174)
@@ -303,16 +252,21 @@ local hostCaptain1=CaptainPicker(hostForm,1,"host")
 local hostCaptain2Label=Text(hostForm,"Team 2 Captain",271,60,13)
 local hostCaptain2=CaptainPicker(hostForm,2,"host")
 local hostMapLabel=Text(hostForm,"Arena",525,60,13)
-local hostMap=Small(hostForm,"Choose arena",209)
+local hostMap=Widgets.ChoiceControl(hostForm,209)
 local hostSend=Action(hostForm,"Request Spectator Match",260,36)
 hostSend:SetPoint("TOP",hostForm,"TOP",0,-142)
 
 local function SelectMap(page,anchor)
     local entries={}
-    for index, map in ipairs(Engine.Maps) do
-        entries[#entries+1]={label=map.name, id=index}
+    for index, map in ipairs(Engine.GetMaps()) do
+        entries[#entries+1]={key=index,label=map.name,
+            detail=map.clientReported and "Reported by this Retail client." or
+                "Arena reference. Blizzard determines War Game availability."}
     end
-    Choose(anchor, entries, function(item) Engine.SelectMap(page,item.id) end)
+    local cfg=Engine.GetConfig(page)
+    Widgets.OpenChoices(anchor,entries,cfg and cfg.map,function(index)
+        Engine.SelectMap(page,index)
+    end)
 end
 playerMap:SetScript("OnClick",function(self) SelectMap("player",self) end)
 hostMap:SetScript("OnClick",function(self) SelectMap("host",self) end)
@@ -442,8 +396,11 @@ function View.Refresh()
         "Choose opposing captain")
     hostCaptain1.label:SetText(hostA and hostA.displayName or "Team 1 captain")
     hostCaptain2.label:SetText(hostB and hostB.displayName or "Team 2 captain")
-    playerMap.label:SetText(Engine.Maps[cfgPlayer.map].name)
-    hostMap.label:SetText(Engine.Maps[cfgHost.map].name)
+    local maps=Engine.GetMaps()
+    local selectedPlayerMap=maps[cfgPlayer.map]
+    local selectedHostMap=maps[cfgHost.map]
+    playerMap.label:SetText(selectedPlayerMap and selectedPlayerMap.name or "Choose arena")
+    hostMap.label:SetText(selectedHostMap and selectedHostMap.name or "Choose arena")
     local team=Engine.GetTeam()
     local own=team.complete and not team.stale and team.members or {}
     FillRows(setupRows,own,math.min(5,cfgPlayer.bracket))
@@ -483,11 +440,12 @@ function View.Refresh()
     hostTeam2:SetShown(active=="host")
     hostStatus:SetShown(active=="host" and inArena)
     vs:SetShown(inArena or active=="host")
-    if openMenu then menu:Hide() end
+
     Layout()
     scrollbar:Refresh()
 end
 local function Visible(tab)
+    if active~=tab then Widgets.CloseChoices() end
     active=tab
     root:Show()
     View.Refresh()
@@ -508,7 +466,7 @@ root:SetScript("OnShow",function()
 end)
 root:SetScript("OnHide",function()
     if unsubscribe then unsubscribe(); unsubscribe=nil end
-    menu:Hide()
+    Widgets.CloseChoices()
     ns.Tooltips.Hide(nil,true)
 end)
 ns.Search.Register("wargames:challenge","Send War Game Challenge",

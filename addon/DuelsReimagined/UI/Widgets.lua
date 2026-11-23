@@ -286,6 +286,196 @@ local function ChoiceCatcher()
     return clickCatcher
 end
 
+-- Reuse the exact Options dropdown plate, arrow and motion in War Games
+-- without adding another style or a second scrolling engine.
+function Widgets.ChoiceControl(parent, width)
+    local control = CreateFrame("Button", nil, parent)
+    control:SetSize(width or 226, 30)
+    control:RegisterForClicks("LeftButtonUp")
+    Style.Skin(control, C.body, {
+        corner=9, edge=C.border, shine=0.22, shade=0.22,
+    })
+    local valueText = Style.Text(control, "", 12, C.text)
+    valueText:SetPoint("LEFT", control, "LEFT", 9, 0)
+    valueText:SetPoint("RIGHT", control, "RIGHT", -25, 0)
+    valueText:SetJustifyH("LEFT")
+    valueText:SetWordWrap(false)
+    local arrow = control:CreateTexture(nil, "ARTWORK")
+    arrow:SetTexture("Interface\\AddOns\\DuelsReimagined\\Media\\Artwork\\Header\\FoldDown.png")
+    arrow:SetSize(17, 17)
+    arrow:SetPoint("RIGHT", control, "RIGHT", -7, 0)
+    Chrome.Sharp(arrow)
+    local hover = Style.Fill(control, C.goldDim)
+    hover:SetAlpha(0)
+    control:SetScript("OnEnter", function()
+        Motion.Fade(hover, 0.18, Motion.Duration("quick"))
+    end)
+    control:SetScript("OnLeave", function()
+        Motion.Fade(hover, 0, Motion.Duration("quick"))
+    end)
+    Widgets.PressFeedback(control, hover)
+    control.label, control.arrow = valueText, arrow
+    return control, valueText
+end
+
+-- One shared popup for transient picks such as an arena or Battle.net
+-- captain. Looks and scrolls like the Options > Interface font menu.
+-- Rows may carry an optional boolean .online; unknown shows no indicator.
+local warChoiceMenu
+function Widgets.OpenChoices(anchor, choices, selected, onChoose)
+    if not anchor or type(choices) ~= "table" or
+        type(onChoose) ~= "function" then return end
+    if not warChoiceMenu then
+        choiceCounter = choiceCounter + 1
+        local name = "DuelsReimaginedChoicePopup" .. choiceCounter
+        local popup = CreateFrame("Frame", name, ns.Window.frame)
+        if type(UISpecialFrames) == "table" then
+            table.insert(UISpecialFrames, name)
+        end
+        popup:SetFrameLevel(ns.Window.frame:GetFrameLevel()+55)
+        popup:SetSize(274, 229)
+        popup:SetClampedToScreen(true)
+        popup:EnableMouse(true)
+        popup:EnableMouseWheel(true)
+        Style.Skin(popup, C.nav, {
+            corner=10, edge=C.border, shine=0.28, shade=0.20,
+        })
+        local rowHeight, visible = 31, 7
+        local entries, offset = {}, 0
+        local options, selectedKey, callback, currentAnchor = {}, nil, nil, nil
+        local scrollbar
+
+        local function Render()
+            local n = #options
+            offset = math.max(0, math.min(offset, math.max(0, n-visible)))
+            for i, row in ipairs(entries) do
+                local option = options[offset+i]
+                row.button:SetShown(option ~= nil)
+                if option then
+                    row.option = option
+                    row.label:SetText(option.label or "")
+                    row.label:SetTextColor(unpack(option.key == selectedKey
+                        and C.gold or C.text))
+                    local status = option.online
+                    row.dot:SetShown(type(status) == "boolean")
+                    if type(status) == "boolean" then
+                        if status then row.dot:SetColorTexture(0.31, 0.83, 0.38)
+                        else row.dot:SetColorTexture(0.82, 0.30, 0.30) end
+                    end
+                    row.button:SetEnabled(not option.disabled)
+                    row.button:SetAlpha(option.disabled and 0.48 or 1)
+                else
+                    row.option = nil
+                end
+            end
+            popup:SetHeight(12+math.max(1,math.min(visible,n))*rowHeight)
+            if scrollbar then scrollbar:Refresh() end
+        end
+
+        for i=1,visible do
+            local button = CreateFrame("Button", nil, popup)
+            button:SetHeight(29)
+            button:SetPoint("TOPLEFT",popup,"TOPLEFT",6,-6-(i-1)*rowHeight)
+            button:SetPoint("TOPRIGHT",popup,"TOPRIGHT",-21,-6-(i-1)*rowHeight)
+            button:RegisterForClicks("LeftButtonUp")
+            local dot = button:CreateTexture(nil, "ARTWORK")
+            dot:SetSize(8,8)
+            dot:SetPoint("LEFT",button,"LEFT",7,0)
+            dot:Hide()
+            local label = Style.Text(button,"",12,C.text)
+            label:SetPoint("LEFT",dot,"RIGHT",8,0)
+            label:SetPoint("RIGHT",button,"RIGHT",-6,0)
+            label:SetWordWrap(false)
+            local glow = Style.Skin(button,C.hover,{
+                corner=9, edge=C.goldDim, shine=0.14, shade=0.11, alpha=0,
+            })
+            button:SetScript("OnEnter",function()
+                Motion.Fade(glow,0.24,0.12)
+            end)
+            button:SetScript("OnLeave",function()
+                Motion.Fade(glow,0,0.12)
+            end)
+            Widgets.PressFeedback(button,glow)
+            button:SetScript("OnClick",function()
+                local option=options[offset+i]
+                if not option or option.disabled then return end
+                local fn=callback
+                Widgets.CloseChoices()
+                if fn then fn(option.key) end
+            end)
+            button:EnableMouseWheel(true)
+            button:SetScript("OnMouseWheel",function(_, delta)
+                local handler=popup:GetScript("OnMouseWheel")
+                if handler then handler(popup,delta) end
+            end)
+            ns.Tooltips.Bind(button,function()
+                local option=options[offset+i]
+                if not option then return end
+                local detail=option.detail
+                if type(option.online)=="boolean" then
+                    local service=option.onlineSource or "Battle.net"
+                    detail=(option.online and "Online" or "Offline") ..
+                        " ("..service..")"
+                end
+                return { title=option.label or "Selection",
+                         detail=detail or "Choose this option.",
+                         anchor="LEFT" }
+            end)
+            entries[i]={button=button,label=label,dot=dot}
+        end
+        popup:SetScript("OnMouseWheel",function(_, delta)
+            local n=#options
+            offset=math.max(0,math.min(math.max(0,n-visible),
+                offset-(delta>0 and 2 or -2)))
+            Render()
+        end)
+        scrollbar=Widgets.ScrollBar(popup,function()
+            local n=#options
+            return math.min(visible,n)*rowHeight,n*rowHeight,offset*rowHeight
+        end,function(value)
+            offset=math.max(0,math.min(math.max(0,#options-visible),
+                math.floor(value/rowHeight+0.5)))
+            Render()
+        end)
+        popup:SetScript("OnHide",function()
+            if openChoicePopup==popup then openChoicePopup=nil end
+            if clickCatcher then clickCatcher:Hide() end
+            currentAnchor=nil
+        end)
+        function popup:Open(target, list, key, action)
+            if currentAnchor==target and popup:IsShown() then
+                Widgets.CloseChoices()
+                return
+            end
+            Widgets.CloseChoices()
+            options=list
+            selectedKey=key
+            callback=action
+            currentAnchor=target
+            offset=0
+            Render()
+            popup:ClearAllPoints()
+            local bottom=target:GetBottom()
+            local right=target:GetRight()
+            local limit=ns.Window.frame:GetRight()
+            local rightAlign=not right or not limit or right+15>limit-274
+            if bottom and bottom<popup:GetHeight()+16 then
+                popup:SetPoint(rightAlign and "BOTTOMRIGHT" or "BOTTOMLEFT",
+                    target,rightAlign and "TOPRIGHT" or "TOPLEFT",0,4)
+            else
+                popup:SetPoint(rightAlign and "TOPRIGHT" or "TOPLEFT",
+                    target,rightAlign and "BOTTOMRIGHT" or "BOTTOMLEFT",0,-4)
+            end
+            openChoicePopup=popup
+            ChoiceCatcher():Show()
+            popup:Show()
+        end
+        warChoiceMenu=popup
+        popup:Hide()
+    end
+    warChoiceMenu:Open(anchor,choices,selected,onChoose)
+end
+
 -- Reusable compact picker for SharedMedia fonts, outlines, and later Options.
 -- Popup rows scroll rather than opening hundreds of Blizzard dropdown frames.
 function Widgets.ChoiceRow(parent, caption, detail, onChoose, onReset, above)

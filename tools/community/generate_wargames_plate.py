@@ -159,16 +159,22 @@ def bake_title(rows):
     for b in packed:
         alpha.append((b>>4)*17)
         alpha.append((b&15)*17)
-    x0,y0=(256-TITLE_W)//2,80
+    # The original title touched the lower laurels at 205x84 UI scale.
+    # Recenter and reduce the fixed raster so every serif stays inside the
+    # inner panel, while retaining the SAME font/art direction and palette.
+    display_width, display_height = 112, 24
+    x0,y0=(256-display_width)//2,77
     mask=[[0]*256 for _ in range(128)]
-    for y in range(TITLE_H):
-        for x in range(TITLE_W):
-            mask[y0+y][x0+x]=alpha[y*TITLE_W+x]
-    for y in range(y0-2,y0+TITLE_H+2):
-        for x in range(x0-2,x0+TITLE_W+2):
+    for y in range(display_height):
+        source_y=min(TITLE_H-1, int((y+.5)*TITLE_H/display_height))
+        for x in range(display_width):
+            source_x=min(TITLE_W-1, int((x+.5)*TITLE_W/display_width))
+            mask[y0+y][x0+x]=alpha[source_y*TITLE_W+source_x]
+    for y in range(y0-2,y0+display_height+2):
+        for x in range(x0-2,x0+display_width+2):
             v=mask[y][x]/255.
-            halo=max(mask[yy][xx] for yy in range(max(y0,y-2),min(y0+TITLE_H,y+3))
-                     for xx in range(max(x0,x-2),min(x0+TITLE_W,x+3)))/255.
+            halo=max(mask[yy][xx] for yy in range(max(y0,y-2),min(y0+display_height,y+3))
+                     for xx in range(max(x0,x-2),min(x0+display_width,x+3)))/255.
             if not halo: continue
             i=x*4
             shadow=max(0.,halo-v)*.90
