@@ -620,14 +620,16 @@ function Window.ShowPage(page)
     emptyDetail:SetText(page.emptyDetail or "")
     local isCommunity = page.community == true
     local isPatchNotes = page.patchNotes == true
-    local isCustomPage = isOptions or isCommunity or isPatchNotes
+    local isAddonStatus = page.addonStatus == true
+    local isCustomPage = isOptions or isCommunity or isPatchNotes or isAddonStatus
     -- Hall artwork stays Hall-only. Other owners present their own pages.
-    title:SetShown(not isCommunity and not isPatchNotes)
-    titleRule:SetShown(not isCommunity and not isPatchNotes)
-    subtitle:SetShown(not isCommunity and not isPatchNotes)
+    title:SetShown(not isCommunity and not isPatchNotes and not isAddonStatus)
+    titleRule:SetShown(not isCommunity and not isPatchNotes and not isAddonStatus)
+    subtitle:SetShown(not isCommunity and not isPatchNotes and not isAddonStatus)
     watermark:SetShown(not isCustomPage)
     emptyHeading:SetShown(not isCustomPage)
     emptyDetail:SetShown(not isCustomPage)
+    if ns.AddonStatus then ns.AddonStatus.Show(isAddonStatus) end
     if ns.Options then ns.Options.Show(isOptions and page.key or nil) end
     if ns.Community then ns.Community.Show(isCommunity and page.key or nil) end
     if ns.PatchNotes then

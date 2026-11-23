@@ -10,6 +10,11 @@ local sections = {
           emptyTitle = "No duels recorded yet",
           emptyDetail = "Your recent activity will appear here." },
     } },
+    { key = "addonstatus", label = "Addon Status", icon = "Community", pages = {
+        { key = "status", label = "Addon Status", addonStatus = true,
+          title = "Addon Status",
+          subtitle = "See which party or raid members are using Duels Reimagined." },
+    } },
     { key = "community", label = "Community", icon = "Community", pages = {
         { key = "community", label = "The Duelist's Circle", community = true,
           title = "The Duelist's Circle", subtitle = "The people shaping Duels Reimagined." },
@@ -64,6 +69,7 @@ local scrollMemory = {}
 local function ScrollOwner(page)
     if not page then return nil end
     if page.key == "options" or page.key == "interface" then return ns.Options end
+    if page.addonStatus then return ns.AddonStatus end
     if page.community then return ns.Community end
     if page.patchNotes then return ns.PatchNotes end
 end
@@ -196,7 +202,7 @@ end
 -- Keep the gameplay tab compact; primary tabs can still shrink if the
 -- available width becomes constrained.
 local HALL_BUTTON_WIDTH = 205
-local utilityIndex, previousUtilityButton = 0, nil
+local utilityButtons = {}
 for index, section in ipairs(sections) do
     local isPrimary = primaryKeys[section.key] == true
     local parent = isPrimary and Window.rail or Window.utility
@@ -208,11 +214,8 @@ for index, section in ipairs(sections) do
         button:SetSize(HALL_BUTTON_WIDTH, 84)
         button:SetPoint("TOP", Window.rail, "TOP", 0, -31)
     else
-        utilityIndex = utilityIndex + 1
         button:SetSize(112, 30)
-        button:SetPoint("LEFT", Window.utility, "LEFT",
-            (utilityIndex - 1) * 120, 0)
-        previousUtilityButton = button
+        utilityButtons[#utilityButtons + 1] = button
     end
 
     -- Unlike the discarded procedurally painted plaque, this image is
@@ -273,7 +276,15 @@ for index, section in ipairs(sections) do
         end
     else
         icon:SetPoint("LEFT", button, "LEFT", 9, 0)
-        Style.ConstrainButtonLabel(button, label, 35, 7, 9)
+        if section.key == "addonstatus" then
+            -- The approved group-check meaning using our existing icon art.
+            -- A small gold status jewel distinguishes it from Community.
+            local jewel = Style.Fill(button, C.gold, "OVERLAY")
+            jewel:ClearAllPoints()
+            jewel:SetSize(6, 6)
+            jewel:SetPoint("BOTTOMRIGHT", icon, "BOTTOMRIGHT", -1, 1)
+        end
+        Style.ConstrainButtonLabel(button, label, 34, 6, 9)
         label:SetJustifyH("LEFT")
     end
 
@@ -338,7 +349,7 @@ for index, section in ipairs(sections) do
     if isPrimary then primaryButtons[#primaryButtons + 1] = item end
 
     local pages = {}
-    if section.key ~= "patchnotes" then
+    if section.key ~= "patchnotes" and section.key ~= "addonstatus" then
     for pageIndex, page in ipairs(section.pages) do
         local sub = CreateFrame("Button", nil, Window.nav)
         sub:SetSize(174, 35)
@@ -441,6 +452,27 @@ Window.frame:HookScript("OnHide", function()
     Motion.Stop(sweep, 0)
     sweep:Hide()
 end)
+
+-- Keep FOUR footer destinations separated from Reset/Reload, including at
+-- the smallest supported window width. No horizontal overflow or text crop.
+local function FitUtilityButtons()
+    local ratio = math.max(0, math.min(1,
+        (Window.frame:GetWidth() - 1050) / 190))
+    local minWidths = { 112, 82, 98, 78 }
+    local maxWidths = { 136, 110, 124, 104 }
+    local gap = 5 + 3 * ratio
+    local offset = 0
+    for i, item in ipairs(utilityButtons) do
+        local width = minWidths[i] + (maxWidths[i] - minWidths[i]) * ratio
+        item:SetWidth(width)
+        item:ClearAllPoints()
+        item:SetPoint("LEFT", Window.utility, "LEFT", offset, 0)
+        offset = offset + width + (i < #utilityButtons and gap or 0)
+    end
+    Window.utility:SetWidth(offset)
+end
+Window.frame:HookScript("OnSizeChanged", FitUtilityButtons)
+FitUtilityButtons()
 
 -- Both geometry passes are event-driven; nothing polls an idle window.
 -- Primary gameplay destinations remain independent of the footer and tabs.

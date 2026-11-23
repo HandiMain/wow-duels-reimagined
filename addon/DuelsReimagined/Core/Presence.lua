@@ -247,4 +247,7 @@ driver:SetScript("OnEvent", function()
     if roster and Clock() - lastCheck >= CHECK_GAP then
         Presence.CheckNow()
     end
+    -- A communication restriction can change without any roster change.
+    -- Notify visible consumers so disabled controls/tooltips stay accurate.
+    Changed()
 end)

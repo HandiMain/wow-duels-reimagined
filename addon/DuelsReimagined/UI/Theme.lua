@@ -41,6 +41,9 @@ function Theme.Refresh()
     if ns.Options and ns.Options.Refresh then
         ns.Options.Refresh()
     end
+    if ns.AddonStatus and ns.AddonStatus.Refresh then
+        ns.AddonStatus.Refresh()
+    end
     if ns.Footer and ns.Footer.Refresh then ns.Footer.Refresh() end
 end
 

@@ -201,6 +201,20 @@ if type(UISpecialFrames) == "table" then
 end
 discord:SetScript("OnClick", Footer.ShowPopup)
 
+-- Responsive room for Addon Status + Community + Patch Notes + Options.
+-- Preserve all existing controls even on the smallest supported window.
+local function FitFooter()
+    local ratio = math.max(0, math.min(1, (frame:GetWidth() - 1050) / 190))
+    reset:SetWidth(105 + 27 * ratio)
+    reload:SetWidth(85 + 25 * ratio)
+    reset:ClearAllPoints()
+    reset:SetPoint("LEFT", discord, "RIGHT", 12 + 12 * ratio, 0)
+    reload:ClearAllPoints()
+    reload:SetPoint("LEFT", reset, "RIGHT", 6 + 6 * ratio, 0)
+end
+frame:HookScript("OnSizeChanged", FitFooter)
+FitFooter()
+
 function Footer.Refresh()
     local resetReady, reloadReady = not Window.IsDefault(), Settings.NeedsReload()
     reset:SetEnabled(resetReady)
