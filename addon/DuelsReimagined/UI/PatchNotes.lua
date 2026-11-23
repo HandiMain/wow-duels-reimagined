@@ -63,8 +63,8 @@ versionsTitle:SetJustifyH("CENTER")
 local function VersionFlank(side)
     local line = Style.Fill(rail, C.goldDim, "ARTWORK")
     line:ClearAllPoints()
-    line:SetPoint(side, versionsTitle, side == "LEFT" and "LEFT" or "RIGHT",
-        side == "LEFT" and -12 or 12, 0)
+    line:SetPoint(side == "LEFT" and "RIGHT" or "LEFT",
+        versionsTitle, side, side == "LEFT" and -12 or 12, 0)
     line:SetSize(24, Style.Pixel(rail, 2))
     line:SetAlpha(0.80)
     return line
