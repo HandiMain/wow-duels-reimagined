@@ -524,7 +524,8 @@ function Style.Action(parent, caption, variant, palette)
     end
     -- The fixed landing calls-to-action already identify themselves; avoid
     -- the boxed help tooltip obscuring their illustration on hover.
-    if not landingArt and ns.Tooltips then
+    if not landingArt and ns.Tooltips and
+        not (palette and palette.tooltip == false) then
         ns.Tooltips.Bind(button, { title = caption,
             detail = "Click to activate this action." })
     end

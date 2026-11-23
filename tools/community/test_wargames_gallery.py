@@ -1,4 +1,4 @@
-"""Native-art-only visual War Games arena picker contract checks."""
+"""Native-client-first gallery with documented illustrated arena fallbacks."""
 from pathlib import Path
 import re
 import unittest
@@ -28,7 +28,7 @@ class ArenaGalleryTests(unittest.TestCase):
         self.assertNotIn('function SelectMap(page,anchor)',view)
         self.assertIn('Engine.SelectMap(page,index)',picker)
 
-    def test_client_game_art_only_and_no_false_arena(self):
+    def test_native_game_art_and_no_mismatched_arena(self):
         picker=src("UI/WarGamesArenaPicker.lua")
         for marker in ('GetFileIDFromPath','PaintArt(art,missing,name)',
                        'image:SetTexture(id)','PREVIEW UNAVAILABLE',
@@ -39,10 +39,43 @@ class ArenaGalleryTests(unittest.TestCase):
             self.assertIn(marker,picker)
         self.assertNotIn('http://',picker)
         self.assertNotIn('https://',picker)
-        self.assertNotIn('Media\\Arenas',picker)
+        self.assertIn("WarGamesArenaFallback.png",picker)
         self.assertNotIn('C_Map.GetMapArtLayers',picker)
         self.assertIn('for index,item in ipairs(known) do',picker)
         self.assertIn('local known=Engine.GetMaps()',picker)
+
+    def test_generated_fallback_atlas_is_named_and_verified(self):
+        import hashlib
+        import struct
+        picker=src("UI/WarGamesArenaPicker.lua")
+        atlas=ADDON/"Media/Arenas/WarGamesArenaFallback.png"
+        raw=atlas.read_bytes()
+        self.assertEqual(raw[:8],bytes((137,80,78,71,13,10,26,10)))
+        self.assertEqual(struct.unpack(">II",raw[16:24]),(1024,512))
+        self.assertEqual(hashlib.sha256(raw).hexdigest(),
+            "029f3a70d4dba215a87bd3fcacb15ec5798cb0e6fbe800dd1485fb9833b22265")
+        names=[
+            "Nagrand Arena","Cage of Carnage","Empyrean Domain",
+            "Enigma Crucible","Hook Point","Maldraxxus Coliseum",
+            "Mugambala","Nokhudon Proving Grounds","The Robodrome",
+        ]
+        for index,name in enumerate(names):
+            self.assertIn('["'+name+'"]',picker)
+            self.assertIn('{'+str(index%4)+','+str(index//4)+'}',picker)
+        self.assertIn('local candidates = visuals[name]',picker)
+        self.assertLess(picker.index('if candidates then'),
+                        picker.index('local tile = illustrationTiles[name]'))
+        self.assertIn('return unpack(entry)',picker)
+        self.assertIn("PREVIEW UNAVAILABLE",picker) # future maps still safe
+
+    def test_popup_tooltips_disabled_without_affecting_other_actions(self):
+        picker=src("UI/WarGamesArenaPicker.lua")
+        style=src("UI/Style.lua")
+        self.assertNotIn("ns.Tooltips.Bind(",picker)
+        self.assertIn('tooltip=false',picker)
+        self.assertIn('not (palette and palette.tooltip == false)',style)
+        self.assertIn('if ns.Tooltips then ns.Tooltips.Hide(nil,true) end',picker)
+        self.assertIn('ns.Tooltips.Bind(button, { title = caption,',style)
 
     def test_modal_cancel_confirm_filter_and_lifecycle(self):
         picker=src("UI/WarGamesArenaPicker.lua")

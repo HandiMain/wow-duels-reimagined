@@ -2,14 +2,30 @@ local _, ns = ...
 
 -- Retail-only visual War Games arena picker. Presentation and temporary
 -- selection live here; Core/WarGames is still the only request/gameplay owner.
--- Blizzard's own client textures are the ONLY map art. Never show generated
--- approximations or a different arena when a texture is missing.
+-- Prefer genuine Blizzard game-client arena art. For the nine known entries
+-- without reliable native art, fall back to explicitly generated *recreations*
+-- informed by public screenshots. These are not gameplay screenshots, and
+-- never substitute a different map's Blizzard art.
 local Engine, Window, Style = ns.WarGames, ns.Window, ns.Style
 local Motion, Widgets, Settings = ns.Motion, ns.Widgets, ns.Settings
 local C = Style.color
 -- Three 32px cells: outlined favorite, filled favorite, gold check.
 -- Authored for this addon: no user-font-dependent Unicode icon glyphs.
 local GLYPHS = "Interface\\AddOns\\DuelsReimagined\\Media\\Skin\\WarGamesPickerGlyphs.tga"
+local ILLUSTRATED = "Interface\\AddOns\\DuelsReimagined\\Media\\Arenas\\WarGamesArenaFallback.png"
+-- 1024x512 power-of-two atlas; each illustration is a distinct 256x128 tile,
+-- position {column,row}, left to right. Art is not gameplay verification.
+local illustrationTiles = {
+    ["Nagrand Arena"]             = {0,0},
+    ["Cage of Carnage"]           = {1,0},
+    ["Empyrean Domain"]           = {2,0},
+    ["Enigma Crucible"]           = {3,0},
+    ["Hook Point"]                = {0,1},
+    ["Maldraxxus Coliseum"]      = {1,1},
+    ["Mugambala"]                 = {2,1},
+    ["Nokhudon Proving Grounds"]  = {3,1},
+    ["The Robodrome"]             = {0,2},
+}
 local Picker = {}
 ns.WarGamesArenaPicker = Picker
 
@@ -63,18 +79,28 @@ end
 local function Art(name)
     if resolved[name] then return unpack(resolved[name]) end
     local candidates = visuals[name]
-    if not candidates then return nil end
-    for _, item in ipairs(candidates) do
-        -- Legacy client art can be indexed with or without the BLP extension.
-        for _, path in ipairs({item[1]..".blp", item[1]}) do
-            local id = FileID(path)
-            if id then
-                local entry = {id, item[2] or {0,1,0,1}}
-                resolved[name] = entry
-                return unpack(entry)
+    if candidates then
+        for _, item in ipairs(candidates) do
+            -- Real installed-client art gets priority over the recreations.
+            for _, path in ipairs({item[1]..".blp", item[1]}) do
+                local id = FileID(path)
+                if id then
+                    local entry = {id, item[2] or {0,1,0,1}}
+                    resolved[name] = entry
+                    return unpack(entry)
+                end
             end
         end
     end
+    local tile = illustrationTiles[name]
+    if tile then
+        local x, y = tile[1], tile[2]
+        local entry = {ILLUSTRATED, {x/4,(x+1)/4,y/4,(y+1)/4}}
+        resolved[name] = entry
+        return unpack(entry)
+    end
+    -- Client-discovered future maps without an identified scene stay
+    -- selectable, but have no fabricated preview.
 end
 local function PaintArt(image, missing, name, wide)
     local id, coords = Art(name)
@@ -160,11 +186,8 @@ function Picker.CreatePreview(parent, page)
         -- At minimum width, a short caption avoids overflowing the button.
         caption:SetText(width<194 and "Change" or "Change Arena  ›")
     end
-    ns.Tooltips.Bind(button,function()
-        return {title=button.mapName or "Choose arena",
-            detail="Open the arena gallery. Only genuine, client-provided arena art is displayed; a missing preview does not disable an arena.",
-            anchor="RIGHT"}
-    end)
+    -- The selected arena name and Change Arena label are self-explanatory.
+    -- No tooltip on this preview or within the image gallery.
     button:Refresh()
     return button
 end
@@ -219,6 +242,7 @@ local function Action(text,width,variant)
         edge=primary and C.gold or dark and C.border or C.goldDim,
         light=primary and C.pale or C.goldDim,
         dark=C.window,hover=C.selected,text=C.pale,
+        tooltip=false, -- This modal is visual and self-explanatory.
     })
     b:SetSize(width,30)
     return b
@@ -389,18 +413,8 @@ local function Card()
         local handler=scroll:GetScript("OnMouseWheel")
         if handler then handler(scroll,delta) end
     end)
-    ns.Tooltips.Bind(b,function()
-        return {title=b.name or "Arena",
-            detail=(b.hasArt and "Genuine World of Warcraft client arena artwork. "
-                or "No verified client artwork for this arena. ")..
-                "A reference listing does not guarantee live War Game availability.",
-            anchor="RIGHT"}
-    end)
-    ns.Tooltips.Bind(star,function()
-        return {title="Arena favorite",
-            detail="Save or remove this arena from your favorite list. Favorites are account-wide.",
-            anchor="RIGHT"}
-    end)
+    -- Names are directly visible on cards; stars have visible selected states.
+    -- Avoid obstructing the gallery with repeated mouseover tooltips.
     return {button=b,image=art,missing=missing,label=label,star=starLabel,
         selected=selected,rim=rim,check=check}
 end
@@ -500,6 +514,7 @@ function Picker.Open(page)
     local cfg=Engine.GetConfig(page)
     if not cfg then return end
     Widgets.CloseChoices()
+    if ns.Tooltips then ns.Tooltips.Hide(nil,true) end
     currentPage,pending,onlyFavorite=page,cfg.map,false
     search:SetText("")
     scroll:SetVerticalScroll(0)
