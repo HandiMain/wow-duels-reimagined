@@ -103,11 +103,11 @@ class CompactPageDensityTests(unittest.TestCase):
     def test_community_cards_are_denser_but_data_still_dynamic(self):
         c = src("UI/Community.lua")
         for marker in (
-            'local statsPanel = CreateFrame("Frame", nil, canvas)',
+            'local statsPanel = CreateFrame("Frame", nil, stage)',
             'local creditsPanel = InfoPanel(true, "COMMUNITY CREDITS"',
             'local helpPanel = InfoPanel(false, "HOW TO HELP"',
-            "canvas:SetHeight(460)", "listing:SetHeight(245)",
-            "canvas:SetHeight(185 + h + 20)",
+            "canvas:SetHeight(height)", "listing:SetHeight(245)",
+            "local listingTop = heroHeight + 17",
             "math.max(245, 116 + #entries * 30)",
             'Action("bug", "REPORT A BUG", -133)',
             'Action("idea", "SUGGEST AN IDEA", 133)',
@@ -116,6 +116,9 @@ class CompactPageDensityTests(unittest.TestCase):
         ):
             self.assertIn(marker, c)
         self.assertLessEqual(233 + 203, 460)
+        self.assertIn('local compact = width < CARD_BREAKPOINT', c)
+        self.assertIn('local cardWidth = math.min(510, math.max(1, width - 24))', c)
+        self.assertIn('stage:SetPoint("TOP", canvas, "TOP", 0, 0)', c)
 
     def test_patch_notes_reflow_keeps_version_data_and_link_targets(self):
         p = src("UI/PatchNotes.lua")
