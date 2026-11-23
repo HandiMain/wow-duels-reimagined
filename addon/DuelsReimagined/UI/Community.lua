@@ -167,17 +167,22 @@ end
 
 local function Action(kind, heading, xOffset)
     local btn = Style.Action(hero, heading, "community")
-    btn:SetSize(256, 41)
-    btn:SetPoint("TOP", hero, "TOP", xOffset, -101)
+    btn:SetSize(242, 42)
+    btn:SetPoint("TOP", hero, "TOP", xOffset, -103)
     btn:SetScript("OnClick", function() SelectableURL(kind) end)
-    local actionIcon = ConceptSymbol(btn, kind == "bug" and 8 or 9, 29)
-    actionIcon:SetPoint("LEFT", btn, "LEFT", 14, 0)
-    local arrow = Style.Text(btn, ">", 15, C.gold)
-    arrow:SetPoint("RIGHT", btn, "RIGHT", -15, 0)
-    arrow:SetJustifyH("RIGHT")
+    -- Exact approved illustration, lettering and gold frame; the native
+    -- Style.Action still owns click, hover, press, focus and tooltips.
+    if btn.label then btn.label:Hide() end
+    local artTex = btn:CreateTexture(nil, "ARTWORK", nil, 4)
+    artTex:SetTexture(conceptButtons)
+    artTex:SetAllPoints(btn)
+    local x = kind == "bug" and 0 or 512
+    artTex:SetTexCoord(x / 1024, (x + 290) / 1024, 0, 51 / 64)
+    artTex:EnableMouse(false)
+    Chrome.Sharp(artTex)
     ns.Tooltips.Bind(btn, {
-        title = heading,
-        detail = (kind == "bug" and "Get a link to report a bug on GitHub."
+        title=heading,
+        detail=(kind == "bug" and "Get a link to report a bug on GitHub."
             or "Get a link to suggest an improvement.") ..
             " Copy the URL with Ctrl+C, then open it in your browser.",
     })
@@ -185,7 +190,7 @@ local function Action(kind, heading, xOffset)
 end
 
 Action("bug", "REPORT A BUG", -139)
-Action("idea", "SUGGEST AN IDEA", 139)
+Action("idea", "SUGGEST AN IDEA", 105)
 
 -- The approved Community landing page: one quiet GitHub statistics strip and
 -- two readable information panels. Its five existing subcategory tabs remain
