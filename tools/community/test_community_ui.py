@@ -103,6 +103,7 @@ class CommunityUITests(unittest.TestCase):
             ("CommunityConceptButtons.png", (1024, 64)),
             ("CommunityConceptIcons.png", (512, 128)),
             ("CommunityConceptHeaders.png", (1024, 128)),
+            ("CommunityConceptCards.png", (2048, 256)),
         ):
             image = (ADDON / "Media" / "Concept" / name).read_bytes()
             self.assertEqual(image[:8], b"\x89PNG\r\n\x1a\n")
@@ -199,13 +200,13 @@ class CommunityUITests(unittest.TestCase):
         self.assertIn('local helpPanel = InfoPanel(false, "HOW TO HELP"', community)
         self.assertNotIn('"COMMUNITY TOOLS", 16', community)
         self.assertNotIn('UtilityAction(', community)
-        self.assertIn('canvas:SetHeight(468)', community)
+        self.assertIn('canvas:SetHeight(460)', community)
         self.assertIn('local communityHeading = Style.Text(root, "Community"', community)
         self.assertIn('Style.Skin(hero, C.window', community)
         self.assertIn('exactTitle:SetTexture(conceptTitle)', community)
-        self.assertIn('check:SetTexture("Interface\\\\Buttons\\\\UI-CheckBox-Check")', community)
+        self.assertIn('artTex:SetTexture(conceptRoot .. "CommunityConceptCards.png")', community)
         self.assertIn('hero:SetShown(overview)', community)
-        self.assertIn('header:SetTexture(conceptHeaders)', community)
+        self.assertIn('artTex:SetTexCoord(0, 617 / 2048, 0, 242 / 256)', community)
         self.assertIn('artTex:SetTexture(conceptButtons)', community)
         self.assertIn('for _, item in ipairs(overviewPieces) do item:SetShown(overview) end', community)
         self.assertNotIn('PreviewCard(', community)
