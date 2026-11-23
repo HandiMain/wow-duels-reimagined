@@ -521,6 +521,9 @@ function Style.Action(parent, caption, variant, palette)
     -- Art-backed Community buttons still use this one interaction owner,
     -- but their exact approved image supplies the one visible frame/rim.
     local communityArt = variant == "community-art"
+    -- The landing page paints a shaped plate and uses image-matched feedback.
+    -- Its native button still shares labels, click and font sizing with Action.
+    local landingArt = variant == "landing-art"
     local button = CreateFrame("Button", nil, parent)
     button:SetSize(footer and 112 or 204, footer and 32 or 36)
     button:RegisterForClicks("LeftButtonUp")
@@ -535,33 +538,39 @@ function Style.Action(parent, caption, variant, palette)
         })
     elseif footer then
         Style.Plate(button, "hall", { corner=9 })
-    elseif not communityArt then
+    elseif not communityArt and not landingArt then
         Style.Skin(button, C.button, {
             corner=9, edge=C.gold, shine=0.52, shade=0.42, rim=0.97,
         })
     end
-    hover = Style.FeedbackOverlay(button, {
-        corner=footer and 10 or 11, inset=2,
-        fill=palette and palette.hover or C.gold,
-        edge=palette and palette.edge or C.gold,
-        shine=0.58, rim=0.78,
-    })
+    if not landingArt then
+        hover = Style.FeedbackOverlay(button, {
+            corner=footer and 10 or 11, inset=2,
+            fill=palette and palette.hover or C.gold,
+            edge=palette and palette.edge or C.gold,
+            shine=0.58, rim=0.78,
+        })
+    end
     local label = Style.Text(button, caption, 15,
         palette and palette.text or C.buttonText)
     local placeLabel = Style.ConstrainButtonLabel(button, label, 9, 9, 9)
     label:SetJustifyH("CENTER")
-    button:SetScript("OnEnter", function()
-        ns.Motion.Fade(hover, 0.20, 0.16)
-    end)
-    button:SetScript("OnLeave", function()
-        ns.Motion.Fade(hover, 0, 0.18)
-    end)
+    if not landingArt then
+        button:SetScript("OnEnter", function()
+            ns.Motion.Fade(hover, 0.20, 0.16)
+        end)
+        button:SetScript("OnLeave", function()
+            ns.Motion.Fade(hover, 0, 0.18)
+        end)
+    end
     button:SetScript("OnMouseDown", function() placeLabel(-1) end)
     button:SetScript("OnMouseUp", function() placeLabel(0) end)
-    if ns.Widgets and ns.Widgets.PressFeedback then
+    if not landingArt and ns.Widgets and ns.Widgets.PressFeedback then
         ns.Widgets.PressFeedback(button, hover)
     end
-    if ns.Tooltips then
+    -- The fixed landing calls-to-action already identify themselves; avoid
+    -- the boxed help tooltip obscuring their illustration on hover.
+    if not landingArt and ns.Tooltips then
         ns.Tooltips.Bind(button, { title = caption,
             detail = "Click to activate this action." })
     end
