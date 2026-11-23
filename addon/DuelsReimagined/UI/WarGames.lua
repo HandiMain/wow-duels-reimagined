@@ -291,18 +291,31 @@ hostSend:SetScript("OnClick",function()
     View.Refresh()
 end)
 
--- Panel layout adjusts to current canvas width. The list is scrollable at
--- 1050x650 minimum size; no controls spill over the outer window.
+-- Reserve a real gutter BEFORE painting panels, not after the scrollbar
+-- overlaps them. The full scroll viewport width includes the 12px track
+-- and its hit area (and a small visual breathing gap).
+local SCROLL_LEFT, SCROLL_RIGHT, SCROLLBAR_GUTTER = 25, 30, 22
+local function UsableCanvasWidth()
+    -- The first OnShow can precede the ScrollFrame's width propagation.
+    -- root is anchored to the already-sized main content, so computing
+    -- from its anchors works on first display AND on later resizes.
+    local width = root:GetWidth()
+    if not width or width < 1 then width = Window.content:GetWidth() end
+    return math.max(1, width-SCROLL_LEFT-SCROLL_RIGHT-SCROLLBAR_GUTTER)
+end
+
+-- Panel geometry stays inside the usable canvas, whether the track is
+-- visible, hidden, or being dragged, at the default or resized window.
 local function Position(frame,x,y,w,h)
     frame:ClearAllPoints()
     frame:SetPoint("TOPLEFT",canvas,"TOPLEFT",x,-y)
     frame:SetSize(w,h)
 end
 local function Layout()
-    local w=math.max(1,scroll:GetWidth()-5)
+    local w=UsableCanvasWidth()
     canvas:SetWidth(w)
     local inArena=Engine.InArena()
-    local half=math.max(240,(w-72)/2)
+    local half=(w-72)/2
     local secondX=w-half
     if active=="player" then
         if inArena then
@@ -370,7 +383,12 @@ scroll:SetScript("OnMouseWheel",function(self,delta)
     scrollbar:Refresh()
 end)
 scroll:SetScript("OnVerticalScroll",function() scrollbar:Refresh() end)
-scroll:SetScript("OnSizeChanged",function() Layout(); scrollbar:Refresh() end)
+scroll:SetScript("OnSizeChanged",function()
+    if root:IsShown() then Layout(); scrollbar:Refresh() end
+end)
+root:HookScript("OnSizeChanged",function()
+    if root:IsShown() then Layout(); scrollbar:Refresh() end
+end)
 
 function View.Refresh()
     if not root:IsShown() then return end
@@ -463,6 +481,13 @@ end
 root:SetScript("OnShow",function()
     if not unsubscribe then unsubscribe=Engine.Subscribe(View.Refresh) end
     Engine.Refresh()
+    -- One single next-frame reflow resolves first-show order where anchors
+    -- are not yet measured. No timers loop or stay active while hidden.
+    if C_Timer and type(C_Timer.After)=="function" then
+        C_Timer.After(0,function()
+            if root:IsShown() then Layout(); scrollbar:Refresh() end
+        end)
+    end
 end)
 root:SetScript("OnHide",function()
     if unsubscribe then unsubscribe(); unsubscribe=nil end

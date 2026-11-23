@@ -5,8 +5,9 @@ The 256x128 Hall sprite occupies the upper-left quadrant of DuelAtlas.png.
 Only its baked center artwork is replaced with interpolated background;
 the copper frame and laurel artwork stay bit-for-bit unchanged.
 
-The finished plaque bakes original Hall swords and a gold-serif WAR GAMES
-raster into one sprite. No live font or icon is needed in Navigation.
+The finished plaque bakes our distinct arena-gate emblem and the original
+gold-serif WAR GAMES raster into one sprite. It keeps Hall's copper frame
+and laurels while using a different motif; no live font is needed.
 """
 from __future__ import annotations
 
@@ -19,6 +20,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 SOURCE = ROOT / "addon/DuelsReimagined/Media/Skin/DuelAtlas.png"
 DEST = ROOT / "addon/DuelsReimagined/Media/Skin/DuelWarGamesPlate.png"
+EMBLEM_SOURCE = ROOT / "tools/community/artwork/WarGamesArenaGate.png"
 SIGNATURE = b"\x89PNG\r\n\x1a\n"
 # Locally rendered original title raster, 132x30 in 4-bit alpha. No fonts
 # ship with this addon; this deterministic mask cannot change with WoW fonts.
@@ -90,6 +92,62 @@ def read_rgba(data: bytes):
     return [bytearray(row[:256 * 4]) for row in image[:128]]
 
 
+def read_emblem() -> list[bytearray]:
+    """Decode our original indexed-colour transparent arena-gate emblem.
+
+    The final runtime plaque remains one complete texture, but its artwork
+    can be regenerated without copying Hall's crossed-swords motif or
+    introducing Pillow/build dependencies.
+    """
+    parts = list(_iter_chunks(EMBLEM_SOURCE.read_bytes()))
+    header = next(value for kind, value in parts if kind == b"IHDR")
+    width, height, depth, color_type, compression, filtering, interlace = struct.unpack(
+        ">IIBBBBB", header)
+    if (width, height, depth, color_type, compression, filtering, interlace) != (
+            84, 65, 8, 3, 0, 0, 0):
+        raise ValueError("Unexpected arena emblem format")
+    palette = next(value for kind, value in parts if kind == b"PLTE")
+    opacity = next(value for kind, value in parts if kind == b"tRNS")
+    pixels = zlib.decompress(b"".join(value for kind, value in parts if kind == b"IDAT"))
+    if len(pixels) != height*(width+1):
+        raise ValueError("Arena emblem scanlines are incomplete")
+    result = []
+    previous = bytearray(width)
+    offset = 0
+    for _ in range(height):
+        filter_type = pixels[offset]
+        offset += 1
+        row = bytearray(pixels[offset:offset+width])
+        offset += width
+        if filter_type > 4:
+            raise ValueError("Unsupported arena emblem filter")
+        for i in range(width):
+            left = row[i-1] if i else 0
+            above = previous[i]
+            upper_left = previous[i-1] if i else 0
+            if filter_type == 1:
+                prediction = left
+            elif filter_type == 2:
+                prediction = above
+            elif filter_type == 3:
+                prediction = (left+above)//2
+            elif filter_type == 4:
+                prediction = _paeth(left,above,upper_left)
+            else:
+                prediction = 0
+            row[i] = (row[i]+prediction)&255
+        rgba = bytearray()
+        for entry in row:
+            at = entry*3
+            if at+2 >= len(palette):
+                raise ValueError("Arena emblem palette index out of bounds")
+            rgba.extend(palette[at:at+3])
+            rgba.append(opacity[entry] if entry < len(opacity) else 255)
+        result.append(rgba)
+        previous = row
+    return result
+
+
 def blank_center(rows: list[bytearray]):
     # Two deliberately bounded zones: crossed swords and the 'HALL' legend.
     # Laurel branches occupy the outer sides and are never repainted.
@@ -138,17 +196,22 @@ def encode_rgba(rows: list[bytearray]) -> bytes:
     return SIGNATURE + chunk(b"IHDR", ihdr) + chunk(b"IDAT", zlib.compress(data, 9)) + chunk(b"IEND", b"")
 
 
-def bake_logo(rows, original):
-    # Native metallic Hall swords, fully visible. Fade only the boundary
-    # of their central crop; keep the approved copper rim and laurels.
-    for y in range(15, 78):
-        for x in range(95, 165):
-            opacity = min(1., max(0.,
-                          (min(x-95, 164-x, y-15, 77-y)+.5)/5))
-            for k in range(3):
-                i=x*4+k
-                rows[y][i]=round(rows[y][i]*(1-opacity) +
-                                 original[y][i]*opacity)
+def bake_emblem(rows):
+    """A faction-neutral coliseum gate instead of Hall's crossed swords."""
+    gate=read_emblem()
+    left=(256-84)//2
+    top=12
+    for y, pixels in enumerate(gate):
+        for x in range(84):
+            i=x*4
+            alpha=pixels[i+3]/255.
+            if alpha<.06:
+                continue
+            into=(left+x)*4
+            for channel in range(3):
+                rows[top+y][into+channel]=round(
+                    rows[top+y][into+channel]*(1-alpha) +
+                    pixels[i+channel]*alpha)
 
 
 def bake_title(rows):
@@ -190,9 +253,9 @@ def bake_title(rows):
 def derive() -> bytes:
     original = read_rgba(SOURCE.read_bytes())
     edited = blank_center([line[:] for line in original])
-    bake_logo(edited, original)
+    bake_emblem(edited)
     bake_title(edited)
-    # Outside the central motif, Hall artwork must remain exact.
+    # Outside the arena gate and title, Hall artwork must remain exact.
     for y, (before, after) in enumerate(zip(original, edited)):
         if y < 14 or y > 114:
             if before != after:

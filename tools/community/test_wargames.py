@@ -115,9 +115,24 @@ class WarGamesTests(unittest.TestCase):
         self.assertIn('At(hostCaptain2,x[4],85,col)',ui)
         self.assertIn('local col=(w-36-3*gap)/4',ui)
         self.assertIn('scroll:SetScript("OnSizeChanged"',ui)
-        # Test the exact geometry used at the supported minimum and larger
-        # widths. Each visible card occupies its own vertical interval.
-        for width in (760,800,900,1050):
+        self.assertIn('local SCROLL_LEFT, SCROLL_RIGHT, SCROLLBAR_GUTTER = 25, 30, 22',ui)
+        self.assertIn('local w=UsableCanvasWidth()',ui)
+        self.assertIn('root:HookScript("OnSizeChanged"',ui)
+        self.assertIn('C_Timer.After(0,function()',ui)
+        self.assertNotIn('scroll:GetWidth()-5',ui)
+        # Validate scrollbar gutter and the exact card geometry before any
+        # resize event, including default and minimum window configurations.
+        for root_width in (760,800,900,1050):
+            width=root_width-25-30-22
+            scroll_width=root_width-25-30
+            self.assertGreaterEqual(scroll_width-width,22)
+            # Bar starts 14 px from the viewport's right edge. Panel border
+            # must end at least 8 px before the bar's left edge.
+            self.assertLessEqual(width,scroll_width-22)
+            first_half=(width-72)/2
+            right_start=width-first_half
+            self.assertAlmostEqual(right_start+first_half,width)
+            self.assertGreaterEqual(width-right_start-first_half,0)
             gap=12
             col=(width-36-3*gap)/4
             x=[18+n*(col+gap) for n in range(4)]
@@ -140,3 +155,9 @@ class WarGamesTests(unittest.TestCase):
         self.assertIn("finished plaque matches approved Hall art: PASS", result.stdout)
         generator=src("../../tools/community/generate_wargames_plate.py")
         self.assertIn("display_width, display_height = 112, 24",generator)
+        self.assertIn("def bake_emblem(rows):",generator)
+        self.assertIn("EMBLEM_SOURCE = ROOT",generator)
+        self.assertNotIn("def bake_logo(",generator)
+        emblem=ROOT/"tools/community/artwork/WarGamesArenaGate.png"
+        self.assertTrue(emblem.is_file())
+        self.assertEqual(emblem.read_bytes()[:8],b"\\x89PNG\\r\\n\\x1a\\n")
