@@ -107,6 +107,32 @@ Check(updates==1,"events refresh view")
 unsubscribe()
 driver.OnEvent(driver,"ZONE_CHANGED_NEW_AREA")
 Check(updates==1,"view unsubscribe")
+-- One friend is not an implicit captain for BOTH teams.
+local oldNumber=BNGetNumFriends
+BNGetNumFriends=function() return 1 end
+local oneFriend=Load(true)
+Check(oneFriend.SelectCaptain("host",1,101),"one-friend captain selection")
+Check(oneFriend.GetCaptain("host",1).id==101,"one friend captain one")
+Check(oneFriend.GetCaptain("host",2)==nil,"one friend cannot become captain two")
+Check(oneFriend.GetReason("host"):find("both captains",1,true)~=nil,
+ "one-friend challenge stays disabled")
+BNGetNumFriends=oldNumber
+-- An arena explicitly reported by Retail is appended without changing the
+-- fallback indexes; a battleground is not accepted as an arena.
+GetNumWarGameTypes=function() return 2 end
+GetWarGameTypeInfo=function(i)
+ if i==1 then return "Example Future Arena","ARENA",false,0,2,10,false end
+ return "Example Battleground","BATTLEGROUND",false,0,2,20,false
+end
+local updated=Load(true)
+local liveMaps=updated.GetMaps()
+Check(#liveMaps>=17 and liveMaps[#liveMaps].name=="Example Future Arena",
+ "new arena reported by client is included")
+Check(updated.SelectMap("host",#liveMaps),"selecting new client arena works")
+Check(updated.GetMaps()[#liveMaps].keyword=="Example Future Arena",
+ "use unambiguous full map name for reported arenas")
+GetNumWarGameTypes=nil
+GetWarGameTypeInfo=nil
 local forever=Load(false)
 Check(forever.GetReason("host"):find("Retail only",1,true)~=nil,
  "runtime Forever safety")
