@@ -121,14 +121,12 @@ function Chrome.Shell(frame, header, footer, rail, nav)
     Line(seams, header, "BOTTOMLEFT", "BOTTOMRIGHT", false, C.shellEdge)
     Line(seams, footer, "TOPLEFT", "TOPRIGHT", false, C.shellEdge)
     Line(seams, rail, "TOPRIGHT", "BOTTOMRIGHT", true, C.shellEdge)
-    -- Navigation is hidden on pages with their own version selector.
-    -- A seam parented to the always-visible shell must not remain across
-    -- the Patch Notes hero after nav:Hide(). Follow nav visibility instead,
-    -- while keeping the same high-layer chrome paint owner and anchors.
-    local navSeam = Line(seams, nav, "BOTTOMLEFT", "BOTTOMRIGHT", false, C.goldDim)
-    navSeam:SetShown(nav:IsShown())
-    nav:HookScript("OnShow", function() navSeam:Show() end)
-    nav:HookScript("OnHide", function() navSeam:Hide() end)
+    -- The nav separator must inherit nav's visibility at the *parent*
+    -- level. A texture parented to the always-visible shell can remain
+    -- over the Patch Notes hero when the horizontal tabs are hidden.
+    -- Keep one line owner, anchored to the native tab container itself.
+    local navSeam = Line(nav, nav, "BOTTOMLEFT", "BOTTOMRIGHT", false, C.goldDim)
+    navSeam:EnableMouse(false)
 
     -- The border's modest chamfer is integrated into its one texture.
     -- The separate four 31-pixel ornaments and duplicate edge glows were
