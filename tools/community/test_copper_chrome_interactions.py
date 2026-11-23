@@ -28,6 +28,16 @@ class CopperChromeTests(unittest.TestCase):
         self.assertIn('corner=12, edge=C.window, shine=0.07, shade=0.11, rim=0',wi)
         self.assertIn('Window.chromeSeams = Chrome.Shell',wi)
 
+    def test_navigation_seam_follows_hidden_navigation(self):
+        ch = lua("UI/Chrome.lua")
+        nav = lua("UI/Navigation.lua")
+        self.assertIn('local navSeam = Line(seams, nav, "BOTTOMLEFT", "BOTTOMRIGHT"', ch)
+        self.assertIn('navSeam:SetShown(nav:IsShown())', ch)
+        self.assertIn('nav:HookScript("OnShow", function() navSeam:Show() end)', ch)
+        self.assertIn('nav:HookScript("OnHide", function() navSeam:Hide() end)', ch)
+        self.assertNotIn('Line(seams, nav, "BOTTOMLEFT", "BOTTOMRIGHT", false, C.goldDim)\n\n', ch)
+        self.assertIn('Window.nav:SetShown(#section.pages > 1 and section.key ~= "patchnotes")', nav)
+
     def test_shared_presses_and_no_new_polling_engine(self):
         w=lua("UI/Widgets.lua")
         motion=lua("UI/Motion.lua")
