@@ -32,7 +32,7 @@ class ApprovedDuelHallLayoutTests(unittest.TestCase):
         w, n = read("UI/Window.lua"), read("UI/Navigation.lua")
         self.assertIn('nav:SetPoint("TOPLEFT", content, "TOPLEFT", 22, -83)', w)
         self.assertIn('Window.nav = nav', w)
-        self.assertIn('Window.nav:SetShown(#section.pages > 1)', n)
+        self.assertIn('Window.nav:SetShown(#section.pages > 1 and section.key ~= "patchnotes")', n)
         self.assertIn('Window.nav:SetScript("OnSizeChanged", FitSubTabs)', n)
         self.assertIn('Window.rail:SetScript("OnSizeChanged", FitTabs)', n)
         self.assertIn('sub:SetScript("OnClick", function() Select(index, pageIndex) end)', n)
