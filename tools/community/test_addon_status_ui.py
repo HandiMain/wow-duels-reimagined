@@ -79,6 +79,25 @@ class AddonStatusUIContracts(unittest.TestCase):
         present = read("Core/Presence.lua")
         self.assertIn('A communication restriction can change without any roster change', present)
 
+    def test_minimum_and_default_footer_geometry_clear_left_controls(self):
+        # The layout derives from Window's 1050px minimum, its existing
+        # right-anchored utility region and Footer's responsive widths.
+        # This is source-specific geometry, not an in-game visual claim.
+        for width in (1050, 1075, 1120, 1175, 1200, 1240):
+            ratio = max(0, min(1, (width - 1050) / 190))
+            buttons = [small + (large - small) * ratio
+                       for small, large in zip((112, 82, 98, 78),
+                                               (136, 110, 124, 104))]
+            utility_width = sum(buttons) + 3 * (5 + 3 * ratio)
+            utility_left = width - 187 - utility_width
+            # Earlier footer: build tag, icon, reset and reload.
+            # The left controls shrink with the same ratio.
+            left_edge = 247 + (12 + 12 * ratio - 24) + \\
+                (105 + 27 * ratio) + (6 + 6 * ratio) + \\
+                (85 + 25 * ratio)
+            self.assertGreaterEqual(utility_left - left_edge, 16)
+            self.assertLess(width - 187, width - 169)
+
     def test_no_sample_players_or_fabricated_versions(self):
         page = read("UI/AddonStatus.lua")
         for name in ("Aethon", "Kaelor", "Selara", "Mirelith",

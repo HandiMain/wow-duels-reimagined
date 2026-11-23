@@ -15,7 +15,7 @@ class UtilityRailTests(unittest.TestCase):
             'local HALL_BUTTON_WIDTH = 205',
             'button:SetSize(HALL_BUTTON_WIDTH, 84)',
             'button:SetSize(112, 30)',
-            '(utilityIndex - 1) * 120',
+            'offset = offset + width + (i < #utilityButtons and gap or 0)',
             'sub:SetSize(174, 35)',
             'Window.nav:SetShown(#section.pages > 1 and section.key ~= "patchnotes")',
             'local function FitTabs(self, width)',
@@ -34,10 +34,10 @@ class UtilityRailTests(unittest.TestCase):
             self.assertIn('key = "' + key + '"', n)
         self.assertIn('if isPrimary then primaryButtons[#primaryButtons + 1] = item end', n)
         self.assertIn('button:SetPoint("TOP", self, "TOP", 0, -31 - (i - 1) * 99)', n)
-        self.assertIn('button:SetPoint("LEFT", Window.utility, "LEFT",', n)
+        self.assertIn('item:SetPoint("LEFT", Window.utility, "LEFT",', n)
         self.assertNotIn('button:SetSize(90, 90)', n)
         self.assertIn('local icon = Chrome.Icon(button, section.icon)', n)
-        self.assertIn('Style.ConstrainButtonLabel(button, label, 35, 7, 9)', n)
+        self.assertIn('Style.ConstrainButtonLabel(button, label, 34, 6, 9)', n)
 
     def test_native_appearance_interface_tabs_do_not_enter_gameplay_rail(self):
         n = read("UI/Navigation.lua")

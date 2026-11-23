@@ -29,7 +29,7 @@ class ApprovedOptionsPolishTests(unittest.TestCase):
         self.assertIn('FitLabelFont(entry)',s)
         self.assertIn('entry.size * scale',s)
         self.assertIn('button:HookScript("OnSizeChanged"',s)
-        self.assertIn('Style.ConstrainButtonLabel(button, label, 35, 7, 9)',n)
+        self.assertIn('Style.ConstrainButtonLabel(button, label, 34, 6, 9)',n)
         self.assertIn('Style.ConstrainButtonLabel(button, title, 25, 9, 9)',f)
         self.assertIn('Style.ConstrainButtonLabel(sub, text, 46, 10, 10)',n)
 

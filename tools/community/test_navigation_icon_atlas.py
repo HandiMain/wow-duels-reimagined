@@ -46,7 +46,7 @@ class NavigationIconAtlasTests(unittest.TestCase):
             "icon:SetSize(isPrimary and 48 or 20",
             'icon:SetPoint("TOP", button, "TOP", 0, -4)',
             'label:SetPoint("BOTTOM", button, "BOTTOM", 0, 6)',
-            'Style.ConstrainButtonLabel(button, label, 35, 7, 9)',
+            'Style.ConstrainButtonLabel(button, label, 34, 6, 9)',
             "local function FitTabs(self, width)",
             "local function FitSubTabs(self, width)",
             "FadeSelection(item, on)",

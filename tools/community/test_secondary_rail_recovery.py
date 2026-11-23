@@ -29,7 +29,7 @@ class SecondaryRailRecoveryTests(unittest.TestCase):
     def test_footer_navigation_reaches_all_click_handlers(self):
         nav = text("UI/Navigation.lua")
         self.assertIn('button:SetSize(112, 30)', nav)
-        self.assertIn('button:SetPoint("LEFT", Window.utility, "LEFT",', nav)
+        self.assertIn('item:SetPoint("LEFT", Window.utility, "LEFT",', nav)
         self.assertIn('for index, section in ipairs(sections) do', nav)
         for section in ("community", "patchnotes", "options"):
             self.assertIn('{ key = "' + section + '"', nav)
