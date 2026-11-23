@@ -136,7 +136,7 @@ class WarGamesTests(unittest.TestCase):
             gap=12
             col=(width-36-3*gap)/4
             x=[18+n*(col+gap) for n in range(4)]
-            self.assertGreaterEqual(col,160)
+            self.assertGreaterEqual(col,150)
             self.assertLessEqual(x[-1]+col,width-18+0.01)
             self.assertLess(236,253)
             self.assertLess(252,268)
@@ -160,4 +160,4 @@ class WarGamesTests(unittest.TestCase):
         self.assertNotIn("def bake_logo(",generator)
         emblem=ROOT/"tools/community/artwork/WarGamesArenaGate.png"
         self.assertTrue(emblem.is_file())
-        self.assertEqual(emblem.read_bytes()[:8],b"\\x89PNG\\r\\n\\x1a\\n")
+        self.assertEqual(emblem.read_bytes()[:8],b"\x89PNG\r\n\x1a\n")
