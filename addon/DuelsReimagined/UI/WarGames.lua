@@ -244,8 +244,19 @@ playerCaptain:SetPoint("TOPLEFT",playerForm,"TOPLEFT",162,-99)
 local playerMapLabel=Text(playerForm,"Arena",19,148,13)
 local playerMap = Widgets.ChoiceControl(playerForm,235)
 playerMap:SetPoint("TOPLEFT",playerForm,"TOPLEFT",162,-143)
+-- Match mode uses the same compact switch and tooltip treatment as Options.
+-- It is not an addon preference; no SavedVariables or Reset control.
+local function TournamentToggle(parent,page)
+    return Widgets.ToggleRow(parent,"Tournament Rules",
+        "Use Blizzard tournament match mode; no brackets or results are tracked.",
+        function(enabled)
+            messages[page]=nil
+            Engine.SelectTournamentRules(page,enabled)
+        end)
+end
+local playerTournament=TournamentToggle(playerForm,"player")
 local playerSend=Action(playerForm,"Send Challenge",180,34)
-playerSend:SetPoint("TOPLEFT",playerForm,"TOPLEFT",416,-174)
+playerSend:SetPoint("TOPRIGHT",playerForm,"TOPRIGHT",-18,-185)
 
 local hostCaptain1Label=Text(hostForm,"Team 1 Captain",17,60,13)
 local hostCaptain1=CaptainPicker(hostForm,1,"host")
@@ -253,8 +264,9 @@ local hostCaptain2Label=Text(hostForm,"Team 2 Captain",271,60,13)
 local hostCaptain2=CaptainPicker(hostForm,2,"host")
 local hostMapLabel=Text(hostForm,"Arena",525,60,13)
 local hostMap=Widgets.ChoiceControl(hostForm,209)
+local hostTournament=TournamentToggle(hostForm,"host")
 local hostSend=Action(hostForm,"Request Spectator Match",260,36)
-hostSend:SetPoint("TOP",hostForm,"TOP",0,-142)
+hostSend:SetPoint("TOPRIGHT",hostForm,"TOPRIGHT",-18,-142)
 
 local function SelectMap(page,anchor)
     local entries={}
@@ -295,6 +307,17 @@ end)
 -- overlaps them. The full scroll viewport width includes the 12px track
 -- and its hit area (and a small visual breathing gap).
 local SCROLL_LEFT, SCROLL_RIGHT, SCROLLBAR_GUTTER = 25, 30, 22
+-- Reflow a compact toggle and the request action on one horizontal row;
+-- no extra panel height or second scrollbar owner is necessary.
+local function PlaceMatchControls(panel,toggle,action,width,top)
+    local toggleWidth=math.max(160,math.min(290,width-36-action:GetWidth()-18))
+    toggle:ClearAllPoints()
+    toggle:SetPoint("TOPLEFT",panel,"TOPLEFT",18,-top-3)
+    toggle:SetWidth(toggleWidth)
+    toggle:LayoutForWidth(toggleWidth,true)
+    action:ClearAllPoints()
+    action:SetPoint("TOPRIGHT",panel,"TOPRIGHT",-18,-top)
+end
 local function UsableCanvasWidth()
     -- The first OnShow can precede the ScrollFrame's width propagation.
     -- root is anchored to the already-sized main content, so computing
@@ -333,8 +356,7 @@ local function Layout()
             Position(playerForm,0,0,w,252)
             Position(playerSetup,0,268,w,teamHeight)
             canvas:SetHeight(280+teamHeight)
-            playerSend:ClearAllPoints()
-            playerSend:SetPoint("TOP",playerForm,"TOP",0,-185)
+            PlaceMatchControls(playerForm,playerTournament,playerSend,w,185)
         end
     elseif inArena then
         Position(hostTeam1,0,0,half,258)
@@ -366,6 +388,7 @@ local function Layout()
         At(hostMap,x[2],85,col)
         At(hostCaptain1,x[3],85,col)
         At(hostCaptain2,x[4],85,col)
+        PlaceMatchControls(hostForm,hostTournament,hostSend,w,142)
         Position(hostTeam1,0,253,half,258)
         Position(hostTeam2,secondX,253,half,258)
         vs:ClearAllPoints()
@@ -399,6 +422,10 @@ function View.Refresh()
     if not c then return end
     local cfgPlayer=Engine.GetConfig("player")
     local cfgHost=Engine.GetConfig("host")
+    playerTournament:SetChecked(cfgPlayer.tournamentRules)
+    hostTournament:SetChecked(cfgHost.tournamentRules)
+    playerTournament:RefreshColors()
+    hostTournament:RefreshColors()
     for i,button in ipairs(playerBrackets) do
         local chosen=Engine.Brackets[i]==cfgPlayer.bracket
         button.label:SetTextColor(unpack(chosen and C.pale or C.text))
@@ -503,4 +530,20 @@ ns.Search.Register("wargames:challenge","Send War Game Challenge",
 ns.Search.Register("wargames:spectate","Host / Spectate War Game",
     "War Games","Choose two captains and arrange a spectator War Game",
     function() if ns.Navigation then ns.Navigation.SelectKey("wargames","host") end end,
+    function() return ns.Client.IsRetail() end)
+
+-- Match options are searchable but remain on their match setup panels.
+local function FindTournament(page,target)
+    if not (ns.Navigation and ns.Navigation.SelectKey("wargames",page)) then return end
+    scroll:SetVerticalScroll(0)
+    scrollbar:Refresh()
+    if ns.Feedback then ns.Feedback.PulseTarget(target) end
+end
+ns.Search.Register("wargames:tournament:player","Tournament Rules — Players",
+    "War Games / Players","Toggle tournament rules for an arena challenge",
+    function() FindTournament("player",playerTournament) end,
+    function() return ns.Client.IsRetail() end)
+ns.Search.Register("wargames:tournament:host","Tournament Rules — Host",
+    "War Games / Host","Toggle tournament rules for a spectator match",
+    function() FindTournament("host",hostTournament) end,
     function() return ns.Client.IsRetail() end)

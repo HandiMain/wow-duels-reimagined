@@ -1,6 +1,6 @@
 # Retail War Games — approved design and test limits
 
-This feature is Retail-only. The two Players layouts (setup and inside arena) and faction-neutral Host/Spectate layout were approved by the user; the 5v5 roster capacity is five fighters on each side. The host is not one of the fighters. Tournament /roll rules are explicitly excluded.
+This feature is Retail-only. The two Players layouts (setup and inside arena) and faction-neutral Host/Spectate layout were approved by the user; the 5v5 roster capacity is five fighters on each side. The host is not one of the fighters. Blizzard tournament match-mode is supported as an optional switch, OFF by default. Tournament brackets, /roll procedures, scoring and automatic results remain excluded.
 
 Players: Detect the Blizzard party/raid through the shared Core/Group owner. Select 2v2, 3v3 or 5v5, an arena and one real Battle.net friend captain. The group leader may submit a StartWarGameByName request only with an exactly matching group size. The action never claims that anyone accepted or entered.
 
@@ -33,3 +33,13 @@ The War Games ScrollFrame previously painted child cards using almost the entire
 ## Compact emblem and stable scroll gutter
 
 The simplified War Games shield is a high-contrast faction-neutral symbol, not Hall's crossed swords or a detailed building. Only the final Hall-derived plaque loads in WoW, with one lightweight indexed PNG as reproducible source. The former gate source is deleted. Both Players and Host team cards calculate against the usable width (viewport minus the 22px scrollbar gutter), while the scroll child itself spans the viewport. The VS ornament uses the same usable width. This prevents scroll-child sizing from pushing the right border behind the scrollbar on initial show or resize. Actual WoW layout and multiplayer entry remain pending final tests.
+
+## Tournament Rules option (2026-11-23)
+
+Retail Players and Host / Spectate each have an independent **Tournament Rules** toggle, OFF by default. It reuses the existing compact `Widgets.ToggleRow`, click/hover motion and tooltip. Both toggles are listed in Search and share the action row with Send Challenge / Request Spectator Match. The card sizes and scroll gutter are unchanged.
+
+Tournament Rules is a session-only **match option**, not a global Options preference; it does not enter SavedVariables and resets to OFF on reload. The original player request ends in `0` and spectator request passes `false` when OFF; when ON they send `1` and `true` respectively. Current arena/team/captain checks remain untouched. No result, opponent acceptance or spectator entry is invented.
+
+References: Polestar's existing toggle and disabled-state UX, Duels Options' own `ToggleRow`, the Retail Blizzard spectator slash command (`ValueToBoolean(isTournamentMode)`), and the Warcraft Wiki `/wg ... [tournamentrules]` parameter. These support API payloads but not live match success.
+
+Live QA: On Retail check both independent toggles, tooltips, Search, minimum-size layout and default-off reload; send ON/OFF challenge and spectator requests with consenting teams and verify Blizzard's real outcome. On Forever the War Games page stays unavailable. Multiplayer results remain **NOT VERIFIED**.

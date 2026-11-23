@@ -38,6 +38,11 @@ local function Load(retail)
 end
 local W=Load(true)
 Check(#W.Brackets==3 and W.Brackets[3]==5,"full 5v5 bracket")
+Check(W.GetConfig("player").tournamentRules==false and
+  W.GetConfig("host").tournamentRules==false,"tournament mode defaults off")
+Check(not W.SelectTournamentRules("host","true") and
+  not W.SelectTournamentRules("unknown",true),"invalid tournament values rejected")
+Check(W.GetConfig("host").tournamentRules==false,"bad input leaves mode off")
 Check(W.GetReason("player")~=nil,"must require captain")
 local maps=W.GetMaps()
 Check(#maps>=16,"expanded Retail arena references")
@@ -49,8 +54,14 @@ Check(roster[1].online==true and roster[2].online==false,
  "online and offline status from Blizzard is preserved")
 Check(#sends==0 and #spectates==0,"no automatic requests")
 local ok,msg=W.Request("player")
-Check(ok and sends[1]=="OneAccount nagrand 0","Retail challenge arguments")
+Check(ok and sends[1]=="OneAccount nagrand 0","default Retail challenge")
 Check(msg:find("not confirmed",1,true)~=nil,"never claim entry")
+Check(W.SelectTournamentRules("player",true),"enable player tournament mode")
+Check(W.GetConfig("player").tournamentRules==true and
+  W.GetConfig("host").tournamentRules==false,"independent player and host state")
+ok,msg=W.Request("player")
+Check(ok and sends[2]=="OneAccount nagrand 1","player tournament request payload")
+Check(W.SelectTournamentRules("player",false),"player toggle returns to off")
 Check(not W.SelectCaptain("host",1,999),"reject unknown ID")
 Check(W.SelectCaptain("host",1,101),"first host captain")
 Check(W.GetCaptain("host",1).id==101,"team 1 selection")
@@ -73,7 +84,14 @@ ok,msg=W.Request("host")
 Check(ok and #spectates==1,"only button requests spectator")
 Check(spectates[1][1]==101 and spectates[1][2]==202 and
  spectates[1][3]==5 and spectates[1][4]=="Nagrand Arena" and
- spectates[1][5]==false,"spectator API arguments")
+ spectates[1][5]==false,"default spectator API arguments")
+Check(W.SelectTournamentRules("host",true),"enable spectator tournament mode")
+Check(W.GetConfig("host").tournamentRules==true and
+  W.GetConfig("player").tournamentRules==false,"host state independent of player")
+ok,msg=W.Request("host")
+Check(ok and #spectates==2 and spectates[2][5]==true,
+  "spectator tournament request payload")
+Check(W.SelectTournamentRules("host",false),"host toggle returns to off")
 Check(not W.SelectBracket("player",4),"reject fake bracket")
 Check(not W.SelectMap("player",999),"reject unknown map")
 leader=false
@@ -98,7 +116,7 @@ Check(not W.InArena(),"setup resumes outside arena")
 local fn=StartWarGameByName
 StartWarGameByName=function() error("blocked") end
 ok,msg=W.Request("player")
-Check(not ok and #sends==1,"API failure not a successful match")
+Check(not ok and #sends==2,"API failure not a successful match")
 StartWarGameByName=fn
 local updates=0
 local unsubscribe=W.Subscribe(function() updates=updates+1 end)

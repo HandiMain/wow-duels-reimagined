@@ -78,6 +78,39 @@ class WarGamesTests(unittest.TestCase):
         self.assertIn('row.dot:SetShown(type(status) == "boolean")',widgets)
         self.assertIn('ChoiceCatcher():Show()',widgets)
 
+    def test_tournament_rules_remain_independent_and_match_local(self):
+        core=src("Core/WarGames.lua")
+        ui=src("UI/WarGames.lua")
+        runtime=(ROOT/"tools/community/check_wargames_runtime.lua").read_text(encoding="utf-8")
+        for token in ("tournamentRules = false",
+                      "function WarGames.SelectTournamentRules(page, enabled)",
+                      'type(enabled) ~= "boolean"',
+                      "tournamentRules=s.tournamentRules",
+                      'local rules = s.tournamentRules and "1" or "0"',
+                      'map.name, s.tournamentRules == true'):
+            self.assertIn(token,core)
+        for token in ('local playerTournament=TournamentToggle(playerForm,"player")',
+                      'local hostTournament=TournamentToggle(hostForm,"host")',
+                      'Widgets.ToggleRow(parent,"Tournament Rules"',
+                      'toggle:LayoutForWidth(toggleWidth,true)',
+                      'PlaceMatchControls(playerForm,playerTournament,playerSend,w,185)',
+                      'PlaceMatchControls(hostForm,hostTournament,hostSend,w,142)',
+                      'playerTournament:SetChecked(cfgPlayer.tournamentRules)',
+                      'hostTournament:SetChecked(cfgHost.tournamentRules)',
+                      'ns.Search.Register("wargames:tournament:player"',
+                      'ns.Search.Register("wargames:tournament:host"'):
+            self.assertIn(token,ui)
+        self.assertNotIn('Settings.Set("tournamentRules"',ui)
+        self.assertNotIn('SetScript("OnUpdate"',core+ui)
+        self.assertIn('sends[2]=="OneAccount nagrand 1"',runtime)
+        self.assertIn('spectates[2][5]==true',runtime)
+        self.assertIn('Position(playerForm,0,0,w,252)',ui)
+        self.assertIn('Position(hostForm,0,0,w,236)',ui)
+        for width in (683,720,820,1000):
+            for action in (180,260):
+                toggle=max(160,min(290,width-36-action-18))
+                self.assertLessEqual(18+toggle+18,width-18-action)
+
     def test_same_sized_primary_skin_reuses_existing_art(self):
         nav=src("UI/Navigation.lua")
         self.assertIn("HALL_BUTTON_WIDTH = 205",nav)

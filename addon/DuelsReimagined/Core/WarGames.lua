@@ -7,8 +7,8 @@ ns.WarGames = WarGames
 local Group, Client = ns.Group, ns.Client
 local listeners = {}
 local state = {
-    player = { bracket = 2, map = 1 },
-    host = { bracket = 5, map = 1 },
+    player = { bracket = 2, map = 1, tournamentRules = false },
+    host = { bracket = 5, map = 1, tournamentRules = false },
 }
 local arena = false
 local lastResult
@@ -127,7 +127,7 @@ function WarGames.InArena() return IsArena() end
 function WarGames.GetConfig(page)
     local s = state[page]
     if not s then return nil end
-    return { bracket=s.bracket, map=s.map, captain=s.captain,
+    return { bracket=s.bracket, map=s.map, tournamentRules=s.tournamentRules, captain=s.captain,
         captain1=s.captain1, captain2=s.captain2 }
 end
 function WarGames.SelectBracket(page, count)
@@ -138,6 +138,18 @@ function WarGames.SelectBracket(page, count)
     Notify()
     return true
 end
+-- Match-local toggle, not an addon-wide preference or tournament manager.
+-- Players and Host each retain their own selection for this session.
+function WarGames.SelectTournamentRules(page, enabled)
+    local s = state[page]
+    if not s or type(enabled) ~= "boolean" then return false end
+    if s.tournamentRules ~= enabled then
+        s.tournamentRules = enabled
+        Notify()
+    end
+    return true
+end
+
 function WarGames.SelectMap(page, index)
     if not state[page] or type(index) ~= "number" or
         index ~= math.floor(index) or not WarGames.GetMaps()[index] then return false end
@@ -286,15 +298,15 @@ function WarGames.Request(page)
     local ok, result
     if page == "player" then
         local captain = WarGames.GetCaptain("player", 1)
-        -- The Retail slash API expects the Battle.net account NAME, plus a
-        -- unique arena keyword and 0 for non-tournament rules.
+        -- The Retail slash API reads tournament rules as 0 (off) or 1 (on).
+        local rules = s.tournamentRules and "1" or "0"
         ok, result = pcall(StartWarGameByName,
-            captain.accountName .. " " .. map.keyword .. " 0")
+            captain.accountName .. " " .. map.keyword .. " " .. rules)
     elseif page == "host" then
         local a, b = WarGames.GetCaptain("host", 1),
             WarGames.GetCaptain("host", 2)
         ok, result = pcall(StartSpectatorWarGame,
-            a.id, b.id, s.bracket, map.name, false)
+            a.id, b.id, s.bracket, map.name, s.tournamentRules == true)
     else
         return false, "Select a War Games page."
     end
