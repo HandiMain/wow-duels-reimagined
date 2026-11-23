@@ -105,7 +105,22 @@ scroll:HookScript("OnShow", ClampScroll)
 -- addon files). Image paths are client-owned; fade art is the fallback.
 local art = "Interface\\AddOns\\DuelsReimagined\\Media\\Concept\\CommunityFactionMarks.png"
 local allianceArt = "Interface\\AddOns\\DuelsReimagined\\Media\\Concept\\CommunityAllianceLion.png"
-local symbolArt = "Interface\\AddOns\\DuelsReimagined\\Media\\Concept\\CommunityConceptSymbols.png"
+local conceptRoot = "Interface\\AddOns\\DuelsReimagined\\Media\\Concept\\"
+local conceptHero = conceptRoot .. "CommunityConceptHero.png"
+local conceptTitle = conceptRoot .. "CommunityConceptTitle.png"
+local conceptButtons = conceptRoot .. "CommunityConceptButtons.png"
+local conceptHeaders = conceptRoot .. "CommunityConceptHeaders.png"
+local conceptIcons = conceptRoot .. "CommunityConceptIcons.png"
+local function ExactSymbol(parent, slot, size)
+    local tex = parent:CreateTexture(nil, "ARTWORK")
+    tex:SetTexture(conceptIcons)
+    local x = slot % 8
+    local y = math.floor(slot / 8)
+    tex:SetTexCoord(x / 8, (x + 1) / 8, y / 2, (y + 1) / 2)
+    tex:SetSize(size, size)
+    tex:EnableMouse(false)
+    return Chrome.Sharp(tex)
+end
 local function ConceptSymbol(parent, slot, size)
     local tex = parent:CreateTexture(nil, "ARTWORK")
     tex:SetTexture(symbolArt)
@@ -126,57 +141,23 @@ hero:SetHeight(171)
 Style.Skin(hero, C.window, { corner=8, edge=C.goldDim,
     smooth=true, rim=0.48 })
 
-local function FactionMark(left)
-    local background = hero:CreateTexture(nil, "BORDER", nil, 1)
-    background:SetTexture("Interface\\PVPFrame\\" ..
-        (left and "PvPQueueBackgroundAlliance" or "PvPQueueBackgroundHorde"))
-    background:SetSize(304, 171)
-    if left then
-        background:SetPoint("TOPLEFT", hero, "TOPLEFT", 1, -1)
-        background:SetTexCoord(0.05, 0.78, 0.02, 0.96)
-    else
-        background:SetPoint("TOPRIGHT", hero, "TOPRIGHT", -1, -1)
-        background:SetTexCoord(0.02, 0.80, 0.02, 0.96)
-    end
-    background:SetVertexColor(left and 0.65 or 0.95,
-        left and 0.80 or 0.56, left and 1 or 0.55)
-    background:SetAlpha(0.68)
-    background:EnableMouse(false)
-    Chrome.Sharp(background)
-    -- Actual source faction symbols, enlarged to the hero scale. The tiny
-    -- TargetingFrame PvP shields are not suitable as full-size faction marks.
-    local emblem = hero:CreateTexture(nil, "ARTWORK", nil, 1)
-    if left then
-        emblem:SetTexture(allianceArt)
-        emblem:SetTexCoord(0, 1, 0, 1)
-        emblem:SetPoint("CENTER", background, "CENTER", -15, 1)
-    else
-        emblem:SetTexture(art)
-        emblem:SetTexCoord(0.5, 1, 0, 1)
-        emblem:SetPoint("CENTER", background, "CENTER", 28, 1)
-    end
-    emblem:SetSize(176, 176)
-    emblem:SetAlpha(0.86)
-    emblem:EnableMouse(false)
-    Chrome.Sharp(emblem)
-    return background, emblem
-end
-FactionMark(true)
-FactionMark(false)
+-- Real, user-approved hero banner pixels. The transparent center gives
+-- native title/action hit targets clean ownership without image duplicates.
+local exactHeroArt = hero:CreateTexture(nil, "BACKGROUND", nil, 4)
+exactHeroArt:SetTexture(conceptHero)
+exactHeroArt:SetAllPoints(hero)
+exactHeroArt:SetTexCoord(0, 1, 0, 192 / 256)
+exactHeroArt:EnableMouse(false)
+Chrome.Sharp(exactHeroArt)
 
-local title = Style.Text(hero, "THE DUELIST'S CIRCLE", 28, C.pale, nil, "display")
--- Full-width center anchor prevents clipping at the minimum window size.
-title:SetPoint("TOPLEFT", hero, "TOPLEFT", 24, -14)
-title:SetPoint("TOPRIGHT", hero, "TOPRIGHT", -24, -14)
-title:SetJustifyH("CENTER")
-title:SetWordWrap(false)
-local ornament = Chrome.Divider(hero, 340, 12)
-ornament:SetPoint("TOP", title, "BOTTOM", 0, -4)
-local subtitle = Style.Text(hero, "The people shaping Duels Reimagined.", 13, C.text)
-subtitle:SetPoint("TOP", ornament, "BOTTOM", 0, -2)
-subtitle:SetJustifyH("CENTER")
-subtitle:SetWidth(460)
-subtitle:SetWordWrap(false)
+-- The title and ornament are static approved branding, never gameplay data.
+local exactTitle = hero:CreateTexture(nil, "ARTWORK", nil, 3)
+exactTitle:SetTexture(conceptTitle)
+exactTitle:SetSize(418, 77)
+exactTitle:SetTexCoord(0, 518 / 1024, 0, 93 / 128)
+exactTitle:SetPoint("TOP", hero, "TOP", -24, -10)
+exactTitle:EnableMouse(false)
+Chrome.Sharp(exactTitle)
 
 local function SelectableURL(kind)
     if not ns.Footer or not ns.Footer.ShowCommunityLink then return end
