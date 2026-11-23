@@ -24,7 +24,7 @@ class ThemeRedesignTests(unittest.TestCase):
         self.assertIn('button:SetSize(112, 30)', n)
         self.assertIn('sub:SetSize(174, 35)', n)
         self.assertIn('local function FitSubTabs(self, width)', n)
-        self.assertIn('Window.nav:SetShown(#section.pages > 1)', n)
+        self.assertIn('Window.nav:SetShown(#section.pages > 1 and section.key ~= "patchnotes")', n)
         self.assertIn('Window.rail:Hide()', h)
         self.assertIn('Window.rail:Show()', h)
 
