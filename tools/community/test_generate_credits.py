@@ -44,6 +44,10 @@ class CommunityCreditsTests(unittest.TestCase):
         self.assertEqual(credits["contributors"], [{"name": "SomeDev", "prs": 2}])
         self.assertEqual(credits["specialThanks"], ["KindPlayer"])
         self.assertEqual(credits["ideas"], [{"name": "Creative", "ref": 5}])
+        self.assertEqual(credits["stats"], {
+            "contributors": 1, "bugReports": 4,
+            "communityIdeas": 1, "specialThanks": 1,
+        })
 
     def test_bot_duplicates_and_invalid_are_excluded(self):
         self.issues[0]["labels"].append({"name": "invalid"})
@@ -57,6 +61,9 @@ class CommunityCreditsTests(unittest.TestCase):
         result = lua_render(data)
         self.assertIn('Duel \\"Master\\" \\\\ Test', result)
         self.assertIn("ns.CommunityCredits = {", result)
+        self.assertIn("    stats = {", result)
+        self.assertIn("        bugReports = 0,", result)
+        self.assertIn("        communityIdeas = 0,", result)
 
     def test_invalid_config_rejected(self):
         with tempfile.TemporaryDirectory() as tmp:
