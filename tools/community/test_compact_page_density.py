@@ -106,7 +106,7 @@ class CompactPageDensityTests(unittest.TestCase):
             'local statsPanel = CreateFrame("Frame", nil, canvas)',
             'local creditsPanel = InfoPanel(true, "COMMUNITY CREDITS"',
             'local helpPanel = InfoPanel(false, "HOW TO HELP"',
-            "canvas:SetHeight(468)", "listing:SetHeight(245)",
+            "canvas:SetHeight(460)", "listing:SetHeight(245)",
             "canvas:SetHeight(185 + h + 20)",
             "math.max(245, 116 + #entries * 30)",
             'Action("bug", "REPORT A BUG", -139)',
@@ -115,7 +115,7 @@ class CompactPageDensityTests(unittest.TestCase):
             "function Community.Show(key)",
         ):
             self.assertIn(marker, c)
-        self.assertLessEqual(247 + 203, 468)
+        self.assertLessEqual(247 + 196, 460)
 
     def test_patch_notes_reflow_keeps_version_data_and_link_targets(self):
         p = src("UI/PatchNotes.lua")
