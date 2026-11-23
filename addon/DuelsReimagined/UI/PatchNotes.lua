@@ -104,19 +104,25 @@ end)
 local versions = {}
 local railY = 2
 for index, release in ipairs(releases) do
+    local archived = index > 3
     if index == 4 then
-        local archiveLine = Chrome.Divider(versionCanvas, 132, 11)
-        archiveLine:SetPoint("TOP", versionCanvas, "TOP", 0, -railY - 3)
-        railY = railY + 18
-        local archiveLabel = Style.Text(versionCanvas, "EARLIER UPDATES", 10, C.gold)
-        archiveLabel:SetPoint("TOP", versionCanvas, "TOP", 0, -railY)
-        archiveLabel:SetJustifyH("CENTER")
-        railY = railY + 23
+        -- Small gold separator matches the concept archive without placing
+        -- another wide divider over the live release banner.
+        local archiveLine = Style.Fill(versionCanvas, C.goldDim, "ARTWORK")
+        archiveLine:ClearAllPoints()
+        archiveLine:SetPoint("TOP", versionCanvas, "TOP", 0, -railY - 8)
+        archiveLine:SetSize(132, Style.Pixel(versionCanvas, 2))
+        archiveLine:SetAlpha(0.66)
+        local jewel = versionCanvas:CreateTexture(nil, "OVERLAY")
+        jewel:SetTexture("Interface\\AddOns\\DuelsReimagined\\Media\\Skin\\DuelCornerJewel.tga")
+        jewel:SetSize(14, 14)
+        jewel:SetPoint("CENTER", archiveLine, "CENTER", 0, 0)
+        railY = railY + 36
     end
     local button = CreateFrame("Button", nil, versionCanvas)
     button:SetPoint("TOPLEFT", versionCanvas, "TOPLEFT", 2, -railY)
     button:SetPoint("TOPRIGHT", versionCanvas, "TOPRIGHT", -2, -railY)
-    button:SetHeight(58)
+    button:SetHeight(archived and 39 or 58)
     button:RegisterForClicks("LeftButtonUp")
     Style.Skin(button, C.nav, { corner=9, edge=C.border,
         shine=0.17, shade=0.13, rim=0.72 })
@@ -137,14 +143,19 @@ for index, release in ipairs(releases) do
     dot:SetSize(18, 18)
     dot:SetPoint("LEFT", button, "LEFT", 9, 0)
     dot:EnableMouse(false)
-    local number = Style.Text(button, release.version or "?", 17, C.pale)
-    number:SetPoint("TOPLEFT", button, "TOPLEFT", 35, -8)
+    local archiveArrow = Style.Text(button, ">", 13, C.gold)
+    archiveArrow:SetPoint("LEFT", button, "LEFT", 12, 0)
+    archiveArrow:SetShown(archived)
+    dot:SetShown(not archived)
+    local number = Style.Text(button, release.version or "?", archived and 15 or 17, C.pale)
+    number:SetPoint("TOPLEFT", button, "TOPLEFT", 35, archived and -8 or -8)
     number:SetPoint("TOPRIGHT", button, "TOPRIGHT", -6, -8)
     number:SetWordWrap(false)
     local description = Style.Text(button, release.navTitle or "Update", 11, C.muted)
     description:SetPoint("TOPLEFT", button, "TOPLEFT", 35, -33)
     description:SetPoint("TOPRIGHT", button, "TOPRIGHT", -6, -33)
     description:SetWordWrap(false)
+    description:SetShown(not archived)
     button:SetScript("OnClick", function()
         if ns.Navigation then
             ns.Navigation.SelectKey("patchnotes", release.key)
@@ -163,8 +174,9 @@ for index, release in ipairs(releases) do
             ". Select to read this version.",
     })
     versions[index] = { frame=button, selected=selected, dot=dot,
+        archiveArrow=archiveArrow, archived=archived,
         version=number, description=description, offset=railY }
-    railY = railY + 67
+    railY = railY + (archived and 47 or 67)
 end
 versionCanvas:SetHeight(math.max(1, railY + 9))
 
@@ -504,7 +516,8 @@ local function Populate(release, index)
     for i, item in ipairs(versions) do
         local current = i == index
         item.selected:SetAlpha(current and 1 or 0)
-        item.dot:SetShown(not current)
+        item.dot:SetShown(not current and not item.archived)
+        item.archiveArrow:SetShown(item.archived and not current)
         item.version:SetTextColor(unpack(current and C.tabText or C.pale))
     end
     for i, row in ipairs(rows) do
