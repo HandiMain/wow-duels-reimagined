@@ -66,6 +66,13 @@ communityHeading:SetPoint("TOPLEFT", root, "TOPLEFT", 64, -16)
 local communityTagline = Style.Text(root, "The people shaping Duels Reimagined.", 13, C.text)
 communityTagline:SetPoint("TOPLEFT", communityHeading, "BOTTOMLEFT", 0, -3)
 
+-- Artwork was previously stretched across every available width. Restrict the
+-- approved design to its original proportions, then reflow narrow windows.
+-- Resize events own layout; no permanent OnUpdate or second resize engine.
+local DESIGN_WIDTH, CARD_BREAKPOINT = 940, 930
+local ReflowCommunity
+local selectedKey = "community"
+
 local scroll = CreateFrame("ScrollFrame", nil, root)
 scroll:SetPoint("TOPLEFT", root, "TOPLEFT", 19, -131)
 scroll:SetPoint("BOTTOMRIGHT", root, "BOTTOMRIGHT", -22, 16)
@@ -73,6 +80,12 @@ scroll:EnableMouseWheel(true)
 local canvas = CreateFrame("Frame", nil, scroll)
 canvas:SetSize(900, 532)
 scroll:SetScrollChild(canvas)
+
+-- The canvas fills the scroll viewport so the child can be centered even
+-- when the window grows far wider than the approved Community composition.
+local stage = CreateFrame("Frame", nil, canvas)
+stage:SetPoint("TOP", canvas, "TOP", 0, 0)
+stage:SetSize(DESIGN_WIDTH, 460)
 
 local bar = Widgets.ScrollBar(scroll, function()
     return scroll:GetHeight(), canvas:GetHeight(), scroll:GetVerticalScroll()
@@ -94,6 +107,7 @@ end)
 scroll:SetScript("OnVerticalScroll", function() bar:Refresh() end)
 scroll:SetScript("OnSizeChanged", function(_, width)
     canvas:SetWidth(math.max(1, (width or 900) - 14))
+    if ReflowCommunity then ReflowCommunity() end
     if scroll.UpdateScrollChildRect then scroll:UpdateScrollChildRect() end
     ClampScroll()
 end)
@@ -134,10 +148,11 @@ end
 
 -- One subdued rim encloses the banner; the label/action hitboxes remain in
 -- the same canvas above it and are never baked into a screenshot.
-local hero = CreateFrame("Frame", nil, canvas)
-hero:SetPoint("TOPLEFT", canvas, "TOPLEFT", 4, 0)
-hero:SetPoint("TOPRIGHT", canvas, "TOPRIGHT", -4, 0)
-hero:SetHeight(158)
+local hero = CreateFrame("Frame", nil, stage)
+-- A fixed source-ratio design plane. Narrow windows scale the entire hero
+-- uniformly, including textures, lettering and true button hitboxes.
+hero:SetPoint("TOP", stage, "TOP", 0, 0)
+hero:SetSize(DESIGN_WIDTH - 8, 158)
 Style.Skin(hero, C.window, { corner=8, edge=C.goldDim,
     smooth=true, rim=0.48 })
 
@@ -202,9 +217,9 @@ local ideaAction = Action("idea", "SUGGEST AN IDEA", 133)
 -- All counters come from the same bundled generated GitHub data as those lists.
 local overviewPieces = {}
 
-local statsPanel = CreateFrame("Frame", nil, canvas)
-statsPanel:SetPoint("TOPLEFT", canvas, "TOPLEFT", 12, -163)
-statsPanel:SetPoint("TOPRIGHT", canvas, "TOPRIGHT", -12, -163)
+local statsPanel = CreateFrame("Frame", nil, stage)
+statsPanel:SetPoint("TOPLEFT", stage, "TOPLEFT", 12, -163)
+statsPanel:SetPoint("TOPRIGHT", stage, "TOPRIGHT", -12, -163)
 statsPanel:SetHeight(58)
 -- The statistic strip is only 58px tall; use short native relief here,
 -- not the 112px fades intended for large card backgrounds.
@@ -223,6 +238,7 @@ local statDefs = {
       tooltip="People explicitly acknowledged in the reviewed community credits file." },
 }
 local statCells = {}
+local statsColumns = 4
 for i, def in ipairs(statDefs) do
     local cell = CreateFrame("Frame", nil, statsPanel)
     cell:SetHeight(58)
@@ -250,11 +266,13 @@ for i, def in ipairs(statDefs) do
 end
 local function FitStats(_, width)
     width = math.max(1, width or statsPanel:GetWidth())
-    local cellWidth = width / #statCells
+    local cellWidth = width / statsColumns
     for i, item in ipairs(statCells) do
+        local column = (i - 1) % statsColumns
+        local line = math.floor((i - 1) / statsColumns)
         item.frame:ClearAllPoints()
         item.frame:SetPoint("TOPLEFT", statsPanel, "TOPLEFT",
-            (i - 1) * cellWidth, 0)
+            column * cellWidth, -line * 58)
         item.frame:SetSize(cellWidth, 58)
     end
 end
@@ -266,14 +284,14 @@ FitStats(statsPanel, statsPanel:GetWidth())
 -- are one approved visual texture each. Live, actionable subcategories
 -- continue to exist as the five native tabs and detail lists above.
 local function InfoPanel(left, heading, description, iconIndex)
-    local panel = CreateFrame("Frame", nil, canvas)
+    local panel = CreateFrame("Frame", nil, stage)
     panel:SetHeight(203)
     if left then
-        panel:SetPoint("TOPLEFT", canvas, "TOPLEFT", 12, -233)
-        panel:SetPoint("TOPRIGHT", canvas, "TOP", 20, -233)
+        panel:SetPoint("TOPLEFT", stage, "TOPLEFT", 12, -233)
+        panel:SetPoint("TOPRIGHT", stage, "TOP", 20, -233)
     else
-        panel:SetPoint("TOPLEFT", canvas, "TOP", 38, -233)
-        panel:SetPoint("TOPRIGHT", canvas, "TOPRIGHT", -12, -233)
+        panel:SetPoint("TOPLEFT", stage, "TOP", 38, -233)
+        panel:SetPoint("TOPRIGHT", stage, "TOPRIGHT", -12, -233)
     end
     -- Shared background remains, but the original concept crop is the one
     -- border/text paint owner (avoid two overlapping copper rims).
@@ -316,9 +334,9 @@ local function UpdateOverview()
 end
 
 -- A single reusable detail list, rather than creating four separate panels.
-local listing = CreateFrame("Frame", nil, canvas)
-listing:SetPoint("TOPLEFT", canvas, "TOPLEFT", 22, -175)
-listing:SetPoint("TOPRIGHT", canvas, "TOPRIGHT", -22, -175)
+local listing = CreateFrame("Frame", nil, stage)
+listing:SetPoint("TOPLEFT", stage, "TOPLEFT", 22, -175)
+listing:SetPoint("TOPRIGHT", stage, "TOPRIGHT", -22, -175)
 listing:SetHeight(245)
 Style.Skin(listing, C.nav, { corner=11, edge=C.border, shine=0.25, shade=0.26 })
 local listTitle = Style.Text(listing, "", 19, C.gold)
@@ -359,8 +377,70 @@ local function UpdateList(data)
     end
     local h = math.max(245, 116 + #entries * 30)
     listing:SetHeight(h)
-    canvas:SetHeight(185 + h + 20)
 end
+
+-- At default size this resolves to the approved 940x460 composition.
+-- Wider windows center it without stretching bitmap lettering or faction
+-- graphics. At compact sizes the hero scales as one piece, statistic cells
+-- reflow into two readable rows, and both art-backed cards stack at their
+-- full readable width with natural vertical scrolling.
+ReflowCommunity = function()
+    local width = math.max(1, math.min(DESIGN_WIDTH, canvas:GetWidth()))
+    local compact = width < CARD_BREAKPOINT
+    stage:SetWidth(width)
+
+    local heroScale = math.min(1, width / DESIGN_WIDTH)
+    hero:SetScale(heroScale)
+    local heroHeight = 158 * heroScale
+    local statsTop = heroHeight + 5
+    local statsHeight = compact and 116 or 58
+    local cardsTop = statsTop + statsHeight + 12
+
+    statsColumns = compact and 2 or 4
+    statsPanel:ClearAllPoints()
+    statsPanel:SetPoint("TOPLEFT", stage, "TOPLEFT", 12, -statsTop)
+    statsPanel:SetPoint("TOPRIGHT", stage, "TOPRIGHT", -12, -statsTop)
+    statsPanel:SetHeight(statsHeight)
+    FitStats(statsPanel, math.max(1, width - 24))
+
+    creditsPanel:ClearAllPoints()
+    helpPanel:ClearAllPoints()
+    local contentBottom
+    if compact then
+        -- Never compress fixed-image text into narrow half-width cards.
+        local cardWidth = math.min(510, math.max(1, width - 24))
+        creditsPanel:SetSize(cardWidth, 203)
+        helpPanel:SetSize(cardWidth, 203)
+        creditsPanel:SetPoint("TOP", stage, "TOP", 0, -cardsTop)
+        helpPanel:SetPoint("TOP", stage, "TOP", 0, -(cardsTop + 213))
+        contentBottom = cardsTop + 213 + 203
+    else
+        creditsPanel:SetHeight(203)
+        helpPanel:SetHeight(203)
+        creditsPanel:SetPoint("TOPLEFT", stage, "TOPLEFT", 12, -cardsTop)
+        creditsPanel:SetPoint("TOPRIGHT", stage, "TOP", 20, -cardsTop)
+        helpPanel:SetPoint("TOPLEFT", stage, "TOP", 38, -cardsTop)
+        helpPanel:SetPoint("TOPRIGHT", stage, "TOPRIGHT", -12, -cardsTop)
+        contentBottom = cardsTop + 203
+    end
+
+    local listingTop = heroHeight + 17
+    listing:ClearAllPoints()
+    listing:SetPoint("TOPLEFT", stage, "TOPLEFT", 22, -listingTop)
+    listing:SetPoint("TOPRIGHT", stage, "TOPRIGHT", -22, -listingTop)
+
+    local height
+    if selectedKey == "community" then
+        height = contentBottom + 24
+    else
+        height = listingTop + listing:GetHeight() + 20
+    end
+    stage:SetHeight(height)
+    canvas:SetHeight(height)
+    if scroll.UpdateScrollChildRect then scroll:UpdateScrollChildRect() end
+    ClampScroll()
+end
+ReflowCommunity()
 
 function Community.GetPageScroll(key)
     if key ~= "community" and not byKey[key] then return 0 end
@@ -380,6 +460,7 @@ function Community.Show(key)
     root:SetShown(active)
     if not active then return end
     local overview = key == "community"
+    selectedKey = key
     -- Every Community tab keeps the same decorative Alliance/Horde banner.
     -- Only the Circle overview shows its two actions, statistics and panels.
     hero:Show()
@@ -389,10 +470,10 @@ function Community.Show(key)
     listing:SetShown(not overview)
     if overview then
         UpdateOverview()
-        canvas:SetHeight(460)
     else
         UpdateList(byKey[key])
     end
+    ReflowCommunity()
     scroll:SetVerticalScroll(0)
     ClampScroll()
 end
