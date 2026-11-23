@@ -389,6 +389,16 @@ ReflowCommunity = function()
     local compact = width < CARD_BREAKPOINT
     stage:SetWidth(width)
 
+    -- The page heading belongs to the same centered composition as the
+    -- banner. Preserve its original left alignment at normal window size.
+    local centerInset = math.max(0, (canvas:GetWidth() - width) / 2)
+    communityIcon:ClearAllPoints()
+    communityIcon:SetPoint("TOPLEFT", root, "TOPLEFT",
+        23 + centerInset, -16)
+    communityHeading:ClearAllPoints()
+    communityHeading:SetPoint("TOPLEFT", root, "TOPLEFT",
+        64 + centerInset, -16)
+
     local heroScale = math.min(1, width / DESIGN_WIDTH)
     hero:SetScale(heroScale)
     local heroHeight = 158 * heroScale
