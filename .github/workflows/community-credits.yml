@@ -44,18 +44,6 @@ jobs:
           persist-credentials: true
           fetch-depth: 1
 
-      - name: Prepare finished War Games plaque for transfer
-        run: |
-          python3 tools/community/generate_wargames_plate.py
-          python3 - <<'PY'
-          import base64
-          from pathlib import Path
-          p=Path("addon/DuelsReimagined/Media/Skin/DuelWarGamesPlate.png")
-          print("FINAL_WARGAMES_PLATE_BEGIN")
-          print(base64.b64encode(p.read_bytes()).decode("ascii"))
-          print("FINAL_WARGAMES_PLATE_END")
-          PY
-
       - name: Parse every addon Lua file (syntax only)
         run: |
           sudo apt-get update -qq
