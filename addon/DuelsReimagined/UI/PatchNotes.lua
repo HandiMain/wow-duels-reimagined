@@ -212,11 +212,12 @@ Style.Skin(banner, C.nav, { corner=11, edge=C.goldDim,
     smooth=true, rim=0.95 })
 local bannerArt = banner:CreateTexture(nil, "ARTWORK", nil, 1)
 bannerArt:SetTexture(heroArtPath)
-bannerArt:SetPoint("TOPLEFT", banner, "TOPLEFT", 7, -7)
-bannerArt:SetPoint("BOTTOMRIGHT", banner, "BOTTOMRIGHT", -7, 7)
--- The decorative source's copper rim is at y=37..43 and y=207..212;
--- trim those rows and the two partial source side corners.
-bannerArt:SetTexCoord(14 / 1024, 1008 / 1024, 45 / 256, 204 / 256)
+bannerArt:SetPoint("TOPLEFT", banner, "TOPLEFT", 10, -10)
+bannerArt:SetPoint("BOTTOMRIGHT", banner, "BOTTOMRIGHT", -10, 10)
+-- The source's decorative rim/corner strokes are baked at the perimeter
+-- (y=37..50, y=198..212, and near x=10/1013). The inner image contains
+-- just the scene: let the nine-slice frame own EVERY corner and edge.
+bannerArt:SetTexCoord(28 / 1024, 996 / 1024, 51 / 256, 197 / 256)
 bannerArt:EnableMouse(false)
 if Chrome.Sharp then Chrome.Sharp(bannerArt) end
 -- Concept hierarchy: one clean title line and a SINGLE metadata row with
