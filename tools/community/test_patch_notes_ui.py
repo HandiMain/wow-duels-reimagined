@@ -53,6 +53,14 @@ class PatchNotesUITests(unittest.TestCase):
         self.assertEqual(hero[:8], b"\x89PNG\r\n\x1a\n")
         self.assertEqual(struct.unpack_from(">II", hero, 16), (1024, 256))
         self.assertEqual(hero[25], 6)  # RGBA source, no baked release text
+        for name, dimensions in (
+            ("PatchNotesVersionSelected.png", (256, 128)),
+            ("PatchNotesVersionRing.png", (64, 64)),
+        ):
+            blob = (ADDON / "Media" / "Concept" / name).read_bytes()
+            self.assertEqual(blob[:8], b"\x89PNG\r\n\x1a\n")
+            self.assertEqual(struct.unpack_from(">II", blob, 16), dimensions)
+            self.assertEqual(blob[25], 6)
 
     def test_shared_owners_and_font_consistency(self):
         nav, page = load("UI/Navigation.lua"), load("UI/PatchNotes.lua")
@@ -73,6 +81,14 @@ class PatchNotesUITests(unittest.TestCase):
         self.assertIn('versionScroll:SetScript("OnMouseWheel"', page)
         self.assertIn('scroll:SetScript("OnMouseWheel"', page)
         self.assertIn('relatedButton:SetShown(hasSetting)', page)
+        self.assertIn('local function VersionFlank(side)', page)
+        self.assertNotIn('local railDivider = Chrome.Divider(rail', page)
+        self.assertIn('PatchNotesVersionSelected.png', page)
+        self.assertIn('PatchNotesVersionRing.png', page)
+        self.assertIn('item.dot:SetShown(not current)', page)
+        self.assertIn('versionBadge:SetPoint("TOPLEFT"', page)
+        self.assertIn('bannerDate:SetText(compact and', page)
+        self.assertIn('local dense = scroll:GetHeight() < 590', page)
         self.assertIn('PatchNotes.relatedTarget = nil', page)
         self.assertIn('release.demo == false', page)
         self.assertIn('local maxEntries = 0', page)
