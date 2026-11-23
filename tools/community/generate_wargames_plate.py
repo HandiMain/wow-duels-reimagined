@@ -198,10 +198,10 @@ def encode_rgba(rows: list[bytearray]) -> bytes:
 
 def bake_emblem(rows):
     """A crisp faction-neutral shield/star crest instead of Hall's swords."""
-    gate=read_emblem()
+    crest=read_emblem()
     left=(256-84)//2
     top=14  # protect Hall's outer rim; shadow stays inside the plaque
-    for y, pixels in enumerate(gate):
+    for y, pixels in enumerate(crest):
         for x in range(84):
             i=x*4
             alpha=pixels[i+3]/255.
