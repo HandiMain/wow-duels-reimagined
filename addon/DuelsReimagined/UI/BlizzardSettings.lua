@@ -44,6 +44,46 @@ battlefield:SetAllPoints(layout)
 battlefield:EnableMouse(false)
 Chrome.Sharp(battlefield)
 
+-- The original JPG has relatively abrupt edges between faction scenery and
+-- its near-black center. Fade those edges into the same exact background
+-- color, underneath all live lettering and buttons. No decorative re-crop
+-- or second image layer can expose a seam when Blizzard Settings scales.
+local function FadeFaction(x, width, leftAlpha, rightAlpha)
+    local shade = layout:CreateTexture(nil, "BACKGROUND", nil, 2)
+    shade:SetTexture("Interface\\Buttons\\WHITE8X8")
+    shade:SetSize(width, BASE_H)
+    shade:SetPoint("TOPLEFT", layout, "TOPLEFT", x, 0)
+    shade:EnableMouse(false)
+    if shade.SetGradient and type(CreateColor) == "function" then
+        shade:SetGradient("HORIZONTAL",
+            CreateColor(LANDING_BG[1], LANDING_BG[2], LANDING_BG[3], leftAlpha),
+            CreateColor(LANDING_BG[1], LANDING_BG[2], LANDING_BG[3], rightAlpha))
+    else
+        -- Forever/Retail compatibility: stepped alpha fallback where the
+        -- native texture gradient API is unavailable. No animation/polling.
+        shade:Hide()
+        local steps = 24
+        for step = 1, steps do
+            local strip = layout:CreateTexture(nil, "BACKGROUND", nil, 2)
+            local alpha = leftAlpha +
+                (rightAlpha - leftAlpha) * ((step - 0.5) / steps)
+            strip:SetColorTexture(LANDING_BG[1], LANDING_BG[2],
+                LANDING_BG[3], alpha)
+            strip:SetPoint("TOPLEFT", layout, "TOPLEFT",
+                x + (step - 1) * width / steps, 0)
+            strip:SetSize(width / steps + 0.1, BASE_H)
+            strip:EnableMouse(false)
+        end
+    end
+end
+FadeFaction(90, 145, 0, 1)
+local quietCenter = layout:CreateTexture(nil, "BACKGROUND", nil, 2)
+quietCenter:SetColorTexture(LANDING_BG[1], LANDING_BG[2], LANDING_BG[3], 1)
+quietCenter:SetPoint("TOPLEFT", layout, "TOPLEFT", 235, 0)
+quietCenter:SetSize(78, BASE_H)
+quietCenter:EnableMouse(false)
+FadeFaction(313, 145, 1, 0)
+
 local function SourceImage(filename, x, y, width, height, layer)
     local tex = layout:CreateTexture(nil, layer or "ARTWORK")
     tex:SetTexture(media .. filename)
@@ -68,11 +108,12 @@ subtitle:SetJustifyH("CENTER")
 subtitle:SetJustifyV("MIDDLE")
 subtitle:SetWordWrap(false)
 
--- Reuse the SHARED native action/feedback machinery. The empty decorative
--- plates were extracted individually and have their screenshot labels
--- removed so only a real WoW FontString provides the visible caption.
+-- Reuse the shared native Action control for text sizing and input. Its
+-- landing-art variant opts out of the generic rectangular hover, press
+-- mask and tooltip. The new hover glow uses the actual transparent plate
+-- silhouette, so it can never draw a square over our beveled buttons.
 local function PlatedButton(caption, art, x, y, width, height)
-    local button = Style.Action(layout, caption, "community-art")
+    local button = Style.Action(layout, caption, "landing-art")
     button:SetSize(width, height)
     button:ClearAllPoints()
     button:SetPoint("TOPLEFT", layout, "TOPLEFT", x, -y)
@@ -81,6 +122,34 @@ local function PlatedButton(caption, art, x, y, width, height)
     plate:SetAllPoints(button)
     plate:EnableMouse(false)
     Chrome.Sharp(plate)
+    -- Same shaped artwork, softly additive: the bevel gets brighter on hover
+    -- while everything outside the plate's alpha stays fully transparent.
+    local glow = button:CreateTexture(nil, "OVERLAY", nil, 1)
+    glow:SetTexture(media .. art)
+    glow:SetAllPoints(button)
+    glow:SetBlendMode("ADD")
+    glow:SetVertexColor(1, 0.73, 0.40, 1)
+    glow:SetAlpha(0)
+    glow:EnableMouse(false)
+    Chrome.Sharp(glow)
+    button:SetScript("OnEnter", function()
+        Motion.Fade(glow, 0.23, Motion.Duration("normal"))
+    end)
+    button:SetScript("OnLeave", function()
+        Motion.Fade(glow, 0, Motion.Duration("normal"))
+    end)
+    button:HookScript("OnMouseDown", function(_, mouse)
+        if mouse == "LeftButton" then Motion.Stop(glow, 0.42) end
+    end)
+    button:HookScript("OnMouseUp", function(self, mouse)
+        if mouse == "LeftButton" then
+            Motion.Fade(glow, self:IsMouseOver() and 0.23 or 0,
+                Motion.Duration("quick"))
+        end
+    end)
+    button:HookScript("OnHide", function()
+        Motion.Stop(glow, 0)
+    end)
     if button.label then
         button.label:SetTextColor(unpack(LANDING_TEXT))
         button.label:SetDrawLayer("OVERLAY", 3)
@@ -167,16 +236,8 @@ community:SetScript("OnClick", function()
     OpenDuels("community", "community")
 end)
 
-ns.Tooltips.Bind(open, {
-    title = "Open Duels Reimagined",
-    detail = "Open the main Duels window, preserving your selected page.",
-    outsideWindow = true,
-})
-ns.Tooltips.Bind(community, {
-    title = "View Community",
-    detail = "Open the Duelist's Circle inside Duels Reimagined.",
-    outsideWindow = true,
-})
+-- Both labels explain their action. Keep the landing unobscured by large
+-- tooltip rectangles; the shared tooltip system is unchanged elsewhere.
 
 panel:SetScript("OnShow", function()
     if ns.Theme and ns.Theme.Refresh then ns.Theme.Refresh() end
