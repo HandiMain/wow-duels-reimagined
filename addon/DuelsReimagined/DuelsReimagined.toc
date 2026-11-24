@@ -17,6 +17,7 @@ Core\Diagnostics.lua
 Core\DiagnosticAudit.lua
 Core\Communication.lua
 Core\Presence.lua
+Core\OpponentDiscovery.lua
 Core\WarGames.lua [AllowLoadGameType standard]
 UI\Fonts.lua
 UI\Style.lua

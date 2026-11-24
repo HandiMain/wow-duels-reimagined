@@ -119,7 +119,7 @@ Check("Client and API profile","health",function()
 end)
 Check("Module ownership / load order","health",function()
     for _,key in ipairs({"Client","Settings","Group","DuelDetection","DuelSelfTest",
-        "Communication","Presence","Style","Motion","Widgets","Window","Search",
+        "Communication","Presence","OpponentDiscovery","Style","Motion","Widgets","Window","Search",
         "Header","Navigation","Options","AddonStatus","AccessIcons","BlizzardLanding"}) do
         Assert(type(ns[key])=="table",key.." missing")
     end
@@ -155,6 +155,11 @@ Check("Addon presence snapshot","health",function()
     return p.transport=="ready" and "PASS" or "SKIP",
         "Transport="..tostring(p.transport).."; confirmed="..(counts.confirmed or 0)..
         "; unknown="..(counts.unknown or 0).."; no messages sent."
+end)
+Check("Opponent discovery / eligibility gate","health",function()
+    local p=ns.OpponentDiscovery.GetSnapshot()
+    Assert(p.scope=="LOCAL" and p.rankEligible==false,"discovery must not enable ranking")
+    return "PASS",p.state.." / "..p.reason.."; live peer delivery not verified."
 end)
 Check("Settings / defaults / bounds","health",function()
     local S=ns.Settings
@@ -194,6 +199,12 @@ Check("Launcher / icon runtime","health",function()
     Assert(a.minimapSize==ns.Settings.Get("minimapSize"),"minimap size mismatch")
     Assert(a.widgetSize==ns.Settings.Get("widgetSize"),"widget size mismatch")
     return "PASS","Mode="..a.mode.."; minimap="..a.minimapSize.."; widget="..a.widgetSize
+end)
+Check("Opponent discovery / isolated protocol QA","deep",function()
+    local log={}
+    local p,f=ns.OpponentDiscovery.RunSelfTest(function(line) log[#log+1]=line end)
+    return f==0 and p==13 and "PASS" or "FAIL",
+        string.format("%d passed / %d failed (SIMULATED)\n",p,f)..table.concat(log,"\n")
 end)
 Check("Search registry","deep",function()
     local S=ns.Search

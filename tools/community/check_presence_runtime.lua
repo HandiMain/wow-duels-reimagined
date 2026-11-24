@@ -33,8 +33,8 @@ C_ChatInfo = {
         Check(prefix == "DuelsReimagined", "one owned addon prefix")
         return registerResult
     end,
-    SendAddonMessage = function(prefix, message, channel)
-        outbound[#outbound + 1] = { prefix=prefix, message=message, channel=channel }
+    SendAddonMessage = function(prefix, message, channel,target)
+        outbound[#outbound + 1] = { prefix=prefix, message=message, channel=channel,target=target }
         return sendResult
     end,
 }
@@ -197,3 +197,22 @@ Check(#Presence.GetSnapshot().members == 0
     and Presence.GetSnapshot().complete == false,
     "incomplete roster cannot leak stale confirmations")
 print("Addon communication and presence runtime contracts: PASS")
+
+-- Direct traffic shares the transport but cannot cross group protocol routes.
+local n=#outbound
+Check(not Comm.Send("P1","H|?","WHISPER","Beta-Other"),"group tag cannot whisper")
+Check(not Comm.Send("D1","probe","PARTY"),"discovery cannot broadcast")
+Check(not Comm.Send("D1","probe","WHISPER"),"missing target rejected")
+Check(#outbound==n,"invalid routes did not send")
+Check(Comm.Send("D1","probe","WHISPER","Beta-Other"),"direct send supported by mock")
+Check(outbound[#outbound].target=="Beta-Other","exact target forwarded")
+local count=0
+Comm.Subscribe("D1",function()count=count+1 end)
+Message("D1|reply","Beta-Other","PARTY")
+Message("D1|reply","Beta-Other","WHISPER")
+Check(count==1,"only direct message delivered")
+locked=true
+Message("D1|reply","Beta-Other","WHISPER")
+Check(count==1 and not Comm.Send("D1","probe","WHISPER","Beta-Other"),"restricted direct messages blocked")
+locked=false
+print("Direct message routing contracts: PASS")

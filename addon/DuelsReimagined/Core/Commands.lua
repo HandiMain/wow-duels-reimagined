@@ -10,6 +10,21 @@ SlashCmdList.DUELSREIMAGINED = function(message)
         ns.DuelSelfTest.Run(nil,message=="test verbose")
         return
     end
+    if message=="peer" then
+        local ok,why=ns.OpponentDiscovery.ProbeTarget()
+        print("DR | Opponent discovery: "..(ok and "check requested" or tostring(why)))
+        return
+    end
+    if message=="peer status" then
+        local s=ns.OpponentDiscovery.GetSnapshot()
+        print("DR | LOCAL opponent discovery: "..s.state.." ("..s.reason..") | ranking disabled")
+        return
+    end
+    if message=="peer test" then
+        local p,f=ns.OpponentDiscovery.RunSelfTest(print)
+        print("DR | SIMULATED peer discovery: "..p.." passed / "..f.." failed")
+        return
+    end
     if message=="diagnostics" then
         ns.DiagnosticsUI.Open()
         return

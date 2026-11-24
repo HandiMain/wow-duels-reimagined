@@ -169,3 +169,5 @@ dofile("tools/community/check_duel_detection_runtime.lua")
 
 -- Diagnostics tests use a separate namespace and isolated SavedVariables.
 dofile("tools/community/check_diagnostics_runtime.lua")
+
+dofile("tools/community/check_opponent_discovery_runtime.lua")

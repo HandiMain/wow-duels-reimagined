@@ -82,17 +82,31 @@ function Comm.Subscribe(tag, callback)
     return function() callbacks[callback] = nil end
 end
 
-function Comm.Send(tag, body, channel)
+-- Direct discovery is the only permitted whisper protocol in this phase.
+local function ChannelAllowed(tag,channel)
+    if tag=="D1" then return channel=="WHISPER" end
+    return channel=="PARTY" or channel=="RAID"
+end
+function Comm.Send(tag, body, channel, target)
     if not Readable(tag) or not Readable(body) or not Readable(channel) or
         type(tag) ~= "string" or not tag:match("^[A-Z]%d$") or
         type(body) ~= "string" or type(channel) ~= "string" or
-        (channel ~= "PARTY" and channel ~= "RAID") or
+        not ChannelAllowed(tag,channel) or
         #tag + #body + 1 > 240 then return false, "invalid" end
+    if channel=="WHISPER" then
+        if not Readable(target) or type(target)~="string" or #target<1 or
+            #target>160 or target:find("[%c|]") then return false,"invalid_target" end
+    elseif target~=nil then return false,"invalid_target" end
     local allowed, reason = Comm.IsAvailable()
     if not allowed then return false, reason end
     local fn = C_ChatInfo and C_ChatInfo.SendAddonMessage
     if type(fn) ~= "function" then return false, "unavailable" end
-    local ok, result = pcall(fn, Comm.PREFIX, tag .. "|" .. body, channel)
+    local ok, result
+    if channel=="WHISPER" then
+        ok,result=pcall(fn,Comm.PREFIX,tag.."|"..body,channel,target)
+    else
+        ok,result=pcall(fn,Comm.PREFIX,tag.."|"..body,channel)
+    end
     if not ok then return false, "refused" end
     local outcomes = Enum and Enum.SendAddonMessageResult
     local success = outcomes and outcomes.Success or 0
@@ -117,9 +131,9 @@ frame:SetScript("OnEvent", function(_, event, prefix, payload, channel, sender)
         prefix ~= Comm.PREFIX or type(payload) ~= "string" or
         #payload > 240 or type(channel) ~= "string" or
         type(sender) ~= "string" or sender == "" then return end
-    if channel ~= "PARTY" and channel ~= "RAID" then return end
     local tag, body = payload:match("^([A-Z]%d)|(.+)$")
-    if not tag then return end
+    if not tag or not ChannelAllowed(tag,channel) then return end
+    if channel=="WHISPER" and ChatRestricted() then return end
     local callbacks = receivers[tag]
     if not callbacks then return end
     for fn in pairs(callbacks) do
