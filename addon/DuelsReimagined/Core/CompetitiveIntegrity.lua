@@ -28,6 +28,30 @@ function P.CompareSimulated(client,body)
     if fp~=build then return Result("build_mismatch") end
     return Result("compatible")
 end
+-- Explicit fixture calendar. Revision 1 remains a reproducible legacy policy.
+function P.SeasonDescriptor(client,epoch)
+    local build=Build();local policy=ns.SeasonRules
+    if Client(client) and build and policy and policy.Schedule(epoch,epoch) then
+        return table.concat({"2",client,policy.BALANCED_ID,tostring(epoch),build},"|")
+    end
+end
+function P.CompareSeasonSimulated(client,epoch,body)
+    local function Result(state)
+        return {scope="SIMULATED",state=state,compatible=state=="compatible",rankEligible=false,originVerified=false}
+    end
+    local expected=P.SeasonDescriptor(client,epoch)
+    if not expected then return Result("unavailable") end
+    if body==nil then return Result("unknown") end
+    if type(body)~="string" or #body>120 or body:find("%c") then return Result("invalid") end
+    local rev,k,rule,start,fp=body:match("^(%d+)|(%a+)|([%w%-]+)|(%d+)|([0-9a-f]+)$")
+    if not rev or not Client(k) or not Digest(fp) or tostring(tonumber(start))~=start
+        or not ns.SeasonRules.Schedule(tonumber(start),tonumber(start)) then return Result("invalid") end
+    if k~=client then return Result("client_mismatch") end
+    if rev~="2" or rule~=ns.SeasonRules.BALANCED_ID then return Result("rule_mismatch") end
+    if tonumber(start)~=epoch then return Result("schedule_mismatch") end
+    if body~=expected then return Result("build_mismatch") end
+    return Result("compatible")
+end
 function P.GetSnapshot()
     return {scope="LOCAL",state="disabled",rankEligible=false,originVerified=false,build=Build(),rule=RULE}
 end

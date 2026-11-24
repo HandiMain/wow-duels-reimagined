@@ -52,19 +52,32 @@ local function Decode(body,client,token,page,total)
     if Encode(p)~=body then return nil end
     return p -- existing merge owner validates entire page before mutation
 end
-local function ParseRequest(body,client)
+-- Revision 2 binds the request and the assembled response to the same
+-- immutable fixture calendar and advertised build. No extra live transport.
+local function Context(client,node)
+    local epoch=node.GetSeasonEpoch()
+    if epoch==nil then return '1','' end
+    local descriptor=ns.CompetitiveIntegrity.SeasonDescriptor(client,epoch)
+    if descriptor then return '2','|'..descriptor end
+end
+local function ParseRequest(body,client,rev,context)
     if not Safe(body) then return nil end
-    local k,t,p=body:match('^Q|1|(%a+)|([%w%-]+)|(%d+)$')
+    if rev=='2' then
+        if body:sub(-#context)~=context then return nil end
+        body=body:sub(1,#body-#context)
+    end
+    local k,t,p=body:match('^Q|'..rev..'|(%a+)|([%w%-]+)|(%d+)$')
     if k~=client or not Token(t) then return nil end
     p=Integer(p,MAX_PAGE);if p then return t,p end
 end
-local function Frames(node,client,body)
-    local token,index=ParseRequest(body,client);if not token then return nil,'request' end
+local function Frames(node,client,body,rev,context)
+    local token,index=ParseRequest(body,client,rev,context);if not token then return nil,'request' end
     local pages=node.Export(token);local page=pages and pages[index];if not page then return nil,'page' end
-    local data=Encode(page);local count=math.ceil(#data/CHUNK)
+    local data=Encode(page);if rev=='2' then data=context..'|'..data end
+    local count=math.ceil(#data/CHUNK)
     if count>MAX_PARTS then return nil,'capacity' end
     local out={};for i=1,count do
-        local msg=table.concat({'R','1',client,token,index,page.total,i,count,data:sub((i-1)*CHUNK+1,i*CHUNK)},'|')
+        local msg=table.concat({'R',rev,client,token,index,page.total,i,count,data:sub((i-1)*CHUNK+1,i*CHUNK)},'|')
         if not Safe(msg) then return nil,'capacity' end;out[i]=msg
     end
     return out
@@ -72,6 +85,7 @@ end
 -- One outstanding request per fixture; prefix must be unique per simulated run.
 function P.NewRequester(client,node,prefix)
     if not Client(client) or not Token(prefix) or #prefix>20 then return nil end
+    local rev,context=Context(client,node);if not rev then return nil end
     local D,seq,pending={},0,nil
     function D.Status(now)
         if pending and Time(now) and now>=pending.deadline then pending=nil;return 'expired' end
@@ -84,13 +98,13 @@ function P.NewRequester(client,node,prefix)
         if seq>=2147483647 then return nil,'capacity' end
         seq=seq+1;local token=prefix..'-'..seq
         pending={peer=peer,page=page,token=token,deadline=now+TTL,last=now,parts={},received=0}
-        return 'Q|1|'..client..'|'..token..'|'..page
+        return 'Q|'..rev..'|'..client..'|'..token..'|'..page..context
     end
     function D.Receive(body,sender,now)
         if not Time(now) or D.Status(now)~='waiting' then return false,'no_request' end
         local q=pending
         if now<q.last or sender~=q.peer or not Safe(body) then return false,'sender_or_packet' end
-        local k,t,p,total,i,n,data=body:match('^R|1|(%a+)|([%w%-]+)|(%d+)|(%d+)|(%d+)|(%d+)|(.+)$')
+        local k,t,p,total,i,n,data=body:match('^R|'..rev..'|(%a+)|([%w%-]+)|(%d+)|(%d+)|(%d+)|(%d+)|(.+)$')
         p=Integer(p,MAX_PAGE);total=Integer(total,MAX_PAGE);i=Integer(i,MAX_PARTS);n=Integer(n,MAX_PARTS)
         if k~=client or t~=q.token or p~=q.page or not total or p>total or not i or not n or i>n
             or #data>CHUNK or (i<n and #data~=CHUNK) then return false,'packet' end
@@ -103,7 +117,13 @@ function P.NewRequester(client,node,prefix)
         q.parts[i]=data;q.received=q.received+1
         if q.received<n then return true,'partial' end
         pending=nil
-        local page=Decode(table.concat(q.parts),client,q.token,q.page,total)
+        local payload=table.concat(q.parts)
+        if rev=='2' then
+            local header=context..'|'
+            if payload:sub(1,#header)~=header then return false,'season_context' end
+            payload=payload:sub(#header+1)
+        end
+        local page=Decode(payload,client,q.token,q.page,total)
         if not page then return false,'decode' end
         local ok,why=node.Receive(page,sender,q.peer,q.token)
         if not ok then return false,why end
@@ -115,13 +135,14 @@ end
 -- Pull-based pacing only, no background timers, no game API.
 function P.NewResponder(client,node)
     if not Client(client) then return nil end
+    local rev,context=Context(client,node);if not rev then return nil end
     local D,stream,lastStart={},nil,nil
     function D.Cancel() stream=nil end
     function D.Begin(body,sender,expected,now)
         if not Time(now) or not Guid(sender) or sender~=expected then return false,'sender' end
         if stream and now>=stream.deadline then stream=nil end
         if stream or (lastStart and now-lastStart<2) then return false,'busy' end
-        local frames,why=Frames(node,client,body);if not frames then return false,why end
+        local frames,why=Frames(node,client,body,rev,context);if not frames then return false,why end
         stream={frames=frames,next=1,at=now,deadline=now+TTL,peer=sender};lastStart=now;return true
     end
     function D.Next(now)
@@ -211,5 +232,73 @@ function P.RunSelfTest(emit)
         end)
     end
     Case('live protocol remains disabled',function()local s=P.GetSnapshot();assert(s.scope=='LOCAL' and s.state=='disabled' and not s.rankEligible)end)
+    return pass,fail
+end
+
+function P.RunSeasonSelfTest(emit)
+    emit=type(emit)=='function' and emit or function()end
+    local pass,fail=0,0
+    local function Case(label,fn)
+        local ok,err=pcall(fn);if ok then pass=pass+1 else fail=fail+1 end
+        emit('DR | SIMULATED | '..(ok and 'PASS ' or 'FAIL ')..label..(ok and '' or ': '..tostring(err)))
+    end
+    local a,b='Player-1-AAA','Player-2-BBB'
+    local epoch=1000
+    for _,client in ipairs({'forever','retail'}) do
+        local function Node(start) return assert(ns.LeaderboardSync.OpenSeasonSimulated(client,start or epoch)) end
+        local function Fixture()
+            local x,y=Node(),Node()
+            local s='a-1:b-1';local r={scope='SIMULATED',version='1',client=client,session=s,id=client..'|'..a..'|'..b..'|'..s,
+                player1=a,player2=b,winner=a,loser=b,endType='knockout',rankEligible=false,
+                statement1=table.concat({'1',client,s,a,b,'won','1'},'|'),statement2=table.concat({'1',client,s,b,a,'lost','1'},'|')}
+            assert(x.Observe(r,epoch+1,epoch+2))
+            return x,y,assert(P.NewRequester(client,y,'season')),assert(P.NewResponder(client,x))
+        end
+        local function Replay(node) return assert(node.ReplaySeasonSimulated({epoch=epoch,asOf=epoch+2})) end
+        local function FramesFor(req,res)
+            local request=assert(req.Begin(a,1,0));assert(#request+3<=240 and request:match('^Q|2|'))
+            assert(res.Begin(request,b,b,0));local frames,t={},0
+            while true do local msg=res.Next(t);if not msg then break end;assert(#msg+3<=240 and msg:match('^R|2|'));frames[#frames+1]=msg;t=t+GAP end
+            return frames
+        end
+        Case(client..' balanced descriptor validates exact calendar',function()
+            local I=ns.CompetitiveIntegrity;local d=assert(I.SeasonDescriptor(client,epoch))
+            local function Check(body,state) local s=I.CompareSeasonSimulated(client,epoch,body);assert(s.state==state and s.compatible==(state=='compatible') and not s.originVerified and not s.rankEligible) end
+            Check(d,'compatible');Check(nil,'unknown');Check(I.Descriptor(client),'invalid')
+            Check(I.SeasonDescriptor(client,epoch+1),'schedule_mismatch');Check(I.SeasonDescriptor(client=='forever' and 'retail' or 'forever',epoch),'client_mismatch')
+            Check((d:gsub('elo%-season%-2','elo-season-1')),'rule_mismatch');Check((d:gsub('|1000|','|01000|')),'invalid')
+            local last=d:sub(-1);Check(d:sub(1,-2)..(last=='0' and '1' or '0'),'build_mismatch')
+        end)
+        Case(client..' season packet roundtrip and balanced replay',function()
+            local x,y,q,r=Fixture();local frames=FramesFor(q,r);assert(#frames>1)
+            for i=#frames,1,-1 do assert(q.Receive(frames[i],a,10)) end
+            local s=Replay(y);assert(s.matched==1 and s.players[a].rating==1100 and s.players[b].rating==909 and not s.rankEligible and s.completeness=='unknown')
+            assert(Replay(x).players[a].rating==s.players[a].rating and not y.Replay() and not y.ReplaySeasonSimulated({epoch=epoch+1,asOf=epoch+2}))
+        end)
+        Case(client..' mismatched season and build refused before response',function()
+            local _,y,q,r=Fixture();local msg=assert(q.Begin(a,1,0))
+            local wrong=assert(P.NewResponder(client,Node(epoch+1)));assert(not wrong.Begin(msg,b,b,0))
+            local last=msg:sub(-1);assert(not r.Begin(msg:sub(1,-2)..(last=='0' and '1' or '0'),b,b,0));assert(Replay(y).matched==0)
+            assert(r.Begin(msg,b,b,0))
+        end)
+        Case(client..' tampered response context cannot partially merge',function()
+            local _,y,q,r=Fixture();local frames=FramesFor(q,r)
+            frames[1]=frames[1]:gsub('|1000|','|1001|',1);assert(frames[1]:find('|1001|',1,true))
+            for i=1,#frames-1 do assert(q.Receive(frames[i],a,10));assert(Replay(y).matched==0) end
+            local ok,why=q.Receive(frames[#frames],a,10);assert(not ok and why=='season_context' and Replay(y).matched==0)
+        end)
+        Case(client..' no legacy downgrade and exact sender',function()
+            local _,y,q,r=Fixture();local msg=assert(q.Begin(a,1,0));local legacy=assert(ns.LeaderboardSync.OpenSimulated(client))
+            assert(not P.NewResponder(client,legacy).Begin(msg,b,b,0))
+            local old=assert(P.NewRequester(client,legacy,'old'));assert(not r.Begin(assert(old.Begin(a,1,0)),b,b,0))
+            assert(r.Begin(msg,b,b,0));local body=assert(r.Next(0));assert(not q.Receive(body,b,0));assert(not q.Receive(body:gsub('^R|2|','R|1|'),a,0));assert(Replay(y).matched==0)
+        end)
+        Case(client..' invalid epoch and absent compatibility fail closed',function()
+            assert(not ns.LeaderboardSync.OpenSeasonSimulated(client,nil) and not ns.LeaderboardSync.OpenSeasonSimulated(client,0))
+            assert(not ns.CompetitiveIntegrity.SeasonDescriptor(client,0));local bad={GetSeasonEpoch=function()return 0 end}
+            assert(not P.NewRequester(client,bad,'x') and not P.NewResponder(client,bad))
+        end)
+    end
+    Case('season wire remains disabled live',function()local s=P.GetSnapshot();assert(s.scope=='LOCAL' and s.state=='disabled' and not s.rankEligible)end)
     return pass,fail
 end

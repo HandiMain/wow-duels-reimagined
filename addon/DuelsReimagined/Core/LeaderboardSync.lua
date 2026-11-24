@@ -60,8 +60,9 @@ local function Validate(client,saved)
     if not Equal(clean,saved) then return nil end
     return clean
 end
-local function Open(client,saved)
+local function Open(client,saved,epoch)
     if client~="forever" and client~="retail" then return nil,"client" end
+    if epoch~=nil and not ns.SeasonRules.Schedule(epoch,epoch) then return nil,"invalid_schedule" end
     local data
     if saved==nil then
         data={version=VERSION,scope="SIMULATED",client=client,rule=RULE,
@@ -150,11 +151,22 @@ local function Open(client,saved)
         result.knownMatched=#s.matched;result.missingTime=missing;result.timeDisputed=conflict
         result.completeness="unknown";return result
     end
-    function D.Replay() return Replay(RULE) end
-    function D.ReplaySeasonSimulated(options) return Replay(ns.SeasonRules.BALANCED_ID,options) end
+    function D.GetSeasonEpoch() return epoch end
+    function D.Replay()
+        if epoch then return nil,"season_context_required" end
+        return Replay(RULE)
+    end
+    function D.ReplaySeasonSimulated(options)
+        if epoch and (type(options)~="table" or options.epoch~=epoch) then return nil,"schedule_mismatch" end
+        return Replay(ns.SeasonRules.BALANCED_ID,options)
+    end
     return D
 end
-P.OpenSimulated=Open
+function P.OpenSimulated(client,saved) return Open(client,saved) end
+function P.OpenSeasonSimulated(client,epoch,saved)
+    if epoch==nil then return nil,"invalid_schedule" end
+    return Open(client,saved,epoch)
+end
 function P.GetSnapshot() return {scope="LOCAL",state="disabled",rankEligible=false,version=VERSION} end
 function P.GetDiagnosticResources() return {pending=0,subscriptions=0,timers=0} end
 function P.RunSelfTest(emit)

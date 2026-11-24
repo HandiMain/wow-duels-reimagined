@@ -59,13 +59,13 @@ function P.RunSelfTest(emit)
                 for k=1,2 do assert(f.peers[k].box.detector.GetSnapshot().state=="challenge") end
             end
             function f.agree(dropFinal,badBuild)
-                local descriptor=assert(ns.CompetitiveIntegrity.Descriptor(client))
+                local descriptor=assert(ns.CompetitiveIntegrity.SeasonDescriptor(client,epoch))
                 for k=1,2 do
                     local i=k;local j=3-i
                     local d=f.discovery[i].GetSnapshot()
                     local s=f.peers[i].box.detector.GetSnapshot()
                     local remote=badBuild and descriptor.."x" or descriptor
-                    if not ns.CompetitiveIntegrity.CompareSimulated(client,remote).compatible then return false end
+                    if not ns.CompetitiveIntegrity.CompareSeasonSimulated(client,epoch,remote).compatible then return false end
                     f.agreement[i]=ns.PeerAgreement.NewSimulated(client,"peer-"..i,function()return now end,
                         function()return true end,function(body,target)
                             assert(target==d.opponent.key)
@@ -140,18 +140,18 @@ function P.RunSelfTest(emit)
                 assert(f.stats(i).overall.total==1 and f.stats(i).categories.matched.total==1)
                 assert(s.players[a].rank.provisional and s.changes[1].gain==100)
             end
-            -- Existing legacy wire carries evidence, not a production season identity.
+            -- Season-aware fixture wire binds evidence to the balanced policy and calendar.
             local part=f.peers[1].account.clients[client]
-            local source=assert(ns.LeaderboardSync.OpenSimulated(client,{version=1,scope="SIMULATED",client=client,
+            local source=assert(ns.LeaderboardSync.OpenSeasonSimulated(client,epoch,{version=1,scope="SIMULATED",client=client,
                 rule=ns.CompetitiveRules.ID,ledger=part.ledger,clocks=part.season.clocks}))
-            local target=assert(ns.LeaderboardSync.OpenSimulated(client))
+            local target=assert(ns.LeaderboardSync.OpenSeasonSimulated(client,epoch))
             local req=ns.SyncProtocol.NewRequester(client,target,"integration")
             local res=ns.SyncProtocol.NewResponder(client,source)
-            assert(res.Begin(assert(req.Begin(a,1,0)),b,b,0))
+            local request=assert(req.Begin(a,1,0));assert(request:match('^Q|2|'));assert(res.Begin(request,b,b,0))
             local t=0
             while true do
                 local body,peer=res.Next(t);if not body then break end
-                assert(peer==b and #body+3<=240);assert(req.Receive(body,a,t));t=t+0.5;assert(t<120)
+                assert(peer==b and #body+3<=240 and body:match('^R|2|'));assert(req.Receive(body,a,t));t=t+0.5;assert(t<120)
             end
             local remote=assert(target.ReplaySeasonSimulated({epoch=epoch,asOf=epoch+11}))
             assert(remote.matched==1 and remote.players[a].rating==1100 and remote.players[b].rating==909 and remote.completeness=="unknown")

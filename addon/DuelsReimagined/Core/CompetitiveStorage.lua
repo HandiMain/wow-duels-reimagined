@@ -16,7 +16,7 @@ local function SeasonNode(client,ledger,season)
     if type(season)~="table" or season.version~=1 or season.rule~=rules.BALANCED_ID
         or not rules.Schedule(season.epoch,season.epoch) or type(season.clocks)~="table" or type(ledger)~="table" then return nil end
     for k in pairs(season) do if k~="version" and k~="rule" and k~="epoch" and k~="clocks" then return nil end end
-    return ns.LeaderboardSync.OpenSimulated(client,{version=1,scope="SIMULATED",client=client,
+    return ns.LeaderboardSync.OpenSeasonSimulated(client,season.epoch,{version=1,scope="SIMULATED",client=client,
         rule=ns.CompetitiveRules.ID,ledger=ledger,clocks=season.clocks})
 end
 local function Root(raw,kind,owner,scope)

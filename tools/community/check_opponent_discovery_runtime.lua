@@ -172,3 +172,10 @@ assert(lp==13 and lf==0 and sent==previous and P.GetSnapshot().state=="checking"
 assert(_G.DuelsReimaginedDB==originalDB and _G.DuelsReimaginedCompetitiveDB==oldAccount
     and _G.DuelsReimaginedCharacterDB==oldChar,"integration QA never writes live roots")
 print("Integrated competitive lifecycle: PASS")
+
+local swp,swf=ns.SyncProtocol.RunSeasonSelfTest(function(line)if line:find("FAIL",1,true)then print(line)end end)
+assert(swp==13 and swf==0 and sent==previous and P.GetSnapshot().state=="checking","isolated season-aware wire")
+assert(ns.SyncProtocol.GetSnapshot().state=="disabled" and not ns.SyncProtocol.GetSnapshot().rankEligible
+    and _G.DuelsReimaginedDB==originalDB and _G.DuelsReimaginedCompetitiveDB==oldAccount
+    and _G.DuelsReimaginedCharacterDB==oldChar,"season wire QA never writes live data")
+print("Season-aware synchronization: PASS")
