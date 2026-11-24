@@ -10,6 +10,17 @@ local match,known,node,catchup,responder,replyActive,syncDeadline
 local timerArmed,generation=false,0
 local subscriptions=0
 local status="disabled"
+-- Preference is captured once per observed challenge; never retroactively
+-- convert a completed loss, or change the mode of an accepted duel.
+local intent
+local function PreferredMode()
+    return ns.Settings and ns.Settings.Get("practiceDuels")==true and "P" or "R"
+end
+function P.GetPreferredMode() return PreferredMode()=="P" and "Practice" or "Ranked" end
+function P.IsResultPending(matchID)
+    return type(matchID)=="string" and match~=nil and match.phase=="settling"
+        and match.matchID==matchID and status=="pending"
+end
 local function Plain(v)
     if type(issecretvalue)=="function" then
         local ok,secret=pcall(issecretvalue,v)
@@ -60,7 +71,9 @@ function P.GetSnapshot()
     return {scope="LOCAL",state=status,rankEligible=false,
         localRecording=initialized and Store.LocalRecordingEnabled(),
         peerEnabled=P.CanCommunicate(),peerState=match and match.phase,
-        syncState=catchup and catchup.GetStatus().state,completeness="unknown"}
+        syncState=catchup and catchup.GetStatus().state,completeness="unknown",
+        preferredMode=P.GetPreferredMode(),duelMode=intent and intent.mode=="P" and "Practice" or intent and "Ranked" or nil,
+        duelReason=intent and intent.reason}
 end
 function P.GetDiagnosticResources()
     return {pending=(match and 1 or 0)+(catchup and 1 or 0)+(replyActive and 1 or 0),
@@ -87,6 +100,14 @@ local function ResetPeer()
     match,known,node=nil,nil,nil
     CancelSync()
     generation=generation+1;timerArmed=false
+end
+local function AbortExchange()
+    -- Revoking consent cancels transport immediately. Preserve the frozen
+    -- candidate as local evidence, not as permission to keep sending.
+    local frozen=match and match.phase=="accepted" and match or nil
+    local pending=status=="pending"
+    ResetPeer();match=frozen
+    if pending then status="unconfirmed";Refresh() end
 end
 local function CommitNode()
     local ok,why=Store.CommitPeerNode(node)
@@ -135,7 +156,9 @@ local function StartChallenge(s)
     if not c or not c.opponent or not Guid(c.opponent.guid) then return end
     if match and match.challengeAt==c.time and match.peer.guid==c.opponent.guid then return end
     ResetPeer()
-    if not Available() or not Capacity() or not EnsureNode() then return end
+    if not Available() then return end
+    if not Capacity() then if intent then intent.reason="capacity" end;return end
+    if not EnsureNode() then if intent then intent.reason="storage_unavailable" end;return end
     if not (c.direction=="outgoing" and (c.kind=="standard" or c.kind=="unclassified")
         or c.direction=="incoming" and c.kind=="standard") then return end
     local me=ns.Group.ReadPlayerIdentity("player")
@@ -145,7 +168,7 @@ local function StartChallenge(s)
         or epoch<Store.PeerEpoch() or not prefix or not key then return end
     match={phase="challenge",challengeAt=c.time,deadline=now+8,me=me.guid,
         peer={guid=c.opponent.guid,key=key},direction=c.direction,kind=c.kind,
-        prefix=prefix,helloAt=now,hellos=0}
+        prefix=prefix,helloAt=now,hellos=0,mode=intent and intent.mode or "R"}
     status="checking";Arm()
 end
 local function TryAgreement(x,now)
@@ -163,7 +186,7 @@ local function TryAgreement(x,now)
     local agreement=ns.PeerAgreement.NewPeer(ns.Client.Kind(),x.prefix,Now,Available,
         function(body) return Send("A1",body,x.peer) end)
     if not agreement.Begin({state="challenge",me=x.me,peer=x.peer.guid,direction=x.direction,kind=x.kind},
-        {state=d.state,protocol=d.protocol,guid=d.opponent.guid,key=d.opponent.key,expiresAt=d.expiresAt},true) then
+        {state=d.state,protocol=d.protocol,guid=d.opponent.guid,key=d.opponent.key,expiresAt=d.expiresAt},true,x.mode) then
         x.phase="unranked";return
     end
     x.agreement=agreement
@@ -181,10 +204,15 @@ local function Freeze(s)
     -- late handshake can upgrade an already accepted duel.
     x.agreement.Freeze(a.opponent.guid,a.kind=="standard" or a.kind=="unclassified")
     local candidate=x.agreement.Snapshot()
+    if candidate.practice then
+        if intent then intent.practice=true;intent.reason="practice_agreed" end
+        match=nil;status="practice";return
+    end
     if not candidate.candidate then match=nil;status="unranked";return end
     x.candidate=candidate
     x.collector=ns.ResultConfirmation.NewPeer(ns.Client.Kind(),candidate.session,x.me,x.peer.guid)
     x.phase="accepted";status="candidate"
+    if intent then intent.reason="candidate" end
 end
 local function ReceiveResult(body,sender)
     local x=match
@@ -197,7 +225,7 @@ end
 local function StartSync()
     local now=Now()
     if not Available() or InCombat() or not now or not known or now>=known.expires
-        or match or not EnsureNode() then return false,"not_ready" end
+        or match or ns.DuelDetection.GetSnapshot().state~="idle" or not EnsureNode() then return false,"not_ready" end
     if catchup then return false,"busy" end
     local prefix=Prefix()
     if not prefix then return false,"prefix" end
@@ -211,33 +239,52 @@ P.StartSync=StartSync
 local function FinalizeObservation(r)
     if not r or r.id<=lastSeen then return end
     lastSeen=r.id
-    if r.kind~="standard" and r.kind~="unclassified" then return end
+    local choice=intent;intent=nil
+    if r.kind~="standard" and r.kind~="unclassified" or r.reason=="death_duel_excluded" then return end
     local stamp=EpochNow()
     r.observedAt=stamp
     local x=match
+    local earlier=x and x.phase=="settling" and x.cycle~=r.id
     local candidate=x and x.cycle==r.id and x.candidate or nil
+    if choice and choice.cycle==r.id and (choice.mode=="P" or choice.practice) then
+        r.duelMode="practice";r.rankReason=choice.practice and "practice_agreed" or "practice_selected"
+        candidate=nil
+    elseif not candidate then
+        r.rankReason=choice and choice.cycle==r.id and choice.reason~="candidate" and choice.reason or "not_agreed"
+    end
+    if r.outcome=="unknown" then
+        local observed={world_transition=true,conflicting_result=true,result_not_observed=true,finish_not_observed=true}
+        r.endReason=observed[r.reason] and r.reason or "not_observed"
+    end
     local body
-    if candidate and stamp and Available() then
+    if candidate and stamp then
         body=ns.ResultConfirmation.MakePeerStatement({scope="PEER",client=ns.Client.Kind(),
             me=x.me,peer=x.peer.guid,cycle=r.id,agreement=candidate},r)
         if body and #body>237 then body=nil end
+    end
+    if candidate and not body then
+        r.rankReason=r.endType=="retreat" and "retreat" or r.outcome=="unknown" and "unknown_result" or "confirmation_unavailable"
     end
     local id=EnsureRun()
     local ok,why
     if id then ok,why=Store.RecordLocalObservation(id,r,body and candidate or nil) end
     if not ok then
         Note("Local observation refused: "..tostring(why or "run_unavailable"))
-        status="local_record_failed";match=nil;return
+        if not earlier then status="local_record_failed";match=nil end;return
     end
-    if body and x.collector.Receive(body,x.me) then
+    if body and Available() and x.collector.Receive(body,x.me) then
         local now=Now()
         if now then
             x.localTime=stamp;x.body=body
+            local a,b=x.me,x.peer.guid;if b<a then a,b=b,a end
+            x.matchID=ns.Client.Kind().."|"..a.."|"..b.."|"..candidate.session
             x.phase="settling";x.deadline=now+12;x.nextResult=now;x.sends=0
             known={guid=x.peer.guid,key=x.peer.key,route=x.peer.route,expires=now+600}
             status="pending";Arm()
         else match=nil;status="unranked" end
-    else match=nil;status="local_recorded" end
+    elseif not earlier then
+        match=nil;status=body and "unconfirmed" or r.duelMode=="practice" and "practice_recorded" or "local_recorded"
+    end
     Refresh()
 end
 local function Settle(x)
@@ -248,20 +295,22 @@ local function Settle(x)
         or not EnsureNode() then status="unconfirmed";Refresh();return end
     local t1,t2=x.localTime,x.peerTime
     if evidence.record.player1~=x.me then t1,t2=t2,t1 end
-    if t1<Store.PeerEpoch() or t2<Store.PeerEpoch() then status="unconfirmed";return end
+    if t1<Store.PeerEpoch() or t2<Store.PeerEpoch() then status="unconfirmed";Refresh();return end
     local ok,why=node.Observe(evidence.record,t1,t2)
-    if not ok then status="unconfirmed";Note("Peer observation refused: "..tostring(why));return end
+    if not ok then status="unconfirmed";Note("Peer observation refused: "..tostring(why));Refresh();return end
     if CommitNode() then
         status="peer_evidence_saved"
         StartSync()
-    else status="unconfirmed" end
+    else status="unconfirmed";Refresh() end
 end
 Tick=function()
     local now=Now()
-    if not now or not P.CanCommunicate() then ResetPeer();return end
+    if not now or not P.CanCommunicate() then AbortExchange();return end
     if match then
         local x=match
-        if not Available() then match=nil;status="unranked"
+        if not Available() then
+            AbortExchange()
+            if x.phase=="challenge" then status="unranked" end
         elseif x.phase=="challenge" then
             if now>=x.deadline then match=nil;status="unranked"
             else
@@ -311,6 +360,7 @@ end
 local function OnSync(body,_,sender)
     local now=Now()
     if not Available() or InCombat() or match or not now or not known or now>=known.expires
+        or ns.DuelDetection.GetSnapshot().state~="idle"
         or not ValidPeer(sender,known) or not EnsureNode() then return end
     if body:sub(1,2)=="Q|" then
         responder=responder or ns.SyncProtocol.NewResponder(ns.Client.Kind(),node)
@@ -324,7 +374,7 @@ local function OnSync(body,_,sender)
     end
 end
 function P.PreferenceChanged()
-    if not P.CanCommunicate() then ResetPeer() end
+    if not P.CanCommunicate() then AbortExchange() end
 end
 function P.Initialize()
     if initialized or not Store.LocalRecordingEnabled() then return end
@@ -333,13 +383,26 @@ function P.Initialize()
     lastSeen=before.last and before.last.id or 0
     ns.DuelDetection.Subscribe(function(s)
         if s.scope~="LOCAL" then return end
-        if s.state=="challenge" then
-            if P.CanCommunicate() then StartChallenge(s) end
-        elseif s.state=="accepted" then
+        if s.state=="challenge" and s.challenge then
+            local c=s.challenge
+            if not intent or intent.time~=c.time or intent.direction~=c.direction
+                or intent.key~=(c.opponent and c.opponent.key) then
+                intent={time=c.time,direction=c.direction,key=c.opponent and c.opponent.key,
+                    mode=PreferredMode(),reason="not_agreed"}
+            end
+            -- A new challenge must not silently replace an earlier settling
+            -- match. Keep its bounded confirmation; the new duel is local.
+            if P.CanCommunicate() and not (match and match.phase=="settling") then StartChallenge(s) end
+        elseif s.state=="accepted" and s.active then
+            if not intent then intent={mode=PreferredMode(),reason="not_agreed"} end
+            if not intent.cycle then intent.cycle=s.active.id end
             if P.CanCommunicate() then Freeze(s) end
         elseif s.state=="idle" then
             if s.last and s.last.id>lastSeen then FinalizeObservation(s.last)
-            elseif match and match.phase=="challenge" then match=nil;status="unranked" end
+            else
+                intent=nil
+                if match and match.phase=="challenge" then match=nil;status="unranked" end
+            end
         end
     end)
     subscriptions=1
@@ -352,7 +415,11 @@ function P.Initialize()
         frame:RegisterEvent("PLAYER_ENTERING_WORLD")
         frame:RegisterEvent("PLAYER_REGEN_DISABLED")
         frame:SetScript("OnEvent",function(_,event)
-            if event=="PLAYER_ENTERING_WORLD" then ResetPeer()
+            if event=="PLAYER_ENTERING_WORLD" then
+                local pending=status=="pending";ResetPeer()
+                -- Detector owns the terminal world-transition observation.
+                -- Its callback clears intent, regardless of event ordering.
+                if pending then status="unconfirmed";Refresh() end
             else CancelSync() end
         end)
     end

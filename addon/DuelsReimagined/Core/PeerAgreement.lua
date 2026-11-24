@@ -17,22 +17,27 @@ end
 local function Build(client,prefix,now,available,send,scope)
     scope=scope or "SIMULATED"
     local D,s,seq={},nil,0
+    local wire=scope=="PEER" and "2" or VERSION
     local function Valid()
         return s and now()<s.deadline and available()
     end
     local function Send(op,a,b)
         if not Valid() then return false end
-        return send(table.concat({op,VERSION,client,s.me,s.peer,a,b},"|"),s.key)==true
+        local fields={op,wire,client,s.me,s.peer,a,b}
+        if scope=="PEER" then fields[#fields+1]=s.mode end
+        return send(table.concat(fields,"|"),s.key)==true
     end
     function D.Snapshot()
         local state=s and s.state or "idle"
         if s and not s.frozen and not Valid() then state="unranked" end
         return {scope=scope,state=state,rankEligible=false,
-            candidate=state=="candidate",session=state=="candidate" and s.session or nil}
+            candidate=state=="candidate",practice=state=="practice",
+            session=state=="candidate" and s.session or nil}
     end
     function D.Reset() s=nil end
-    function D.Begin(c,d,consent)
+    function D.Begin(c,d,consent,mode)
         if s or not available() or consent~=true or not c or not d then return false end
+        if scope=="PEER" and mode~="R" and mode~="P" then return false end
         -- The actual detector marks outgoing attempts unclassified until more evidence arrives.
         local outgoing=c.direction=="outgoing" and (c.kind=="unclassified" or c.kind=="standard")
         local incoming=c.direction=="incoming" and c.kind=="standard"
@@ -43,30 +48,37 @@ local function Build(client,prefix,now,available,send,scope)
         local token=prefix.."-"..seq
         if not Token(token) then return false end
         s={state=outgoing and "offer" or "waiting",me=c.me,peer=c.peer,key=d.key,
-            token=token,deadline=math.min(now()+WAIT,d.expiresAt)}
+            token=token,mode=mode or "R",deadline=math.min(now()+WAIT,d.expiresAt)}
         if outgoing and not Send("O",token,"-") then s.state="unranked";return false end
         return true
     end
     function D.Receive(body,sender)
         if not Valid() or s.frozen or sender~=s.key or type(body)~="string"
             or #body>220 or body:find("%c") then return end
-        local op,rev,kind,from,to,a,b=body:match("^([OAC])|(%d+)|(%a+)|([^|]+)|([^|]+)|([^|]+)|([^|]+)$")
-        if rev~=VERSION or kind~=client or from~=s.peer or to~=s.me or not Token(a) or not Token(b) then return end
+        local op,rev,kind,from,to,a,b,mode
+        if scope=="PEER" then
+            op,rev,kind,from,to,a,b,mode=body:match("^([OAC])|(%d+)|(%a+)|([^|]+)|([^|]+)|([^|]+)|([^|]+)|([RP])$")
+        else
+            op,rev,kind,from,to,a,b=body:match("^([OAC])|(%d+)|(%a+)|([^|]+)|([^|]+)|([^|]+)|([^|]+)$")
+            mode="R"
+        end
+        if rev~=wire or kind~=client or from~=s.peer or to~=s.me or not Token(a) or not Token(b) then return end
         if op=="O" and s.state=="waiting" and b=="-" and a~="-" then
-            s.remote=a;s.state="ack"
+            s.remote=a;s.remoteMode=mode;s.state="ack"
             if not Send("A",a,s.token) then s.state="unranked" end
         elseif op=="A" and s.state=="offer" and a==s.token and b~="-" then
-            s.remote=b;s.state="unranked"
+            s.remote=b;s.remoteMode=mode;s.state="unranked"
             if Send("C",a,b) then s.state="agreed";s.session=a..":"..b end
-        elseif op=="C" and s.state=="ack" and a==s.remote and b==s.token then
+        elseif op=="C" and s.state=="ack" and a==s.remote and b==s.token and mode==s.remoteMode then
             s.state="agreed";s.session=a..":"..b
         end
     end
     function D.Freeze(peer,ordinary)
         if not s or s.frozen then return end
         -- Countdown is a hard boundary: no packet can promote this duel afterward.
-        s.state=Valid() and s.state=="agreed" and peer==s.peer and ordinary==true
-            and "candidate" or "unranked"
+        if Valid() and s.state=="agreed" and peer==s.peer and ordinary==true then
+            s.state=(s.mode=="P" or s.remoteMode=="P") and "practice" or "candidate"
+        else s.state="unranked" end
         s.frozen=true
     end
     return D
@@ -87,12 +99,12 @@ function P.RunSelfTest(emit)
         if ok then passed=passed+1 else failed=failed+1 end
         emit("DR | SIMULATED | "..(ok and "PASS " or "FAIL ")..label..(ok and "" or ": "..tostring(err)))
     end
-    local function Fixture(kind)
+    local function Fixture(kind,scope,modeA,modeB)
         local time,ready,packets=100,true,{}
         local x,y="Player-1-AAA","Player-2-BBB"
         local function Make(key)
             return Build(kind,key,function()return time end,function()return ready end,
-                function(body,target) packets[#packets+1]={body=body,target=target,sender=key};return true end)
+                function(body,target) packets[#packets+1]={body=body,target=target,sender=key};return true end,scope)
         end
         local f={a=Make("alpha"),b=Make("beta"),packets=packets,x=x,y=y}
         local function challenge(me,peer,direction,k)
@@ -101,7 +113,7 @@ function P.RunSelfTest(emit)
         f.ca=challenge(x,y,"outgoing","unclassified");f.cb=challenge(y,x,"incoming","standard")
         f.da={state="compatible",protocol="1",guid=y,key="beta",expiresAt=160}
         f.db={state="compatible",protocol="1",guid=x,key="alpha",expiresAt=160}
-        function f.start() assert(f.b.Begin(f.cb,f.db,true));assert(f.a.Begin(f.ca,f.da,true)) end
+        function f.start() assert(f.b.Begin(f.cb,f.db,true,modeB));assert(f.a.Begin(f.ca,f.da,true,modeA)) end
         function f.deliver(i)
             local p=assert(packets[i]);(p.target=="alpha" and f.a or f.b).Receive(p.body,p.sender)
         end
@@ -117,6 +129,20 @@ function P.RunSelfTest(emit)
             local a,b=f.a.Snapshot(),f.b.Snapshot()
             assert(a.candidate and b.candidate and a.session==b.session and not a.rankEligible and not b.rankEligible)
             a.session="changed";assert(f.a.Snapshot().session==b.session)
+        end)
+        Case(kind.." peer mode agreement never ranks practice",function()
+            for _,m in ipairs({{"R","P"},{"P","R"},{"P","P"},{"R","R"}}) do
+                local f=Fixture(kind,"PEER",m[1],m[2]);f.agree();f.freeze()
+                local x,y=f.a.Snapshot(),f.b.Snapshot()
+                local ranked=m[1]=="R" and m[2]=="R"
+                assert(x.candidate==ranked and y.candidate==ranked and x.practice==(not ranked) and y.practice==(not ranked))
+                assert(ranked or (x.session==nil and y.session==nil))
+            end
+        end)
+        Case(kind.." missing practice confirmation cannot rank",function()
+            local f=Fixture(kind,"PEER","R","P");f.start();f.deliver(1);f.deliver(2);f.freeze();f.deliver(3)
+            assert(not f.a.Snapshot().candidate and not f.b.Snapshot().candidate)
+            assert(f.a.Snapshot().practice and not f.b.Snapshot().practice)
         end)
         Case(kind.." consent and discovery required",function()
             local f=Fixture(kind);assert(not f.a.Begin(f.ca,f.da,false));f.da.state="unknown"

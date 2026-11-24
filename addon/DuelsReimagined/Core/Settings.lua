@@ -34,6 +34,7 @@ local boolDefaults = {
     autoPeekMoving = true,
     reduceMotion = false,
     competitiveConsent = false,
+    practiceDuels = false,
     warGamesConsent = false,
     showTooltips = true,
     patchNotesReminder = true,
@@ -513,6 +514,9 @@ function Settings.Set(key, value)
         if ns.Options and ns.Options.Refresh then ns.Options.Refresh() end
     elseif key == "warGamesConsent" then
         if ns.WarGames then ns.WarGames.PreferenceChanged() end
+        if ns.Options and ns.Options.Refresh then ns.Options.Refresh() end
+    elseif key == "practiceDuels" then
+        -- The live lifecycle captures the choice on the next challenge.
         if ns.Options and ns.Options.Refresh then ns.Options.Refresh() end
     elseif key == "competitiveConsent" then
         if ns.CompetitiveLifecycle then ns.CompetitiveLifecycle.PreferenceChanged() end

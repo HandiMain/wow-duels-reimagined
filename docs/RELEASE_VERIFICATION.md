@@ -112,3 +112,11 @@ Established 2026-11-24; implementation baseline `09cc4e1` (develop). Practical v
 
 
 - [ ] E-placement04 — Confirm actual approved placement plate at zero progress in real empty Hall even when ranked seasons inactive; all five sockets, title, instruction, plaque and opponent text visible. Check fractional fills, same-rival cap, first rank reveal only once when both requirements fulfilled, reduced motion, resize/reopen, hide/stop/reset, default and compact font/menu scales. Confirm normal rank art and other Hall panels preserved, no new persistent animation or simulated data leaking to live records.
+
+
+### Duel intent and result edge cases
+- [ ] E-mode01 — Options Practice duels and /duels mode ranked|practice; default off, reset, saved preference, next-challenge capture, mid-countdown/mid-duel change applies only to next challenge. Consent and build gates independently locked; no native auto accept/forfeit. Verify tooltip, sizing, search and both clients.
+- [ ] D-mode02 — Private peer mode revision 2: R/R, R/P, P/R, P/P, incompatible/no addon, missing offer/ack/confirm, fast acceptance, stale packets and changed target. No rating/placement for practice, no false remote agreement; both local views may differ when evidence incomplete. No conversion after countdown or loss.
+- [ ] D-mode03 — Pending only while actual collector exists; timeout/restriction/consent withdrawal, rapid new challenge during settlement, world transition/disconnect, local unknown and retreat, no invented winner, sync deferred outside duel. Verify accepted candidate not relabelled practice and no stale pending after reload; preserve previous evidence.
+- [ ] E-mode04 — Solo test practice/unranked/pending win/loss, unknown/fled/retreat and repeated capped opponent; Match History filters and reason line; no rating/placement for noncompetitive results, unknown not counted as loss, normal placements unchanged; no live data or transport. Verify closing Hall does not stop real detector/recording during separately authorized live checks. HUD intentionally deferred.
+- [ ] B-reg02 — a0d343d UI mock CI failed at line 143 while syntax and preceding core suites passed. Mock had no live storage loaded; assert unavailable state, zero active season/rows. Require full fresh CI, not just screenshot approval.

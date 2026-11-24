@@ -49,6 +49,12 @@ SlashCmdList.DUELSREIMAGINED = function(message)
         else print("DR | Storage unavailable: "..tostring(s.reason)) end
         return
     end
+    if message=="mode" or message=="mode ranked" or message=="mode practice" then
+        if message~="mode" then ns.Settings.Set("practiceDuels",message=="mode practice") end
+        local mode=ns.CompetitiveLifecycle.GetPreferredMode()
+        print("DR | Next duel: "..mode..". Ranked duels require mutual agreement; current activation gates remain unchanged.")
+        return
+    end
     if message=="competitive status" or message=="sync" then
         local C=ns.CompetitiveLifecycle
         if message=="sync" then

@@ -58,6 +58,15 @@ class CompetitiveUI(unittest.TestCase):
         self.assertNotIn('Voidreign',p)
         self.assertIn('function U.LowerRim(parent)',ui)
 
+    def test_duel_mode_isolated_and_explained(self):
+        ui=read("UI/CompetitiveUI.lua")
+        for label in ("Rating capped","MatchExplanation","Awaiting the other player's matching result"):
+            self.assertIn(label,ui)
+        self.assertIn('practiceDuels = false',read("Core/Settings.lua"))
+        self.assertIn('practice_cannot_rank',read("Core/PersonalHistory.lua"))
+        self.assertIn('r.duelMode=="practice"',read("Core/ResultConfirmation.lua"))
+        self.assertIn('IsResultPending(row.matchID)',read("UI/CompetitivePreview.lua"))
+
     def test_approved_placement_plate_and_shared_animation(self):
         ui=read("UI/CompetitiveUI.lua")
         for token in ("DuelPlacementPanel.png","DuelPlacementEffects.png",

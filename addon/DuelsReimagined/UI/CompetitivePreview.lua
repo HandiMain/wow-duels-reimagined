@@ -28,27 +28,39 @@ local function Build(client,events)
         return id
     end
     for cycle,event in ipairs(events) do
-        assert(type(event)=="table" and (event.outcome=="won" or event.outcome=="lost")
+        assert(type(event)=="table" and (event.outcome=="won" or event.outcome=="lost" or event.outcome=="unknown" or event.outcome=="fled" or event.outcome=="they_fled")
             and type(event.opponent)=="number" and event.opponent>=1
             and event.opponent<=MAX_OPPONENTS and event.opponent==math.floor(event.opponent))
         local a,b=Identity(0),Identity(event.opponent)
         local winner=event.outcome=="won" and a or b
         local session="sim-"..cycle..":duel-"..cycle
         local time=epoch+3600+cycle*120
-        local x=table.concat({"1",client,session,a,b,a==winner and "won" or "lost",tostring(cycle)},"|")
-        local y=table.concat({"1",client,session,b,a,b==winner and "won" or "lost",tostring(cycle)},"|")
-        local record=assert(ns.ResultConfirmation.DecodeStatementsSimulated(client,x,y))
-        assert(node.Observe(record,time,time))
+        local mode=event.mode or "ranked"
+        assert(mode=="ranked" or mode=="practice" or mode=="unranked" or mode=="pending")
+        local knockout=event.outcome=="won" or event.outcome=="lost"
+        local linked=knockout and (mode=="ranked" or mode=="pending")
+        if linked and mode=="ranked" then
+            local x=table.concat({"1",client,session,a,b,a==winner and "won" or "lost",tostring(cycle)},"|")
+            local y=table.concat({"1",client,session,b,a,b==winner and "won" or "lost",tostring(cycle)},"|")
+            local record=assert(ns.ResultConfirmation.DecodeStatementsSimulated(client,x,y))
+            assert(node.Observe(record,time,time))
+        end
         localRows[#localRows+1]={cycle=cycle,peer=b,outcome=event.outcome,
-            session=session,matchID=record.id,duration=60,time=time}
+            session=linked and session or nil,mode=mode,duration=60,time=time}
     end
     local saved=node.Save()
     local ledger=assert(ns.MatchLedger.OpenSimulated(client,saved.ledger))
     local history=assert(ns.PersonalHistory.OpenSimulated(client,me,ledger))
     local function Observe(row)
+        local unknown=row.outcome=="unknown"
+        local retreat=row.outcome=="fled" or row.outcome=="they_fled"
         local r={scope="SIMULATED",client=client,id=row.cycle,kind="standard",opponent={guid=row.peer},
-            acceptedAt=0,endedAt=row.duration,outcome=row.outcome,endType="knockout",
-            reason="matching_result_and_finish",outcomeObserved=true,finishObserved=true,resultObserved=true,conflict=false,rankEligible=false}
+            acceptedAt=0,endedAt=row.duration,outcome=row.outcome,endType=not unknown and (retreat and "retreat" or "knockout") or nil,
+            reason=unknown and "not_observed" or "matching_result_and_finish",
+            outcomeObserved=not unknown,finishObserved=not unknown,resultObserved=not unknown,conflict=false,rankEligible=false}
+        if row.mode=="practice" then r.duelMode="practice";r.rankReason="practice_selected"
+        elseif not row.session then r.rankReason=unknown and "unknown_result" or retreat and "retreat" or "not_agreed" end
+        if unknown then r.endReason="not_observed" end
         local ag=row.session and {scope="SIMULATED",state="candidate",candidate=true,rankEligible=false,session=row.session} or nil
         assert(history.Observe("run-1",r,ag))
     end
@@ -69,7 +81,7 @@ local function Build(client,events)
         local row=personal.history[i]
         local r=row.matchID and change[row.matchID]
         local category=row.category
-        if category=="matched" and r then category=r.weight>0 and "Ranked" or "Practice"
+        if category=="matched" and r then category=r.weight>0 and "Ranked" or "Rating capped"
         elseif category=="matched" then category="Unconfirmed"
         else category=category:sub(1,1):upper()..category:sub(2) end
         local before,after,delta
@@ -81,7 +93,7 @@ local function Build(client,events)
         end
         matches[#matches+1]={id=row.id,identity=metadata[row.opponent],peer=row.opponent,
             category=category,outcome=row.outcome,duration=row.duration,before=before,after=after,delta=delta,
-            time=r and r.time,confirmed=row.category=="matched"}
+            time=r and r.time,confirmed=row.category=="matched",rankReason=row.rankReason,endReason=row.endReason}
     end
     return {scope="SIMULATED",rankEligible=false,client=client,me=me,view=view,identities=metadata,
         asOf=asOf,epoch=epoch,current=view.Status().season,personal=personal.overall,matches=matches}
@@ -123,7 +135,7 @@ function P.Local()
             local row=snapshot.history[i]
             local identity=row.name and {name=row.name,fullName=row.fullName or row.name,
                 realm=row.realm,class=row.class,faction=row.faction} or nil
-            local category,confirmed,before,after,delta="Unranked",false
+            local category,confirmed,before,after,delta=row.duelMode=="practice" and "Practice" or "Unranked",false
             if row.matchID then
                 local record=matched[row.matchID]
                 local own=record and me and (record.player1==me.guid and record.statement1 or
@@ -133,18 +145,18 @@ function P.Local()
                 if disputed[row.matchID] or (record and own~=row.statement) or (clocks and clocks[2]) then
                     category="Disputed"
                 elseif record and own==row.statement and change then
-                    category=change.weight>0 and "Ranked" or "Practice"
+                    category=change.weight>0 and "Ranked" or "Rating capped"
                     confirmed=true
                     if record.winner==me.guid then before,after=change.winnerBefore,change.winnerAfter
                     else before,after=change.loserBefore,change.loserAfter end
                     if before and after then delta=after-before end
-                elseif asOf and row.time and asOf-row.time<=30 and asOf>=row.time then
+                elseif ns.CompetitiveLifecycle and ns.CompetitiveLifecycle.IsResultPending and ns.CompetitiveLifecycle.IsResultPending(row.matchID) then
                     category="Pending"
                 else category="Unconfirmed" end
             end
             matches[#matches+1]={id=row.id,identity=identity,peer=row.opponent,
                 category=category,outcome=row.outcome,duration=row.duration,confirmed=confirmed,
-                before=before,after=after,delta=delta,time=row.time}
+                before=before,after=after,delta=delta,time=row.time,rankReason=row.rankReason,endReason=row.endReason}
         end
     end
     local capacity=storage.ReadLocalCapacity()
@@ -163,7 +175,7 @@ local function Refresh()
 end
 function P.Command(command)
     if not TEST_ENABLED then return false,"Solo simulation is unavailable in this build." end
-    if command=="help" then return true,"/duels sim start | win [1-20] | loss [1-20] | reset | stop | status" end
+    if command=="help" then return true,"/duels sim start | [practice/unranked/pending] win/loss [1-20] | unknown/fled/retreat [1-20] | reset | stop | status" end
     if command=="stop" then
         session,cached=nil,nil;Refresh();return true,"Simulation discarded. Real data view restored."
     end
@@ -175,15 +187,19 @@ function P.Command(command)
         if not ok then return false,"Could not initialize test session." end
         session,cached={},data;Refresh();return true,"Empty SIMULATED session. No real data changed."
     end
-    local verb,arg=command:match("^(%a+)%s*(%d*)$")
-    if verb~="win" and verb~="loss" then return false,"Use /duels sim help." end
+    local mode,rest=command:match("^(%a+)%s+(.+)$")
+    if mode~="practice" and mode~="unranked" and mode~="pending" then mode,rest="ranked",command end
+    local verb,arg=rest:match("^(%a+)%s*(%d*)$")
+    local outcomes={win="won",loss="lost",unknown="unknown",fled="fled",retreat="they_fled"}
+    if not outcomes[verb] then return false,"Use /duels sim help." end
+    if mode=="pending" and verb~="win" and verb~="loss" then return false,"Pending requires a knockout result." end
     if not session then return false,"Start with /duels sim start." end
     if #session>=MAX_EVENTS then return false,"Test limit reached. Use /duels sim reset." end
     local opponent=arg=="" and (#session%5+1) or tonumber(arg)
     if not opponent or opponent<1 or opponent>MAX_OPPONENTS then return false,"Opponent must be 1-20." end
     local nextEvents={}
     for i,e in ipairs(session) do nextEvents[i]=e end
-    nextEvents[#nextEvents+1]={outcome=verb=="win" and "won" or "lost",opponent=opponent}
+    nextEvents[#nextEvents+1]={outcome=outcomes[verb],opponent=opponent,mode=mode}
     local ok,data=pcall(Build,ns.Client.Kind(),nextEvents)
     if not ok then return false,"Simulation rejected; previous state preserved." end
     session,cached=nextEvents,data;Refresh()

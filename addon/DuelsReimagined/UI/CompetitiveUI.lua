@@ -855,7 +855,7 @@ local historyIcon=ns.Chrome.Icon(historyStats,"Hall")
 local historyMetrics=Metrics(historyStats,{"Total duels","Wins","Losses","Win rate"})
 local historySearch=Search(history,"Search opponent or realm...",function(v)historyQuery=v;history.Render(true)end)
 local function Values(list)local out={};for _,v in ipairs(list)do out[#out+1]={key=v,label=v}end;return out end
-local typeChoice=Choice(history,Values({"All duels","Ranked","Unranked","Practice","Pending","Disputed","Unconfirmed"}),"All duels",function(v)historyType=v;expandedId=nil;history.Render(true)end)
+local typeChoice=Choice(history,Values({"All duels","Ranked","Unranked","Practice","Rating capped","Pending","Disputed","Unconfirmed"}),"All duels",function(v)historyType=v;expandedId=nil;history.Render(true)end)
 local outcomeChoice=Choice(history,Values({"All outcomes","Win","Loss","Fled","Opponent fled","Unknown"}),"All outcomes",function(v)historyOutcome=v;expandedId=nil;history.Render(true)end)
 local historyHeader=Panel(history)
 local historyHeaders={}
@@ -871,6 +871,33 @@ local historyList=List(history,"history",38,function(item)
 end)
 local detail=Panel(historyList)
 local detailMetrics=Metrics(detail,{"Duel","Rating","Elapsed","Result"})
+local detailReason=Text(detail,11,C.muted,"CENTER")
+local function MatchExplanation(item)
+    local explanations={
+        practice_selected="Practice selected before the duel. No rating or placement credit.",
+        practice_agreed="Practice agreed before the countdown. No rating or placement credit.",
+        not_agreed="No compatible ranked agreement before countdown.",
+        capacity="Competitive storage limit reached. No rating change.",
+        storage_unavailable="Competitive data unavailable. No rating change.",
+        retreat="Retreat recorded locally; ranked knockouts only.",
+        unknown_result="Outcome not established. No rating change.",
+        confirmation_unavailable="Competitive confirmation unavailable."
+    }
+    if item.outcome=="unknown" then
+        return item.endReason=="world_transition" and "World transition interrupted observation; outcome unknown."
+            or "Duel outcome not observed or conflicting. No rating change."
+    end
+    if item.category=="Rating capped" then return "Repeat-opponent rating limit reached. No placement credit or rating change." end
+    if item.category=="Pending" then return "Awaiting the other player's matching result." end
+    if item.category=="Disputed" then return "Conflicting evidence. No confirmed rating change." end
+    if item.category=="Unconfirmed" then return "Matching competitive result not established." end
+    if item.category=="Practice" then return explanations[item.rankReason] or "Practice duel; no competitive rating change." end
+    if item.category=="Unranked" then
+        if item.outcome=="fled" or item.outcome=="they_fled" then return explanations.retreat end
+        return explanations[item.rankReason] or "No confirmed ranked agreement."
+    end
+    return "Competitive result matched; rating follows the season rules."
+end
 local filtered={}
 local function Refilter()
     local query=historyQuery:lower()
@@ -899,10 +926,11 @@ historyList.Configure(function(offset,limit)
     local result={};for i=offset+1,math.min(offset+limit,#filtered) do result[#result+1]=filtered[i] end
     return result,#filtered
 end,function(row,item,w,h)HistoryRow(row,item,w,h);row.Mark(item.id==expandedId)end,{
-    frame=detail,Height=function()return expandedId and 59 or 0 end,
+    frame=detail,Height=function()return expandedId and 83 or 0 end,
     Is=function(item)return item.id==expandedId end,
     Paint=function(item,w,h)
-        FitMetrics(detailMetrics,detail,0,0,w,h)
+        FitMetrics(detailMetrics,detail,0,0,w,57)
+        Place(detailReason,detail,6,58,w-12,22);detailReason:SetText(MatchExplanation(item))
         local result,color=Outcome(item.outcome);Set(detailMetrics[1].value,item.category.." — "..result,color)
         Set(detailMetrics[2].value,item.before and (Number(item.before).." to "..Number(item.after)) or "—",C.pale)
         Set(detailMetrics[3].value,Duration(item.duration),C.text)

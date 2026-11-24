@@ -27,7 +27,14 @@ for _,client in ipairs({"forever","retail"}) do
     for i=1,8 do repeated[i]={outcome="won",opponent=1} end
     local d=P.Build(client,repeated);local p=d.view.ProfileSummary(d.me,1)
     assert(p.rank.provisional and p.rivalCount==1 and p.credit<32)
-    assert(d.matches[1].category=="Practice" and d.matches[1].delta==0)
+    assert(d.matches[1].category=="Rating capped" and d.matches[1].delta==0)
+    local mixed=P.Build(client,{{outcome="won",mode="practice",opponent=1},
+        {outcome="lost",mode="unranked",opponent=2},{outcome="unknown",opponent=3},
+        {outcome="fled",opponent=4},{outcome="won",mode="pending",opponent=5}})
+    assert(mixed.personal.total==5 and mixed.personal.wins==2 and mixed.personal.losses==2 and mixed.personal.unknown==1)
+    assert(mixed.matches[5].category=="Practice" and mixed.matches[5].delta==nil)
+    assert(mixed.matches[1].category=="Pending" and mixed.matches[1].delta==nil)
+    assert(mixed.view.Leaderboard(1,0,100,"","rating").total==0)
 end
 -- Minimal frame mock: tracks scripts, visibility, sizes and text; rendering
 -- is deliberately not certified here. Parent anchors get content dimensions.
@@ -140,7 +147,10 @@ U.Show("overview")
 assert(P.Command("reset") and #P.Get().matches==0 and HasText("Placement Matches"))
 assert(P.Command("stop") and not P.IsActive() and P.Get().scope=="LOCAL")
 assert(HasText("Placement Matches") and HasText("0 / 5 completed"))
-assert(HasText("Ranked seasons not active"))
+-- This mock never loads the live SavedVariables roots. Preserve the
+-- unavailable-data label instead of claiming a successfully read empty store.
+assert(P.Get().storageReason and HasText("Local history unavailable"))
+assert(P.Get().current==0 and #P.Get().matches==0)
 assert(P.Command("start"))
 for i=1,5 do assert(P.Command("win")) end
 assert(next(activeTweens))

@@ -48,6 +48,10 @@ local function Rate(c)
     if n>0 then c.winRate=c.wins/n end
     if c.durationCount>0 then c.averageDuration=c.totalDuration/c.durationCount end
 end
+local rankReasons={practice_selected=true,practice_agreed=true,not_agreed=true,
+    capacity=true,storage_unavailable=true,retreat=true,unknown_result=true,confirmation_unavailable=true}
+local endReasons={world_transition=true,conflicting_result=true,result_not_observed=true,
+    finish_not_observed=true,not_observed=true}
 local function Build(client,me,ledger,cap,scope)
     scope=scope or "SIMULATED"
     assert((client=="forever" or client=="retail") and Guid(me))
@@ -68,6 +72,11 @@ local function Build(client,me,ledger,cap,scope)
         end
         local id=run..":"..r.id
         local row={id=id,cycle=r.id,run=run,opponent=peer,outcome=out,duration=r.endedAt-r.acceptedAt}
+        if r.duelMode~=nil and r.duelMode~="practice" then return false,"invalid_mode" end
+        if r.duelMode=="practice" and agreement~=nil then return false,"practice_cannot_rank" end
+        if r.rankReason~=nil and not rankReasons[r.rankReason] then return false,"invalid_rank_reason" end
+        if r.endReason~=nil and not endReasons[r.endReason] then return false,"invalid_end_reason" end
+        row.duelMode=r.duelMode;row.rankReason=r.rankReason;row.endReason=r.endReason
         -- Real candidates are explicitly PEER-scoped; fixture agreements
         -- must never be accepted into local history.
         if scope=="LOCAL" and agreement~=nil and
@@ -122,6 +131,9 @@ local function Build(client,me,ledger,cap,scope)
             end
         end
         if scope=="LOCAL" then source.result.observedAt=row.time end
+        source.result.duelMode=row.duelMode
+        source.result.rankReason=row.rankReason
+        source.result.endReason=row.endReason
         if row.matchID then source.agreement={scope=scope=="LOCAL" and "PEER" or "SIMULATED",state="candidate",candidate=true,
             rankEligible=false,session=agreement.session} end
         sources[#sources+1]=source
@@ -141,10 +153,10 @@ local function Build(client,me,ledger,cap,scope)
             for _,r in ipairs(snapshot.disputed) do disputed[r.id]=true end
         end
         local s={scope=scope,client=client,character=me,rankEligible=false,history={},overall=Counter(),
-            categories={unranked=Counter(),pending=Counter(),matched=Counter(),disputed=Counter(),ranked=Counter()},opponents={}}
+            categories={unranked=Counter(),practice=Counter(),pending=Counter(),matched=Counter(),disputed=Counter(),ranked=Counter()},opponents={}}
         -- Append order is local observation order, not cross-client replay time.
         for _,r in ipairs(rows) do
-            local row=Copy(r);local category="unranked"
+            local row=Copy(r);local category=r.duelMode=="practice" and "practice" or "unranked"
             if r.matchID then
                 local rec=matched[r.matchID]
                 if disputed[r.matchID] then category="disputed"
@@ -235,6 +247,15 @@ function P.RunSelfTest(emit)
         Case(client.." ordinary duels need no peer addon",function()
             local d=Fixture();assert(d.Observe("run",R(1,"won",b)));assert(d.Observe("run",R(2,"lost",b)))
             local s=d.Snapshot();assert(s.overall.wins==1 and s.overall.losses==1 and s.overall.winRate==0.5 and s.categories.unranked.total==2)
+        end)
+        Case(client.." explicit practice is isolated and durable",function()
+            local d,l=Fixture();local r=R(1,"won",b);r.duelMode="practice";r.rankReason="practice_selected"
+            assert(not d.Observe("run",r,Agreement(1)))
+            assert(d.Observe("run",r));local saved=d.Save()
+            local reopened=assert(P.OpenSimulated(client,a,l,saved))
+            local snap=reopened.Snapshot()
+            assert(snap.categories.practice.wins==1 and snap.overall.total==1 and not snap.history[1].matchID)
+            assert(snap.history[1].rankReason=="practice_selected")
         end)
         Case(client.." retreats and unknown outcomes",function()
             local d=Fixture();d.Observe("run",R(1,"they_fled",b));d.Observe("run",R(2,"fled",b))

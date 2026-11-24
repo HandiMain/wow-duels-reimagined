@@ -35,7 +35,7 @@ local function Statement(c,r,scope)
     c=Context(c,scope)
     if not c or type(r)~="table" or r.scope~=(scope=="PEER" and "LOCAL" or "SIMULATED") or r.client~=c.client or r.id~=c.cycle
         or type(r.opponent)~="table" or r.opponent.guid~=c.peer or r.rankEligible~=false
-        or r.kind=="death_duel" or (r.kind~="standard" and r.kind~="unclassified")
+        or r.duelMode=="practice" or r.kind=="death_duel" or (r.kind~="standard" and r.kind~="unclassified")
         or r.reason~="matching_result_and_finish" or r.outcomeObserved~=true or r.finishObserved~=true
         or r.resultObserved~=true or r.conflict~=false or r.endType~="knockout"
         or (r.outcome~="won" and r.outcome~="lost") then return end

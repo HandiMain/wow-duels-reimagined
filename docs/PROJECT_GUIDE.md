@@ -1606,3 +1606,7 @@ Step 23 in COMPETITIVE.md documents the new local recorder, separately scoped pe
 ## War Games reliability checkpoint — 2026-11-24
 
 User authorized reliability fixes, native readiness, optional captain exchange and observed match lifecycle, excluding history, rematches, best-of series and streamer overlay. See WAR_GAMES.md and release register G06–G10 for the exact scope and evidence requirements. W1 build gate remains disabled; normal native requests remain independent. No manual tests or release; verify separately on Retail with consenting participants. Do not infer match identity, opponent addon absence or spectator team composition. Competitive fingerprint changed only because shared settings/transport changed.
+
+
+## Duel intent checkpoint — 2026-11-24
+Explicit Practice preference (next challenge), mode-aware gated agreement, rating-cap distinction and result explanations are documented in COMPETITIVE.md and RELEASE_VERIFICATION.md E-mode01–04 / D-mode02–03 / B-reg02. No live gate changes. Keep HUD design separate. Continue to defer practical multiplayer tests until December; do not claim matching live evidence from simulations.
