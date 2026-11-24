@@ -28,3 +28,12 @@ assert(sent==1 and P.GetSnapshot().state=="checking" and not P.GetSnapshot().ran
 passed,failed=P.RunSelfTest()
 assert(passed==13 and failed==0 and sent==1 and P.GetSnapshot().state=="checking","QA did not change pending live probe")
 print("Opponent discovery simulated protocol and live wiring mock: PASS")
+
+-- Agreement has no live adapter. Guard the existing transport and detector.
+local previous=sent
+assert(loadfile("addon/DuelsReimagined/Core/PeerAgreement.lua"))("DuelsReimagined",ns)
+local A=ns.PeerAgreement
+local ap,af=A.RunSelfTest(function(line)if line:find("FAIL",1,true) then print(line) end end)
+assert(ap==21 and af==0 and sent==previous and P.GetSnapshot().state=="checking","isolated agreement suite")
+assert(A.GetSnapshot().state=="disabled" and not A.GetSnapshot().rankEligible,"live agreement gate")
+print("Peer agreement isolated protocol: PASS")
