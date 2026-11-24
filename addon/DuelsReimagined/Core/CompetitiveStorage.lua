@@ -1,11 +1,19 @@
 local _,ns=...
--- Live metadata and isolated durable record transactions. No live match writes.
+-- Isolated fixtures and gated local/peer persistence. Activation is locked.
 local P={}
 ns.CompetitiveStorage=P
 local VERSION,MAX=2,2147483647
 -- Explicit development gate. No local recording or run allocation before
 -- actual detector/persistence verification; ranking has its own disabled gate.
 local LOCAL_RECORDING_ENABLED=false
+-- Test activation is a separate explicit build decision, not a preference.
+-- A nil epoch cannot start a competitive calendar.
+local PEER_TEST_ENABLED=false
+local PEER_EPOCH=nil
+function P.LocalRecordingEnabled() return LOCAL_RECORDING_ENABLED end
+function P.PeerEpoch()
+    if LOCAL_RECORDING_ENABLED and PEER_TEST_ENABLED then return PEER_EPOCH end
+end
 local function Client(k) return k=="forever" or k=="retail" end
 local function Guid(v)
     return type(v)=="string" and #v<=64 and v:match("^Player%-%w[%w%-]*$")~=nil
@@ -62,6 +70,25 @@ local function SeasonNode(client,ledger,season)
     return ns.LeaderboardSync.OpenSeasonSimulated(client,season.epoch,{version=1,scope="SIMULATED",client=client,
         rule=ns.CompetitiveRules.ID,ledger=ledger,clocks=season.clocks})
 end
+-- Exact, compact peer evidence. No simulation ledger is allowed here.
+local function OpenPeerEvidence(client,raw)
+    if type(raw)~="table" or raw.version~=1 or raw.scope~="PEER" or
+        not ns.SeasonRules.Schedule(raw.epoch,raw.epoch) or type(raw.clocks)~="table" then return nil end
+    for k in pairs(raw) do
+        if k~="version" and k~="scope" and k~="epoch" and k~="ledger" and k~="clocks" then return nil end
+    end
+    local ledger=ns.MatchLedger.OpenCompactPeer(client,raw.ledger)
+    if not ledger then return nil end
+    return ns.LeaderboardSync.OpenSeasonPeer(client,raw.epoch,{version=1,scope="PEER",client=client,
+        rule=ns.CompetitiveRules.ID,ledger=ledger.Save(),clocks=raw.clocks})
+end
+local function SavePeerEvidence(client,node)
+    if not node or node.GetScope()~="PEER" then return nil end
+    local data=node.Save()
+    local ledger=ns.MatchLedger.OpenPeer(client,data.ledger)
+    if not ledger then return nil end
+    return {version=1,scope="PEER",epoch=node.GetSeasonEpoch(),ledger=ledger.SaveCompact(),clocks=data.clocks}
+end
 local function Root(raw,kind,owner,scope)
     local clean={version=VERSION,kind=kind,owner=owner,scope=scope,clients={}}
     if raw==nil then return clean end
@@ -83,7 +110,8 @@ local function Root(raw,kind,owner,scope)
             if field~="probe" and not (not legacy and kind=="character" and field=="runCounter")
                 and not (not legacy and scope=="SIMULATED" and ((kind=="account" and (field=="ledger" or field=="season" or field=="identities"))
                     or (kind=="character" and field=="history")))
-                and not (not legacy and scope=="LOCAL" and kind=="character" and field=="localHistory") then return nil end
+                and not (not legacy and scope=="LOCAL" and kind=="character" and field=="localHistory")
+                and not (not legacy and scope=="LOCAL" and kind=="account" and field=="peerEvidence") then return nil end
         end
         -- Only private simulation roots can contain simulated records.
         if scope=="SIMULATED" and not legacy then
@@ -110,6 +138,12 @@ local function Root(raw,kind,owner,scope)
                 local n=tonumber(src.run:match("^run%-(%d+)$"))
                 if not Count(n) or n==0 or n>part.runCounter or src.run~="run-"..n then return nil end
             end
+        end
+        if scope=="LOCAL" and not legacy and kind=="account" and v.peerEvidence~=nil then
+            local node=OpenPeerEvidence(k,v.peerEvidence)
+            if not node then return nil end
+            part.peerEvidence=SavePeerEvidence(k,node)
+            if not part.peerEvidence then return nil end
         end
         if scope=="SIMULATED" and not legacy and kind=="account" and v.season~=nil then
             local node=SeasonNode(k,part.ledger,v.season)
@@ -191,19 +225,98 @@ local function Build(read,write,client,identity,scope)
         if not clean then return nil,"invalid_history" end
         write(a,clean);return "run-"..cp.runCounter
     end
-    function D.RecordLocalObservation(run,r)
+    function D.RecordLocalObservation(run,r,agreement)
         if scope~="LOCAL" or not LOCAL_RECORDING_ENABLED then return false,"disabled" end
         local a,c,k,why=Pair();if not a then return false,why end
         local cp=c.clients[k]
         if not cp or cp.runCounter==0 or run~="run-"..cp.runCounter then return false,"stale_run" end
         local h=ns.PersonalHistory.OpenLocal(k,c.owner,cp.localHistory)
         if not h then return false,"invalid_history" end
-        local ok,reason=h.Observe(run,r)
+        local ok,reason=h.Observe(run,r,agreement)
         if not ok then return false,reason end
         cp.localHistory=h.Save()
         local clean=Root(c,"character",c.owner,scope)
         if not clean then return false,"invalid_history" end
         write(a,clean);return true
+    end
+    -- Single live owner obtains a detached node, then commits only its
+    -- validated compact source. No derived rating is written to SavedVariables.
+    function D.OpenPeerNode()
+        local epoch=P.PeerEpoch()
+        if scope~="LOCAL" or not epoch then return nil,"disabled" end
+        local a,c,k,why=Pair();if not a then return nil,why end
+        local raw=a.clients[k] and a.clients[k].peerEvidence
+        if raw and raw.epoch~=epoch then return nil,"schedule_mismatch" end
+        if raw then return OpenPeerEvidence(k,raw) end
+        return ns.LeaderboardSync.OpenSeasonPeer(k,epoch)
+    end
+    local function SameEvidence(a,b)
+        if type(a)~=type(b) then return false end
+        if type(a)~="table" then return a==b end
+        for k,v in pairs(a) do if not SameEvidence(v,b[k]) then return false end end
+        for k in pairs(b) do if a[k]==nil then return false end end
+        return true
+    end
+    function D.CommitPeerNode(node)
+        local epoch=P.PeerEpoch()
+        if scope~="LOCAL" or not epoch then return false,"disabled" end
+        local a,c,k,why=Pair();if not a then return false,why end
+        if not node or node.GetScope()~="PEER" or node.GetSeasonEpoch()~=epoch then return false,"context" end
+        local ap=a.clients[k] or {probe=0}
+        if ap.peerEvidence and ap.peerEvidence.epoch~=epoch then return false,"schedule_mismatch" end
+        local raw=SavePeerEvidence(k,node)
+        if not raw or not OpenPeerEvidence(k,raw) then return false,"invalid_evidence" end
+        if ap.peerEvidence then
+            local prior=OpenPeerEvidence(k,ap.peerEvidence)
+            local proposed=node.Save()
+            if not prior or not prior.MergeSaved(proposed) or not SameEvidence(prior.Save(),proposed) then
+                return false,"stale_or_incomplete_evidence"
+            end
+        end
+        ap.peerEvidence=raw;a.clients[k]=ap
+        local clean=Root(a,"account",nil,scope)
+        if not clean then return false,"invalid_evidence" end
+        write(clean,c);return true
+    end
+    function D.ReadLocalCapacity()
+        if scope~="LOCAL" then return nil,"wrong_scope" end
+        local a,c,k,why=Pair();if not a then return nil,why end
+        local ap,cp=a.clients[k] or {},c.clients[k] or {}
+        local n=0
+        for _ in pairs(ap.peerEvidence and ap.peerEvidence.ledger.entries or {}) do n=n+1 end
+        local function Cap(used,limit)
+            return {used=used,limit=limit,state=used>=limit and "full" or used>=limit*.9 and "near_capacity" or "available"}
+        end
+        return {scope="LOCAL",policy="preserve_exact_evidence",history=Cap(cp.localHistory and #cp.localHistory.observations or 0,ns.PersonalHistory.GetCapacity()),
+            ledger=Cap(n,ns.MatchLedger.GetCapacity())}
+    end
+    function D.ReadPeerView(asOf)
+        if scope~="LOCAL" then return nil,"wrong_scope" end
+        local a,c,k,why=Pair();if not a then return nil,why end
+        local raw=a.clients[k] and a.clients[k].peerEvidence
+        if not raw then return nil,"no_evidence" end
+        local node=OpenPeerEvidence(k,raw)
+        if not node then return nil,"invalid_evidence" end
+        local replay,err=node.ReplaySeasonPeer({epoch=raw.epoch,asOf=asOf})
+        if not replay then return nil,err end
+        local cp=c.clients[k] or {}
+        local history=ns.PersonalHistory.OpenLocal(k,c.owner,cp.localHistory)
+        if not history then return nil,"invalid_history" end
+        local personal=history.Snapshot()
+        local identities={}
+        -- Only locally observed metadata; relayed claims never invent names.
+        for _,row in ipairs(personal.history) do
+            if row.opponent and row.name then
+                identities[row.opponent]={guid=row.opponent,name=row.name,fullName=row.fullName or row.name,
+                    realm=row.realm,class=row.class,faction=row.faction}
+            end
+        end
+        local me=ns.Group.ReadCompetitiveIdentity and ns.Group.ReadCompetitiveIdentity("player")
+        if me and me.guid==c.owner then identities[c.owner]=me end
+        local view=BuildCompetitiveView(k,c.owner,personal,replay,asOf,identities,"PEER")
+        local ledger=ns.MatchLedger.OpenCompactPeer(k,raw.ledger)
+        return {view=view,replay=replay,epoch=raw.epoch,identities=identities,evidence=ledger.Snapshot(),
+            clocks=raw.clocks}
     end
     -- Private fixture transaction: reopen from validated data every time;
     -- write only canonical record sources after successful edit. No live path.
@@ -380,7 +493,8 @@ local function FinishStat(s)
         if o.wins+o.losses>0 then o.winRate=o.wins/(o.wins+o.losses) end
     end
 end
-BuildCompetitiveView=function(client,me,personal,replay,asOf,identities)
+BuildCompetitiveView=function(client,me,personal,replay,asOf,identities,viewScope)
+    viewScope=viewScope or "SIMULATED"
     local D,bySeason,byPlayer,boards={},{},{},{}
     local current=replay and replay.season
     if not Count(asOf) or asOf==0 then
@@ -429,7 +543,7 @@ BuildCompetitiveView=function(client,me,personal,replay,asOf,identities)
         return boards[season]
     end
     function D.Status()
-        return {scope="SIMULATED",client=client,character=me,season=current,asOf=asOf,
+        return {scope=viewScope,client=client,character=me,season=current,asOf=asOf,
             state=replay and "ready" or "no_archive",rankEligible=false,completeness="unknown",
             evidence=replay and {matched=replay.matched,rated=replay.rated,practice=replay.restricted,
                 disputed=replay.disputed,missingTime=replay.missingTime,timeDisputed=replay.timeDisputed} or nil}
@@ -444,7 +558,7 @@ BuildCompetitiveView=function(client,me,personal,replay,asOf,identities)
         if not byPlayer[id] then return nil,"not_observed" end
         local p=(Players(season) or {})[id]
         local s=byPlayer[id][season]
-        local out={scope="SIMULATED",client=client,id=id,season=season,rankEligible=false,completeness="unknown",
+        local out={scope=viewScope,client=client,id=id,season=season,rankEligible=false,completeness="unknown",
             state=p and p.credit>0 and "observed" or "inactive",stats={},seasons={},
             identity=CopyView(identities[id])}
         for k,v in pairs(s or Stat()) do
@@ -473,7 +587,7 @@ BuildCompetitiveView=function(client,me,personal,replay,asOf,identities)
         end
         local stats=byPlayer[id] and byPlayer[id][season]
         local rows=stats and stats.progression or {}
-        local out={scope="SIMULATED",client=client,rankEligible=false,completeness="unknown",total=#rows,offset=offset,rows={}}
+        local out={scope=viewScope,client=client,rankEligible=false,completeness="unknown",total=#rows,offset=offset,rows={}}
         for i=offset+1,math.min(offset+limit,#rows) do out.rows[#out.rows+1]=CopyView(rows[i]) end
         return out
     end
@@ -493,7 +607,7 @@ BuildCompetitiveView=function(client,me,personal,replay,asOf,identities)
             board.sorts[sort]=ordered
         end
         query=query:lower()
-        local out={scope="SIMULATED",client=client,season=season,rankEligible=false,completeness="unknown",
+        local out={scope=viewScope,client=client,season=season,rankEligible=false,completeness="unknown",
             total=0,knownRanked=#board.rows,offset=offset,rows={}}
         for _,row in ipairs(ordered) do
             local v=row.identity
@@ -526,6 +640,10 @@ P.PrepareSchema=live.Prepare
 P.ReadLocalHistory=live.ReadLocalHistory
 P.BeginLocalRun=live.BeginLocalRun
 P.RecordLocalObservation=live.RecordLocalObservation
+P.OpenPeerNode=live.OpenPeerNode
+P.CommitPeerNode=live.CommitPeerNode
+P.ReadLocalCapacity=live.ReadLocalCapacity
+P.ReadPeerView=live.ReadPeerView
 function P.GetDiagnosticResources() return {pending=0,subscriptions=0,timers=0} end
 function P.RunSelfTest(emit)
     emit=type(emit)=="function" and emit or function()end

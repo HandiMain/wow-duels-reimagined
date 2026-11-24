@@ -49,6 +49,26 @@ class CompetitiveUI(unittest.TestCase):
         self.assertIn('competitivePreview',read("UI/Options.lua"))
         self.assertIn('function U.LowerRim(parent)',ui)
 
+    def test_gated_production_paths_and_peer_evidence_scope(self):
+        store=read("Core/CompetitiveStorage.lua")
+        life=read("Core/CompetitiveLifecycle.lua")
+        results=read("Core/ResultConfirmation.lua")
+        transport=read("Core/Communication.lua")
+        provider=read("UI/CompetitivePreview.lua")
+        for token in ("LOCAL_RECORDING_ENABLED=false","PEER_TEST_ENABLED=false","PEER_EPOCH=nil",
+                      "function D.OpenPeerNode()","function D.CommitPeerNode(node)","stale_or_incomplete_evidence",
+                      "OpenCompactPeer","function D.ReadLocalCapacity()"):
+            self.assertIn(token,store)
+        for token in ("function P.Initialize()","Store.LocalRecordingEnabled()",
+                      "Store.RecordLocalObservation(id,r,body and candidate or nil)",
+                      "NewCatchupPeer","NormalizeSender","competitiveConsent"):
+            self.assertIn(token,life)
+        self.assertIn('scope=="PEER" and "2" or VERSION',results)
+        self.assertIn('fields[#fields+1]=tostring(r.observedAt)',results)
+        self.assertIn('ns.CompetitiveLifecycle.CanCommunicate()',transport)
+        self.assertIn('storage.ReadPeerView(asOf)',provider)
+        self.assertIn('own==row.statement',provider)
+
     def test_live_widgets_and_isolated_data(self):
         ui=read("UI/CompetitiveUI.lua");p=read("UI/CompetitivePreview.lua")
         for key in ("overview","standings","profile","history"):

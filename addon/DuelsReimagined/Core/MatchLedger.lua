@@ -15,18 +15,20 @@ local function Copy(t)
     return out
 end
 local function Key(r) return r.statement1.."\n"..r.statement2 end
-local function Open(client,stored,cap)
+local function Open(client,stored,cap,scope)
+    scope=scope or "SIMULATED"
     if client~="forever" and client~="retail" then return nil,"client" end
     if cap==nil then cap=LIMIT end
     if type(cap)~="number" or cap<1 or cap>LIMIT or cap~=math.floor(cap) then return nil,"invalid_capacity" end
-    local data={version=VERSION,scope="SIMULATED",client=client,entries={}}
+    local data={version=VERSION,scope=scope,client=client,entries={}}
     local count=0
     local function Validate(r)
-        local clean=ns.ResultConfirmation.ValidateSimulatedRecord(r)
+        local validate=scope=="PEER" and ns.ResultConfirmation.ValidatePeerRecord or ns.ResultConfirmation.ValidateSimulatedRecord
+        local clean=validate(r)
         if clean and clean.client==client then return clean end
     end
     if stored~=nil then
-        if type(stored)~="table" or stored.version~=VERSION or stored.scope~="SIMULATED"
+        if type(stored)~="table" or stored.version~=VERSION or stored.scope~=scope
             or stored.client~=client or type(stored.entries)~="table" then return nil,"unsupported_store" end
         for id,variants in pairs(stored.entries) do
             count=count+1
@@ -98,7 +100,7 @@ local function Open(client,stored,cap)
     function D.Save() return Copy(data) end
     -- Explicit compact disk representation only. Runtime/wire retain v1.
     function D.SaveCompact()
-        local out={version=2,scope="SIMULATED",client=client,entries={}}
+        local out={version=2,scope=scope,client=client,entries={}}
         for id,variants in pairs(data.entries) do
             local row={}
             for _,r in ipairs(variants) do row[#row+1]=r.statement1;row[#row+1]=r.statement2 end
@@ -114,7 +116,7 @@ local function Open(client,stored,cap)
     end
     function D.Snapshot()
         local ids=D.ListIDs()
-        local out={scope="SIMULATED",client=client,version=VERSION,rankEligible=false,matched={},disputed={}}
+        local out={scope=scope,client=client,version=VERSION,rankEligible=false,matched={},disputed={}}
         for _,id in ipairs(ids) do
             local v=data.entries[id]
             if v[2] then out.disputed[#out.disputed+1]={id=id,evidence=Copy(v)}
@@ -124,14 +126,15 @@ local function Open(client,stored,cap)
     end
     return D
 end
-P.OpenSimulated=Open
+function P.OpenSimulated(client,stored,cap) return Open(client,stored,cap,"SIMULATED") end
+function P.OpenPeer(client,stored,cap) return Open(client,stored,cap,"PEER") end
 -- Lossless v2 storage adapter. Decode all records before opening canonical
 -- v1; sparse arrays, extra keys, wrong IDs and noncanonical disputes fail.
-function P.OpenCompactSimulated(client,stored)
-    if type(stored)~="table" or stored.version~=2 or stored.scope~="SIMULATED"
+local function OpenCompact(client,stored,scope)
+    if type(stored)~="table" or stored.version~=2 or stored.scope~=scope
         or stored.client~=client or type(stored.entries)~="table" then return nil,"invalid_compact" end
     for k in pairs(stored) do if k~="version" and k~="scope" and k~="client" and k~="entries" then return nil,"invalid_compact" end end
-    local canonical={version=1,scope="SIMULATED",client=client,entries={}}
+    local canonical={version=1,scope=scope,client=client,entries={}}
     local count=0
     for id,row in pairs(stored.entries) do
         count=count+1
@@ -144,14 +147,17 @@ function P.OpenCompactSimulated(client,stored)
         if n~=2 and n~=4 then return nil,"invalid_compact" end
         local variants={}
         for i=1,n,2 do
-            local r=ns.ResultConfirmation.DecodeStatementsSimulated(client,row[i],row[i+1])
+            local decode=scope=="PEER" and ns.ResultConfirmation.DecodePeerStatements or ns.ResultConfirmation.DecodeStatementsSimulated
+            local r=decode(client,row[i],row[i+1])
             if not r or r.id~=id then return nil,"invalid_compact" end
             variants[#variants+1]=r
         end
         canonical.entries[id]=variants
     end
-    return Open(client,canonical)
+    return Open(client,canonical,nil,scope)
 end
+function P.OpenCompactSimulated(client,stored) return OpenCompact(client,stored,"SIMULATED") end
+function P.OpenCompactPeer(client,stored) return OpenCompact(client,stored,"PEER") end
 function P.RunSelfTest(emit)
     emit=type(emit)=="function" and emit or function() end
     local passed,failed=0,0

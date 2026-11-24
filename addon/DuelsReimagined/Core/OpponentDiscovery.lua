@@ -156,6 +156,7 @@ function P.NewSimulated(api)
     return Build(api)
 end
 local function Home() return Call(GetNormalizedRealmName) end
+function P.NormalizeSender(sender) return Name(sender,ns.Client.Kind(),Home()) end
 local function NoncePrefix()
     local t=Call(GetTime) or 0
     local epoch=Call(GetServerTime) or 0

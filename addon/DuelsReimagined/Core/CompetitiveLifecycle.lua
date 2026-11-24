@@ -1,10 +1,362 @@
 local _,ns=...
--- Integration QA only. Uses the existing subsystem owners with private
--- clocks, detector sandboxes, transport queues and in-memory saved roots.
+-- One lifecycle owner for the opt-in, gated live adapter and isolated QA.
+-- The live adapter never enters the simulation stores or awards authority
+-- to a peer claim. Both recording and peer communication are build-locked.
 local P={}
 ns.CompetitiveLifecycle=P
-function P.GetSnapshot() return {scope="LOCAL",state="disabled",rankEligible=false} end
-function P.GetDiagnosticResources() return {pending=0,subscriptions=0,timers=0} end
+local Store=ns.CompetitiveStorage
+local initialized,run,lastSeen,seq=false,nil,0,0
+local match,known,node,catchup,responder,replyActive,syncDeadline
+local timerArmed,generation=false,0
+local subscriptions=0
+local status="disabled"
+local function Plain(v)
+    if type(issecretvalue)=="function" then
+        local ok,secret=pcall(issecretvalue,v)
+        if not ok or secret then return nil end
+    end
+    return v
+end
+local function Read(fn,...)
+    if type(fn)~="function" then return nil end
+    local ok,v=pcall(fn,...)
+    if ok then return Plain(v) end
+end
+local function Now()
+    local n=Read(GetTime)
+    if type(n)=="number" and n>=0 and n<math.huge then return n end
+end
+local function EpochNow()
+    local n=Read(GetServerTime)
+    if type(n)=="number" and n>=1 and n<=4102444800 and n==math.floor(n) then return n end
+end
+local function Guid(v)
+    return type(v)=="string" and #v<=64 and v:match("^Player%-%w[%w%-]*$")~=nil
+end
+local function InCombat()
+    if type(InCombatLockdown)~="function" then return false end
+    local ok,v=pcall(InCombatLockdown)
+    return not ok or (v~=nil and Plain(v)==nil) or v==true
+end
+local function Note(reason)
+    if ns.Diagnostics and ns.Diagnostics.Record then
+        ns.Diagnostics.Record("Competitive lifecycle",reason)
+    end
+end
+local function Refresh()
+    if ns.CompetitiveUI and ns.CompetitiveUI.Refresh then
+        local ok=pcall(ns.CompetitiveUI.Refresh)
+        if not ok then Note("Competitive view refresh failed") end
+    end
+end
+function P.CanCommunicate()
+    return initialized and Store.PeerEpoch()~=nil and
+        ns.Settings.Get("competitiveConsent")==true
+end
+local function Available()
+    return P.CanCommunicate() and ns.Communication.IsAvailable()
+end
+function P.GetSnapshot()
+    return {scope="LOCAL",state=status,rankEligible=false,
+        localRecording=initialized and Store.LocalRecordingEnabled(),
+        peerEnabled=P.CanCommunicate(),peerState=match and match.phase,
+        syncState=catchup and catchup.GetStatus().state,completeness="unknown"}
+end
+function P.GetDiagnosticResources()
+    return {pending=(match and 1 or 0)+(catchup and 1 or 0)+(replyActive and 1 or 0),
+        subscriptions=subscriptions,timers=timerArmed and 1 or 0}
+end
+local function EnsureRun()
+    if run then return run end
+    local why
+    run,why=Store.BeginLocalRun()
+    if not run then Note("Local run unavailable: "..tostring(why)) end
+    return run
+end
+local function Prefix()
+    if not EnsureRun() or seq>=999999 then return nil end
+    seq=seq+1
+    return "r"..(run:match("^run%-(%d+)$") or "0").."-"..seq
+end
+local function CancelSync()
+    if catchup then catchup.Cancel() end
+    if responder then responder.Cancel() end
+    catchup,responder,replyActive,syncDeadline=nil,nil,nil,nil
+end
+local function ResetPeer()
+    match,known,node=nil,nil,nil
+    CancelSync()
+    generation=generation+1;timerArmed=false
+end
+local function CommitNode()
+    local ok,why=Store.CommitPeerNode(node)
+    if not ok then
+        Note("Peer evidence commit refused: "..tostring(why))
+        node=nil;CancelSync()
+        return false
+    end
+    Refresh()
+    return true
+end
+local function EnsureNode()
+    if node then return node end
+    local why
+    node,why=Store.OpenPeerNode()
+    if not node then Note("Peer store unavailable: "..tostring(why)) end
+    return node
+end
+local Tick
+local function Arm()
+    if timerArmed or not C_Timer or type(C_Timer.After)~="function" then return end
+    if (not match or match.phase=="accepted") and not catchup and not replyActive then return end
+    local g=generation
+    timerArmed=true
+    C_Timer.After(.5,function()
+        if g~=generation then return end
+        timerArmed=false
+        local ok=pcall(Tick)
+        if not ok then Note("A scheduled competitive callback failed");ResetPeer();return end
+        Arm()
+    end)
+end
+local function ValidPeer(sender,peer)
+    return peer and ns.OpponentDiscovery.NormalizeSender(sender)==peer.key
+end
+local function Send(tag,body,peer)
+    if not Available() or not peer or not peer.route then return false end
+    return ns.Communication.Send(tag,body,"WHISPER",peer.route)==true
+end
+local function Capacity()
+    local c=Store.ReadLocalCapacity()
+    return c and c.history.state~="full" and c.ledger.state~="full"
+end
+local function StartChallenge(s)
+    local c=s.challenge
+    if not c or not c.opponent or not Guid(c.opponent.guid) then return end
+    if match and match.challengeAt==c.time and match.peer.guid==c.opponent.guid then return end
+    ResetPeer()
+    if not Available() or not Capacity() or not EnsureNode() then return end
+    if not (c.direction=="outgoing" and (c.kind=="standard" or c.kind=="unclassified")
+        or c.direction=="incoming" and c.kind=="standard") then return end
+    local me=ns.Group.ReadPlayerIdentity("player")
+    local now,epoch,prefix=Now(),EpochNow(),Prefix()
+    local key=ns.OpponentDiscovery.NormalizeSender(c.opponent.display)
+    if not me or not Guid(me.guid) or me.guid==c.opponent.guid or not now or not epoch
+        or epoch<Store.PeerEpoch() or not prefix or not key then return end
+    match={phase="challenge",challengeAt=c.time,deadline=now+8,me=me.guid,
+        peer={guid=c.opponent.guid,key=key},direction=c.direction,kind=c.kind,
+        prefix=prefix,helloAt=now,hellos=0}
+    status="checking";Arm()
+end
+local function TryAgreement(x,now)
+    local d=ns.OpponentDiscovery.GetSnapshot()
+    if d.state~="compatible" or not d.opponent or d.opponent.guid~=x.peer.guid
+        or d.opponent.key~=x.peer.key or not d.expiresAt or d.expiresAt<=now then return end
+    x.peer.route=d.opponent.route
+    local desc=ns.CompetitiveIntegrity.SeasonDescriptor(ns.Client.Kind(),Store.PeerEpoch())
+    if not desc then return end
+    if now>=x.helloAt and x.hellos<4 then
+        Send("A1","V|"..desc,x.peer)
+        x.hellos=x.hellos+1;x.helloAt=now+1.5
+    end
+    if not x.compatible or x.agreement then return end
+    local agreement=ns.PeerAgreement.NewPeer(ns.Client.Kind(),x.prefix,Now,Available,
+        function(body) return Send("A1",body,x.peer) end)
+    if not agreement.Begin({state="challenge",me=x.me,peer=x.peer.guid,direction=x.direction,kind=x.kind},
+        {state=d.state,protocol=d.protocol,guid=d.opponent.guid,key=d.opponent.key,expiresAt=d.expiresAt},true) then
+        x.phase="unranked";return
+    end
+    x.agreement=agreement
+    if x.offer then agreement.Receive(x.offer,x.peer.key);x.offer=nil end
+end
+local function Freeze(s)
+    local x=match
+    if not x or x.phase~="challenge" or not s.active or x.cycle then return end
+    local a=s.active
+    x.cycle=a.id
+    if not x.agreement or not a.opponent or a.opponent.guid~=x.peer.guid then
+        match=nil;status="unranked";return
+    end
+    -- The incoming peer must have observed an ordinary challenge. No
+    -- late handshake can upgrade an already accepted duel.
+    x.agreement.Freeze(a.opponent.guid,a.kind=="standard" or a.kind=="unclassified")
+    local candidate=x.agreement.Snapshot()
+    if not candidate.candidate then match=nil;status="unranked";return end
+    x.candidate=candidate
+    x.collector=ns.ResultConfirmation.NewPeer(ns.Client.Kind(),candidate.session,x.me,x.peer.guid)
+    x.phase="accepted";status="candidate"
+end
+local function ReceiveResult(body,sender)
+    local x=match
+    if not x or not x.collector or not ValidPeer(sender,x.peer) then return end
+    local stamp=body:match("|(%d+)$")
+    local t=tonumber(stamp);local now=EpochNow()
+    if not t or not now or stamp~=tostring(t) or t<1 or math.abs(now-t)>60 then return end
+    if x.collector.Receive(body,x.peer.guid) then x.peerTime=t end
+end
+local function StartSync()
+    local now=Now()
+    if not Available() or InCombat() or not now or not known or now>=known.expires
+        or match or not EnsureNode() then return false,"not_ready" end
+    if catchup then return false,"busy" end
+    local prefix=Prefix()
+    if not prefix then return false,"prefix" end
+    catchup=ns.SyncProtocol.NewCatchupPeer(ns.Client.Kind(),node,prefix,known.guid,"delta")
+    if not catchup then return false,"sync_unavailable" end
+    responder=responder or ns.SyncProtocol.NewResponder(ns.Client.Kind(),node)
+    syncDeadline=now+300
+    Arm();return true
+end
+P.StartSync=StartSync
+local function FinalizeObservation(r)
+    if not r or r.id<=lastSeen then return end
+    lastSeen=r.id
+    if r.kind~="standard" and r.kind~="unclassified" then return end
+    local stamp=EpochNow()
+    r.observedAt=stamp
+    local x=match
+    local candidate=x and x.cycle==r.id and x.candidate or nil
+    local body
+    if candidate and stamp and Available() then
+        body=ns.ResultConfirmation.MakePeerStatement({scope="PEER",client=ns.Client.Kind(),
+            me=x.me,peer=x.peer.guid,cycle=r.id,agreement=candidate},r)
+        if body and #body>237 then body=nil end
+    end
+    local id=EnsureRun()
+    local ok,why
+    if id then ok,why=Store.RecordLocalObservation(id,r,body and candidate or nil) end
+    if not ok then
+        Note("Local observation refused: "..tostring(why or "run_unavailable"))
+        status="local_record_failed";match=nil;return
+    end
+    if body and x.collector.Receive(body,x.me) then
+        local now=Now()
+        if now then
+            x.localTime=stamp;x.body=body
+            x.phase="settling";x.deadline=now+12;x.nextResult=now;x.sends=0
+            known={guid=x.peer.guid,key=x.peer.key,route=x.peer.route,expires=now+600}
+            status="pending";Arm()
+        else match=nil;status="unranked" end
+    else match=nil;status="local_recorded" end
+    Refresh()
+end
+local function Settle(x)
+    x.collector.Close()
+    local evidence=x.collector.Snapshot()
+    match=nil
+    if not evidence.record or not x.localTime or not x.peerTime
+        or not EnsureNode() then status="unconfirmed";Refresh();return end
+    local t1,t2=x.localTime,x.peerTime
+    if evidence.record.player1~=x.me then t1,t2=t2,t1 end
+    if t1<Store.PeerEpoch() or t2<Store.PeerEpoch() then status="unconfirmed";return end
+    local ok,why=node.Observe(evidence.record,t1,t2)
+    if not ok then status="unconfirmed";Note("Peer observation refused: "..tostring(why));return end
+    if CommitNode() then
+        status="peer_evidence_saved"
+        StartSync()
+    else status="unconfirmed" end
+end
+Tick=function()
+    local now=Now()
+    if not now or not P.CanCommunicate() then ResetPeer();return end
+    if match then
+        local x=match
+        if not Available() then match=nil;status="unranked"
+        elseif x.phase=="challenge" then
+            if now>=x.deadline then match=nil;status="unranked"
+            else
+                TryAgreement(x,now)
+                if x.agreement and x.agreement.Snapshot().state=="agreed" then status="ready" end
+            end
+        elseif x.phase=="unranked" then
+            match=nil;status="unranked"
+        elseif x.phase=="settling" then
+            if now>=x.deadline then Settle(x)
+            elseif now>=x.nextResult and x.sends<3 then
+                Send("R1",x.body,x.peer);x.sends=x.sends+1;x.nextResult=now+2
+            end
+        end
+    end
+    -- No persistent polling during an accepted duel. It resumes only on
+    -- terminal evidence or an explicit bounded sync session.
+    if match and match.phase=="accepted" then return end
+    if (catchup or replyActive) and (InCombat() or not Available() or
+        not known or now>=known.expires or (syncDeadline and now>=syncDeadline)) then CancelSync();return end
+    local sent=false
+    if replyActive and responder then
+        local body,peer=responder.Next(now)
+        if body then
+            sent=true
+            if peer~=known.guid or not Send("S1",body,known) then responder.Cancel();replyActive=nil end
+        elseif peer~="paced" then replyActive=nil end
+    end
+    if catchup and not sent then
+        local body,why=catchup.Poll(now)
+        if body then
+            if not Send("S1",body,known) then CancelSync() end
+        elseif catchup.GetStatus().state~="working" then catchup=nil end
+    end
+    if not catchup and not replyActive then syncDeadline=nil end
+end
+local function OnAgreement(body,_,sender)
+    local x=match
+    if not P.CanCommunicate() or not x or x.phase~="challenge" or not ValidPeer(sender,x.peer) then return end
+    if body:sub(1,2)=="V|" then
+        local result=ns.CompetitiveIntegrity.CompareSeasonSimulated(ns.Client.Kind(),Store.PeerEpoch(),body:sub(3))
+        x.compatible=result.compatible
+        if not x.compatible then x.agreement=nil;x.offer=nil end
+    elseif x.agreement then x.agreement.Receive(body,x.peer.key)
+    elseif body:sub(1,2)=="O|" and not x.offer then x.offer=body end
+end
+local function OnSync(body,_,sender)
+    local now=Now()
+    if not Available() or InCombat() or match or not now or not known or now>=known.expires
+        or not ValidPeer(sender,known) or not EnsureNode() then return end
+    if body:sub(1,2)=="Q|" then
+        responder=responder or ns.SyncProtocol.NewResponder(ns.Client.Kind(),node)
+        if responder and responder.Begin(body,known.guid,known.guid,now) then
+            replyActive=true;syncDeadline=syncDeadline or now+300;Arm()
+        end
+    elseif body:sub(1,2)=="R|" and catchup then
+        local revision=node.GetEvidenceRevision()
+        local ok=catchup.Receive(body,known.guid,now)
+        if ok and node.GetEvidenceRevision()~=revision then CommitNode() end
+    end
+end
+function P.PreferenceChanged()
+    if not P.CanCommunicate() then ResetPeer() end
+end
+function P.Initialize()
+    if initialized or not Store.LocalRecordingEnabled() then return end
+    initialized=true;status="local_ready"
+    local before=ns.DuelDetection.GetSnapshot()
+    lastSeen=before.last and before.last.id or 0
+    ns.DuelDetection.Subscribe(function(s)
+        if s.scope~="LOCAL" then return end
+        if s.state=="challenge" then
+            if P.CanCommunicate() then StartChallenge(s) end
+        elseif s.state=="accepted" then
+            if P.CanCommunicate() then Freeze(s) end
+        elseif s.state=="idle" then
+            if s.last and s.last.id>lastSeen then FinalizeObservation(s.last)
+            elseif match and match.phase=="challenge" then match=nil;status="unranked" end
+        end
+    end)
+    subscriptions=1
+    if Store.PeerEpoch() then
+        ns.Communication.Subscribe("A1",OnAgreement)
+        ns.Communication.Subscribe("R1",function(body,_,sender) if P.CanCommunicate() then ReceiveResult(body,sender) end end)
+        ns.Communication.Subscribe("S1",OnSync)
+        subscriptions=4
+        local frame=CreateFrame("Frame")
+        frame:RegisterEvent("PLAYER_ENTERING_WORLD")
+        frame:RegisterEvent("PLAYER_REGEN_DISABLED")
+        frame:SetScript("OnEvent",function(_,event)
+            if event=="PLAYER_ENTERING_WORLD" then ResetPeer()
+            else CancelSync() end
+        end)
+    end
+end
 function P.RunSelfTest(emit)
     emit=type(emit)=="function" and emit or function()end
     local passed,failed=0,0

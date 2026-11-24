@@ -68,8 +68,10 @@ local function Build(client,me,ledger,cap,scope)
         end
         local id=run..":"..r.id
         local row={id=id,cycle=r.id,run=run,opponent=peer,outcome=out,duration=r.endedAt-r.acceptedAt}
-        -- Local history may never create or link a competitive candidate.
-        if scope=="LOCAL" and agreement~=nil then return false,"local_only" end
+        -- Real candidates are explicitly PEER-scoped; fixture agreements
+        -- must never be accepted into local history.
+        if scope=="LOCAL" and agreement~=nil and
+            (type(agreement)~="table" or agreement.scope~="PEER") then return false,"local_only" end
         if scope=="LOCAL" then
             local opponent=type(r.opponent)=="table" and r.opponent or {}
             local meta=type(opponent.metadata)=="table" and opponent.metadata or {}
@@ -77,6 +79,10 @@ local function Build(client,me,ledger,cap,scope)
                 return type(v)=="string" and #v>0 and #v<=limit and not v:find("[%c|]") and v or nil
             end
             row.name=Text(opponent.display,160)
+            if type(r.observedAt)=="number" and r.observedAt>=1 and
+                r.observedAt<=4102444800 and r.observedAt==math.floor(r.observedAt) then
+                row.time=r.observedAt
+            end
             if peer and meta.guid==peer and meta.scope=="LOCAL" then
                 row.name=Text(meta.name,160) or row.name
                 row.fullName=Text(meta.fullName,160)
@@ -87,7 +93,8 @@ local function Build(client,me,ledger,cap,scope)
             end
         end
         if agreement and peer then
-            local body=ns.ResultConfirmation.MakeSimulatedStatement({scope="SIMULATED",client=client,
+            local make=scope=="LOCAL" and ns.ResultConfirmation.MakePeerStatement or ns.ResultConfirmation.MakeSimulatedStatement
+            local body=make({scope=scope=="LOCAL" and "PEER" or "SIMULATED",client=client,
                 me=me,peer=peer,cycle=r.id,agreement=agreement},r)
             if body then
                 local a,b=me,peer;if b<a then a,b=b,a end
@@ -114,7 +121,8 @@ local function Build(client,me,ledger,cap,scope)
                     fullName=row.fullName,realm=row.realm,class=row.class,faction=row.faction}
             end
         end
-        if row.matchID then source.agreement={scope="SIMULATED",state="candidate",candidate=true,
+        if scope=="LOCAL" then source.result.observedAt=row.time end
+        if row.matchID then source.agreement={scope=scope=="LOCAL" and "PEER" or "SIMULATED",state="candidate",candidate=true,
             rankEligible=false,session=agreement.session} end
         sources[#sources+1]=source
         rows[#rows+1]=row;ids[id]=row
@@ -187,7 +195,8 @@ end
 function P.OpenSimulated(client,me,ledger,stored,cap)
     return Open(client,me,ledger,stored,cap,"SIMULATED")
 end
--- No ledger or candidate agreement can enter this private local-only model.
+-- Local observations may carry their own PEER candidate statement, never a
+-- fixture or independently supplied ranking result.
 function P.OpenLocal(client,me,stored,cap)
     return Open(client,me,nil,stored,cap,"LOCAL")
 end

@@ -14,7 +14,8 @@ end
 local function Guid(v)
     return type(v)=="string" and #v<=64 and v:match("^Player%-%w[%w%-]*$")~=nil
 end
-local function Build(client,prefix,now,available,send)
+local function Build(client,prefix,now,available,send,scope)
+    scope=scope or "SIMULATED"
     local D,s,seq={},nil,0
     local function Valid()
         return s and now()<s.deadline and available()
@@ -26,7 +27,7 @@ local function Build(client,prefix,now,available,send)
     function D.Snapshot()
         local state=s and s.state or "idle"
         if s and not s.frozen and not Valid() then state="unranked" end
-        return {scope="SIMULATED",state=state,rankEligible=false,
+        return {scope=scope,state=state,rankEligible=false,
             candidate=state=="candidate",session=state=="candidate" and s.session or nil}
     end
     function D.Reset() s=nil end
@@ -71,7 +72,13 @@ local function Build(client,prefix,now,available,send)
     return D
 end
 
-P.NewSimulated=Build
+function P.NewSimulated(client,prefix,now,available,send)
+    return Build(client,prefix,now,available,send,"SIMULATED")
+end
+-- Candidate only; the live adapter owns consent and actual sender checks.
+function P.NewPeer(client,prefix,now,available,send)
+    return Build(client,prefix,now,available,send,"PEER")
+end
 function P.RunSelfTest(emit)
     emit=type(emit)=="function" and emit or function() end
     local passed,failed=0,0

@@ -1,8 +1,10 @@
 local _,ns=...
--- Simulation only: no live receiver, persistence, or rating changes.
+-- Pure result validation for isolated simulation and unverified peer claims.
+-- The lifecycle owns actual transport, settlement and persistence.
 local P={}
 ns.ResultConfirmation=P
 local VERSION="1"
+local function WireVersion(scope) return scope=="PEER" and "2" or VERSION end
 function P.GetSnapshot()
     return {scope="LOCAL",state="disabled",rankEligible=false}
 end
@@ -18,56 +20,75 @@ end
 local function Cycle(v)
     return type(v)=="number" and v>=1 and v<=2147483647 and v==math.floor(v)
 end
-local function Context(c)
-    if type(c)~="table" or c.scope~="SIMULATED" or not Guid(c.me) or not Guid(c.peer)
+local function Stamp(v)
+    return type(v)=="number" and v>=1 and v<=4102444800 and v==math.floor(v)
+end
+local function Context(c,scope)
+    if type(c)~="table" or c.scope~=scope or not Guid(c.me) or not Guid(c.peer)
         or c.me==c.peer or not Cycle(c.cycle) or (c.client~="forever" and c.client~="retail") then return end
     local a=c.agreement
-    if type(a)~="table" or a.scope~="SIMULATED" or a.state~="candidate" or a.candidate~=true
+    if type(a)~="table" or a.scope~=scope or a.state~="candidate" or a.candidate~=true
         or a.rankEligible~=false or not Session(a.session) then return end
     return {client=c.client,me=c.me,peer=c.peer,cycle=c.cycle,session=a.session}
 end
-local function Statement(c,r)
-    c=Context(c)
-    if not c or type(r)~="table" or r.scope~="SIMULATED" or r.client~=c.client or r.id~=c.cycle
+local function Statement(c,r,scope)
+    c=Context(c,scope)
+    if not c or type(r)~="table" or r.scope~=(scope=="PEER" and "LOCAL" or "SIMULATED") or r.client~=c.client or r.id~=c.cycle
         or type(r.opponent)~="table" or r.opponent.guid~=c.peer or r.rankEligible~=false
         or r.kind=="death_duel" or (r.kind~="standard" and r.kind~="unclassified")
         or r.reason~="matching_result_and_finish" or r.outcomeObserved~=true or r.finishObserved~=true
         or r.resultObserved~=true or r.conflict~=false or r.endType~="knockout"
         or (r.outcome~="won" and r.outcome~="lost") then return end
-    return table.concat({VERSION,c.client,c.session,c.me,c.peer,r.outcome,tostring(c.cycle)},"|")
+    local fields={WireVersion(scope),c.client,c.session,c.me,c.peer,r.outcome,tostring(c.cycle)}
+    if scope=="PEER" then
+        if not Stamp(r.observedAt) then return end
+        fields[#fields+1]=tostring(r.observedAt)
+    end
+    return table.concat(fields,"|")
 end
 -- One bounded collector per simulated match. Exact sender is provided by the
 -- fixture; a future live adapter must resolve actual event sender independently.
-local function Build(client,session,a,b)
+local function Build(client,session,a,b,scope)
+    scope=scope or "SIMULATED"
     assert((client=="forever" or client=="retail") and Session(session) and Guid(a) and Guid(b) and a~=b)
     if b<a then a,b=b,a end
     local D,slots,conflict,closed={}, {},false,false
     function D.Receive(body,sender)
         if closed or (sender~=a and sender~=b) or type(body)~="string" or #body>240 or body:find("%c") then return false end
-        local rev,k,id,from,to,out,cycle=body:match("^(%d+)|(%a+)|([^|]+)|([^|]+)|([^|]+)|(%a+)|(%d+)$")
-        if rev~=VERSION or k~=client or id~=session or from~=sender or to~=(sender==a and b or a)
+        local rev,k,id,from,to,out,cycle,stamp
+        if scope=="PEER" then
+            rev,k,id,from,to,out,cycle,stamp=body:match("^(%d+)|(%a+)|([^|]+)|([^|]+)|([^|]+)|(%a+)|(%d+)|(%d+)$")
+            if not Stamp(tonumber(stamp)) or stamp~=tostring(tonumber(stamp)) then return false end
+        else
+            rev,k,id,from,to,out,cycle=body:match("^(%d+)|(%a+)|([^|]+)|([^|]+)|([^|]+)|(%a+)|(%d+)$")
+        end
+        if rev~=WireVersion(scope) or k~=client or id~=session or from~=sender or to~=(sender==a and b or a)
             or (out~="won" and out~="lost") or not Cycle(tonumber(cycle)) or cycle~=tostring(tonumber(cycle)) then return false end
         if slots[sender] then
             if slots[sender].body~=body then conflict=true end
             return false
         end
-        slots[sender]={body=body,outcome=out,cycle=tonumber(cycle)}
-        if slots[a] and slots[b] and slots[a].outcome==slots[b].outcome then conflict=true end
+        slots[sender]={body=body,outcome=out,cycle=tonumber(cycle),time=tonumber(stamp)}
+        if slots[a] and slots[b] then
+            if slots[a].outcome==slots[b].outcome then conflict=true end
+            if scope=="PEER" and math.abs(slots[a].time-slots[b].time)>5 then conflict=true end
+        end
         return true
     end
     function D.Close() closed=true end
     function D.Snapshot()
         local x,y=slots[a],slots[b]
         local state=conflict and "disputed" or x and y and "matched" or closed and "unconfirmed" or "pending"
-        local s={scope="SIMULATED",state=state,rankEligible=false,closed=closed}
+        local s={scope=scope,state=state,rankEligible=false,closed=closed}
         -- A matched snapshot is not final settlement. Only explicit close can
         -- export a candidate record; future ledger handles late conflicts.
         if state=="matched" and closed then
             local winner=x.outcome=="won" and a or b
-            s.record={scope="SIMULATED",version=VERSION,client=client,session=session,
+            s.record={scope=scope,version=WireVersion(scope),client=client,session=session,
                 id=client.."|"..a.."|"..b.."|"..session,player1=a,player2=b,
                 winner=winner,loser=winner==a and b or a,endType="knockout",rankEligible=false,
                 statement1=x.body,statement2=y.body}
+            if scope=="PEER" then s.record.time1=x.time;s.record.time2=y.time end
         end
         return s
     end
@@ -75,31 +96,40 @@ local function Build(client,session,a,b)
 end
 -- Reconstruct a simulated canonical record from its statements. The ledger
 -- never trusts derived fields or a caller-supplied status. Not proof of origin.
-P.NewSimulated=Build
-P.MakeSimulatedStatement=Statement
+function P.NewSimulated(client,session,a,b) return Build(client,session,a,b,"SIMULATED") end
+function P.NewPeer(client,session,a,b) return Build(client,session,a,b,"PEER") end
+function P.MakeSimulatedStatement(c,r) return Statement(c,r,"SIMULATED") end
+function P.MakePeerStatement(c,r) return Statement(c,r,"PEER") end
 -- Shared reconstruction from canonical statement pairs; no derived input
 -- fields or transport identity are trusted by this storage/codec helper.
-function P.DecodeStatementsSimulated(client,a,b)
+local function Decode(client,a,b,scope)
     if type(a)~="string" or type(b)~="string" or #a>240 or #b>240 then return nil end
-    local rev,k,session,x,y=a:match("^(%d+)|(%a+)|([^|]+)|([^|]+)|([^|]+)|%a+|%d+$")
-    if rev~=VERSION or k~=client or (client~="forever" and client~="retail")
+    local pattern=scope=="PEER" and "^(%d+)|(%a+)|([^|]+)|([^|]+)|([^|]+)|%a+|%d+|%d+$"
+        or "^(%d+)|(%a+)|([^|]+)|([^|]+)|([^|]+)|%a+|%d+$"
+    local rev,k,session,x,y=a:match(pattern)
+    if rev~=WireVersion(scope) or k~=client or (client~="forever" and client~="retail")
         or not Session(session) or not Guid(x) or not Guid(y) or x>=y then return nil end
-    local d=Build(client,session,x,y)
+    local d=Build(client,session,x,y,scope)
     if not d.Receive(a,x) or not d.Receive(b,y) then return nil end
     d.Close();return d.Snapshot().record
 end
-function P.ValidateSimulatedRecord(r)
-    if type(r)~="table" or r.scope~="SIMULATED" or r.version~=VERSION or r.rankEligible~=false
+local function Validate(r,scope)
+    if type(r)~="table" or r.scope~=scope or r.version~=WireVersion(scope) or r.rankEligible~=false
         or (r.client~="forever" and r.client~="retail") or not Session(r.session)
         or not Guid(r.player1) or not Guid(r.player2) or r.player1>=r.player2 then return end
-    local d=Build(r.client,r.session,r.player1,r.player2)
+    local d=Build(r.client,r.session,r.player1,r.player2,scope)
     if not d.Receive(r.statement1,r.player1) or not d.Receive(r.statement2,r.player2) then return end
     d.Close()
     local clean=d.Snapshot().record
     if not clean then return end
     for k,v in pairs(clean) do if r[k]~=v then return end end
+    if scope=="PEER" then for k in pairs(r) do if clean[k]==nil then return end end end
     return clean
 end
+function P.DecodeStatementsSimulated(client,a,b) return Decode(client,a,b,"SIMULATED") end
+function P.DecodePeerStatements(client,a,b) return Decode(client,a,b,"PEER") end
+function P.ValidateSimulatedRecord(r) return Validate(r,"SIMULATED") end
+function P.ValidatePeerRecord(r) return Validate(r,"PEER") end
 function P.RunSelfTest(emit)
     emit=type(emit)=="function" and emit or function() end
     local passed,failed=0,0

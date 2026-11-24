@@ -43,6 +43,18 @@ SlashCmdList.DUELSREIMAGINED = function(message)
         else print("DR | Storage unavailable: "..tostring(s.reason)) end
         return
     end
+    if message=="competitive status" or message=="sync" then
+        local C=ns.CompetitiveLifecycle
+        if message=="sync" then
+            local ok,why=C.StartSync()
+            print("DR | Competitive sync: "..(ok and "requested" or tostring(why)))
+        end
+        local s=C.GetSnapshot()
+        print("DR | Competitive: "..s.state.." | local recording: "..(s.localRecording and "on" or "off").." | peer exchange: "..(s.peerEnabled and "on" or "off"))
+        local c=ns.CompetitiveStorage.ReadLocalCapacity()
+        if c then print("DR | Evidence capacity: "..c.ledger.used.."/"..c.ledger.limit.." | Personal history: "..c.history.used.."/"..c.history.limit) end
+        return
+    end
     if message=="diagnostics" then
         ns.DiagnosticsUI.Open()
         return

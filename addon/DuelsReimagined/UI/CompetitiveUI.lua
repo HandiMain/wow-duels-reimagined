@@ -102,6 +102,10 @@ local function Choice(parent,values,selected,change,owner)
         for _,v in ipairs(values) do if v.key==current then label:SetText(v.label);break end end
     end
     function b.SetChoice(key) current=key;Paint() end
+    function b.SetValues(nextValues,key)
+        values=nextValues;current=key
+        if #values==0 then label:SetText("No active season") else Paint() end
+    end
     b:SetScript("OnClick",function()
         W.OpenChoices(b,values,current,function(key)current=key;Paint();change(key)end,owner)
     end)
@@ -336,8 +340,11 @@ local active
 local function Data() return preview end
 local OpenProfile
 local function Go(section,key)ns.Navigation.SelectKey(section,key)end
-local function Seasons(change)
-    return {{key=3,label="Season 3"},{key=2,label="Season 2"},{key=1,label="Season 1"}}
+local function Seasons()
+    local current=preview and preview.current or 3
+    local out={}
+    for n=current,1,-1 do out[#out+1]={key=n,label="Season "..n} end
+    return out
 end
 local function Points(id,season,filter)
     local d=Data();local out={}
@@ -424,7 +431,7 @@ function hall.Render()
     Place(heroLine,hero,left,13,1,heroH-26)
     Place(seasonTitle,hero,left+18,12,w-left-26,25)
     Place(seasonInfo,hero,left+18,36,w-left-26,17)
-    if d.scope=="SIMULATED" then
+    if d.current>0 and d.epoch and d.asOf then
         local remain=math.max(0,d.epoch+d.current*ns.SeasonRules.DURATION-d.asOf)
         seasonInfo:SetText("Season "..d.current.."  —  "..math.floor(remain/86400).."d remaining")
     else
@@ -507,7 +514,7 @@ local pinned=Row(board,"board",function(item)OpenProfile(item.id)end)
 local boardNote=T(board,"Standings reflect known ranked duels.",11,C.muted)
 boardList.Configure(function(offset,limit)
     local r=Data().view.Leaderboard(boardSeason,offset,limit,boardQuery,boardSort)
-    return r.rows,r.total
+    return r and r.rows or {},r and r.total or 0
 end,function(row,item,w,h)BoardRow(row,item,w,h);row.Mark(item.id==Data().me)end)
 function board.Render(reset)
     local d=Data();if not d then return end
@@ -522,7 +529,7 @@ function board.Render(reset)
     local choiceW=math.min(142,w*.15)
     Place(boardChoice,board,strip+16,75,choiceW,30);Place(boardSearch,board,strip+24+choiceW,75,w-strip-24-choiceW,30)
     Place(noSeason,board,strip+16,75,choiceW,30)
-    boardChoice:SetShown(d.scope=="SIMULATED");noSeason:SetShown(d.scope~="SIMULATED")
+    boardChoice:SetShown(d.current>0);noSeason:SetShown(d.current==0)
     Place(boardHeader,board,0,134,w-18,29);FitColumns(boardHeaders,boardHeader,w-18,29,boardWidths)
     Place(boardList,board,0,165,w,math.max(1,h-225))
     if reset then boardList.SetOffset(0) else boardList.Render() end
@@ -530,6 +537,13 @@ function board.Render(reset)
         local item={id=d.me,identity=p.identity,rank=p.rank,position=p.position,rating=p.rating,wins=p.stats.wins,losses=p.stats.losses,winRate=p.stats.winRate}
         Place(pinned,board,0,h-57,w-18,39);BoardRow(pinned,item,w-18,39);pinned.Mark(true);pinned:Show()
     else pinned:Hide() end
+    local note=d.scope=="SIMULATED" and "Standings reflect known ranked duels."
+        or "Peer-reported standings; global completeness and authenticity unverified."
+    if d.scope=="LOCAL" and d.capacity then
+        if d.capacity.ledger.state=="full" then note="Evidence limit reached; new competitive matches paused."
+        elseif d.capacity.ledger.state=="near_capacity" then note="Competitive evidence is approaching its storage limit." end
+    end
+    boardNote:SetText(note)
     Place(boardNote,board,1,h-16,w-4,16)
 end
 -- One movable sibling window, not a route or a replacement for the main page.
@@ -672,7 +686,9 @@ function profile.Render()
     end
 end
 OpenProfile=function(id)
-    if not preview or preview.scope~="SIMULATED" or not id then return end
+    if not preview or not id or preview.current==0 then return end
+    if not preview.view.ProfileSummary(id,preview.current) and
+        not preview.view.ProfileSummary(id,boardSeason) then return end
     W.CloseChoices()
     profileId=id
     profileSeason=active=="standings" and boardSeason or active=="overview" and preview.current or profileSeason
@@ -747,8 +763,8 @@ end,function(row,item,w,h)HistoryRow(row,item,w,h);row.Mark(item.id==expandedId)
         local result,color=Outcome(item.outcome);Set(detailMetrics[1].value,item.category.." — "..result,color)
         Set(detailMetrics[2].value,item.before and (Number(item.before).." to "..Number(item.after)) or "—",C.pale)
         Set(detailMetrics[3].value,Duration(item.duration),C.text)
-        Set(detailMetrics[4].value,item.confirmed and "Confirmed" or
-            (Data().scope=="LOCAL" and "Local only" or item.category),item.confirmed and GREEN or C.muted)
+        Set(detailMetrics[4].value,item.confirmed and (Data().scope=="LOCAL" and "Peer matched" or "Confirmed") or
+            (Data().scope=="LOCAL" and item.category=="Unranked" and "Local only" or item.category),item.confirmed and GREEN or C.muted)
     end
 })
 function history.Render(reset)
@@ -766,25 +782,43 @@ function history.Render(reset)
 end
 local failed=T(ns.Window.content,"Competitive data is unavailable.",18,C.muted,"CENTER")
 failed:SetPoint("CENTER",ns.Window.content,"CENTER");failed:SetSize(440,30);failed:Hide()
-local function RenderActive()
-    if not active then return end
+local function Caption()
+    if preview.scope=="SIMULATED" then return "Preview • Simulated data" end
+    if preview.storageReason then return "Local data unavailable" end
+    if preview.capacity and preview.capacity.history.state=="full" then return "Local • History full" end
+    if preview.peerEvidence then return "Peer evidence • Unverified" end
+    return preview.recordingDisabled and "Local • Recording disabled" or "Local observations"
+end
+local function EnsureData(force)
     local simulated=not ns.Settings or not ns.Settings.Get or ns.Settings.Get("competitivePreview")~=false
     local wanted=simulated and "SIMULATED" or "LOCAL"
-    if not preview or preview.scope~=wanted then
-        if card:IsShown() then card:Hide() end
+    if not preview or preview.scope~=wanted or (force and wanted=="LOCAL") then
+        local switching=not preview or preview.scope~=wanted
+        if switching and card:IsShown() then card:Hide() end
         local ok,result=pcall(simulated and ns.CompetitivePreview.Get or ns.CompetitivePreview.Local)
         if not ok or not result then
-            preview=nil
+            preview=nil;card:Hide()
             ns.Diagnostics.Record("Competitive data","Data provider unavailable")
-            pages[active]:Hide();failed:Show();return
+            return false
         end
         preview=result
-        expandedId=nil
+        if switching then expandedId=nil;boardSeason=preview.current;profileSeason=preview.current end
+        if boardSeason<1 or boardSeason>preview.current then boardSeason=preview.current end
+        if profileSeason<1 or profileSeason>preview.current then profileSeason=preview.current end
+        local values=Seasons()
+        boardChoice.SetValues(values,boardSeason);profileChoice.SetValues(values,profileSeason)
+    end
+    return true
+end
+local function RenderActive(force)
+    if not active then return end
+    if not EnsureData(force) then
+        pages[active]:Hide();failed:Show();return
     end
     local f=pages[active]
     failed:Hide()
-    f.dataCaption:SetText(preview.scope=="SIMULATED" and "Preview • Simulated data" or
-        (preview.storageReason and "Local data unavailable" or "Local • Recording disabled"))
+    f.dataCaption:SetText(Caption())
+    profile.dataCaption:SetText(Caption())
     if f:IsVisible() and f:GetWidth()>1 and f:GetHeight()>1 then
         f.Render()
         if pendingScroll[active] then
@@ -821,10 +855,14 @@ end
 
 function U.Refresh()
     local simulated=not ns.Settings or not ns.Settings.Get or ns.Settings.Get("competitivePreview")~=false
-    if preview and (preview.scope=="LOCAL" or (preview.scope=="SIMULATED")~=simulated) then
+    if preview and (preview.scope=="SIMULATED")~=simulated then
         if card:IsShown() then card:Hide() end
         preview=nil
     end
-    if active and pages[active]:IsVisible() then RenderActive() end
-    if card:IsShown() and preview then profile.Render() end
+    if active and pages[active]:IsVisible() then RenderActive(true)
+    elseif preview and preview.scope=="LOCAL" then preview=nil end
+    if card:IsShown() and preview then
+        if preview.view.ProfileSummary(profileId,profileSeason) then profile.Render()
+        else card:Hide() end
+    end
 end

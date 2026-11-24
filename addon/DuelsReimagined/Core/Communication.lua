@@ -85,6 +85,9 @@ end
 -- Direct discovery is the only permitted whisper protocol in this phase.
 local function ChannelAllowed(tag,channel)
     if tag=="D1" then return channel=="WHISPER" end
+    if tag=="A1" or tag=="R1" or tag=="S1" then
+        return channel=="WHISPER" and ns.CompetitiveLifecycle and ns.CompetitiveLifecycle.CanCommunicate()
+    end
     return channel=="PARTY" or channel=="RAID"
 end
 function Comm.Send(tag, body, channel, target)

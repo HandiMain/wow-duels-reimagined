@@ -1591,3 +1591,8 @@ Automatic Peek while moving now defaults ON; its existing reset marker appears f
 ## Audit remediation checkpoint — 2026-11-24
 
 Current branch is develop. Core competitive foundations and approved visual pages exist; production competitive gameplay remains disabled. Step 22 in COMPETITIVE.md records the combined audit update and explicit blockers. The development preview is user-selectable under Options / Interface; it is not release data. Do not distribute a build or enable local recording/ranking until the user authorizes practical testing. December initial verification uses two accounts, with possible independent War Games testing earlier. No changes to main or release version.
+
+
+## Gated integration checkpoint — 2026-11-24
+
+Step 23 in COMPETITIVE.md documents the new local recorder, separately scoped peer settlement/sync and real UI read path. Recording and peer exchange remain build-disabled; no production season epoch. Development preview stays isolated and enabled by default for development only. Preserve the exact-evidence capacity stop; indefinite retention/finality is still a release blocker, not solved by compact encoding. No public release, main merge, version bump or manual tests. Resume with December local-only validation, then separately authorized peer test activation; do not describe the system as live verified or release-ready.

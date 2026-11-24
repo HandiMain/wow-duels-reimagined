@@ -324,6 +324,11 @@ local reduceMotionRow = AddToggle(behaviorCard, "interface", "reduceMotion", "Re
     "Shorten or skip UI animation while retaining visual feedback.", -119, false)
 local previewRow = AddToggle(behaviorCard, "interface", "competitivePreview", "Development preview",
     "Show simulated competitive screens. Disable to view local data; ranking remains disabled.", -174, false)
+local consentRow
+if ns.CompetitiveStorage and ns.CompetitiveStorage.PeerEpoch() then
+    consentRow = AddToggle(behaviorCard,"interface","competitiveConsent","Allow competitive duel exchange",
+        "Opt in to compatible peer agreements before the countdown. Never accepts a duel automatically.",-229,false)
+end
 local tooltipsRow = AddToggle(notificationsCard, "interface", "showTooltips", "Show addon tooltips",
     "Show helpful descriptions when hovering over Duels controls.", -64, false)
 local reminderRow = AddToggle(notificationsCard, "interface", "patchNotesReminder", "New patch reminder",
@@ -618,6 +623,7 @@ local interfaceGroups = {
         { widget = tooltipsRow }, { widget = reminderRow },
     }},
 }
+if consentRow then interfaceGroups[1].entries[#interfaceGroups[1].entries+1]={widget=consentRow} end
 function appearance:Relayout(width) LayoutPage(self, appearanceGroups, width) end
 function interface:Relayout(width) LayoutPage(self, interfaceGroups, width) end
 appearance:Relayout(appearance:GetWidth())

@@ -125,25 +125,63 @@ function P.Local()
     local client=ns.Client.Kind()
     local storage=ns.CompetitiveStorage
     local snapshot,why=storage.ReadLocalHistory()
+    local me=ns.Group.ReadPlayerIdentity("player")
+    local asOf
+    if type(GetServerTime)=="function" then
+        local ok,t=pcall(GetServerTime)
+        if ok and (not issecretvalue or not issecretvalue(t)) and type(t)=="number"
+            and t>=1 and t<=4102444800 and t==math.floor(t) then asOf=t end
+    end
     local view={}
     function view.ProfileSummary() return nil end
     function view.Profile() return nil end
     function view.Leaderboard() return {rows={},total=0} end
     function view.Progression() return {rows={},total=0} end
+    local peer,peerReason
+    if snapshot and asOf then peer,peerReason=storage.ReadPeerView(asOf) end
+    if peer and peer.view then view=peer.view else peer=nil end
+    local matched,disputed,changes={},{},{}
+    if peer then
+        for _,record in ipairs(peer.evidence.matched) do matched[record.id]=record end
+        for _,record in ipairs(peer.evidence.disputed) do disputed[record.id]=true end
+        for _,change in ipairs(peer.replay.changes) do changes[change.id]=change end
+    end
     local matches={}
     if snapshot then
         for i=#snapshot.history,1,-1 do
             local row=snapshot.history[i]
             local identity=row.name and {name=row.name,fullName=row.fullName or row.name,
                 realm=row.realm,class=row.class,faction=row.faction} or nil
+            local category,confirmed,before,after,delta="Unranked",false
+            if row.matchID then
+                local record=matched[row.matchID]
+                local own=record and me and (record.player1==me.guid and record.statement1 or
+                    record.player2==me.guid and record.statement2)
+                local change=changes[row.matchID]
+                local clocks=peer and peer.clocks[row.matchID]
+                if disputed[row.matchID] or (record and own~=row.statement) or (clocks and clocks[2]) then
+                    category="Disputed"
+                elseif record and own==row.statement and change then
+                    category=change.weight>0 and "Ranked" or "Practice"
+                    confirmed=true
+                    if record.winner==me.guid then before,after=change.winnerBefore,change.winnerAfter
+                    else before,after=change.loserBefore,change.loserAfter end
+                    if before and after then delta=after-before end
+                elseif asOf and row.time and asOf-row.time<=30 and asOf>=row.time then
+                    category="Pending"
+                else category="Unconfirmed" end
+            end
             matches[#matches+1]={id=row.id,identity=identity,peer=row.opponent,
-                category="Unranked",outcome=row.outcome,duration=row.duration,confirmed=false}
+                category=category,outcome=row.outcome,duration=row.duration,confirmed=confirmed,
+                before=before,after=after,delta=delta,time=row.time}
         end
     end
-    local me=ns.Group.ReadPlayerIdentity("player")
+    local capacity=storage.ReadLocalCapacity()
     return {scope="LOCAL",client=client,rankEligible=false,me=me and me.guid,
-        current=0,view=view,identities={},personal=snapshot and snapshot.overall or {},
-        matches=matches,storageReason=why,recordingDisabled=true}
+        current=peer and peer.replay.season or 0,epoch=peer and peer.epoch,asOf=asOf,
+        view=view,identities=peer and peer.identities or {},personal=snapshot and snapshot.overall or {},
+        matches=matches,storageReason=why,peerReason=peerReason,peerEvidence=peer~=nil,
+        capacity=capacity,recordingDisabled=not storage.LocalRecordingEnabled()}
 end
 function P.Get()
     local client=ns.Client.Kind()

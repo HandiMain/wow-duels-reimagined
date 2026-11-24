@@ -81,31 +81,46 @@ local function MergeClocks(a,b)
     table.sort(out,Less);while #out>2 do out[#out]=nil end
     return #out>0 and out or nil
 end
-local function Validate(client,saved)
-    if type(saved)~="table" or saved.version~=VERSION or saved.scope~="SIMULATED" or saved.client~=client
+-- For peer evidence, times are part of each original statement. The relay
+-- cannot substitute a different clock pair without changing the claims.
+local function PeerClocks(variants)
+    local out
+    for _,r in ipairs(variants) do out=MergeClocks(out,{{r.time1,r.time2}}) end
+    return out
+end
+local function Validate(client,saved,scope)
+    if type(saved)~="table" or saved.version~=VERSION or saved.scope~=scope or saved.client~=client
         or saved.rule~=RULE or type(saved.clocks)~="table" or type(saved.ledger)~="table" then return nil end
-    local ledger=ns.MatchLedger.OpenSimulated(client,saved.ledger)
+    local open=scope=="PEER" and ns.MatchLedger.OpenPeer or ns.MatchLedger.OpenSimulated
+    local ledger=open(client,saved.ledger)
     if not ledger then return nil end
-    local clean={version=VERSION,scope="SIMULATED",client=client,rule=RULE,ledger=ledger.Save(),clocks={}}
+    local clean={version=VERSION,scope=scope,client=client,rule=RULE,ledger=ledger.Save(),clocks={}}
     for id,v in pairs(saved.clocks) do
         if not clean.ledger.entries[id] then return nil end
         local c=Clocks(v);if not c then return nil end;clean.clocks[id]=c
     end
+    if scope=="PEER" then
+        for id,variants in pairs(clean.ledger.entries) do
+            if not Equal(clean.clocks[id],PeerClocks(variants)) then return nil end
+        end
+    end
     if not Equal(clean,saved) then return nil end
     return clean
 end
-local function Open(client,saved,epoch)
+local function Open(client,saved,epoch,scope)
+    scope=scope or "SIMULATED"
+    local open=scope=="PEER" and ns.MatchLedger.OpenPeer or ns.MatchLedger.OpenSimulated
     if client~="forever" and client~="retail" then return nil,"client" end
     if epoch~=nil and not ns.SeasonRules.Schedule(epoch,epoch) then return nil,"invalid_schedule" end
     local data
     if saved==nil then
-        data={version=VERSION,scope="SIMULATED",client=client,rule=RULE,
-            ledger=assert(ns.MatchLedger.OpenSimulated(client)).Save(),clocks={}}
-    else data=Validate(client,saved) end
+        data={version=VERSION,scope=scope,client=client,rule=RULE,
+            ledger=assert(open(client)).Save(),clocks={}}
+    else data=Validate(client,saved,scope) end
     if not data then return nil,"invalid_store" end
     -- The ledger owns canonical records. Only incoming evidence is validated
     -- during a merge; the existing ledger is opened once per isolated node.
-    local ledger=assert(ns.MatchLedger.OpenSimulated(client,data.ledger))
+    local ledger=assert(open(client,data.ledger))
     data.ledger=nil
     local D={}
     local sortedIDs,deltaCache
@@ -131,6 +146,11 @@ local function Open(client,saved,epoch)
         if not ok then return false,why end
         local changed=why=="merged"
         for id,added in pairs(changes) do Mark(id,added) end
+        if scope=="PEER" then
+            for id in pairs(incoming.ledger.entries) do
+                stagedClocks[id]=PeerClocks(ledger.ReadVariants(id))
+            end
+        end
         for id,clocks in pairs(stagedClocks) do
             if not Equal(data.clocks[id],clocks) then
                 data.clocks[id]=clocks;changed=true
@@ -144,16 +164,25 @@ local function Open(client,saved,epoch)
     -- Direct fixture observation: t1/t2 correspond to canonical player1/2.
     -- A two-clock fixture is not proof that either player really reported it.
     function D.Observe(record,t1,t2)
-        local clean=ns.ResultConfirmation.ValidateSimulatedRecord(record)
+        local validate=scope=="PEER" and ns.ResultConfirmation.ValidatePeerRecord or ns.ResultConfirmation.ValidateSimulatedRecord
+        local clean=validate(record)
         if not clean or clean.client~=client then return false,"invalid_record" end
         local clocks={}
+        if scope=="PEER" then
+            if t1~=clean.time1 or t2~=clean.time2 then return false,"invalid_time" end
+        end
         if t1~=nil or t2~=nil then
             local c=Clocks({{t1,t2}});if not c then return false,"invalid_time" end;clocks[clean.id]=c
         end
-        local l=assert(ns.MatchLedger.OpenSimulated(client));assert(l.Insert(clean))
+        local l=assert(open(client));assert(l.Insert(clean))
         return Merge({ledger=l.Save(),clocks=clocks})
     end
     function D.Save() local saved=Copy(data);saved.ledger=ledger.Save();return saved end
+    function D.MergeSaved(saved)
+        local clean=Validate(client,saved,scope)
+        if not clean then return false,"invalid_evidence" end
+        return Merge(clean)
+    end
     -- Cache only the canonical ID order; never retain exported record copies.
     local function IDs()
         if not sortedIDs then
@@ -162,7 +191,7 @@ local function Open(client,saved,epoch)
         return sortedIDs
     end
     local function Page(token,index,ids,total)
-        local page={version=VERSION,scope="SIMULATED",client=client,rule=RULE,token=token,index=index,total=total,entries={}}
+        local page={version=VERSION,scope=scope,client=client,rule=RULE,token=token,index=index,total=total,entries={}}
         for j=(index-1)*PAGE+1,math.min(index*PAGE,#ids) do
             local id=ids[j];page.entries[#page.entries+1]={id=id,records=ledger.ReadVariants(id),
                 clocks=data.clocks[id] and Copy(data.clocks[id]) or nil}
@@ -255,15 +284,18 @@ local function Open(client,saved,epoch)
     end
     function D.GetDeltaWork() return Copy(work) end
     local function Context()
-        if epoch then return ns.CompetitiveIntegrity.SeasonDescriptor(client,epoch) end
+        if epoch then
+            local descriptor=ns.CompetitiveIntegrity.SeasonDescriptor(client,epoch)
+            return descriptor and descriptor..(scope=="PEER" and "|P" or "")
+        end
     end
     function D.DeltaSummary()
         local context=Context();if not context then return nil,"season_context_required" end
-        return {version=1,scope="SIMULATED",context=context,groups=Copy(Delta().info)}
+        return {version=1,scope=scope,context=context,groups=Copy(Delta().info)}
     end
     function D.PlanDelta(remote)
         local context=Context()
-        if not context or type(remote)~="table" or remote.version~=1 or remote.scope~="SIMULATED"
+        if not context or type(remote)~="table" or remote.version~=1 or remote.scope~=scope
             or remote.context~=context or Array(remote.groups,GROUPS)~=GROUPS then return nil,"invalid_summary" end
         for k in pairs(remote) do if k~="version" and k~="scope" and k~="context" and k~="groups" then return nil,"invalid_summary" end end
         local total=0
@@ -272,7 +304,7 @@ local function Open(client,saved,epoch)
             total=total+g.count;if total>LIMIT then return nil,"invalid_summary" end
         end
         local localInfo=Delta().info
-        local plan={scope="SIMULATED",rankEligible=false,completeness="unknown",different=0,pulls={}}
+        local plan={scope=scope,rankEligible=false,completeness="unknown",different=0,pulls={}}
         for i,g in ipairs(remote.groups) do
             if not Equal(g,localInfo[i]) then
                 plan.different=plan.different+1
@@ -299,12 +331,12 @@ local function Open(client,saved,epoch)
     -- WoW events. Accept only bounded pages; validate all before a merge.
     function D.Receive(page,sender,expected,token)
         if not Guid(sender) or sender~=expected or not Token(token) or type(page)~="table"
-            or page.version~=VERSION or page.scope~="SIMULATED" or page.client~=client or page.rule~=RULE or page.token~=token
+            or page.version~=VERSION or page.scope~=scope or page.client~=client or page.rule~=RULE or page.token~=token
             or not Int(page.total,1,math.ceil(LIMIT/PAGE)) or not Int(page.index,1,page.total) then return false,"invalid_page" end
         local n=Array(page.entries,PAGE)
         if not n or (page.index<page.total and n~=PAGE) or (n==0 and page.total~=1) then return false,"invalid_page" end
-        local incoming={version=VERSION,scope="SIMULATED",client=client,rule=RULE,
-            ledger={version=1,scope="SIMULATED",client=client,entries={}},clocks={}}
+        local incoming={version=VERSION,scope=scope,client=client,rule=RULE,
+            ledger={version=1,scope=scope,client=client,entries={}},clocks={}}
         local prior
         for _,e in ipairs(page.entries) do
             if type(e)~="table" or type(e.id)~="string" or #e.id>220 or (prior and e.id<=prior)
@@ -316,7 +348,7 @@ local function Open(client,saved,epoch)
             if k~="version" and k~="scope" and k~="client" and k~="rule" and k~="token"
                 and k~="index" and k~="total" and k~="entries" then return false,"invalid_page" end
         end
-        local clean=Validate(client,incoming);if not clean then return false,"invalid_evidence" end
+        local clean=Validate(client,incoming,scope);if not clean then return false,"invalid_evidence" end
         return Merge(clean)
     end
     local function Replay(rule,options)
@@ -328,26 +360,40 @@ local function Open(client,saved,epoch)
             elseif c[2] then conflict=conflict+1;eligible.entries[r.id]=nil
             else times[r.id]=math.max(c[1][1],c[1][2]) end
         end
-        local result,why=ns.RatingEngine.ReplaySimulated(client,eligible,times,rule,options)
+        local replay=scope=="PEER" and ns.RatingEngine.ReplayPeer or ns.RatingEngine.ReplaySimulated
+        local result,why=replay(client,eligible,times,rule,options)
         if not result then return nil,why end
         result.knownMatched=#s.matched;result.missingTime=missing;result.timeDisputed=conflict
         result.completeness="unknown";return result
     end
     function D.GetSeasonEpoch() return epoch end
+    function D.GetScope() return scope end
     function D.Replay()
         if epoch then return nil,"season_context_required" end
         return Replay(RULE)
     end
-    function D.ReplaySeasonSimulated(options)
+    local function ReplaySeason(options)
         if epoch and (type(options)~="table" or options.epoch~=epoch) then return nil,"schedule_mismatch" end
         return Replay(ns.SeasonRules.BALANCED_ID,options)
     end
+    function D.ReplaySeasonSimulated(options)
+        if scope~="SIMULATED" then return nil,"wrong_scope" end
+        return ReplaySeason(options)
+    end
+    function D.ReplaySeasonPeer(options)
+        if scope~="PEER" then return nil,"wrong_scope" end
+        return ReplaySeason(options)
+    end
     return D
 end
-function P.OpenSimulated(client,saved) return Open(client,saved) end
+function P.OpenSimulated(client,saved) return Open(client,saved,nil,"SIMULATED") end
 function P.OpenSeasonSimulated(client,epoch,saved)
     if epoch==nil then return nil,"invalid_schedule" end
-    return Open(client,saved,epoch)
+    return Open(client,saved,epoch,"SIMULATED")
+end
+function P.OpenSeasonPeer(client,epoch,saved)
+    if epoch==nil then return nil,"invalid_schedule" end
+    return Open(client,saved,epoch,"PEER")
 end
 function P.GetSnapshot() return {scope="LOCAL",state="disabled",rankEligible=false,version=VERSION} end
 function P.GetDiagnosticResources() return {pending=0,subscriptions=0,timers=0} end

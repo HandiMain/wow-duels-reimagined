@@ -17,7 +17,11 @@ local function Split(s,sep)
     while true do local i=s:find(sep,pos,true);if not i then out[#out+1]=s:sub(pos);return out end
         out[#out+1]=s:sub(pos,i-1);pos=i+1 end
 end
-local function Record(a,b,client) return ns.ResultConfirmation.DecodeStatementsSimulated(client,a,b) end
+local function Record(a,b,client,scope)
+    local decode=scope=="PEER" and ns.ResultConfirmation.DecodePeerStatements or ns.ResultConfirmation.DecodeStatementsSimulated
+    return decode(client,a,b)
+end
+local function Scope(node) return node.GetScope and node.GetScope() or "SIMULATED" end
 local function Encode(page)
     local rows={}
     for _,e in ipairs(page.entries) do
@@ -27,14 +31,14 @@ local function Encode(page)
     end
     return #rows==0 and '-' or table.concat(rows,'/')
 end
-local function Decode(body,client,token,page,total)
-    local p={version=1,scope='SIMULATED',client=client,rule='elo-trial-2',token=token,index=page,total=total,entries={}}
+local function Decode(body,client,token,page,total,scope)
+    local p={version=1,scope=scope,client=client,rule='elo-trial-2',token=token,index=page,total=total,entries={}}
     if body=='-' then return p end
     local rows=Split(body,'/');if #rows>16 then return nil end
     for _,row in ipairs(rows) do
         local f=Split(row,'~');if #f~=2 then return nil end
         local s=Split(f[1],';');if #s~=2 and #s~=4 then return nil end
-        local records={};for i=1,#s,2 do local r=Record(s[i],s[i+1],client);if not r then return nil end;records[#records+1]=r end
+        local records={};for i=1,#s,2 do local r=Record(s[i],s[i+1],client,scope);if not r then return nil end;records[#records+1]=r end
         local clocks
         if f[2]~='' then
             clocks={};local cs=Split(f[2],';');if #cs>2 then return nil end
@@ -52,7 +56,9 @@ local function Context(client,node)
     local epoch=node.GetSeasonEpoch()
     if epoch==nil then return '1','' end
     local descriptor=ns.CompetitiveIntegrity.SeasonDescriptor(client,epoch)
-    if descriptor then return '2','|'..descriptor end
+    if descriptor then
+        return '2','|'..descriptor..(Scope(node)=="PEER" and '|P' or '')
+    end
 end
 -- The same request/fragment lifecycle carries summary and group pages.
 -- Summary has exactly one logical page, independent of its packet count.
@@ -61,10 +67,10 @@ local function EncodeSummary(summary)
     for _,g in ipairs(summary.groups) do rows[#rows+1]=table.concat({g.count,g.a,g.b},',') end
     return table.concat(rows,';')
 end
-local function DecodeSummary(payload,context)
+local function DecodeSummary(payload,context,scope)
     local rows=Split(payload,';')
     if #rows~=ns.LeaderboardSync.GetGroupCount() then return nil end
-    local summary={version=1,scope='SIMULATED',context=context:sub(2),groups={}}
+    local summary={version=1,scope=scope,context=context:sub(2),groups={}}
     for i,row in ipairs(rows) do
         local c,a,b=row:match('^(%d+),(%d+),(%d+)$')
         c,a,b=tonumber(c),tonumber(a),tonumber(b)
@@ -148,6 +154,7 @@ function P.NewRequester(client,node,prefix)
     if not Client(client) or not Token(prefix) or #prefix>20 then return nil end
     local rev,context=Context(client,node);if not rev then return nil end
     local D,seq,pending={},0,nil
+    local scope=Scope(node)
     function D.Status(now)
         if pending and Time(now) and now>=pending.deadline then pending=nil;return 'expired' end
         return pending and 'waiting' or 'idle'
@@ -184,7 +191,7 @@ function P.NewRequester(client,node,prefix)
         return Begin(peer,1,now,'audit_start')
     end
     function D.BeginAuditPage(peer,audit,page,now)
-        if rev~='2' or type(audit)~='table' or audit.scope~='SIMULATED' or audit.peer~=peer
+        if rev~='2' or type(audit)~='table' or audit.scope~=scope or audit.peer~=peer
             or audit.context~=context or not Token(audit.session) or type(audit.generation)~='number'
             or not Integer(tostring(audit.generation),2147483647) or type(audit.total)~='number'
             or not Integer(tostring(audit.total),MAX_PAGE) or type(page)~='number' or page>audit.total then
@@ -218,7 +225,7 @@ function P.NewRequester(client,node,prefix)
         end
         if q.mode=='summary' then
             if total~=1 or payload:sub(1,2)~='S|' then return false,'summary_context' end
-            local summary=DecodeSummary(payload:sub(3),context)
+            local summary=DecodeSummary(payload:sub(3),context,scope)
             if not summary then return false,'summary_decode' end
             local plan,why=node.PlanDelta(summary)
             if not plan then return false,why end
@@ -234,7 +241,7 @@ function P.NewRequester(client,node,prefix)
             elseif session~=q.group or generation~=q.expected or total~=q.auditTotal then
                 return false,'audit_context'
             end
-            auditResult={scope='SIMULATED',peer=q.peer,context=context,session=session,
+            auditResult={scope=scope,peer=q.peer,context=context,session=session,
                 generation=generation,total=total,index=q.page}
             payload=rest
         end
@@ -243,7 +250,7 @@ function P.NewRequester(client,node,prefix)
             if payload:sub(1,#header)~=header then return false,'delta_context' end
             payload=payload:sub(#header+1)
         end
-        local page=Decode(payload,client,q.token,q.page,total)
+        local page=Decode(payload,client,q.token,q.page,total,scope)
         if not page then return false,'decode' end
         if q.mode=='delta' and not ns.LeaderboardSync.ValidateDeltaPage(q.group,q.expected,page) then
             return false,'delta_page'
@@ -283,7 +290,7 @@ function P.NewResponder(client,node)
 end
 -- One explicit, caller-driven catch-up session. No send API, timer or
 -- automatic peer selection. Retain valid merged pages on retry/cancel.
-function P.NewCatchupSimulated(client,node,prefix,peer,mode)
+local function NewCatchup(client,node,prefix,peer,mode)
     if not Guid(peer) or (mode~='delta' and mode~='audit') or not node.GetSeasonEpoch() then return nil end
     local q=P.NewRequester(client,node,prefix);if not q then return nil end
     local D={}
@@ -300,7 +307,7 @@ function P.NewCatchupSimulated(client,node,prefix,peer,mode)
         due=now+2
     end
     function D.GetStatus()
-        return {scope='SIMULATED',state=state,mode=mode,requests=requests,restarts=restarts,
+        return {scope=Scope(node),state=state,mode=mode,requests=requests,restarts=restarts,
             rounds=rounds,pages=pages,completeness='unknown',rankEligible=false}
     end
     function D.Cancel() q.Cancel();state='cancelled';plan=nil;audit=nil end
@@ -364,6 +371,14 @@ function P.NewCatchupSimulated(client,node,prefix,peer,mode)
 end
 function P.GetSnapshot() return {scope='LOCAL',state='disabled',rankEligible=false,version=1} end
 function P.GetDiagnosticResources() return {pending=0,subscriptions=0,timers=0} end
+function P.NewCatchupSimulated(client,node,prefix,peer,mode)
+    if Scope(node)~="SIMULATED" then return nil end
+    return NewCatchup(client,node,prefix,peer,mode)
+end
+function P.NewCatchupPeer(client,node,prefix,peer,mode)
+    if Scope(node)~="PEER" then return nil end
+    return NewCatchup(client,node,prefix,peer,mode)
+end
 function P.RunSelfTest(emit)
     emit=type(emit)=='function' and emit or function()end
     local pass,fail=0,0

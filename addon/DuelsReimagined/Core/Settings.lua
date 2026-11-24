@@ -36,6 +36,7 @@ local boolDefaults = {
     -- Development build only. Explicitly labelled fixtures never mix with
     -- the local view. Switch the release default off before distribution.
     competitivePreview = true,
+    competitiveConsent = false,
     showTooltips = true,
     patchNotesReminder = true,
     showGameMenuButton = true,
@@ -512,6 +513,9 @@ function Settings.Set(key, value)
             ns.Header.RefreshAutoPeek()
         end
         if ns.Options and ns.Options.Refresh then ns.Options.Refresh() end
+    elseif key == "competitiveConsent" then
+        if ns.CompetitiveLifecycle then ns.CompetitiveLifecycle.PreferenceChanged() end
+        if ns.Options and ns.Options.Refresh then ns.Options.Refresh() end
     elseif key == "competitivePreview" then
         if ns.CompetitiveUI and ns.CompetitiveUI.Refresh then ns.CompetitiveUI.Refresh() end
         if ns.Options and ns.Options.Refresh then ns.Options.Refresh() end
@@ -601,4 +605,7 @@ loader:SetScript("OnEvent", function(self, _, loadedName)
         ns.PatchNotes.RefreshReminder()
     end
     if ns.Feedback then ns.Feedback.RefreshDiscovery() end
+    if ns.CompetitiveLifecycle and ns.CompetitiveLifecycle.Initialize then
+        ns.CompetitiveLifecycle.Initialize()
+    end
 end)

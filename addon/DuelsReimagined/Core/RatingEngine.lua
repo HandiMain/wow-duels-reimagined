@@ -34,7 +34,7 @@ function P.GetSnapshot() return {scope="LOCAL",state="disabled",rankEligible=fal
 function P.GetDiagnosticResources() return {pending=0,subscriptions=0,timers=0} end
 -- Timestamp map is an explicit simulation fixture, NOT detector uptime or a
 -- trusted network timestamp. Production records still need agreed chronology.
-function P.ReplaySimulated(client,saved,chronology,rule,options)
+local function Replay(client,saved,chronology,rule,options,scope)
     rule=rule or RULE -- retain the original trial as a reproducible baseline
     local policy=ns.SeasonRules
     local balanced=policy and rule==policy.BALANCED_ID
@@ -49,7 +49,8 @@ function P.ReplaySimulated(client,saved,chronology,rule,options)
     if rule~=RULE and not protected then return nil,"unknown_rule" end
     local pairWeight=protected and ns.CompetitiveRules.NewReplay() or nil
     if type(saved)~="table" or type(chronology)~="table" then return nil,"missing_input" end
-    local ledger,why=ns.MatchLedger.OpenSimulated(client,saved)
+    local open=scope=="PEER" and ns.MatchLedger.OpenPeer or ns.MatchLedger.OpenSimulated
+    local ledger,why=open(client,saved)
     if not ledger then return nil,why end
     local snap=ledger.Snapshot();local known,ordered={},{}
     for _,r in ipairs(snap.disputed) do known[r.id]=true end
@@ -135,10 +136,16 @@ function P.ReplaySimulated(client,saved,chronology,rule,options)
         end
     end
     table.sort(standings,function(a,b) if a.rating~=b.rating then return a.rating>b.rating end;return a.id<b.id end)
-    local result={scope="SIMULATED",client=client,rule=rule,rankEligible=false,players=players,standings=standings,
+    local result={scope=scope,client=client,rule=rule,rankEligible=false,players=players,standings=standings,
         changes=changes,matched=#ordered,disputed=#snap.disputed,rated=rated,restricted=restricted}
     if seasonal then result.season=season;result.history=history;result.schedule=schedule;result.completeness="unknown" end
     return result
+end
+function P.ReplaySimulated(client,saved,chronology,rule,options)
+    return Replay(client,saved,chronology,rule,options,"SIMULATED")
+end
+function P.ReplayPeer(client,saved,chronology,rule,options)
+    return Replay(client,saved,chronology,rule,options,"PEER")
 end
 function P.RunSelfTest(emit)
     emit=type(emit)=="function" and emit or function()end
