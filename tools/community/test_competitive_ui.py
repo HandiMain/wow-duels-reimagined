@@ -58,6 +58,22 @@ class CompetitiveUI(unittest.TestCase):
         self.assertNotIn('Voidreign',p)
         self.assertIn('function U.LowerRim(parent)',ui)
 
+    def test_approved_placement_plate_and_shared_animation(self):
+        ui=read("UI/CompetitiveUI.lua")
+        for token in ("DuelPlacementPanel.png","DuelPlacementEffects.png",
+                      "Placement(d,p,d.current,true)","Unique opponents: ",
+                      "M.Value(placementPanel,0,1,.78","StopPlacementEffects()",
+                      "hall:HookScript(\"OnHide\"","progress.total/5",
+                      "1-fraction,1","p.rank.provisional"):
+            self.assertIn(token,ui)
+        self.assertNotIn("local placementBars={}",ui)
+        for name,dimensions in (("DuelPlacementPanel.png",(512,256)),("DuelPlacementEffects.png",(128,64))):
+            import struct
+            data=(ADDON/"Media/Skin"/name).read_bytes()
+            self.assertEqual(data[:8],b"\x89PNG\r\n\x1a\n")
+            self.assertEqual(struct.unpack(">II",data[16:24]),dimensions)
+        self.assertNotIn('SetScript("OnUpdate"',ui)
+
     def test_gated_production_paths_and_peer_evidence_scope(self):
         store=read("Core/CompetitiveStorage.lua")
         life=read("Core/CompetitiveLifecycle.lua")

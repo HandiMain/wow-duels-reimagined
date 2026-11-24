@@ -65,7 +65,20 @@ CreateFrame=function(_,name,parent)local f=Frame(parent);if name then _G[name]=f
 local C=setmetatable({}, {__index=function(t,k)local v={1,1,1,1};rawset(t,k,v);return v end})
 ns.Style={color=C,Text=function(parent,t)local f=Frame(parent);f:SetText(t);return f end,Fill=function(parent)return Frame(parent)end,
     Skin=noop,Plate=noop,Action=function(parent,t)local f=Frame(parent);f.label=Frame(f);f.label:SetText(t);return f end,BindFont=noop}
-ns.Motion={Fade=function(f,a)f:SetAlpha(a)end,Stop=function(f,a)f:SetAlpha(a or 0)end}
+local activeTweens={}
+local revealStarts=0
+ns.Motion={
+    Fade=function(f,a) f:SetAlpha(a) end,
+    Stop=function(f,a) activeTweens[f]=nil;f:SetAlpha(a or 0) end,
+    Value=function(f,from,to,_,apply)
+        revealStarts=revealStarts+1
+        activeTweens[f]=function() apply(f,to) end
+        apply(f,from)
+    end,
+}
+local function FinishTweens()
+    for f,finish in pairs(activeTweens) do activeTweens[f]=nil;finish() end
+end
 ns.Chrome={Sharp=noop,Icon=function(parent)return Frame(parent)end,Divider=function(parent)return Frame(parent)end}
 ns.Widgets={PressFeedback=noop,ChoiceControl=function(parent)local f=Frame(parent);return f,Frame(f)end,OpenChoices=noop,
     CloseChoices=noop,ScrollBar=function(parent)local f=Frame(parent);f.Refresh=noop;return f end}
@@ -92,12 +105,16 @@ U.Show("overview")
 local function HasText(t)
     for _,f in ipairs(frames) do if f.text==t and f:IsVisible() then return true end end
 end
-assert(HasText("Placement Matches") and HasText("0 / 5 credits"))
+assert(HasText("Placement Matches") and HasText("0 / 5 completed"))
+assert(HasText("Unique opponents: 0 / 3"))
 for i=1,5 do
     assert(P.Command(i==2 and "loss" or "win"))
     assert(#P.Get().matches==i)
-    if i<5 then assert(HasText("Placement Matches") and HasText(i.." / 5 credits")) end
+    if i<5 then assert(HasText("Placement Matches") and HasText(i.." / 5 completed")) end
 end
+assert(HasText("5 / 5 completed") and revealStarts==1)
+U.Refresh();assert(revealStarts==1,"refresh restarted placement reveal")
+FinishTweens()
 assert(not HasText("Placement Matches"))
 assert(not P.Command("win 21") and #P.Get().matches==5)
 for _,key in ipairs({"overview","standings","history","standings","overview"}) do
@@ -122,7 +139,16 @@ main:Show()
 U.Show("overview")
 assert(P.Command("reset") and #P.Get().matches==0 and HasText("Placement Matches"))
 assert(P.Command("stop") and not P.IsActive() and P.Get().scope=="LOCAL")
-assert(not HasText("Placement Matches"))
+assert(HasText("Placement Matches") and HasText("0 / 5 completed"))
+assert(HasText("Ranked seasons not active"))
+assert(P.Command("start"))
+for i=1,5 do assert(P.Command("win")) end
+assert(next(activeTweens))
+U.Show("history")
+assert(not next(activeTweens),"page hide must cancel reveal")
+U.Show("overview")
+assert(not HasText("Placement Matches"),"ranked state must reopen without replaying reveal")
+assert(P.Command("stop"))
 U.Show(nil)
 assert(#frames==count,"page navigation must reuse frames")
 assert(_G.DuelsReimaginedCompetitiveDB==nil and _G.DuelsReimaginedCharacterDB==nil)

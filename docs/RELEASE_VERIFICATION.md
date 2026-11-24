@@ -109,3 +109,6 @@ Established 2026-11-24; implementation baseline `09cc4e1` (develop). Practical v
 - [ ] E-sim02 — /duels sim start, win/loss (default rotation and specified rival), invalid input, reset/stop, reload; no live data or transport changes; verify all pages and player card refresh, simulation caption never absent, no stale fixture rows.
 - [ ] E-sim03 — Check 0/5 through 5/5 credits, fractional same-rival credits, minimum three distinct rivals, transition to normal rank, history/graph/statistics consistency, font scale and compact layout.
 - [ ] I-sim01 — Disable or remove TEST_ENABLED and test commands before public package, verify commands cannot mutate local or peer data, no automatic populated fixture. Retain isolated automated test capability as appropriate.
+
+
+- [ ] E-placement04 — Confirm actual approved placement plate at zero progress in real empty Hall even when ranked seasons inactive; all five sockets, title, instruction, plaque and opponent text visible. Check fractional fills, same-rival cap, first rank reveal only once when both requirements fulfilled, reduced motion, resize/reopen, hide/stop/reset, default and compact font/menu scales. Confirm normal rank art and other Hall panels preserved, no new persistent animation or simulated data leaking to live records.

@@ -338,9 +338,12 @@ local preview,profileId
 local pendingScroll={}
 local active
 local function Data() return preview end
-local function Placement(d,p,season)
-    if not d or not season or season<1 or season>d.current or
+local function Placement(d,p,season,showRequirements)
+    if not d or not season or season>d.current or
         (p and p.rank and not p.rank.provisional) then return nil end
+    -- The Hall advertises the placement requirements even before the
+    -- production calendar starts. It does not invent a season or rating.
+    if season<1 and not showRequirements then return nil end
     local rules=ns.SeasonRules
     local credit=math.max(0,math.min(rules.PLACEMENT_CREDIT,p and p.credit or 0))
     local rivals=math.max(0,math.min(rules.MIN_RIVALS,p and p.rivalCount or 0))
@@ -396,14 +399,123 @@ local hallRule=ns.Chrome.Divider(hall,300,12)
 local hero=Panel(hall);local emblem=Rank(hero,120,true)
 local rankText=Text(hero,24,C.pale);local ratingCaption=T(hero,"Rating",13,C.muted)
 local rating=Text(hero,28,C.pale)
-local placementTitle=T(hero,"Placement Matches",19,C.pale)
-local placementCredit=Text(hero,12,C.pale)
-local placementRivals=Text(hero,12,C.muted)
-local placementBars={}
+-- Approved Hall placement plate: art without embedded text or state.
+-- The five dark shield sockets are permanent art; independent gold fills,
+-- glows and live text reflect the existing weighted placement read model.
+local PLATE_ART="Interface\\AddOns\\DuelsReimagined\\Media\\Skin\\DuelPlacementPanel.png"
+local PLATE_FX="Interface\\AddOns\\DuelsReimagined\\Media\\Skin\\DuelPlacementEffects.png"
+local placementPanel=CreateFrame("Frame",nil,hero)
+placementPanel:SetFrameLevel(hero:GetFrameLevel()+4)
+local plateArt=placementPanel:CreateTexture(nil,"BACKGROUND")
+plateArt:SetTexture(PLATE_ART);plateArt:SetAllPoints(placementPanel);ns.Chrome.Sharp(plateArt)
+local placementTitle=T(placementPanel,"Placement Matches",19,C.pale,"CENTER")
+local placementHint=T(placementPanel,"Play 5 full-credit ranked duels to reveal your rank.",11,C.text,"CENTER")
+local placementCredit=Text(placementPanel,13,C.text,"CENTER")
+local placementRivals=Text(placementPanel,12,C.pale,"CENTER")
+local function PlacementEffect(parent,glow)
+    local t=parent:CreateTexture(nil,glow and "OVERLAY" or "ARTWORK",nil,glow and 1 or 2)
+    t:SetTexture(PLATE_FX)
+    t:SetTexCoord(glow and .5 or 0,glow and 1 or .5,0,1)
+    if glow then t:SetBlendMode("ADD") end
+    t:SetAlpha(0);return t
+end
+local placementShields={}
 for i=1,5 do
-    local bg=S.Fill(hero,C.goldDim,"ARTWORK");bg:SetAlpha(.35)
-    local fill=S.Fill(hero,C.gold,"OVERLAY")
-    placementBars[i]={bg=bg,fill=fill}
+    placementShields[i]={fill=PlacementEffect(placementPanel,false),glow=PlacementEffect(placementPanel,true)}
+end
+local revealGlow=PlacementEffect(hero,true)
+local placementKey,previousCredit,wasPlacement,revealing
+placementPanel:Hide()
+local function StopPlacementEffects()
+    M.Stop(placementPanel,1);revealing=false
+    for _,s in ipairs(placementShields) do M.Stop(s.fill,1);M.Stop(s.glow,0) end
+    M.Stop(revealGlow,0)
+end
+hall:HookScript("OnHide",function()
+    StopPlacementEffects();placementPanel:Hide()
+    placementKey,previousCredit,wasPlacement=nil,nil,nil
+end)
+local function PlacementLayout(w,h,progress,animate)
+    -- Layout is registered against the approved 541 x 180 text-free art.
+    -- All text remains a real font string and all markers are fixed pools.
+    local function ArtPlace(f,x,y,aw,ah)
+        Place(f,placementPanel,w*x/541,h*y/180,w*aw/541,h*ah/180)
+    end
+    ArtPlace(placementTitle,142,6,392,30)
+    ArtPlace(placementHint,141,36,393,22)
+    -- The compact font-safe variant retains the same meaning at narrow widths.
+    placementHint:SetText(w<365 and "Earn 5 full ranked duel credits." or "Play 5 full-credit ranked duels to reveal your rank.")
+    ArtPlace(placementCredit,244,118,189,28)
+    ArtPlace(placementRivals,250,149,207,24)
+    placementCredit:SetText(CreditText(progress).." completed")
+    placementRivals:SetText("Unique opponents: "..progress.rivals.." / "..progress.required)
+    local step=progress.total/5
+    for i,s in ipairs(placementShields) do
+        local fraction=math.max(0,math.min(1,(progress.credit-(i-1)*step)/step))
+        local old=math.max(0,math.min(1,((previousCredit or 0)-(i-1)*step)/step))
+        local x=205+(i-1)*66.3
+        local baseGlow=fraction>=1 and .35 or (fraction<1 and progress.credit>=(i-1)*step and .58 or 0)
+        ArtPlace(s.glow,x-37,49,74,77)
+        if fraction>0 then
+            -- Crop upwards from the lower edge, preserving partial credits.
+            ArtPlace(s.fill,x-21,65+45*(1-fraction),42,45*fraction)
+            s.fill:SetTexCoord(0,.5,1-fraction,1);s.fill:Show()
+        else s.fill:Hide() end
+        if animate and fraction>old then
+            M.Stop(s.fill,.2);M.Fade(s.fill,1,.28)
+            M.Stop(s.glow,1);M.Fade(s.glow,baseGlow,.72)
+        elseif not revealing and (previousCredit==nil or progress.credit~=previousCredit) then
+            M.Stop(s.fill,1);M.Stop(s.glow,baseGlow)
+        end
+        -- An unchanged repaint (resize, options or data refresh) must not
+        -- restart a completion animation. Changed progress also moves the
+        -- next-step glow even when its own fractional fill is still zero.
+    end
+end
+local function PaintPlacement(d,p,left,h,icon)
+    local progress=Placement(d,p,d.current,true)
+    local key=d.scope..":"..tostring(d.current)
+    local same=placementKey==key
+    if not same then
+        StopPlacementEffects()
+        previousCredit,wasPlacement=nil,nil
+    end
+    local earned=not progress and same and wasPlacement and p and p.rank and not p.rank.provisional
+    Place(placementPanel,hero,0,0,left,h)
+    Place(revealGlow,hero,2,0,icon+30,h)
+    if progress then
+        if revealing then StopPlacementEffects();previousCredit=nil end
+        placementPanel:Show();placementPanel:SetAlpha(1)
+        local advance=same and previousCredit~=nil and progress.credit>previousCredit
+        if previousCredit and progress.credit<previousCredit then
+            StopPlacementEffects();previousCredit=nil
+        end
+        PlacementLayout(left,h,progress,advance)
+        previousCredit=progress.credit
+    elseif earned then
+        local rules=ns.SeasonRules
+        local finished={credit=rules.PLACEMENT_CREDIT,total=rules.PLACEMENT_CREDIT,
+            rivals=rules.MIN_RIVALS,required=rules.MIN_RIVALS}
+        placementPanel:Show();placementPanel:SetAlpha(1)
+        PlacementLayout(left,h,finished,true)
+        revealing=true
+        M.Stop(revealGlow,.9);M.Fade(revealGlow,0,.85)
+        -- Hold the completed shields briefly, then fade to the existing
+        -- rank and rating underneath. Motion.Value snaps when reduced.
+        M.Value(placementPanel,0,1,.78,function(frame,value)
+            frame:SetAlpha(1-math.max(0,(value-.27)/.73))
+            if value>=1 then frame:Hide();revealing=false end
+        end)
+        previousCredit=finished.credit
+    elseif revealing and same then
+        -- Keep the in-flight fade on layout-only repaints.
+        PlacementLayout(left,h,{credit=ns.SeasonRules.PLACEMENT_CREDIT,total=ns.SeasonRules.PLACEMENT_CREDIT,
+            rivals=ns.SeasonRules.MIN_RIVALS,required=ns.SeasonRules.MIN_RIVALS},false)
+    else
+        placementPanel:Hide()
+    end
+    placementKey,wasPlacement=key,progress~=nil
+    return progress
 end
 local seasonTitle=T(hero,"Season Summary",17,C.pale)
 local seasonInfo=Text(hero,11,C.muted,"RIGHT")
@@ -449,27 +561,9 @@ function hall.Render()
     Place(rankText,hero,icon+16,13,left-icon-24,32);Set(rankText,p and p.rank and p.rank.label or "Unranked")
     Place(ratingCaption,hero,icon+18,50,left-icon-24,20)
     Place(rating,hero,icon+16,69,left-icon-24,34);Set(rating,Number(p and p.rating))
-    local placement=Placement(d,p,d.current)
-    local px,pw=icon+16,math.max(1,left-icon-26)
+    local placement=PaintPlacement(d,p,left,heroH,icon)
+    emblem:SetShown(not placement)
     rankText:SetShown(not placement);ratingCaption:SetShown(not placement);rating:SetShown(not placement)
-    placementTitle:SetShown(placement~=nil);placementCredit:SetShown(placement~=nil);placementRivals:SetShown(placement~=nil)
-    if placement then
-        Place(placementTitle,hero,px,11,pw,28)
-        Place(placementCredit,hero,px,39,pw,19)
-        placementCredit:SetText(CreditText(placement).." credits")
-        Place(placementRivals,hero,px,78,pw,20)
-        placementRivals:SetText(placement.rivals.." / "..placement.required.." unique opponents")
-    end
-    local cell=math.max(1,(pw-16)/5)
-    for i,bar in ipairs(placementBars) do
-        bar.bg:SetShown(placement~=nil)
-        local fraction=placement and math.max(0,math.min(1,(placement.credit-(i-1)*4)/4)) or 0
-        bar.fill:SetShown(fraction>0)
-        if placement then
-            Place(bar.bg,hero,px+(i-1)*(cell+4),63,cell,9)
-            if fraction>0 then Place(bar.fill,hero,px+(i-1)*(cell+4),63,cell*fraction,9) end
-        end
-    end
     Place(heroLine,hero,left,13,1,heroH-26)
     Place(seasonTitle,hero,left+18,12,w-left-26,25)
     Place(seasonInfo,hero,left+18,36,w-left-26,17)
@@ -528,7 +622,7 @@ function hall.Render()
     Place(currentLabel,current,2,7,side-4,19);Place(currentValue,current,2,26,side-4,31)
     Place(currentDelta,current,2,60,side-4,21);Place(currentHint,current,2,83,side-4,15)
     local points=Points(d.me,d.current,hallFilter);hallGraph.Paint(points)
-    currentLabel:SetText(placement and "Provisional Rating" or "Current Rating")
+    currentLabel:SetText(placement and d.current>0 and "Provisional Rating" or "Current Rating")
     Set(currentValue,Number(p and p.rating))
     local diff=#points>0 and p and p.rating and p.rating-points[1].rating
     Set(currentDelta,Delta(diff),diff and diff<0 and RED or GREEN)
