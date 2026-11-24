@@ -211,3 +211,9 @@ assert(dwp==9 and dwf==0 and sent==previous and P.GetSnapshot().state=="checking
 assert(_G.DuelsReimaginedDB==originalDB and _G.DuelsReimaginedCompetitiveDB==oldAccount
     and _G.DuelsReimaginedCharacterDB==oldChar,"delta wire QA never writes live data")
 print("Delta wire: PASS")
+
+local dcp,dcf=ns.LeaderboardSync.RunDeltaCacheSelfTest(function(line)if line:find("FAIL",1,true)then print(line)end end)
+assert(dcp==7 and dcf==0 and sent==previous and P.GetSnapshot().state=="checking","isolated incremental comparison")
+assert(_G.DuelsReimaginedDB==originalDB and _G.DuelsReimaginedCompetitiveDB==oldAccount
+    and _G.DuelsReimaginedCharacterDB==oldChar,"delta cache QA never writes live data")
+print("Incremental comparison: PASS")

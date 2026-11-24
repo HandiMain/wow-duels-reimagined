@@ -86,6 +86,7 @@ for _,client in ipairs({"forever","retail"}) do
     end
     local plan=Transfer(assert(q.BeginSummary(a,t)),"summary_complete")
     assert(plan.different>=1 and plan.different<=5)
+    local cold=behind.GetDeltaWork();assert(cold.records==limit-5)
     local compared=0
     for _,g in ipairs(plan.pulls) do
         compared=compared+g.expected.count
@@ -94,6 +95,12 @@ for _,client in ipairs({"forever","retail"}) do
     assert(compared>=5 and compared<limit and Equal(source.Save(),behind.Save()))
     local final=Transfer(assert(q.BeginSummary(a,t)),"summary_complete")
     assert(final.different==0 and #final.pulls==0 and Equal(replay,behind.ReplaySeasonSimulated(opts)))
+    local warm=behind.GetDeltaWork()
+    assert(warm.groups-cold.groups==plan.different and warm.records-cold.records==compared)
+    local fresh=assert(ns.LeaderboardSync.OpenSeasonSimulated(client,epoch,behind.Save()))
+    assert(Equal(fresh.DeltaSummary(),behind.DeltaSummary()))
+    assert(behind.GetDeltaWork().records==warm.records)
+    print(string.format("%s: incremental comparison rehashed %d of %d records across %d groups; cold rebuild parity PASS",client,warm.records-cold.records,limit,warm.groups-cold.groups))
     -- Delta includes requests and final summary; full bytes are response-only,
     -- so this comparison is conservative.
     assert(deltaBytes<bytes)

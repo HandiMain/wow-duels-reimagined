@@ -83,12 +83,17 @@ local function Open(client,stored,cap)
             end
             staged[v.id]=Stage(v,old)
         end
-        local changed=false
+        -- Report only committed changes, with a boolean distinguishing new IDs.
+        -- The caller never receives references to the canonical record tables.
+        local changes={}
         for id,variants in pairs(staged) do
-            if variants~=data.entries[id] then data.entries[id]=variants;changed=true end
+            if variants~=data.entries[id] then
+                changes[id]=data.entries[id]==nil
+                data.entries[id]=variants
+            end
         end
         count=count+added
-        return true,changed and "merged" or "unchanged"
+        return true,next(changes) and "merged" or "unchanged",changes
     end
     function D.Save() return Copy(data) end
     function D.ListIDs()
