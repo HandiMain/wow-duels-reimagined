@@ -21,6 +21,11 @@ local function Text(v)
     v=Plain(v)
     if type(v)=="string" and #v>0 and #v<=160 and not v:find("[%c|]") then return v end
 end
+-- Protocol bodies deliberately contain delimiters; identity fields do not.
+local function Packet(v)
+    v=Plain(v)
+    if type(v)=="string" and #v>0 and #v<=160 and not v:find("%c") then return v end
+end
 local function Guid(v)
     v=Text(v)
     if v and #v<=64 and v:match("^Player%-%w[%w%-]*$") then return v end
@@ -116,7 +121,7 @@ local function Build(api)
         return true
     end
     function D.Receive(body,sender)
-        body,sender=Text(body),Text(sender)
+        body,sender=Packet(body),Text(sender)
         if not body or not sender then return end
         local kind,nonce,client,rev,from,to=body:match("^([HA])|([%w%-]+)|(%a+)|(%d+)|([^|]+)|([^|]+)$")
         if not kind or #nonce>40 or #rev>3 or not Guid(from) or not Guid(to) or
@@ -240,6 +245,9 @@ function P.RunSelfTest(emit)
             f.a.Receive(a.body:gsub("100%-1%-1","999-1-1"),a.sender)
             f.a.Receive(a.body:gsub("Player%-2%-BBB","Player-3-CCC"),a.sender)
             f.a.Receive("malformed",a.sender)
+            f.a.Receive(a.body.."|extra",a.sender)
+            f.a.Receive(a.body.."\n",a.sender)
+            f.a.Receive(a.body,a.sender.."|extra")
             Check(f.a.GetSnapshot().state=="checking","invalid packet confirmed")
             f.a.Receive(a.body,a.sender)
             Check(f.a.GetSnapshot().state=="compatible","valid response lost")
