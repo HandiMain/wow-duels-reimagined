@@ -40,30 +40,62 @@ local function Open(client,stored,cap)
         end
     end
     local D={}
-    function D.Insert(r)
-        local v=Validate(r)
-        if not v then return false,"invalid_record" end
-        local old=data.entries[v.id]
-        if not old then
-            if count>=cap then return false,"capacity" end
-            data.entries[v.id]={v};count=count+1;return true,"inserted"
-        end
+    -- Stage only affected IDs. Reuse the same deterministic dispute selection
+    -- for single inserts and atomic batches; no mutable aliases escape.
+    local function Stage(v,old)
+        if not old then return {v},"inserted" end
         local k=Key(v)
-        for _,prior in ipairs(old) do if Key(prior)==k then return false,"duplicate" end end
-        -- Keep the lexically smallest two distinct statements as stable dispute
-        -- evidence. No later variant can make a disputed ID eligible again.
+        for _,prior in ipairs(old) do if Key(prior)==k then return old,"duplicate" end end
         local variants={old[1],old[2]}
         variants[#variants+1]=v
         table.sort(variants,function(a,b)return Key(a)<Key(b) end)
         if #variants>2 then variants[3]=nil end
-        data.entries[v.id]=variants
-        return true,"disputed"
+        if variants[1]==old[1] and variants[2]==old[2] then return old,"disputed" end
+        return variants,"disputed"
+    end
+    function D.Insert(r)
+        local v=Validate(r)
+        if not v then return false,"invalid_record" end
+        local old=data.entries[v.id]
+        if not old and count>=cap then return false,"capacity" end
+        local nextVariants,why=Stage(v,old)
+        if why=="duplicate" then return false,why end
+        data.entries[v.id]=nextVariants
+        if not old then count=count+1 end
+        return true,why
+    end
+    function D.MergeBatch(records)
+        if type(records)~="table" then return false,"invalid_batch" end
+        local n=0
+        for k in pairs(records) do
+            n=n+1
+            if type(k)~="number" or k<1 or k>cap*2 or k~=math.floor(k) or n>cap*2 then return false,"invalid_batch" end
+        end
+        local staged,added={},0
+        for i=1,n do
+            local v=Validate(records[i]);if not v then return false,"invalid_record" end
+            local old=staged[v.id] or data.entries[v.id]
+            if not old then
+                added=added+1;if count+added>cap then return false,"capacity" end
+            end
+            staged[v.id]=Stage(v,old)
+        end
+        local changed=false
+        for id,variants in pairs(staged) do
+            if variants~=data.entries[id] then data.entries[id]=variants;changed=true end
+        end
+        count=count+added
+        return true,changed and "merged" or "unchanged"
     end
     function D.Save() return Copy(data) end
+    function D.ListIDs()
+        local ids={};for id in pairs(data.entries) do ids[#ids+1]=id end;table.sort(ids);return ids
+    end
+    function D.ReadVariants(id)
+        local v=data.entries[id];return v and Copy(v) or nil
+    end
     function D.Snapshot()
-        local ids={}
-        for id in pairs(data.entries) do ids[#ids+1]=id end
-        table.sort(ids)
+        local ids=D.ListIDs()
         local out={scope="SIMULATED",client=client,version=VERSION,rankEligible=false,matched={},disputed={}}
         for _,id in ipairs(ids) do
             local v=data.entries[id]

@@ -186,3 +186,10 @@ assert(ns.LeaderboardSync.GetSnapshot().state=="disabled" and not ns.Leaderboard
     and _G.DuelsReimaginedDB==originalDB and _G.DuelsReimaginedCompetitiveDB==oldAccount
     and _G.DuelsReimaginedCharacterDB==oldChar,"page QA never writes live data")
 print("Single page export: PASS")
+
+local mp,mf=ns.LeaderboardSync.RunMergeSelfTest(function(line)if line:find("FAIL",1,true)then print(line)end end)
+assert(mp==7 and mf==0 and sent==previous and P.GetSnapshot().state=="checking","isolated atomic batch merge")
+assert(ns.LeaderboardSync.GetSnapshot().state=="disabled" and not ns.LeaderboardSync.GetSnapshot().rankEligible
+    and _G.DuelsReimaginedDB==originalDB and _G.DuelsReimaginedCompetitiveDB==oldAccount
+    and _G.DuelsReimaginedCharacterDB==oldChar,"merge QA never writes live data")
+print("Atomic batch merge: PASS")

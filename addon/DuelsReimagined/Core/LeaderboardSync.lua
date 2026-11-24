@@ -69,21 +69,26 @@ local function Open(client,saved,epoch)
             ledger=assert(ns.MatchLedger.OpenSimulated(client)).Save(),clocks={}}
     else data=Validate(client,saved) end
     if not data then return nil,"invalid_store" end
+    -- The ledger owns canonical records. Only incoming evidence is validated
+    -- during a merge; the existing ledger is opened once per isolated node.
+    local ledger=assert(ns.MatchLedger.OpenSimulated(client,data.ledger))
+    data.ledger=nil
     local D={}
     local sortedIDs
     local function Merge(incoming)
-        local l=assert(ns.MatchLedger.OpenSimulated(client,data.ledger))
-        local clocks=Copy(data.clocks)
+        local records,stagedClocks={},{}
         for id,variants in pairs(incoming.ledger.entries) do
-            for _,r in ipairs(variants) do
-                local ok,why=l.Insert(r)
-                if not ok and why~="duplicate" then return false,why end
-            end
-            clocks[id]=MergeClocks(clocks[id],incoming.clocks[id])
+            for _,r in ipairs(variants) do records[#records+1]=r end
+            stagedClocks[id]=MergeClocks(data.clocks[id],incoming.clocks[id])
         end
-        local nextData={version=VERSION,scope="SIMULATED",client=client,rule=RULE,ledger=l.Save(),clocks=clocks}
-        if Equal(nextData,data) then return true,"unchanged" end
-        data=nextData;sortedIDs=nil;return true,"merged"
+        local ok,why=ledger.MergeBatch(records)
+        if not ok then return false,why end
+        local changed=why=="merged"
+        for id,clocks in pairs(stagedClocks) do
+            if not Equal(data.clocks[id],clocks) then data.clocks[id]=clocks;changed=true end
+        end
+        if not changed then return true,"unchanged" end
+        sortedIDs=nil;return true,"merged"
     end
     -- Direct fixture observation: t1/t2 correspond to canonical player1/2.
     -- A two-clock fixture is not proof that either player really reported it.
@@ -97,18 +102,18 @@ local function Open(client,saved,epoch)
         local l=assert(ns.MatchLedger.OpenSimulated(client));assert(l.Insert(clean))
         return Merge({ledger=l.Save(),clocks=clocks})
     end
-    function D.Save() return Copy(data) end
+    function D.Save() local saved=Copy(data);saved.ledger=ledger.Save();return saved end
     -- Cache only the canonical ID order; never retain exported record copies.
     local function IDs()
         if not sortedIDs then
-            sortedIDs={};for id in pairs(data.ledger.entries) do sortedIDs[#sortedIDs+1]=id end;table.sort(sortedIDs)
+            sortedIDs=ledger.ListIDs()
         end
         return sortedIDs
     end
     local function Page(token,index,ids,total)
         local page={version=VERSION,scope="SIMULATED",client=client,rule=RULE,token=token,index=index,total=total,entries={}}
         for j=(index-1)*PAGE+1,math.min(index*PAGE,#ids) do
-            local id=ids[j];page.entries[#page.entries+1]={id=id,records=Copy(data.ledger.entries[id]),
+            local id=ids[j];page.entries[#page.entries+1]={id=id,records=ledger.ReadVariants(id),
                 clocks=data.clocks[id] and Copy(data.clocks[id]) or nil}
         end
         return page
@@ -152,8 +157,8 @@ local function Open(client,saved,epoch)
         return Merge(clean)
     end
     local function Replay(rule,options)
-        local l=assert(ns.MatchLedger.OpenSimulated(client,data.ledger));local s=l.Snapshot()
-        local eligible=l.Save();local times={};local missing,conflict=0,0
+        local s=ledger.Snapshot()
+        local eligible=ledger.Save();local times={};local missing,conflict=0,0
         for _,r in ipairs(s.matched) do
             local c=data.clocks[r.id]
             if not c then missing=missing+1;eligible.entries[r.id]=nil
@@ -306,5 +311,51 @@ function P.RunPageSelfTest(emit)
         end)
     end
     Case("page optimization stays simulation only",function()local s=P.GetSnapshot();assert(s.scope=="LOCAL" and s.state=="disabled" and not s.rankEligible)end)
+    return passed,failed
+end
+
+function P.RunMergeSelfTest(emit)
+    emit=type(emit)=="function" and emit or function()end
+    local passed,failed=0,0
+    local function Case(label,fn)
+        local ok,err=pcall(fn);if ok then passed=passed+1 else failed=failed+1 end
+        emit("DR | SIMULATED | "..(ok and "PASS " or "FAIL ")..label..(ok and "" or ": "..tostring(err)))
+    end
+    local a,b="Player-1-AAA","Player-2-BBB"
+    for _,client in ipairs({"forever","retail"}) do
+        local function Record(n,reverse,cycle)
+            local s="a-"..n..":b-"..n
+            return {scope="SIMULATED",version="1",client=client,session=s,id=client.."|"..a.."|"..b.."|"..s,
+                player1=a,player2=b,winner=reverse and b or a,loser=reverse and a or b,endType="knockout",rankEligible=false,
+                statement1=table.concat({"1",client,s,a,b,reverse and "lost" or "won",tostring(cycle or 1)},"|"),
+                statement2=table.concat({"1",client,s,b,a,reverse and "won" or "lost","2"},"|")}
+        end
+        Case(client.." atomic batch equals sequential canonical insertion",function()
+            local l=assert(ns.MatchLedger.OpenSimulated(client));local other=assert(ns.MatchLedger.OpenSimulated(client))
+            local records={Record(1),Record(2),Record(1,true),Record(1,false,3),Record(2)}
+            for _,r in ipairs(records)do other.Insert(r)end
+            assert(l.MergeBatch(records));assert(Equal(l.Save(),other.Save()))
+            local ok,why=l.MergeBatch(records);assert(ok and why=="unchanged")
+            records[1].winner="bad";local saved=l.Save();assert(not l.MergeBatch(records) and Equal(saved,l.Save()))
+        end)
+        Case(client.." capacity and malformed batch rollback",function()
+            local l=assert(ns.MatchLedger.OpenSimulated(client,nil,2));assert(l.Insert(Record(1)));local saved=l.Save()
+            local ok,why=l.MergeBatch({Record(1,true),Record(2),Record(3)});assert(not ok and why=="capacity" and Equal(saved,l.Save()))
+            assert(not l.MergeBatch({Record(2),[3]=Record(1,true)}) and Equal(saved,l.Save()))
+            assert(l.MergeBatch({Record(1,true),Record(2)}));assert(#l.Snapshot().disputed==1 and #l.Snapshot().matched==1)
+            local rows=l.ReadVariants(Record(1).id);rows[1].winner="bad";local ids=l.ListIDs();ids[1]="bad"
+            assert(l.ReadVariants(Record(1).id)[1].winner~="bad" and l.ListIDs()[1]~="bad")
+        end)
+        Case(client.." clock-only merge, duplicate and dispute preserve replay",function()
+            local x=assert(Open(client));local r=Record(1);assert(x.Observe(r));local saved=x.Save()
+            local ok,why=x.Observe(r,100,100);assert(ok and why=="merged" and x.Replay().matched==1)
+            ok,why=x.Observe(r,100,100);assert(ok and why=="unchanged")
+            assert(x.Observe(r,101,101));assert(x.Replay().timeDisputed==1 and x.Replay().matched==0)
+            assert(x.Observe(Record(1,true),100,100));assert(x.Replay().disputed==1)
+            local reopened=assert(Open(client,x.Save()));assert(Equal(x.Save(),reopened.Save()) and Equal(x.Replay(),reopened.Replay()))
+            assert(saved.clocks[r.id]==nil and #saved.ledger.entries[r.id]==1)
+        end)
+    end
+    Case("batch merge stays simulation only",function()local s=P.GetSnapshot();assert(s.scope=="LOCAL" and s.state=="disabled" and not s.rankEligible)end)
     return passed,failed
 end
