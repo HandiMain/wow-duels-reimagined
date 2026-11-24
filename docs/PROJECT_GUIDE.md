@@ -1610,3 +1610,6 @@ User authorized reliability fixes, native readiness, optional captain exchange a
 
 ## Duel intent checkpoint — 2026-11-24
 Explicit Practice preference (next challenge), mode-aware gated agreement, rating-cap distinction and result explanations are documented in COMPETITIVE.md and RELEASE_VERIFICATION.md E-mode01–04 / D-mode02–03 / B-reg02. No live gate changes. Keep HUD design separate. Continue to defer practical multiplayer tests until December; do not claim matching live evidence from simulations.
+
+
+Duel mode control placement decision (2026-11-24): no Practice duels toggle in Options. Mode is a gameplay control intended for the future Duel HUD; keep current commands and shared Settings ownership. No HUD authorized by this adjustment.

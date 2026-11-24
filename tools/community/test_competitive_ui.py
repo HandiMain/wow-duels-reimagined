@@ -63,6 +63,7 @@ class CompetitiveUI(unittest.TestCase):
         for label in ("Rating capped","MatchExplanation","Awaiting the other player's matching result"):
             self.assertIn(label,ui)
         self.assertIn('practiceDuels = false',read("Core/Settings.lua"))
+        self.assertNotIn('practiceDuels',read("UI/Options.lua"))
         self.assertIn('practice_cannot_rank',read("Core/PersonalHistory.lua"))
         self.assertIn('r.duelMode=="practice"',read("Core/ResultConfirmation.lua"))
         self.assertIn('IsResultPending(row.matchID)',read("UI/CompetitivePreview.lua"))
