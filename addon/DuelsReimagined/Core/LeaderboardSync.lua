@@ -3,7 +3,9 @@ local _,ns=...
 -- No live sender, receiver, timestamps, persistence or rating authority.
 local P={}
 ns.LeaderboardSync=P
-local VERSION,LIMIT,PAGE=1,2048,16
+local VERSION,PAGE=1,16
+local LIMIT=ns.MatchLedger.GetCapacity()
+function P.GetPageLimit() return math.ceil(LIMIT/PAGE) end
 local RULE="elo-trial-2"
 local function Int(v,lo,hi) return type(v)=="number" and v>=lo and v<=hi and v==math.floor(v) end
 local function Guid(v) return type(v)=="string" and #v<=64 and v:match("^Player%-%w[%w%-]*$")~=nil end

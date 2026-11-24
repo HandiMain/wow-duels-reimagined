@@ -2,6 +2,9 @@ local _,ns=...
 -- Private simulated character history. No game events, network or storage writes.
 local P={}
 ns.PersonalHistory=P
+-- Separate character observation capacity; not a shared community ledger.
+local LIMIT=8192
+function P.GetCapacity() return LIMIT end
 function P.GetSnapshot() return {scope="LOCAL",state="disabled",rankEligible=false} end
 function P.GetDiagnosticResources() return {pending=0,subscriptions=0,timers=0} end
 local function Guid(v)
@@ -43,7 +46,7 @@ end
 local function Build(client,me,ledger,cap)
     assert((client=="forever" or client=="retail") and Guid(me))
     local D,rows,ids,linked,sources={}, {},{},{},{}
-    cap=cap or 2048
+    cap=cap or LIMIT
     function D.Observe(run,r,agreement)
         if not Run(run) or type(r)~="table" or r.scope~="SIMULATED" or r.client~=client
             or r.rankEligible~=false or not Cycle(r.id) or not Time(r.acceptedAt) or not Time(r.endedAt)
@@ -131,7 +134,8 @@ local function EqualSaved(clean,raw)
 end
 function P.OpenSimulated(client,me,ledger,stored,cap)
     if (client~="forever" and client~="retail") or not Guid(me) then return nil,"identity" end
-    cap=cap or 2048
+    if cap==nil then cap=LIMIT end
+    if type(cap)~="number" or cap<1 or cap>LIMIT or cap~=math.floor(cap) then return nil,"invalid_capacity" end
     local d=Build(client,me,ledger,cap)
     if stored==nil then return d end
     if type(stored)~="table" or stored.version~=1 or stored.scope~="SIMULATED"

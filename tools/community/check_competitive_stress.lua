@@ -1,7 +1,7 @@
 -- Offline stress suite: no live APIs or SavedVariables, no timing-based PASS gate.
 local root=(arg and arg[1] or "addon/DuelsReimagined").."/Core/"
 local ns={}
-for _,name in ipairs({"ResultConfirmation","MatchLedger","CompetitiveRules","SeasonRules","RatingEngine","LeaderboardSync","CompetitiveManifest","CompetitiveIntegrity","SyncProtocol"}) do
+for _,name in ipairs({"ResultConfirmation","MatchLedger","PersonalHistory","CompetitiveStorage","CompetitiveRules","SeasonRules","RatingEngine","LeaderboardSync","CompetitiveManifest","CompetitiveIntegrity","SyncProtocol"}) do
     assert(loadfile(root..name..".lua"))("DuelsReimagined",ns)
 end
 local function Equal(a,b)
@@ -16,7 +16,8 @@ local function Measure(fn)
     return value,(os.clock()-start)*1000
 end
 local epoch=100000
-local limit=2048
+local limit=ns.MatchLedger.GetCapacity()
+assert(limit==8192 and ns.PersonalHistory.GetCapacity()==8192 and ns.LeaderboardSync.GetPageLimit()==512)
 local function Record(client,i)
     local a="Player-1-"..string.format("%03d",(i-1)%64+1)
     local b="Player-1-"..string.format("%03d",(i+math.floor((i-1)/64))%64+1)
@@ -36,9 +37,9 @@ for _,client in ipairs({"forever","retail"}) do
     local asOf=epoch+limit*4000
     local opts={epoch=epoch,asOf=asOf}
     local replay,replayMS=Measure(function()return assert(source.ReplaySeasonSimulated(opts))end)
-    assert(replay.matched==limit and replay.history[1] and replay.season==2 and not replay.rankEligible)
+    assert(replay.matched==limit and replay.history[1] and replay.season==math.floor(limit*4000/ns.SeasonRules.DURATION)+1 and not replay.rankEligible)
     local old,oldMS=Measure(function()
-        local pages={};for i=1,limit/16 do pages[i]=assert(source.Export("stress"))[i] end;return pages
+        return assert(source.Export("stress"))
     end)
     local new,newMS=Measure(function()
         local pages={};for i=1,limit/16 do pages[i]=assert(source.ExportPage("stress",i))end;return pages
@@ -58,5 +59,40 @@ for _,client in ipairs({"forever","retail"}) do
     assert(Equal(source.Save(),receiver.Save()) and Equal(replay,receiver.ReplaySeasonSimulated(opts)),"full capacity convergence")
     local r=Record(client,limit+1);local ok,why=receiver.Observe(r,asOf,asOf)
     assert(not ok and why=="capacity" and Equal(source.Save(),receiver.Save()),"capacity must reject without loss")
-    print(string.format("%s: %d records; %d pages; %d frames; %d bytes; full export %.2f ms; single page %.2f ms; replay %.2f ms; wire transfer %.2f ms; PASS",client,limit,limit/16,frames,bytes,oldMS,newMS,replayMS,syncMS))
+    -- Exercise durable private roots at the expanded capacity, not just node memory.
+    local owner="Player-1-AAA"
+    local roots={version=2,kind="account",scope="SIMULATED",clients={[client]={probe=0,ledger=saved.ledger,
+        season={version=1,rule=ns.SeasonRules.BALANCED_ID,epoch=epoch,clocks=saved.clocks}}}}
+    local char=nil
+    local writes=0
+    local function OpenStorage()
+        local d=ns.CompetitiveStorage.NewSimulated(function()return roots,char end,
+            function(a,c)roots=a;char=c;writes=writes+1 end,function()return client end,function()return owner end)
+        d.MarkLoaded();return d
+    end
+    local d=OpenStorage()
+    local stored=assert(d.ReadSeasonArchive(asOf));stored.character=nil;assert(Equal(stored,replay),"large archive reopen")
+    local function Observation(i)
+        return {scope="SIMULATED",client=client,id=i,kind="standard",opponent={guid="Player-2-BBB"},
+            acceptedAt=i,endedAt=i+1,outcome="won",endType="knockout",reason="matching_result_and_finish",
+            outcomeObserved=true,finishObserved=true,resultObserved=true,conflict=false,rankEligible=false}
+    end
+    local personal=ns.PersonalHistory.GetCapacity()
+    assert(d.UpdateRecords(true,function(_,h,run)
+        for i=1,personal do assert(h.Observe(run,Observation(i))) end
+        local ok,why=h.Observe(run,Observation(personal+1));assert(not ok and why=="capacity")
+        return true
+    end))
+    local stats=assert(OpenStorage().ReadRecords());assert(stats.history.overall.wins==personal and #stats.history.history==personal)
+    local first=Record(client,1)
+    first.winner,first.loser=first.loser,first.winner
+    first.statement1,first.statement2=first.statement1:gsub("|won|","|lost|"),first.statement2:gsub("|lost|","|won|")
+    assert(OpenStorage().UpdateSeasonEvidence(epoch,first,epoch+4000,epoch+4000))
+    local corrected=assert(OpenStorage().ReadSeasonArchive(asOf))
+    assert(corrected.disputed==1 and corrected.matched==limit-1 and corrected.history[1] and #corrected.changes==limit-1)
+    assert(corrected.changes[1].id~=first.id and writes==2)
+    assert(#assert(OpenStorage().ReadRecords()).history.history==personal)
+    local savedAccount,savedChar=roots,char
+    assert(not OpenStorage().UpdateSeasonEvidence(epoch,Record(client,limit+1),asOf,asOf) and roots==savedAccount and char==savedChar and writes==2)
+    print(string.format("%s: %d records; %d personal observations; %d pages; %d frames; %d bytes; full export once %.2f ms; all requested pages %.2f ms; replay %.2f ms; wire processing %.2f ms; archive reopen and historical correction PASS",client,limit,personal,limit/16,frames,bytes,oldMS,newMS,replayMS,syncMS))
 end

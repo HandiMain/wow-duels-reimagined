@@ -2,7 +2,9 @@ local _,ns=...
 -- Versioned, isolated storage model. No live SavedVariables or rating writes.
 local P={}
 ns.MatchLedger=P
-local VERSION,LIMIT=1,2048
+local VERSION,LIMIT=1,8192
+-- Account/client evidence capacity; bounded, never silently evicted.
+function P.GetCapacity() return LIMIT end
 function P.GetSnapshot()
     return {scope="LOCAL",state="disabled",rankEligible=false,version=VERSION}
 end
@@ -15,7 +17,8 @@ end
 local function Key(r) return r.statement1.."\n"..r.statement2 end
 local function Open(client,stored,cap)
     if client~="forever" and client~="retail" then return nil,"client" end
-    cap=cap or LIMIT
+    if cap==nil then cap=LIMIT end
+    if type(cap)~="number" or cap<1 or cap>LIMIT or cap~=math.floor(cap) then return nil,"invalid_capacity" end
     local data={version=VERSION,scope="SIMULATED",client=client,entries={}}
     local count=0
     local function Validate(r)

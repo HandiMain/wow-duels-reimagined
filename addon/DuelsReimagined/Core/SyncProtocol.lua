@@ -2,7 +2,8 @@ local _,ns=...
 -- Simulated wire codec and request lifecycle. Never calls Communication.Send.
 local P={}
 ns.SyncProtocol=P
-local CHUNK,MAX_PARTS,MAX_PAGE,MAX_BODY,TTL,GAP=160,128,128,237,120,0.5
+local CHUNK,MAX_PARTS,MAX_BODY,TTL,GAP=160,128,237,120,0.5
+local MAX_PAGE=ns.LeaderboardSync.GetPageLimit()
 local function Client(v) return v=='forever' or v=='retail' end
 local function Guid(v) return type(v)=='string' and #v<=64 and v:match('^Player%-%w[%w%-]*$')~=nil end
 local function Token(v) return type(v)=='string' and #v<=32 and v:match('^[%w%-]+$')~=nil end
@@ -301,4 +302,40 @@ function P.RunSeasonSelfTest(emit)
     end
     Case('season wire remains disabled live',function()local s=P.GetSnapshot();assert(s.scope=='LOCAL' and s.state=='disabled' and not s.rankEligible)end)
     return pass,fail
+end
+
+function P.RunCapacitySelfTest(emit)
+    emit=type(emit)=="function" and emit or function()end
+    local passed,failed=0,0
+    local function Case(label,fn)
+        local ok,err=pcall(fn);if ok then passed=passed+1 else failed=failed+1 end
+        emit("DR | SIMULATED | "..(ok and "PASS " or "FAIL ")..label..(ok and "" or ": "..tostring(err)))
+    end
+    local a,b="Player-1-AAA","Player-2-BBB"
+    Case("bounded capacities and page count agree",function()
+        assert(ns.MatchLedger.GetCapacity()==8192 and ns.PersonalHistory.GetCapacity()==8192 and MAX_PAGE==512)
+    end)
+    for _,client in ipairs({"forever","retail"}) do
+        Case(client.." expanded page addressing remains bounded",function()
+            local n=assert(ns.LeaderboardSync.OpenSeasonSimulated(client,1000))
+            local q=assert(P.NewRequester(client,n,"capacity"))
+            assert(not q.Begin(a,MAX_PAGE+1,0) and not q.Begin(a,0,0))
+            local msg=assert(q.Begin(a,MAX_PAGE,0));assert(#msg+3<=240 and msg:find("|512|",1,true))
+            local r=assert(P.NewResponder(client,n))
+            assert(not r.Begin(msg,b,b,0)) -- no invented page at an empty source
+            q.Cancel();assert(q.Begin(a,1,1))
+        end)
+        Case(client.." invalid capacities refused and prior empty stores reopen",function()
+            local l=assert(ns.MatchLedger.OpenSimulated(client))
+            local h=assert(ns.PersonalHistory.OpenSimulated(client,a,l))
+            for _,cap in ipairs({0,-1,1.5,8193,math.huge,"8192",false}) do
+                assert(not ns.MatchLedger.OpenSimulated(client,nil,cap))
+                assert(not ns.PersonalHistory.OpenSimulated(client,a,l,nil,cap))
+            end
+            assert(ns.MatchLedger.OpenSimulated(client,l.Save()))
+            assert(ns.PersonalHistory.OpenSimulated(client,a,l,h.Save()))
+            assert(P.GetSnapshot().state=="disabled" and not P.GetSnapshot().rankEligible)
+        end)
+    end
+    return passed,failed
 end

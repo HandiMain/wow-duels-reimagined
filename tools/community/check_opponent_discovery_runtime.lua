@@ -193,3 +193,9 @@ assert(ns.LeaderboardSync.GetSnapshot().state=="disabled" and not ns.Leaderboard
     and _G.DuelsReimaginedDB==originalDB and _G.DuelsReimaginedCompetitiveDB==oldAccount
     and _G.DuelsReimaginedCharacterDB==oldChar,"merge QA never writes live data")
 print("Atomic batch merge: PASS")
+
+local cp,cf=ns.SyncProtocol.RunCapacitySelfTest(function(line)if line:find("FAIL",1,true)then print(line)end end)
+assert(cp==5 and cf==0 and sent==previous and P.GetSnapshot().state=="checking","isolated expanded capacity")
+assert(_G.DuelsReimaginedDB==originalDB and _G.DuelsReimaginedCompetitiveDB==oldAccount
+    and _G.DuelsReimaginedCharacterDB==oldChar,"capacity QA never writes live data")
+print("Expanded capacity contracts: PASS")
