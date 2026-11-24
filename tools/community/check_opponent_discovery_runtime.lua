@@ -37,3 +37,11 @@ local ap,af=A.RunSelfTest(function(line)if line:find("FAIL",1,true) then print(l
 assert(ap==21 and af==0 and sent==previous and P.GetSnapshot().state=="checking","isolated agreement suite")
 assert(A.GetSnapshot().state=="disabled" and not A.GetSnapshot().rankEligible,"live agreement gate")
 print("Peer agreement isolated protocol: PASS")
+
+-- Result confirmation stays isolated from both existing live and simulated peer states.
+assert(loadfile("addon/DuelsReimagined/Core/ResultConfirmation.lua"))("DuelsReimagined",ns)
+local R=ns.ResultConfirmation
+local rp,rf=R.RunSelfTest(function(line)if line:find("FAIL",1,true) then print(line) end end)
+assert(rp==21 and rf==0 and sent==previous and P.GetSnapshot().state=="checking","isolated result confirmation suite")
+assert(R.GetSnapshot().state=="disabled" and not R.GetSnapshot().rankEligible and A.GetSnapshot().state=="disabled","live competitive gates")
+print("Result confirmation isolated records: PASS")

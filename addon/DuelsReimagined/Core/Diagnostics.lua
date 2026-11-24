@@ -119,7 +119,7 @@ Check("Client and API profile","health",function()
 end)
 Check("Module ownership / load order","health",function()
     for _,key in ipairs({"Client","Settings","Group","DuelDetection","DuelSelfTest",
-        "Communication","Presence","OpponentDiscovery","PeerAgreement","Style","Motion","Widgets","Window","Search",
+        "Communication","Presence","OpponentDiscovery","PeerAgreement","ResultConfirmation","Style","Motion","Widgets","Window","Search",
         "Header","Navigation","Options","AddonStatus","AccessIcons","BlizzardLanding"}) do
         Assert(type(ns[key])=="table",key.." missing")
     end
@@ -165,6 +165,11 @@ Check("Peer agreement / live gate","health",function()
     local p=ns.PeerAgreement.GetSnapshot()
     Assert(p.scope=="LOCAL" and p.state=="disabled" and p.rankEligible==false,"agreement live gate unexpectedly enabled")
     return "PASS","Simulation only; no live agreement, no rating writes."
+end)
+Check("Result confirmation / live gate","health",function()
+    local p=ns.ResultConfirmation.GetSnapshot()
+    Assert(p.scope=="LOCAL" and p.state=="disabled" and p.rankEligible==false,"result confirmation live gate unexpectedly enabled")
+    return "PASS","Simulation only; no live settlement or rating writes."
 end)
 Check("Settings / defaults / bounds","health",function()
     local S=ns.Settings
@@ -214,6 +219,12 @@ end)
 Check("Peer agreement / isolated protocol QA","deep",function()
     local log={}
     local p,f=ns.PeerAgreement.RunSelfTest(function(line) log[#log+1]=line end)
+    return f==0 and p==21 and "PASS" or "FAIL",
+        string.format("%d passed / %d failed (SIMULATED)\n",p,f)..table.concat(log,"\n")
+end)
+Check("Result confirmation / isolated record QA","deep",function()
+    local log={}
+    local p,f=ns.ResultConfirmation.RunSelfTest(function(line) log[#log+1]=line end)
     return f==0 and p==21 and "PASS" or "FAIL",
         string.format("%d passed / %d failed (SIMULATED)\n",p,f)..table.concat(log,"\n")
 end)

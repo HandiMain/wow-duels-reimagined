@@ -19,6 +19,7 @@ Core\Communication.lua
 Core\Presence.lua
 Core\OpponentDiscovery.lua
 Core\PeerAgreement.lua
+Core\ResultConfirmation.lua
 Core\WarGames.lua [AllowLoadGameType standard]
 UI\Fonts.lua
 UI\Style.lua
