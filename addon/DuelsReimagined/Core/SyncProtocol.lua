@@ -17,14 +17,7 @@ local function Split(s,sep)
     while true do local i=s:find(sep,pos,true);if not i then out[#out+1]=s:sub(pos);return out end
         out[#out+1]=s:sub(pos,i-1);pos=i+1 end
 end
-local function Record(a,b,client)
-    local rev,k,session,x,y,out=a:match('^(%d+)|(%a+)|([^|]+)|([^|]+)|([^|]+)|(%a+)|%d+$')
-    if rev~='1' or k~=client or not Guid(x) or not Guid(y) or x>=y or (out~='won' and out~='lost') then return nil end
-    local r={scope='SIMULATED',version='1',client=k,session=session,id=k..'|'..x..'|'..y..'|'..session,
-        player1=x,player2=y,winner=out=='won' and x or y,loser=out=='won' and y or x,endType='knockout',
-        rankEligible=false,statement1=a,statement2=b}
-    return ns.ResultConfirmation.ValidateSimulatedRecord(r)
-end
+local function Record(a,b,client) return ns.ResultConfirmation.DecodeStatementsSimulated(client,a,b) end
 local function Encode(page)
     local rows={}
     for _,e in ipairs(page.entries) do

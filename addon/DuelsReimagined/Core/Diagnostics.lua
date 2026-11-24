@@ -414,6 +414,12 @@ Check("Competitive storage / isolated competitive data view QA","deep",function(
     return f==0 and p==15 and "PASS" or "FAIL",
         string.format("%d passed / %d failed (SIMULATED)\n",p,f)..table.concat(log,"\n")
 end)
+Check("Competitive storage / isolated final data foundation QA","deep",function()
+    local log={}
+    local p,f=ns.CompetitiveStorage.RunFoundationSelfTest(function(line) log[#log+1]=line end)
+    return f==0 and p==13 and "PASS" or "FAIL",
+        string.format("%d passed / %d failed (SIMULATED)\n",p,f)..table.concat(log,"\n")
+end)
 Check("Search registry","deep",function()
     local S=ns.Search
     local seen={}

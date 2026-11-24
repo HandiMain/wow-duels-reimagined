@@ -96,6 +96,16 @@ local function Open(client,stored,cap)
         return true,next(changes) and "merged" or "unchanged",changes
     end
     function D.Save() return Copy(data) end
+    -- Explicit compact disk representation only. Runtime/wire retain v1.
+    function D.SaveCompact()
+        local out={version=2,scope="SIMULATED",client=client,entries={}}
+        for id,variants in pairs(data.entries) do
+            local row={}
+            for _,r in ipairs(variants) do row[#row+1]=r.statement1;row[#row+1]=r.statement2 end
+            out.entries[id]=row
+        end
+        return out
+    end
     function D.ListIDs()
         local ids={};for id in pairs(data.entries) do ids[#ids+1]=id end;table.sort(ids);return ids
     end
@@ -115,6 +125,33 @@ local function Open(client,stored,cap)
     return D
 end
 P.OpenSimulated=Open
+-- Lossless v2 storage adapter. Decode all records before opening canonical
+-- v1; sparse arrays, extra keys, wrong IDs and noncanonical disputes fail.
+function P.OpenCompactSimulated(client,stored)
+    if type(stored)~="table" or stored.version~=2 or stored.scope~="SIMULATED"
+        or stored.client~=client or type(stored.entries)~="table" then return nil,"invalid_compact" end
+    for k in pairs(stored) do if k~="version" and k~="scope" and k~="client" and k~="entries" then return nil,"invalid_compact" end end
+    local canonical={version=1,scope="SIMULATED",client=client,entries={}}
+    local count=0
+    for id,row in pairs(stored.entries) do
+        count=count+1
+        if count>LIMIT or type(id)~="string" or #id>220 or type(row)~="table" then return nil,"invalid_compact" end
+        local n=0
+        for k in pairs(row) do
+            if k~=1 and k~=2 and k~=3 and k~=4 then return nil,"invalid_compact" end
+            n=n+1
+        end
+        if n~=2 and n~=4 then return nil,"invalid_compact" end
+        local variants={}
+        for i=1,n,2 do
+            local r=ns.ResultConfirmation.DecodeStatementsSimulated(client,row[i],row[i+1])
+            if not r or r.id~=id then return nil,"invalid_compact" end
+            variants[#variants+1]=r
+        end
+        canonical.entries[id]=variants
+    end
+    return Open(client,canonical)
+end
 function P.RunSelfTest(emit)
     emit=type(emit)=="function" and emit or function() end
     local passed,failed=0,0

@@ -157,6 +157,30 @@ for _,client in ipairs({"forever","retail"}) do
     assert(#assert(OpenStorage().ReadRecords()).history.history==personal)
     local savedAccount,savedChar=roots,char
     assert(not OpenStorage().UpdateSeasonEvidence(epoch,Record(client,limit+1),asOf,asOf) and roots==savedAccount and char==savedChar and writes==2)
+    -- Lossless compact representation at maximum fixture size. Estimate a
+    -- consistent serialized table payload, not WoW's actual disk or heap bytes.
+    local function Size(v)
+        if type(v)=="string" then return #string.format("%q",v) end
+        if type(v)~="table" then return #tostring(v) end
+        local n=2
+        for k,x in pairs(v) do n=n+Size(k)+Size(x)+4 end
+        return n
+    end
+    local expandedBytes=Size(roots.clients[client].ledger)
+    assert(OpenStorage().CompactEvidence() and writes==3)
+    local compactBytes=Size(roots.clients[client].ledger)
+    assert(compactBytes<expandedBytes and roots.clients[client].ledger.version==2)
+    assert(Equal(corrected,OpenStorage().ReadSeasonArchive(asOf)))
+    local view=assert(OpenStorage().OpenCompetitiveView(asOf))
+    local profile=assert(view.Profile(first.player1))
+    local summary=assert(view.ProfileSummary(first.player1))
+    assert(profile.stats.games==summary.stats.games and summary.stats.progression==nil)
+    local p=view.Progression(first.player1,corrected.season,0,100)
+    assert(p.total==#profile.stats.progression)
+    local board=view.Leaderboard(corrected.season,0,100,"","wins")
+    assert(board.total==board.knownRanked and Equal(board,view.Leaderboard(corrected.season,0,100,"","wins")))
+    assert(view.Personal().overall.wins==personal and writes==3)
+    print(string.format("%s: compact ledger estimated serialized payload %d -> %d bytes; full replay parity and paginated read view PASS",client,expandedBytes,compactBytes))
     print(string.format("%s: %d records; %d personal observations; %d pages; %d frames; %d bytes; full export once %.2f ms; all requested pages %.2f ms; replay %.2f ms; wire processing %.2f ms; archive reopen and historical correction PASS",client,limit,personal,limit/16,frames,bytes,oldMS,newMS,replayMS,syncMS))
 end
 

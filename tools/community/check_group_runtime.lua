@@ -152,4 +152,24 @@ IsInGroup = nil
 Fire(ff, "GROUP_ROSTER_UPDATE")
 Check(not forever.IsReady() and forever.GetSnapshot().mode == "unknown",
     "missing API fails closed")
+-- Explicit identity reads do not subscribe, persist or infer unavailable realm.
+UnitIsPlayer=function(unit)return entries[unit]~=nil end
+UnitFactionGroup=function(unit)return unit=="player" and "Alliance" or HIDDEN end
+local id=forever.ReadCompetitiveIdentity("player")
+Check(id and id.fullName=="Ana Smith" and id.realm==nil and id.class=="WARRIOR" and id.faction=="Alliance","Forever observed identity")
+id=forever.ReadCompetitiveIdentity("party1")
+Check(id and id.fullName=="Bob Jones" and id.faction==nil,"secret faction omitted")
+secret.party1=true
+Check(not forever.ReadCompetitiveIdentity("party1"),"secret name omitted")
+secret.party1=nil;entries.party1.guid=nil
+Check(not forever.ReadCompetitiveIdentity("party1"),"secret GUID omitted")
+GetBuildInfo=function()return "mock","mock","mock",120105 end
+entries={player={name="Alpha",guid="Player-1"},party1={name="Beta",realm="Other",second="Other",guid="Player-2",secretClass=true}}
+local retail=Load()
+id=retail.ReadCompetitiveIdentity("player")
+Check(id and id.fullName=="Alpha-Home" and id.realm=="Home","Retail home identity")
+id=retail.ReadCompetitiveIdentity("party1")
+Check(id and id.fullName=="Beta-Other" and id.realm=="Other" and id.class==nil,"Retail cross realm and restricted class")
+UnitIsPlayer=function()return false end
+Check(not retail.ReadCompetitiveIdentity("player"),"nonplayer excluded")
 print("Group roster runtime contracts: PASS")

@@ -77,6 +77,17 @@ end
 -- never trusts derived fields or a caller-supplied status. Not proof of origin.
 P.NewSimulated=Build
 P.MakeSimulatedStatement=Statement
+-- Shared reconstruction from canonical statement pairs; no derived input
+-- fields or transport identity are trusted by this storage/codec helper.
+function P.DecodeStatementsSimulated(client,a,b)
+    if type(a)~="string" or type(b)~="string" or #a>240 or #b>240 then return nil end
+    local rev,k,session,x,y=a:match("^(%d+)|(%a+)|([^|]+)|([^|]+)|([^|]+)|%a+|%d+$")
+    if rev~=VERSION or k~=client or (client~="forever" and client~="retail")
+        or not Session(session) or not Guid(x) or not Guid(y) or x>=y then return nil end
+    local d=Build(client,session,x,y)
+    if not d.Receive(a,x) or not d.Receive(b,y) then return nil end
+    d.Close();return d.Snapshot().record
+end
 function P.ValidateSimulatedRecord(r)
     if type(r)~="table" or r.scope~="SIMULATED" or r.version~=VERSION or r.rankEligible~=false
         or (r.client~="forever" and r.client~="retail") or not Session(r.session)

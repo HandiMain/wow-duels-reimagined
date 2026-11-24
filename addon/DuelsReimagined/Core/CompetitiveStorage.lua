@@ -10,12 +10,52 @@ end
 local function Count(v)
     return type(v)=="number" and v>=0 and v<=MAX and v==math.floor(v)
 end
+local function OpenLedger(client,raw)
+    if type(raw)=="table" and raw.version==2 then return ns.MatchLedger.OpenCompactSimulated(client,raw) end
+    return ns.MatchLedger.OpenSimulated(client,raw)
+end
+local function SaveLedger(node,previous)
+    if type(previous)=="table" and previous.version==2 then return node.SaveCompact() end
+    return node.Save()
+end
+local function Text(v,max)
+    return type(v)=="string" and #v>0 and #v<=max and not v:find("[%c|]")
+        and v:match("%S")~=nil
+end
+-- Local fixture metadata, not proof of a player's identity or class in a duel.
+-- Never relayed or used in rating calculations. Latest whole observation wins.
+local function Identity(client,v)
+    if type(v)~="table" or v.scope~="SIMULATED" or v.client~=client or not Guid(v.guid)
+        or not Text(v.name,64) or not Text(v.fullName,128)
+        or type(v.observedAt)~="number" or v.observedAt<1 or v.observedAt>4102444800
+        or v.observedAt~=math.floor(v.observedAt) then return nil end
+    if v.realm~=nil and not Text(v.realm,64) then return nil end
+    if v.class~=nil and (not Text(v.class,24) or not v.class:match("^[A-Z]+$")) then return nil end
+    if v.faction~=nil and v.faction~="Alliance" and v.faction~="Horde" and v.faction~="Neutral" then return nil end
+    local clean={scope="SIMULATED",client=client,guid=v.guid,name=v.name,fullName=v.fullName,
+        observedAt=v.observedAt,realm=v.realm,class=v.class,faction=v.faction}
+    for k in pairs(v) do if clean[k]==nil then return nil end end
+    return clean
+end
+local function KnownPlayers(ledger)
+    local known={}
+    if ledger then
+        local snap=ledger.Snapshot()
+        for _,r in ipairs(snap.matched) do known[r.player1]=true;known[r.player2]=true end
+        for _,e in ipairs(snap.disputed) do local r=e.evidence[1];known[r.player1]=true;known[r.player2]=true end
+    end
+    return known
+end
 -- One persisted ledger; season metadata adds only calendar and clock evidence.
 local function SeasonNode(client,ledger,season)
     local rules=ns.SeasonRules
     if type(season)~="table" or season.version~=1 or season.rule~=rules.BALANCED_ID
         or not rules.Schedule(season.epoch,season.epoch) or type(season.clocks)~="table" or type(ledger)~="table" then return nil end
     for k in pairs(season) do if k~="version" and k~="rule" and k~="epoch" and k~="clocks" then return nil end end
+    if ledger.version==2 then
+        local opened=OpenLedger(client,ledger);if not opened then return nil end
+        ledger=opened.Save()
+    end
     return ns.LeaderboardSync.OpenSeasonSimulated(client,season.epoch,{version=1,scope="SIMULATED",client=client,
         rule=ns.CompetitiveRules.ID,ledger=ledger,clocks=season.clocks})
 end
@@ -38,15 +78,15 @@ local function Root(raw,kind,owner,scope)
         end
         for field in pairs(v) do
             if field~="probe" and not (not legacy and kind=="character" and field=="runCounter")
-                and not (not legacy and scope=="SIMULATED" and ((kind=="account" and (field=="ledger" or field=="season"))
+                and not (not legacy and scope=="SIMULATED" and ((kind=="account" and (field=="ledger" or field=="season" or field=="identities"))
                     or (kind=="character" and field=="history"))) then return nil end
         end
         -- Only private simulation roots can contain simulated records.
         if scope=="SIMULATED" and not legacy then
             if kind=="account" and v.ledger~=nil then
-                local ledger=ns.MatchLedger.OpenSimulated(k,v.ledger)
+                local ledger=OpenLedger(k,v.ledger)
                 if not ledger then return nil end
-                part.ledger=ledger.Save()
+                part.ledger=SaveLedger(ledger,v.ledger)
             elseif kind=="character" and v.history~=nil then
                 local empty=ns.MatchLedger.OpenSimulated(k)
                 local history=ns.PersonalHistory.OpenSimulated(k,owner,empty,v.history)
@@ -62,6 +102,18 @@ local function Root(raw,kind,owner,scope)
             local node=SeasonNode(k,part.ledger,v.season)
             if not node then return nil end
             part.season={version=1,rule=v.season.rule,epoch=v.season.epoch,clocks=node.Save().clocks}
+        end
+        if scope=="SIMULATED" and not legacy and kind=="account" and v.identities~=nil then
+            if type(v.identities)~="table" then return nil end
+            local known=KnownPlayers(OpenLedger(k,part.ledger))
+            local ids,n={},0
+            for id,rawIdentity in pairs(v.identities) do
+                n=n+1;if n>2*ns.MatchLedger.GetCapacity() or not known[id] then return nil end
+                local cleanIdentity=Identity(k,rawIdentity)
+                if not cleanIdentity or cleanIdentity.guid~=id then return nil end
+                ids[id]=cleanIdentity
+            end
+            part.identities=ids
         end
         clean.clients[k]=part
     end
@@ -111,7 +163,7 @@ local function Build(read,write,client,identity,scope)
     local function Records(a,c,k)
         local ap=a.clients[k] or {probe=0}
         local cp=c.clients[k] or {probe=0,runCounter=0}
-        local ledger=ns.MatchLedger.OpenSimulated(k,ap.ledger)
+        local ledger=OpenLedger(k,ap.ledger)
         if not ledger then return end
         local history=ns.PersonalHistory.OpenSimulated(k,c.owner,ledger,cp.history)
         if not history then return end
@@ -134,7 +186,7 @@ local function Build(read,write,client,identity,scope)
         local run=cp.runCounter>0 and "run-"..cp.runCounter or nil
         local ok,accept=pcall(edit,l,h,run)
         if not ok or accept~=true then return false,"edit_rejected" end
-        ap.ledger=l.Save();cp.history=h.Save();a.clients[k]=ap;c.clients[k]=cp
+        ap.ledger=SaveLedger(l,ap.ledger);cp.history=h.Save();a.clients[k]=ap;c.clients[k]=cp
         local aa,cc=Root(a,"account",nil,scope),Root(c,"character",c.owner,scope)
         if not aa or not cc then return false,"invalid_records" end
         write(aa,cc);return true,run
@@ -153,7 +205,10 @@ local function Build(read,write,client,identity,scope)
         local ok,status=edit(node);if not ok then return false,status end
         if ap.season and status=="unchanged" then return true,status end
         local saved=node.Save()
-        ap.ledger=saved.ledger;ap.season={version=1,rule=season.rule,epoch=epoch,clocks=saved.clocks};a.clients[k]=ap
+        if ledger.version==2 then
+            ap.ledger=assert(OpenLedger(k,saved.ledger)).SaveCompact()
+        else ap.ledger=saved.ledger end
+        ap.season={version=1,rule=season.rule,epoch=epoch,clocks=saved.clocks};a.clients[k]=ap
         local aa,cc=Root(a,"account",nil,scope),Root(c,"character",c.owner,scope)
         if not aa or not cc then return false,"invalid_records" end
         write(aa,cc);return true,status
@@ -172,6 +227,41 @@ local function Build(read,write,client,identity,scope)
             return node.Receive(page,sender,expected,token)
         end)
     end
+    -- Explicit, lossless conversion of the one account evidence store.
+    -- Old builds cannot open compact evidence. No automatic migration.
+    function D.CompactEvidence()
+        if scope~="SIMULATED" then return false,"disabled" end
+        local a,c,k,why=Pair();if not a then return false,why end
+        local ap=a.clients[k]
+        if not ap or not ap.ledger then return false,"no_ledger" end
+        if ap.ledger.version==2 then return true,"unchanged" end
+        local ledger=OpenLedger(k,ap.ledger);if not ledger then return false,"invalid_ledger" end
+        ap.ledger=ledger.SaveCompact()
+        local aa,cc=Root(a,"account",nil,scope),Root(c,"character",c.owner,scope)
+        if not aa or not cc then return false,"invalid_records" end
+        write(aa,cc);return true,"compacted"
+    end
+    function D.ObserveIdentity(v)
+        if scope~="SIMULATED" then return false,"disabled" end
+        local a,c,k,why=Pair();if not a then return false,why end
+        local clean=Identity(k,v);if not clean then return false,"invalid_identity" end
+        local ap=a.clients[k]
+        if not ap or not ap.ledger or not KnownPlayers(OpenLedger(k,ap.ledger))[clean.guid] then return false,"not_observed" end
+        ap.identities=ap.identities or {}
+        local old=ap.identities[clean.guid]
+        if old then
+            if clean.observedAt<old.observedAt then return false,"stale_identity" end
+            if clean.observedAt==old.observedAt then
+                for field,value in pairs(clean) do if old[field]~=value then return false,"identity_conflict" end end
+                for field,value in pairs(old) do if clean[field]~=value then return false,"identity_conflict" end end
+                return true,"unchanged"
+            end
+        end
+        ap.identities[clean.guid]=clean
+        local aa,cc=Root(a,"account",nil,scope),Root(c,"character",c.owner,scope)
+        if not aa or not cc then return false,"invalid_records" end
+        write(aa,cc);return true,"observed"
+    end
     function D.ReadCapacity()
         if scope~="SIMULATED" then return nil,"disabled" end
         local a,c,k,why=Pair();if not a then return nil,why end
@@ -183,7 +273,8 @@ local function Build(read,write,client,identity,scope)
             return {used=used,limit=limit,remaining=limit-used,state=used>=limit and "full" or used>=limit*0.9 and "near_capacity" or "available"}
         end
         return {scope="SIMULATED",client=k,rankEligible=false,policy="preserve_evidence",
-            ledger=Capacity(n,ns.MatchLedger.GetCapacity()),history=Capacity(h,ns.PersonalHistory.GetCapacity())}
+            ledger=Capacity(n,ns.MatchLedger.GetCapacity()),history=Capacity(h,ns.PersonalHistory.GetCapacity()),
+            ledgerEncoding=ap.ledger and ap.ledger.version==2 and "compact" or "expanded"}
     end
     function D.ReadSeasonArchive(asOf)
         if scope~="SIMULATED" then return nil,"disabled" end
@@ -206,7 +297,7 @@ local function Build(read,write,client,identity,scope)
             replay,why=node.ReplaySeasonSimulated({epoch=ap.season.epoch,asOf=asOf})
             if not replay then return nil,why end
         end
-        return BuildCompetitiveView(k,c.owner,h.Snapshot(),replay,asOf)
+        return BuildCompetitiveView(k,c.owner,h.Snapshot(),replay,asOf,ap.identities or {})
     end
     return D
 end
@@ -242,7 +333,7 @@ local function FinishStat(s)
         if o.wins+o.losses>0 then o.winRate=o.wins/(o.wins+o.losses) end
     end
 end
-BuildCompetitiveView=function(client,me,personal,replay,asOf)
+BuildCompetitiveView=function(client,me,personal,replay,asOf,identities)
     local D,bySeason,byPlayer,boards={},{},{},{}
     local current=replay and replay.season
     if not Count(asOf) or asOf==0 then
@@ -286,7 +377,8 @@ BuildCompetitiveView=function(client,me,personal,replay,asOf)
         table.sort(rows,function(a,b) if a.rating~=b.rating then return a.rating>b.rating end;return a.id<b.id end)
         local positions={}
         for i,row in ipairs(rows) do row.position=i;positions[row.id]=i end
-        boards[season]={rows=rows,positions=positions}
+        for _,row in ipairs(rows) do row.identity=CopyView(identities[row.id]) end
+        boards[season]={rows=rows,positions=positions,sorts={rating=rows}}
         return boards[season]
     end
     function D.Status()
@@ -296,9 +388,9 @@ BuildCompetitiveView=function(client,me,personal,replay,asOf)
                 disputed=replay.disputed,missingTime=replay.missingTime,timeDisputed=replay.timeDisputed} or nil}
     end
     function D.Personal() return CopyView(personal) end
-    -- No invented names, classes or calendar dates. GUID is the only identity
-    -- supported by the current match evidence. Private history never leaks.
-    function D.Profile(id,season)
+    -- Latest local identity observation is not historical class/faction proof.
+    -- Private personal history never appears in competitive profiles.
+    local function Profile(id,season,summaryOnly)
         if not Guid(id) then return nil,"identity" end
         if season==nil then season=current end
         if not ValidSeason(season) then return nil,"no_season" end
@@ -306,7 +398,11 @@ BuildCompetitiveView=function(client,me,personal,replay,asOf)
         local p=(Players(season) or {})[id]
         local s=byPlayer[id][season]
         local out={scope="SIMULATED",client=client,id=id,season=season,rankEligible=false,completeness="unknown",
-            state=p and p.credit>0 and "observed" or "inactive",stats=CopyView(s or Stat()),seasons={}}
+            state=p and p.credit>0 and "observed" or "inactive",stats={},seasons={},
+            identity=CopyView(identities[id])}
+        for k,v in pairs(s or Stat()) do
+            if not summaryOnly or (k~="opponents" and k~="progression") then out.stats[k]=CopyView(v) end
+        end
         if p and p.credit>0 then
             out.rating=p.rating;out.peakRating=p.peakRating;out.rank=CopyView(p.rank);out.peakRank=CopyView(p.peakRank)
             out.credit=p.credit;out.rivalCount=p.rivalCount
@@ -321,21 +417,46 @@ BuildCompetitiveView=function(client,me,personal,replay,asOf)
         end
         return out
     end
+    function D.Profile(id,season) return Profile(id,season,false) end
+    function D.ProfileSummary(id,season) return Profile(id,season,true) end
+    function D.Progression(id,season,offset,limit)
+        season=season or current;offset=offset or 0;limit=limit or 25
+        if not ValidSeason(season) or not Guid(id) or not Count(offset) or not Count(limit) or limit<1 or limit>100 then
+            return nil,"invalid_query"
+        end
+        local stats=byPlayer[id] and byPlayer[id][season]
+        local rows=stats and stats.progression or {}
+        local out={scope="SIMULATED",client=client,rankEligible=false,completeness="unknown",total=#rows,offset=offset,rows={}}
+        for i=offset+1,math.min(offset+limit,#rows) do out.rows[#out.rows+1]=CopyView(rows[i]) end
+        return out
+    end
     function D.Leaderboard(season,offset,limit,query,sort)
         season=season or current;offset=offset or 0;limit=limit or 25;query=query or "";sort=sort or "rating"
         if not ValidSeason(season) then return nil,"no_season" end
-        if not Count(offset) or not Count(limit) or limit<1 or limit>100 or type(query)~="string" or #query>64
+        if not Count(offset) or not Count(limit) or limit<1 or limit>100 or type(query)~="string" or #query>128
             or query:find("%c") or (sort~="rating" and sort~="wins" and sort~="winRate" and sort~="games") then return nil,"invalid_query" end
-        local board=Board(season);local filtered={}
+        local board=Board(season)
+        local ordered=board.sorts[sort]
+        if not ordered then
+            ordered={};for i,row in ipairs(board.rows) do ordered[i]=row end
+            table.sort(ordered,function(a,b)
+                if a[sort]~=b[sort] then return a[sort]>b[sort] end
+                return a.position<b.position
+            end)
+            board.sorts[sort]=ordered
+        end
         query=query:lower()
-        for _,row in ipairs(board.rows) do if row.id:lower():find(query,1,true) then filtered[#filtered+1]=row end end
-        if sort~="rating" then table.sort(filtered,function(a,b)
-            if a[sort]~=b[sort] then return a[sort]>b[sort] end
-            return a.position<b.position
-        end) end
         local out={scope="SIMULATED",client=client,season=season,rankEligible=false,completeness="unknown",
-            total=#filtered,knownRanked=#board.rows,offset=offset,rows={}}
-        for i=offset+1,math.min(offset+limit,#filtered) do out.rows[#out.rows+1]=CopyView(filtered[i]) end
+            total=0,knownRanked=#board.rows,offset=offset,rows={}}
+        for _,row in ipairs(ordered) do
+            local v=row.identity
+            if row.id:lower():find(query,1,true) or (v and
+                (v.name:lower():find(query,1,true) or v.fullName:lower():find(query,1,true)
+                 or (v.realm and v.realm:lower():find(query,1,true)))) then
+                out.total=out.total+1
+                if out.total>offset and #out.rows<limit then out.rows[#out.rows+1]=CopyView(row) end
+            end
+        end
         return out
     end
     return D
@@ -694,6 +815,130 @@ function P.RunCompetitiveViewSelfTest(emit)
     Case("competitive views remain simulation only",function()
         assert(P.GetSnapshot().scope=="LOCAL" and not P.GetSnapshot().rankEligible)
         assert(P.OpenCompetitiveView==nil and P.ImportSeasonPage==nil)
+    end)
+    return pass,fail
+end
+
+function P.RunFoundationSelfTest(emit)
+    emit=type(emit)=="function" and emit or function()end
+    local pass,fail=0,0
+    local function Case(label,fn)
+        local ok,err=pcall(fn);if ok then pass=pass+1 else fail=fail+1 end
+        emit("DR | SIMULATED | "..(ok and "PASS " or "FAIL ")..label..(ok and "" or ": "..tostring(err)))
+    end
+    local a,b,c,d="Player-1-AAA","Player-2-BBB","Player-3-CCC","Player-4-DDD"
+    local epoch=1000
+    local function Equal(x,y)
+        if type(x)~=type(y) then return false end
+        if type(x)~="table" then return x==y end
+        for k,v in pairs(x) do if not Equal(v,y[k]) then return false end end
+        for k in pairs(y) do if x[k]==nil then return false end end
+        return true
+    end
+    for _,client in ipairs({"forever","retail"}) do
+        local function Fixture(scope)
+            local f={writes=0,client=client,owner=a}
+            function f.open()
+                local x=Build(function()return f.a,f.c end,function(aa,cc)f.a=aa;f.c=cc;f.writes=f.writes+1 end,
+                    function()return f.client end,function()return f.owner end,scope or "SIMULATED")
+                x.MarkLoaded();return x
+            end
+            return f
+        end
+        local function R(n,w,l)
+            local x,y=w,l;if x>y then x,y=y,x end
+            local s="a-"..n..":b-"..n
+            local p=table.concat({"1",client,s,x,y,x==w and "won" or "lost","1"},"|")
+            local q=table.concat({"1",client,s,y,x,y==w and "won" or "lost","2"},"|")
+            return assert(ns.ResultConfirmation.DecodeStatementsSimulated(client,p,q))
+        end
+        local function Seed(f)
+            local x=f.open()
+            for i,peer in ipairs({b,b,b,c,d}) do assert(x.UpdateSeasonEvidence(epoch,R(i,a,peer),epoch+i,epoch+i)) end
+        end
+        local function I(guid,name,time)
+            return {scope="SIMULATED",client=client,guid=guid,name=name,
+                fullName=client=="forever" and name.." Smith" or name.."-Home",
+                realm=client=="retail" and "Home" or nil,class="PRIEST",faction="Alliance",observedAt=time}
+        end
+        Case(client.." lossless compact roundtrip and late correction",function()
+            local f=Fixture();Seed(f)
+            local x=f.open();local before=x.ReadSeasonArchive(epoch+6);local raw=x.ReadRecords()
+            assert(x.CompactEvidence());local writes=f.writes
+            assert(f.a.clients[client].ledger.version==2 and x.ReadCapacity().ledgerEncoding=="compact")
+            assert(Equal(before,f.open().ReadSeasonArchive(epoch+6)) and Equal(raw,f.open().ReadRecords()))
+            assert(f.open().CompactEvidence() and f.writes==writes)
+            assert(f.open().UpdateSeasonEvidence(epoch,R(1,b,a),epoch+1,epoch+1))
+            local after=f.open().ReadSeasonArchive(epoch+6)
+            assert(after.disputed==1 and after.players[a].games==4 and f.a.clients[client].ledger.version==2)
+            assert(f.open().UpdateRecords(false,function(l)return l.Insert(R(6,a,c))end))
+            assert(f.a.clients[client].ledger.version==2 and f.open().ReadCapacity().ledger.used==6)
+        end)
+        Case(client.." malformed compact evidence rejected without overwrite",function()
+            local f=Fixture();Seed(f);assert(f.open().CompactEvidence())
+            local raw=f.a;local row=raw.clients[client].ledger.entries[R(1,a,b).id]
+            row[1]="invalid";local n=f.writes
+            assert(not f.open().ReadRecords() and not f.open().CompactEvidence() and not f.open().UpdateSeasonEvidence(epoch,R(7,a,c),epoch,epoch))
+            assert(f.a==raw and f.writes==n)
+            local l=assert(ns.MatchLedger.OpenSimulated(client));assert(l.Insert(R(1,a,b)));assert(l.Insert(R(1,b,a)))
+            local compact=l.SaveCompact();local variants=compact.entries[R(1,a,b).id]
+            variants[1],variants[2],variants[3],variants[4]=variants[3],variants[4],variants[1],variants[2]
+            assert(not ns.MatchLedger.OpenCompactSimulated(client,compact))
+        end)
+        Case(client.." observed identity search and no effect on ratings",function()
+            local f=Fixture();Seed(f);local x=f.open();local before=x.ReadSeasonArchive(epoch+6)
+            assert(x.ObserveIdentity(I(a,"Alpha",epoch+6)))
+            local v=assert(f.open().OpenCompetitiveView(epoch+6))
+            assert(v.Profile(a).identity.name=="Alpha" and v.Leaderboard(1,0,10,"alpha").rows[1].id==a)
+            assert(v.Leaderboard(1,0,10,client=="forever" and "smith" or "home").total==1)
+            assert(v.Profile(b).identity==nil and Equal(before,f.open().ReadSeasonArchive(epoch+6)))
+            local p=v.Profile(a);p.identity.name="bad";assert(v.Profile(a).identity.name=="Alpha")
+        end)
+        Case(client.." identity stale conflicting unknown and invalid updates refuse writes",function()
+            local f=Fixture();Seed(f);local x=f.open();local v=I(a,"Alpha",epoch+6)
+            assert(x.ObserveIdentity(v));local n=f.writes
+            assert(x.ObserveIdentity(v) and f.writes==n)
+            assert(not x.ObserveIdentity(I(a,"Old",epoch+5)) and not x.ObserveIdentity(I(a,"Conflict",epoch+6)))
+            assert(not x.ObserveIdentity(I("Player-9-UNKNOWN","Fake",epoch+6)))
+            local bad=I(a,"Bad|Name",epoch+7);assert(not x.ObserveIdentity(bad) and f.writes==n)
+            local newer=I(a,"Renamed",epoch+7);newer.class=nil;assert(x.ObserveIdentity(newer))
+            local view=assert(f.open().OpenCompetitiveView(epoch+7))
+            assert(view.Profile(a).identity.name=="Renamed" and view.Profile(a).identity.class==nil)
+            assert(view.Leaderboard(1,0,5,"alpha").total==0)
+        end)
+        Case(client.." compact import and snapshot query parity",function()
+            local f=Fixture();Seed(f);local x=f.open();assert(x.CompactEvidence())
+            local node=assert(ns.LeaderboardSync.OpenSeasonSimulated(client,epoch))
+            assert(node.Observe(R(6,a,b),epoch+6,epoch+6))
+            local desc=assert(ns.CompetitiveIntegrity.SeasonDescriptor(client,epoch))
+            assert(x.ImportSeasonPage(epoch,desc,node.ExportPage("pack",1),b,b,"pack"))
+            assert(f.a.clients[client].ledger.version==2)
+            local v=assert(f.open().OpenCompetitiveView(epoch+6))
+            local full=v.Profile(a);local summary=v.ProfileSummary(a)
+            assert(full.stats.games==summary.stats.games and summary.stats.opponents==nil and summary.stats.progression==nil)
+            local pages={}
+            for i=0,#full.stats.progression-1,2 do
+                local p=v.Progression(a,1,i,2)
+                assert(p.total==#full.stats.progression)
+                for _,r in ipairs(p.rows) do pages[#pages+1]=r end
+            end
+            assert(Equal(pages,full.stats.progression) and not v.Progression(a,1,-1,2))
+            local first=v.Leaderboard(1,0,1,"","wins");first.rows[1].rating=0
+            assert(v.Leaderboard(1,0,1,"","wins").rows[1].rating>0)
+        end)
+        Case(client.." identity partition and live gates",function()
+            local f=Fixture();Seed(f);assert(f.open().ObserveIdentity(I(a,"Alpha",epoch+6)))
+            f.client=client=="forever" and "retail" or "forever"
+            assert(f.open().OpenCompetitiveView(epoch+6).Status().state=="no_archive")
+            f.client=client;f.owner=c;f.c=nil
+            assert(f.open().OpenCompetitiveView(epoch+6).Profile(a).identity.name=="Alpha")
+            local localStore=Fixture("LOCAL").open()
+            assert(not localStore.ObserveIdentity(I(a,"Alpha",epoch+6)) and not localStore.CompactEvidence())
+        end)
+    end
+    Case("final data foundation remains simulation only",function()
+        assert(P.GetSnapshot().scope=="LOCAL" and not P.GetSnapshot().rankEligible)
+        assert(P.CompactEvidence==nil and P.ObserveIdentity==nil)
     end)
     return pass,fail
 end

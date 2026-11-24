@@ -231,3 +231,9 @@ assert(vp==15 and vf==0 and sent==previous and P.GetSnapshot().state=="checking"
 assert(_G.DuelsReimaginedDB==originalDB and _G.DuelsReimaginedCompetitiveDB==oldAccount
     and _G.DuelsReimaginedCharacterDB==oldChar,"competitive view QA never writes live data")
 print("Competitive data views: PASS")
+
+local fp,ff=ns.CompetitiveStorage.RunFoundationSelfTest(function(line)if line:find("FAIL",1,true)then print(line)end end)
+assert(fp==13 and ff==0 and sent==previous and P.GetSnapshot().state=="checking","isolated final competitive foundations")
+assert(_G.DuelsReimaginedDB==originalDB and _G.DuelsReimaginedCompetitiveDB==oldAccount
+    and _G.DuelsReimaginedCharacterDB==oldChar,"foundation QA never writes live data")
+print("Final competitive foundations: PASS")

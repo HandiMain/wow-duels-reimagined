@@ -98,6 +98,28 @@ function Group.ReadPlayerIdentity(unit)
         guid=type(guid)=="string" and guid or nil }
 end
 
+-- Read on explicit request only. Reuse existing secret-safe identity logic.
+-- Realm is optional, never inferred from a Forever surname. Metadata is
+-- display-only; it cannot authorize a match or identify a network sender.
+function Group.ReadCompetitiveIdentity(unit)
+    local id=Group.ReadPlayerIdentity(unit)
+    if not id or type(id.guid)~="string" or #id.guid>64 or not id.guid:match("^Player%-%w[%w%-]*$") then return nil end
+    local _,class=ReadTwo(UnitClass,unit)
+    local faction=ReadOne(UnitFactionGroup,unit)
+    local realm
+    if not (ns.Client and ns.Client.IsForever and ns.Client.IsForever()) then
+        local _,r=ReadTwo(UnitFullName,unit)
+        if type(r)=="string" and r~="" then realm=r
+        elseif unit=="player" then
+            local home=ReadOne(GetNormalizedRealmName)
+            if type(home)=="string" and home~="" then realm=home end
+        end
+    end
+    return {scope="LOCAL",guid=id.guid,name=id.name,fullName=id.fullName,realm=realm,
+        class=type(class)=="string" and class:match("^[A-Z]+$") and class or nil,
+        faction=(faction=="Alliance" or faction=="Horde" or faction=="Neutral") and faction or nil}
+end
+
 local function Member(unit, raidIndex)
     local name, fullName = Identity(unit)
     if not name then return nil end
