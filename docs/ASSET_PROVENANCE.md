@@ -42,3 +42,7 @@ These are visual interpretations, **not game screenshots, exact arena geometry, 
 
 - `Media/Skin/DuelPlacementPanel.png` (512x256 RGB PNG; git blob 1908c10e80228c758b185d81b9440c4c5ab2f68a): derived from the user's explicitly approved generated Hall placement image supplied 2026-11-24. Cropped the placement-only art and removed all baked text, preserving decorative shield, sockets, track, laurels, plate and border. No screenshot of the surrounding game or third-party addon included in package.
 - `Media/Skin/DuelPlacementEffects.png` (128x64 RGBA PNG; git blob 51fd7e095baccc85e31c7e3e1bcf68ce06be3f39): gold shield treatment derived from an approved socket, transparent mask and original soft radial glow. No baked result or rank. Both assets have active references in CompetitiveUI.lua. Live visual verification pending.
+
+
+### Duel HUD artwork (2026-11-24)
+Media/Skin/DuelHUDArt.png — 512x512 RGBA atlas extracted from the user's selected in-game concept (631405e1-c2b6-419e-91a4-254006456208.webp). Crop/cleaned copper rim, crest, buttons, swords, timer, stat inset and controls; dynamic content removed. Original generated concept art, not Blizzard source extraction or third-party asset reuse. Blob 42af346a7870cf1c90c10e95f59b5a0dc2a980c2. No in-game background or fictional values used as live data.

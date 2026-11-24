@@ -5,6 +5,15 @@ ROOT=Path(__file__).resolve().parents[2]/"addon"/"DuelsReimagined"
 def read(p): return (ROOT/p).read_text(encoding="utf-8")
 
 class DuelHUDTests(unittest.TestCase):
+    def test_approved_concept_art_and_bounded_regions(self):
+        h=read("UI/DuelHUD.lua")
+        self.assertIn("DuelHUDArt.png",h)
+        self.assertIn('Artwork("shell",0,0,WIDTH,HEIGHT,"BACKGROUND")',h)
+        self.assertIn("f:ClearAllPoints();f:SetPoint",h)
+        self.assertNotIn("S.Fill(",h)
+        self.assertNotIn("S.Skin(root",h)
+        self.assertTrue((ROOT/"Media/Skin/DuelHUDArt.png").is_file())
+
     def test_independent_default_and_settings(self):
         s,o,h=read("Core/Settings.lua"),read("UI/Options.lua"),read("UI/DuelHUD.lua")
         self.assertIn("duelHUDEnabled = true",s)

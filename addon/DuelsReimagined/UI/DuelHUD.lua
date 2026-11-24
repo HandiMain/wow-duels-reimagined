@@ -2,25 +2,60 @@ local _,ns=...
 -- Read-only duel companion; never owns results, ranking, or peer transport.
 local S,C,Settings=ns.Style,ns.Style.color,ns.Settings
 local H={};ns.DuelHUD=H
-local WIDTH,HEIGHT=372,326
+local WIDTH,HEIGHT=336,310
 local root=CreateFrame("Frame","DuelsReimaginedDuelHUD",UIParent)
 root:SetSize(WIDTH,HEIGHT);root:SetFrameStrata("MEDIUM")
 root:SetClampedToScreen(true);root:SetMovable(true);root:EnableMouse(true);root:Hide()
-S.Skin(root,C.window,{corner=10,edge=C.shellEdge,shine=.16,shade=.24,rim=1,smooth=true})
+-- One authored skin owner. In particular, do not use Style.Fill followed
+-- by a second anchor: its original opposing anchors stretch the region.
+local ATLAS="Interface\\AddOns\\DuelsReimagined\\Media\\Skin\\DuelHUDArt.png"
+local art={shell={0,0,336,310},crest={342,0,60,56},selected={342,64,140,32},
+    normal={342,100,140,32},red={342,136,140,30},disabled={342,170,140,30},
+    timer={0,316,190,38},stats={0,361,310,59},gear={342,205,24,24},
+    close={372,205,24,24},swords={410,0,30,30}}
 local function Place(f,x,y,w,h)
-    f:SetPoint("TOPLEFT",root,"TOPLEFT",x,-y);f:SetSize(w,h)
+    f:ClearAllPoints();f:SetPoint("TOPLEFT",root,"TOPLEFT",x,-y);f:SetSize(w,h)
 end
+local function Region(t,key)
+    local a=art[key];t:SetTexture(ATLAS)
+    t:SetTexCoord((a[1]+.25)/512,(a[1]+a[3]-.25)/512,(a[2]+.25)/512,(a[2]+a[4]-.25)/512)
+end
+local function Artwork(key,x,y,w,h,layer)
+    local t=root:CreateTexture(nil,layer or "ARTWORK");Region(t,key);Place(t,x,y,w,h);return t
+end
+Artwork("shell",0,0,WIDTH,HEIGHT,"BACKGROUND")
+Artwork("stats",10,202,316,54)
+Artwork("timer",73,91,190,38)
+Artwork("swords",154,142,28,28)
+local function Rect(x,y,w,h,r,g,b,a)
+    local t=root:CreateTexture(nil,"BORDER")
+    t:SetColorTexture(r,g,b,a or 1);Place(t,x,y,w,h);return t
+end
+Rect(9,35,318,1,.50,.35,.16,.8)
+Rect(14,74,308,1,.19,.15,.10,.85)
+Rect(16,229,304,1,.27,.22,.15,.75)
 local function Label(value,size,color,x,y,w,h,align)
     local f=S.Text(root,value,size,color or C.text)
     f:SetJustifyH(align or "CENTER");f:SetWordWrap(false);Place(f,x,y,w,h);return f
 end
-local function Action(value,x,y,w,h,fn,red)
-    local b=S.Action(root,value,"footer",red and {plate="hall",hover=C.red,text=C.buttonText} or
-        {fill=C.nav,hover=C.selected,edge=C.goldDim,light=C.goldDim,dark=C.window,text=C.text,tooltip=false})
-    Place(b,x,y,w,h);b:SetScript("OnClick",fn);return b
-end
-local function Rule(y)
-    local f=S.Fill(root,C.goldDim,"ARTWORK");Place(f,11,y,WIDTH-22,1);f:SetAlpha(.7)
+local function Action(value,x,y,w,h,fn,red,icon)
+    local b=CreateFrame("Button",nil,root);Place(b,x,y,w,h)
+    b:RegisterForClicks("LeftButtonUp")
+    local t=b:CreateTexture(nil,"BACKGROUND");t:SetAllPoints(b)
+    local label=S.Text(b,value,12,C.text);label:SetAllPoints(b);label:SetJustifyH("CENTER");label:SetWordWrap(false)
+    b.label=label;b.selected=false;b.usable=true
+    -- No alpha animation on the whole widget: the source art stays opaque.
+    b.Paint=function()
+        Region(t,icon or (b.selected and "selected" or not b.usable and "disabled" or red and "red" or "normal"))
+        local v=b.pressed and .73 or b.hovered and b.usable and 1 or .90
+        t:SetVertexColor(v,v,v,1)
+        label:SetTextColor(unpack((b.usable or b.selected) and C.text or C.muted))
+    end
+    b:SetScript("OnEnter",function() b.hovered=true;b.Paint() end)
+    b:SetScript("OnLeave",function() b.hovered=false;b.pressed=false;b.Paint() end)
+    b:SetScript("OnMouseDown",function() b.pressed=true;b.Paint() end)
+    b:SetScript("OnMouseUp",function() b.pressed=false;b.Paint() end)
+    b:SetScript("OnClick",fn);b.Paint();return b
 end
 local function Secret(v)
     if type(issecretvalue)~="function" then return false end
@@ -44,17 +79,20 @@ local function MatchUnit(id)
     end
 end
 local header=CreateFrame("Frame",nil,root)
-Place(header,0,0,WIDTH-64,38);header:EnableMouse(true);header:RegisterForDrag("LeftButton")
-local mark=root:CreateTexture(nil,"ARTWORK")
-mark:SetTexture("Interface\\AddOns\\DuelsReimagined\\Media\\Icons\\DuelsDRIcon.png")
-Place(mark,6,3,31,31)
-Label("Duels Reimagined",20,C.pale,39,5,WIDTH-112,29,"LEFT")
+Place(header,0,0,WIDTH-60,35);header:EnableMouse(true);header:RegisterForDrag("LeftButton")
+Artwork("crest",-4,-11,56,52,"OVERLAY")
+Label("Duels Reimagined",17,C.pale,52,4,WIDTH-118,26,"LEFT")
 local function OpenOptions()
     if Combat() then return end
     if not ns.Window.frame:IsShown() then ns.Window.Toggle() end
     ns.Navigation.SelectKey("options","interface")
 end
-local gear=Action("Options",WIDTH-75,7,65,25,OpenOptions)
+local gear=Action("",WIDTH-57,5,23,23,OpenOptions,false,"gear")
+local close=Action("",WIDTH-30,5,23,23,function() Settings.Set("duelHUDEnabled",false) end,false,"close")
+if ns.Tooltips then
+    ns.Tooltips.Bind(gear,{title="Duel HUD options",detail="Open Interface settings."})
+    ns.Tooltips.Bind(close,{title="Hide Duel HUD",detail="Show it again in Options or with /duels hud."})
+end
 local modeRank,modePractice
 local snap,shownResult,activeID,acceptedAt,countdownUntil,damageSession
 local ready,preview,dragging,rankDirty=false,false,false,true
@@ -63,28 +101,32 @@ local function Mode(practice)
     if preview or Combat() or not snap or snap.state~="idle" then return end
     Settings.Set("practiceDuels",practice)
 end
-modeRank=Action("Ranked",12,44,170,30,function() Mode(false) end)
-modePractice=Action("Practice",190,44,170,30,function() Mode(true) end)
-Rule(82)
-local state=Label("Select a player to duel",14,C.pale,10,86,WIDTH-20,19)
-local timer=Label("00:00",24,C.text,10,106,WIDTH-20,29)
-local function Side(x)
+modeRank=Action("Ranked",66,40,101,30,function() Mode(false) end)
+modePractice=Action("Practice",174,40,101,30,function() Mode(true) end)
+local state=Label("Select a player to duel",13,C.pale,10,77,WIDTH-20,18)
+local timer=Label("00:00",20,C.text,114,96,108,27)
+local function Side(x,enemy)
     local side={}
+    local ix=enemy and x+100 or x
+    local tx=enemy and x or x+46
+    local align=enemy and "RIGHT" or "LEFT"
     side.icon=root:CreateTexture(nil,"ARTWORK")
-    Place(side.icon,x+4,144,31,31)
-    side.name=Label("",14,C.text,x+40,142,126,23,"LEFT")
-    side.badge=ns.CompetitiveUI.CreateRankEmblem(root,32,false)
-    Place(side.badge,x+2,178,32,32)
-    side.rank=Label("Rank unknown",12,C.muted,x+40,173,126,18,"LEFT")
-    side.rating=Label("",12,C.pale,x+40,191,126,18,"LEFT")
-    side.bg=S.Fill(root,C.track,"ARTWORK");Place(side.bg,x,215,166,15)
-    side.hp=CreateFrame("StatusBar",nil,root);Place(side.hp,x,215,166,15)
+    Place(side.icon,ix,133,42,42)
+    side.name=Label("",14,C.pale,tx,127,96,19,align)
+    side.badge=ns.CompetitiveUI.CreateRankEmblem(root,23,false)
+    Place(side.badge,enemy and x+74 or tx,147,23,23)
+    side.rank=Label("Rank unknown",10,C.text,enemy and x or tx+24,146,72,17,align)
+    side.rating=Label("",11,C.pale,tx,162,96,15,align)
+    -- Exactly anchored dark track and thin bronze edge; no Fill helper.
+    Rect(x,182,142,17,.38,.27,.12)
+    Rect(x+1,183,140,15,.04,.045,.04)
+    side.hp=CreateFrame("StatusBar",nil,root);Place(side.hp,x+2,184,138,13)
     side.hp:SetStatusBarTexture("Interface\\TargetingFrame\\UI-StatusBar")
-    side.hp:SetStatusBarColor(.22,.69,.24);side.hp:SetMinMaxValues(0,1);side.hp:SetValue(0)
+    side.hp:SetStatusBarColor(.19,.72,.16);side.hp:SetMinMaxValues(0,1);side.hp:SetValue(0)
     local overlay=CreateFrame("Frame",nil,root)
-    overlay:SetFrameLevel(side.hp:GetFrameLevel()+1);Place(overlay,x,213,166,19)
+    overlay:SetFrameLevel(side.hp:GetFrameLevel()+1);Place(overlay,x,181,142,19)
     side.hpText=S.Text(overlay,"",11,C.text);side.hpText:SetAllPoints(overlay);side.hpText:SetJustifyH("CENTER")
-    local click=CreateFrame("Button",nil,root);Place(click,x,174,166,37)
+    local click=CreateFrame("Button",nil,root);Place(click,tx,146,96,31)
     click:SetScript("OnClick",function()
         if Combat() or preview or not side.profile or not side.id or ns.CompetitivePreview.IsActive() then return end
         if not ns.Window.frame:IsShown() then ns.Window.Toggle() end
@@ -94,12 +136,12 @@ local function Side(x)
     side.click=click
     return side
 end
-local me,other=Side(12),Side(194)
-Label("VS",13,C.gold,177,163,18,21)
-Rule(237)
-local done=Label("Damage Done: —",13,C.muted,12,243,170,22)
-local taken=Label("Damage Taken: —",13,C.muted,190,243,170,22)
-local note=Label("",11,C.muted,12,267,WIDTH-24,18)
+local me,other=Side(12,false),Side(182,true)
+Label("Damage Done",12,C.text,24,205,180,23,"LEFT")
+Label("Damage Received",12,C.text,24,230,180,23,"LEFT")
+local done=Label("—",13,C.pale,207,205,104,23,"RIGHT")
+local taken=Label("—",13,C.pale,207,230,104,23,"RIGHT")
+local note=Label("",10,C.muted,12,258,WIDTH-24,17)
 local challenge,forfeit
 local lastRequest
 local function Native(fn,unit)
@@ -111,24 +153,24 @@ local function Native(fn,unit)
     end
     note:SetText("Request sent to Blizzard; awaiting observation.");return true
 end
-challenge=Action("Challenge Target",12,290,170,28,function()
+challenge=Action("Challenge Target",18,277,157,27,function()
     if preview or ns.CompetitivePreview.IsActive() or Combat() or not snap or snap.state~="idle" then return end
     local id=Identity("target");local self=Identity("player")
     local now=Now()
     if not id or not self or id.guid==self.guid or not now or (lastRequest and now-lastRequest<5) then return end
     lastRequest=now
     Native(StartDuel,"target")
-end,true)
-forfeit=Action("Forfeit",190,290,170,28,function()
+end,false)
+forfeit=Action("Forfeit",187,277,131,27,function()
     if preview or ns.CompetitivePreview.IsActive() or not snap or not snap.active or snap.state=="finishing" then return end
     Native(ForfeitDuel)
 end,true)
-local function Enable(b,value) b:SetEnabled(value==true);b:SetAlpha(value and 1 or .42) end
+local function Enable(b,value) b.usable=value==true;b:SetEnabled(b.usable);b.Paint() end
 local function ResetDamage(id)
     -- New duel = new private display session. Never clear Blizzard's
     -- shared sessions: they may contain other combat and other addons' data.
     damageSession={cycle=id}
-    done:SetText("Damage Done: —");taken:SetText("Damage Taken: —")
+    done:SetText("—");taken:SetText("—")
 end
 local function Health(side,unit)
     side.hp:Hide()
@@ -159,8 +201,9 @@ end
 local function PaintSide(side,id,unit,own)
     side.id=id and id.guid;side.profile=false
     local v=id and (id.metadata or id)
-    side.name:SetText(id and (v.name or id.display or id.fullName) or (own and "You" or "No player target"))
-    side.icon:SetTexture(v and v.class and "Interface\\Icons\\ClassIcon_"..v.class or "Interface\\Icons\\INV_Misc_QuestionMark")
+    side.name:SetText(id and (v.name or id.display or id.fullName) or (own and "You" or "No target"))
+    local icon=v and v.class and "Interface\\Icons\\ClassIcon_"..v.class or "Interface\\Icons\\INV_Misc_QuestionMark"
+    if type(SetPortraitToTexture)~="function" or not pcall(SetPortraitToTexture,side.icon,icon) then side.icon:SetTexture(icon) end
     local p
     if rankView and side.id and rankSeason then p=rankView.ProfileSummary(side.id,rankSeason) end
     side.profile=p~=nil
@@ -173,7 +216,8 @@ end
 local function PreviewSide(side,name,class,rank,value,health)
     side.id,side.profile=nil,false
     side.name:SetText(name)
-    side.icon:SetTexture("Interface\\Icons\\ClassIcon_"..class)
+    local icon="Interface\\Icons\\ClassIcon_"..class
+    if type(SetPortraitToTexture)~="function" or not pcall(SetPortraitToTexture,side.icon,icon) then side.icon:SetTexture(icon) end
     side.badge:Show();side.badge.Paint(rank)
     side.rank:SetText(rank.label);side.rating:SetText(tostring(value))
     side.hp:SetMinMaxValues(0,100);side.hp:SetValue(health);side.hp:Show();side.hpText:SetText(health.."%")
@@ -199,11 +243,11 @@ end
 local function Paint()
     if not root:IsShown() or not snap then return end
     if preview then
-        modeRank.label:SetText("Ranked (preview)");modePractice.label:SetText("Practice")
+        modeRank.selected=true;modePractice.selected=false
         state:SetText("SOLO PREVIEW - SIMULATED");timer:SetText("00:32")
         PreviewSide(me,"Test Priest","PRIEST",{name="Contender",division=2,label="Contender II"},1660,76)
         PreviewSide(other,"Test Mage","MAGE",{name="Veteran",division=3,label="Veteran III"},1925,43)
-        done:SetText("Damage Done: 52.7K");taken:SetText("Damage Taken: 48.1K")
+        done:SetText("52.7K");taken:SetText("48.1K")
         note:SetText("Visual preview only - actions disabled")
         Enable(challenge,false);Enable(forfeit,false);Enable(modeRank,false);Enable(modePractice,false)
         return
@@ -215,27 +259,26 @@ local function Paint()
     PaintSide(me,self,"player",true)
     PaintSide(other,opponent,engaged and MatchUnit(opponent) or not engaged and opponent and "target" or nil,false)
     local intent=Settings.Get("practiceDuels")==true
-    modeRank.label:SetText(intent and "Ranked" or "Ranked (selected)")
-    modePractice.label:SetText(intent and "Practice (selected)" or "Practice")
+    modeRank.selected=not intent;modePractice.selected=intent
     local idle=snap.state=="idle"
     Enable(modeRank,idle and not Combat());Enable(modePractice,idle and not Combat())
     Enable(challenge,idle and not Combat() and opponent~=nil and self~=nil and opponent.guid~=self.guid and
         type(StartDuel)=="function" and not ns.CompetitivePreview.IsActive())
     Enable(forfeit,snap.active~=nil and snap.state~="finishing" and type(ForfeitDuel)=="function" and not ns.CompetitivePreview.IsActive())
-    done:SetText("Damage Done: —");taken:SetText("Damage Taken: —")
+    done:SetText("—");taken:SetText("—")
     if snap.active then
-        note:SetText("Since countdown | Duel damage unavailable")
+        note:SetText("Duel damage unavailable")
         Tick()
     elseif snap.challenge then
         state:SetText(snap.challenge.kind=="death_duel" and "Death duel - excluded" or "Challenge pending")
         timer:SetText("00:00");note:SetText("Waiting for Blizzard countdown")
     elseif shownResult then
         state:SetText(shownResult.text);timer:SetText(shownResult.duration)
-        note:SetText("Local observation - rating not confirmed")
+        note:SetText("Rating not confirmed")
     else
         state:SetText(snap.state=="unavailable" and "Duel detection unavailable" or opponent and "Ready to challenge" or "Select a player to duel")
         timer:SetText("00:00")
-        note:SetText("Preferred mode only - ranked agreement required")
+        note:SetText("Ranked requires mutual agreement")
     end
 end
 local function Receive(s)
