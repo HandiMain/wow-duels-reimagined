@@ -27,10 +27,19 @@ class DuelHUDTests(unittest.TestCase):
         h=read("UI/DuelHUD.lua")
         for token in ('ns.DuelDetection.Subscribe(Receive)','root:UnregisterAllEvents()',
                       'root:SetScript("OnUpdate",nil)','ResetDamage(activeID)',
-                      'Native(StartDuel,"target")','Native(ForfeitDuel)',
+                      'ns.DuelDetection.LaunchWidgetChallenge(ranked,id.guid)','Native(ForfeitDuel)',
                       'Plain(UnitGUID,unit)==id.guid','side.hp:SetMinMaxValues(0,max)',
                       'side.hp:SetValue(value)','SOLO PREVIEW - SIMULATED'):
             self.assertIn(token,h)
         for forbidden in ("ResetAllCombatSessions(","SendChatMessage(","CreateMacro(","EditMacro(",
                           "RecordLocalObservation(","CommitPeerNode(","Communication.Send("):
             self.assertNotIn(forbidden,h)
+
+    def test_ranked_launch_is_widget_only(self):
+        d,h,l=read("Core/DuelDetection.lua"),read("UI/DuelHUD.lua"),read("Core/CompetitiveLifecycle.lua")
+        self.assertIn("widgetLaunch=nil",d)
+        self.assertIn('c.rankedWidget==true and "R" or "P"',l)
+        self.assertIn("RankedAvailability",h)
+        self.assertIn('Action("Unranked"',h)
+        self.assertIn('ns.OpponentDiscovery.Subscribe(Paint)',h)
+        self.assertNotIn('Action("Practice"',h)

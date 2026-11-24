@@ -48,7 +48,7 @@ local function Rate(c)
     if n>0 then c.winRate=c.wins/n end
     if c.durationCount>0 then c.averageDuration=c.totalDuration/c.durationCount end
 end
-local rankReasons={practice_selected=true,practice_agreed=true,not_agreed=true,
+local rankReasons={practice_selected=true,practice_agreed=true,native_unranked=true,not_agreed=true,
     capacity=true,storage_unavailable=true,retreat=true,unknown_result=true,confirmation_unavailable=true}
 local endReasons={world_transition=true,conflicting_result=true,result_not_observed=true,
     finish_not_observed=true,not_observed=true}

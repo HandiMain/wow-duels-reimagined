@@ -5,6 +5,7 @@ local H={};ns.DuelHUD=H
 local WIDTH,HEIGHT=336,310
 local root=CreateFrame("Frame","DuelsReimaginedDuelHUD",UIParent)
 root:SetSize(WIDTH,HEIGHT);root:SetFrameStrata("MEDIUM")
+if ns.DiagnosticAudit then ns.DiagnosticAudit.RegisterUIRoot("Duel HUD",root) end
 root:SetClampedToScreen(true);root:SetMovable(true);root:EnableMouse(true);root:Hide()
 -- One authored skin owner. In particular, do not use Style.Fill followed
 -- by a second anchor: its original opposing anchors stretch the region.
@@ -12,7 +13,7 @@ local ATLAS="Interface\\AddOns\\DuelsReimagined\\Media\\Skin\\DuelHUDArt.png"
 local art={shell={0,0,336,310},crest={342,0,60,56},selected={342,64,140,32},
     normal={342,100,140,32},red={342,136,140,30},disabled={342,170,140,30},
     timer={0,316,190,38},stats={0,361,310,59},gear={342,205,24,24},
-    close={372,205,24,24},swords={410,0,30,30}}
+    close={372,205,24,24},swords={410,0,30,30},playerRing={342,238,48,48},enemyRing={396,238,48,48}}
 local function Place(f,x,y,w,h)
     f:ClearAllPoints();f:SetPoint("TOPLEFT",root,"TOPLEFT",x,-y);f:SetSize(w,h)
 end
@@ -26,7 +27,7 @@ end
 Artwork("shell",0,0,WIDTH,HEIGHT,"BACKGROUND")
 Artwork("stats",10,202,316,54)
 Artwork("timer",73,91,190,38)
-Artwork("swords",154,142,28,28)
+Artwork("swords",156,137,24,24)
 local function Rect(x,y,w,h,r,g,b,a)
     local t=root:CreateTexture(nil,"BORDER")
     t:SetColorTexture(r,g,b,a or 1);Place(t,x,y,w,h);return t
@@ -99,24 +100,38 @@ local ready,preview,dragging,rankDirty=false,false,false,true
 local rankView,rankSeason
 local function Mode(practice)
     if preview or Combat() or not snap or snap.state~="idle" then return end
+    local target=Identity("target")
+    if not practice then
+        local _,_,selectable=ns.CompetitiveLifecycle.RankedAvailability(target and target.guid)
+        if not selectable then return end
+    end
     Settings.Set("practiceDuels",practice)
 end
 modeRank=Action("Ranked",66,40,101,30,function() Mode(false) end)
-modePractice=Action("Practice",174,40,101,30,function() Mode(true) end)
+modePractice=Action("Unranked",174,40,101,30,function() Mode(true) end)
 local state=Label("Select a player to duel",13,C.pale,10,77,WIDTH-20,18)
 local timer=Label("00:00",20,C.text,114,96,108,27)
 local function Side(x,enemy)
     local side={}
-    local ix=enemy and x+100 or x
-    local tx=enemy and x or x+46
+    local ix=enemy and x+104 or x+2
+    local tx=enemy and x or x+42
     local align=enemy and "RIGHT" or "LEFT"
     side.icon=root:CreateTexture(nil,"ARTWORK")
-    Place(side.icon,ix,133,42,42)
-    side.name=Label("",14,C.pale,tx,127,96,19,align)
-    side.badge=ns.CompetitiveUI.CreateRankEmblem(root,23,false)
-    Place(side.badge,enemy and x+74 or tx,147,23,23)
-    side.rank=Label("Rank unknown",10,C.text,enemy and x or tx+24,146,72,17,align)
-    side.rating=Label("",11,C.pale,tx,162,96,15,align)
+    Place(side.icon,ix,126,36,36)
+    if root.CreateMaskTexture and side.icon.AddMaskTexture then
+        pcall(function()
+            local mask=root:CreateMaskTexture()
+            mask:SetTexture("Interface\\AddOns\\DuelsReimagined\\Media\\Skin\\DuelHUDPortraitMask.png","CLAMPTOBLACKADDITIVE","CLAMPTOBLACKADDITIVE")
+            mask:SetAllPoints(side.icon);side.icon:AddMaskTexture(mask)
+            side.mask=mask
+        end)
+    end
+    Artwork(enemy and "enemyRing" or "playerRing",ix-4,122,44,44,"OVERLAY")
+    side.name=Label("",13,C.pale,tx,127,100,20,align)
+    side.rating=Label("",11,C.pale,tx,148,100,15,align)
+    side.badge=ns.CompetitiveUI.CreateRankEmblem(root,19,false)
+    Place(side.badge,enemy and x+123 or x+2,163,19,19)
+    side.rank=Label("Rank unknown",11,C.text,enemy and x or x+23,163,119,18,align)
     -- Exactly anchored dark track and thin bronze edge; no Fill helper.
     Rect(x,182,142,17,.38,.27,.12)
     Rect(x+1,183,140,15,.04,.045,.04)
@@ -126,7 +141,7 @@ local function Side(x,enemy)
     local overlay=CreateFrame("Frame",nil,root)
     overlay:SetFrameLevel(side.hp:GetFrameLevel()+1);Place(overlay,x,181,142,19)
     side.hpText=S.Text(overlay,"",11,C.text);side.hpText:SetAllPoints(overlay);side.hpText:SetJustifyH("CENTER")
-    local click=CreateFrame("Button",nil,root);Place(click,tx,146,96,31)
+    local click=CreateFrame("Button",nil,root);Place(click,x,163,142,19)
     click:SetScript("OnClick",function()
         if Combat() or preview or not side.profile or not side.id or ns.CompetitivePreview.IsActive() then return end
         if not ns.Window.frame:IsShown() then ns.Window.Toggle() end
@@ -158,8 +173,15 @@ challenge=Action("Challenge Target",18,277,157,27,function()
     local id=Identity("target");local self=Identity("player")
     local now=Now()
     if not id or not self or id.guid==self.guid or not now or (lastRequest and now-lastRequest<5) then return end
+    -- Do not silently downgrade an already displayed Ranked selection, or
+    -- upgrade the displayed Unranked fallback when a reply just arrived.
+    local ranked=modeRank.selected==true and modeRank.usable==true
+    if ranked and (Settings.Get("practiceDuels") or not ns.CompetitiveLifecycle.RankedAvailability(id.guid)) then
+        H.Refresh();return
+    end
     lastRequest=now
-    Native(StartDuel,"target")
+    local ok=ns.DuelDetection.LaunchWidgetChallenge(ranked,id.guid)
+    if not ok then note:SetText("Challenge unavailable; try again") end
 end,false)
 forfeit=Action("Forfeit",187,277,131,27,function()
     if preview or ns.CompetitivePreview.IsActive() or not snap or not snap.active or snap.state=="finishing" then return end
@@ -209,7 +231,7 @@ local function PaintSide(side,id,unit,own)
     side.profile=p~=nil
     side.badge:SetShown(p~=nil or own)
     side.badge.Paint(p and p.rank)
-    side.rank:SetText(p and p.rank and p.rank.label or (own and not rankView and "No active rank" or "Rank unknown"))
+    side.rank:SetText(p and p.rank and p.rank.label or (not id and "—" or own and not rankView and "No active rank" or "Rank unknown"))
     side.rating:SetText(p and p.rating and tostring(p.rating) or "")
     Health(side,unit)
 end
@@ -232,9 +254,12 @@ local function Tick()
     if not now then return end
     if snap and snap.active then
         local remaining=countdownUntil and countdownUntil-now or 0
+        local mode=ns.CompetitiveLifecycle.GetSnapshot().duelMode
+        local ranked=mode=="Ranked candidate"
+        modeRank.selected=ranked;modePractice.selected=not ranked;modeRank.Paint();modePractice.Paint()
         if snap.state=="finishing" then state:SetText("Awaiting observed result")
-        elseif remaining>0 then state:SetText("Countdown (estimated)")
-        else state:SetText("Duel observed") end
+        elseif remaining>0 then state:SetText((ranked and "Ranked" or "Unranked").." countdown")
+        else state:SetText(ranked and "Ranked candidate" or "Unranked duel") end
         timer:SetText(remaining>0 and tostring(math.ceil(remaining)) or TimeText(now-(acceptedAt or now)))
     elseif shownResult and now>=shownResult.untilTime then
         shownResult=nil;H.Refresh()
@@ -248,6 +273,7 @@ local function Paint()
         PreviewSide(me,"Test Priest","PRIEST",{name="Contender",division=2,label="Contender II"},1660,76)
         PreviewSide(other,"Test Mage","MAGE",{name="Veteran",division=3,label="Veteran III"},1925,43)
         done:SetText("52.7K");taken:SetText("48.1K")
+        challenge.label:SetText("Challenge Ranked")
         note:SetText("Visual preview only - actions disabled")
         Enable(challenge,false);Enable(forfeit,false);Enable(modeRank,false);Enable(modePractice,false)
         return
@@ -259,9 +285,15 @@ local function Paint()
     PaintSide(me,self,"player",true)
     PaintSide(other,opponent,engaged and MatchUnit(opponent) or not engaged and opponent and "target" or nil,false)
     local intent=Settings.Get("practiceDuels")==true
-    modeRank.selected=not intent;modePractice.selected=intent
     local idle=snap.state=="idle"
-    Enable(modeRank,idle and not Combat());Enable(modePractice,idle and not Combat())
+    local canRank,why,selectable=ns.CompetitiveLifecycle.RankedAvailability(opponent and opponent.guid)
+    local liveMode=ns.CompetitiveLifecycle.GetSnapshot().duelMode
+    local effectiveRank=idle and canRank and not intent or not idle and liveMode=="Ranked candidate"
+    -- The gold mode is the effective duel type, not an unconfirmed preference.
+    modeRank.selected=effectiveRank==true;modePractice.selected=not effectiveRank
+    Enable(modeRank,idle and not Combat() and selectable and not ns.CompetitivePreview.IsActive())
+    Enable(modePractice,idle and not Combat() and not ns.CompetitivePreview.IsActive())
+    challenge.label:SetText(effectiveRank and "Challenge Ranked" or "Challenge Unranked")
     Enable(challenge,idle and not Combat() and opponent~=nil and self~=nil and opponent.guid~=self.guid and
         type(StartDuel)=="function" and not ns.CompetitivePreview.IsActive())
     Enable(forfeit,snap.active~=nil and snap.state~="finishing" and type(ForfeitDuel)=="function" and not ns.CompetitivePreview.IsActive())
@@ -278,7 +310,7 @@ local function Paint()
     else
         state:SetText(snap.state=="unavailable" and "Duel detection unavailable" or opponent and "Ready to challenge" or "Select a player to duel")
         timer:SetText("00:00")
-        note:SetText("Ranked requires mutual agreement")
+        note:SetText(canRank and (intent and "Unranked selected" or "Ranked available") or why or "Unranked only")
     end
 end
 local function Receive(s)
@@ -330,7 +362,24 @@ header:SetScript("OnDragStart",function()
     dragging=true;root:StartMoving()
 end)
 header:SetScript("OnDragStop",StopDrag)
-local unsubscribe
+local unsubscribe,unsubscribeDiscovery
+local probeGeneration=0
+local function ProbeSelected()
+    probeGeneration=probeGeneration+1
+    local generation=probeGeneration
+    if preview or not snap or snap.state~="idle" or Combat() then return end
+    local id=Identity("target");local own=Identity("player")
+    if not id or not own or id.guid==own.guid then return end
+    -- One throttled retry on rapid target changes; no repeating network poll.
+    local ok,reason=ns.OpponentDiscovery.ProbeTarget(true)
+    if not ok and reason=="cooldown" and C_Timer and C_Timer.After then
+        C_Timer.After(8.1,function()
+            if generation~=probeGeneration or not root:IsShown() or preview or Combat() or not snap or snap.state~="idle" then return end
+            local current=Identity("target")
+            if current and current.guid==id.guid then ns.OpponentDiscovery.ProbeTarget(true);Paint() end
+        end)
+    end
+end
 local events={"PLAYER_TARGET_CHANGED","PLAYER_FOCUS_CHANGED","UPDATE_MOUSEOVER_UNIT","UNIT_HEALTH","UNIT_MAXHEALTH","UNIT_NAME_UPDATE","PLAYER_REGEN_ENABLED","PLAYER_REGEN_DISABLED","UI_SCALE_CHANGED","DISPLAY_SIZE_CHANGED"}
 root:SetScript("OnEvent",function(_,event,unit)
     if event=="PLAYER_REGEN_DISABLED" then StopDrag() end
@@ -346,17 +395,21 @@ root:SetScript("OnEvent",function(_,event,unit)
         end
         return
     end
+    if event=="PLAYER_TARGET_CHANGED" or event=="PLAYER_REGEN_ENABLED" then ProbeSelected() end
     Paint()
 end)
 root:SetScript("OnShow",function()
     rankDirty=true
     for _,event in ipairs(events) do pcall(root.RegisterEvent,root,event) end
     unsubscribe=ns.DuelDetection.Subscribe(Receive)
-    Receive(ns.DuelDetection.GetSnapshot())
+    unsubscribeDiscovery=ns.OpponentDiscovery.Subscribe(Paint)
+    Receive(ns.DuelDetection.GetSnapshot());ProbeSelected();Paint()
 end)
 root:SetScript("OnHide",function()
     StopDrag()
     if unsubscribe then unsubscribe();unsubscribe=nil end
+    if unsubscribeDiscovery then unsubscribeDiscovery();unsubscribeDiscovery=nil end
+    probeGeneration=probeGeneration+1
     root:UnregisterAllEvents();root:SetScript("OnUpdate",nil)
     preview=false;activeID,acceptedAt,countdownUntil,shownResult=nil,nil,nil,nil
     snap,damageSession,rankView,rankSeason=nil,nil,nil,nil;rankDirty=true
@@ -375,7 +428,7 @@ function H.InvalidateRank()
     if root:IsShown() and not preview then Paint() end
 end
 function H.GetDiagnosticResources()
-    return {subscriptions=unsubscribe and 1 or 0,timers=root:GetScript("OnUpdate") and 1 or 0}
+    return {subscriptions=(unsubscribe and 1 or 0)+(unsubscribeDiscovery and 1 or 0),timers=root:GetScript("OnUpdate") and 1 or 0}
 end
 local PREVIEW_ENABLED=true
 function H.TogglePreview()

@@ -346,3 +346,7 @@ Solo simulation now accepts practice/unranked/pending win or loss, unknown, fled
 ### Duel mode control placement adjustment — 2026-11-24
 
 User explicitly requested removal of the Practice duels toggle from Options because it is an immediate gameplay choice rather than a general preference. The existing Settings owner, saved preference, /duels mode ranked|practice commands and frozen mode agreement remain unchanged. Future Duel HUD will expose the same preference through its gameplay controls; no HUD implementation in this update. Polestar UI/Movers.lua separation of core preference and independent interface controls reviewed first. No ranking, storage, transport or activation changes; no new tests executed manually.
+
+
+### Final entry-point policy — 2026-11-24
+User explicitly superseded automatic ranking of native /duel: only outgoing Duel HUD Challenge Ranked can originate a ranked candidate. Native outgoing challenges force P (Unranked). Incoming challenges can only rank with a matching R from an eligible widget initiator and a locally allowed ranked preference. Countdown freezes intent; no upgrade after it. D1 rank advertisements guide the UI but A1 matching build/season and mode agreement remains mandatory, as does R1 complementary result evidence. Legacy internal practice keys/records retained; visible categories Ranked/Unranked/Rating capped/Pending/Disputed/Unconfirmed. No rating math or gate changes. See DUEL_HUD.md.

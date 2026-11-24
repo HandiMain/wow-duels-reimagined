@@ -550,11 +550,14 @@ function Settings.Set(key, value)
         if ns.DuelHUD then ns.DuelHUD.Refresh() end
         if ns.Options and ns.Options.Refresh then ns.Options.Refresh() end
     elseif key == "practiceDuels" then
+        if ns.OpponentDiscovery and ns.OpponentDiscovery.PublishOffer then ns.OpponentDiscovery.PublishOffer() end
         if ns.DuelHUD then ns.DuelHUD.Refresh() end
         -- The live lifecycle captures the choice on the next challenge.
         if ns.Options and ns.Options.Refresh then ns.Options.Refresh() end
     elseif key == "competitiveConsent" then
         if ns.CompetitiveLifecycle then ns.CompetitiveLifecycle.PreferenceChanged() end
+        if ns.OpponentDiscovery and ns.OpponentDiscovery.PublishOffer then ns.OpponentDiscovery.PublishOffer() end
+        if ns.DuelHUD then ns.DuelHUD.Refresh() end
         if ns.Options and ns.Options.Refresh then ns.Options.Refresh() end
     elseif key == "showTooltips" then
         if not value and ns.Tooltips then ns.Tooltips.Hide(nil, true) end

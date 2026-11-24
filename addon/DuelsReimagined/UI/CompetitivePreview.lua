@@ -83,6 +83,7 @@ local function Build(client,events)
         local category=row.category
         if category=="matched" and r then category=r.weight>0 and "Ranked" or "Rating capped"
         elseif category=="matched" then category="Unconfirmed"
+        elseif category=="practice" then category="Unranked"
         else category=category:sub(1,1):upper()..category:sub(2) end
         local before,after,delta
         if r and row.category=="matched" then
@@ -135,7 +136,7 @@ function P.Local()
             local row=snapshot.history[i]
             local identity=row.name and {name=row.name,fullName=row.fullName or row.name,
                 realm=row.realm,class=row.class,faction=row.faction} or nil
-            local category,confirmed,before,after,delta=row.duelMode=="practice" and "Practice" or "Unranked",false
+            local category,confirmed,before,after,delta="Unranked",false
             if row.matchID then
                 local record=matched[row.matchID]
                 local own=record and me and (record.player1==me.guid and record.statement1 or
@@ -175,7 +176,7 @@ local function Refresh()
 end
 function P.Command(command)
     if not TEST_ENABLED then return false,"Solo simulation is unavailable in this build." end
-    if command=="help" then return true,"/duels sim start | [practice/unranked/pending] win/loss [1-20] | unknown/fled/retreat [1-20] | reset | stop | status" end
+    if command=="help" then return true,"/duels sim start | [unranked/pending] win/loss [1-20] | unknown/fled/retreat [1-20] | reset | stop | status" end
     if command=="stop" then
         session,cached=nil,nil;Refresh();return true,"Simulation discarded. Real data view restored."
     end

@@ -16,7 +16,14 @@ local intent
 local function PreferredMode()
     return ns.Settings and ns.Settings.Get("practiceDuels")==true and "P" or "R"
 end
-function P.GetPreferredMode() return PreferredMode()=="P" and "Practice" or "Ranked" end
+function P.GetPreferredMode() return PreferredMode()=="P" and "Unranked" or "Ranked" end
+-- Native outgoing invitations never qualify, even with Ranked selected.
+-- Incoming invitations still require the initiator's R offer and both results.
+local function ChallengeMode(c,preferred)
+    if preferred~="R" then return "P" end
+    if c.direction=="outgoing" then return c.rankedWidget==true and "R" or "P" end
+    return c.direction=="incoming" and "R" or "P"
+end
 function P.IsResultPending(matchID)
     return type(matchID)=="string" and match~=nil and match.phase=="settling"
         and match.matchID==matchID and status=="pending"
@@ -72,7 +79,8 @@ function P.GetSnapshot()
         localRecording=initialized and Store.LocalRecordingEnabled(),
         peerEnabled=P.CanCommunicate(),peerState=match and match.phase,
         syncState=catchup and catchup.GetStatus().state,completeness="unknown",
-        preferredMode=P.GetPreferredMode(),duelMode=intent and intent.mode=="P" and "Practice" or intent and "Ranked" or nil,
+        preferredMode=P.GetPreferredMode(),duelMode=intent and ((intent.mode=="P" or intent.practice) and "Unranked" or
+            (intent.reason=="candidate" and "Ranked candidate" or "Awaiting agreement")) or nil,
         duelReason=intent and intent.reason}
 end
 function P.GetDiagnosticResources()
@@ -151,6 +159,45 @@ local function Capacity()
     local c=Store.ReadLocalCapacity()
     return c and c.history.state~="full" and c.ledger.state~="full"
 end
+local function LocalRankReady()
+    if not P.CanCommunicate() then return false,"Ranked testing disabled" end
+    if InCombat() or not Available() then return false,"Communication unavailable" end
+    if match and match.phase=="settling" then return false,"Previous result pending" end
+    if not Capacity() then return false,"Competitive storage unavailable" end
+    local epoch=Store.PeerEpoch()
+    local stamp=EpochNow()
+    local fp=ns.CompetitiveManifest and ns.CompetitiveManifest.fingerprint
+    if not epoch or not stamp or stamp<epoch or type(fp)~="string" or #fp~=64 then
+        return false,"Competitive season unavailable"
+    end
+    return true,nil,epoch,fp
+end
+function P.GetRankOffer()
+    local ok,_,epoch,fp=LocalRankReady()
+    if not ok then return nil end
+    return (PreferredMode()=="R" and "R" or "U").."|"..epoch.."|"..fp
+end
+function P.RankedAvailability(guid)
+    if not Guid(guid) then return false,"Select a player",false end
+    local me=ns.Group.ReadPlayerIdentity("player")
+    if not me or me.guid==guid then return false,"Select another player",false end
+    local ok,why,epoch,fp=LocalRankReady()
+    if not ok then return false,why,false end
+    return P.EvaluateRankOffer(ns.OpponentDiscovery.GetSnapshot(),guid,epoch,fp)
+end
+-- Pure UI eligibility projection. A compatible U response permits changing
+-- preference, but never a ranked launch. This prevents two U players deadlocking.
+function P.EvaluateRankOffer(d,guid,epoch,fp)
+    if not d or not d.opponent or d.opponent.guid~=guid or d.state=="checking" then
+        return false,"Checking opponent",false
+    end
+    if d.state~="compatible" then
+        return false,d.state=="incompatible" and "Incompatible addon" or "Addon not confirmed",false
+    end
+    if d.rankOffer=="U|"..epoch.."|"..fp then return false,"Opponent prefers Unranked",true end
+    if d.rankOffer~="R|"..epoch.."|"..fp then return false,"Ranked compatibility not confirmed",false end
+    return true,"Ranked available",true
+end
 local function StartChallenge(s)
     local c=s.challenge
     if not c or not c.opponent or not Guid(c.opponent.guid) then return end
@@ -197,7 +244,8 @@ local function Freeze(s)
     if not x or x.phase~="challenge" or not s.active or x.cycle then return end
     local a=s.active
     x.cycle=a.id
-    if not x.agreement or not a.opponent or a.opponent.guid~=x.peer.guid then
+    if (x.direction=="outgoing" and not a.rankedWidget and x.mode=="R")
+        or not x.agreement or not a.opponent or a.opponent.guid~=x.peer.guid then
         match=nil;status="unranked";return
     end
     -- The incoming peer must have observed an ordinary challenge. No
@@ -208,7 +256,10 @@ local function Freeze(s)
         if intent then intent.practice=true;intent.reason="practice_agreed" end
         match=nil;status="practice";return
     end
-    if not candidate.candidate then match=nil;status="unranked";return end
+    if not candidate.candidate then
+        if intent then intent.reason="not_agreed" end
+        match=nil;status="unranked";return
+    end
     x.candidate=candidate
     x.collector=ns.ResultConfirmation.NewPeer(ns.Client.Kind(),candidate.session,x.me,x.peer.guid)
     x.phase="accepted";status="candidate"
@@ -247,7 +298,8 @@ local function FinalizeObservation(r)
     local earlier=x and x.phase=="settling" and x.cycle~=r.id
     local candidate=x and x.cycle==r.id and x.candidate or nil
     if choice and choice.cycle==r.id and (choice.mode=="P" or choice.practice) then
-        r.duelMode="practice";r.rankReason=choice.practice and "practice_agreed" or "practice_selected"
+        r.duelMode="practice";r.rankReason=choice.reason=="native_unranked" and "native_unranked"
+            or choice.practice and "practice_agreed" or choice.reason=="practice_selected" and "practice_selected" or "not_agreed"
         candidate=nil
     elseif not candidate then
         r.rankReason=choice and choice.cycle==r.id and choice.reason~="candidate" and choice.reason or "not_agreed"
@@ -386,15 +438,20 @@ function P.Initialize()
         if s.state=="challenge" and s.challenge then
             local c=s.challenge
             if not intent or intent.time~=c.time or intent.direction~=c.direction
-                or intent.key~=(c.opponent and c.opponent.key) then
-                intent={time=c.time,direction=c.direction,key=c.opponent and c.opponent.key,
-                    mode=PreferredMode(),reason="not_agreed"}
+                or intent.key~=(c.opponent and c.opponent.key) or intent.widget~=c.rankedWidget or intent.widgetChallenge~=c.widgetChallenge then
+                intent={time=c.time,direction=c.direction,key=c.opponent and c.opponent.key,widget=c.rankedWidget,widgetChallenge=c.widgetChallenge,
+                    mode=ChallengeMode(c,PreferredMode()),reason="not_agreed"}
+                if c.direction=="outgoing" and not c.widgetChallenge then
+                    intent.reason="native_unranked"
+                elseif c.direction=="outgoing" and not c.rankedWidget or PreferredMode()=="P" then
+                    intent.reason="practice_selected"
+                end
             end
             -- A new challenge must not silently replace an earlier settling
             -- match. Keep its bounded confirmation; the new duel is local.
             if P.CanCommunicate() and not (match and match.phase=="settling") then StartChallenge(s) end
         elseif s.state=="accepted" and s.active then
-            if not intent then intent={mode=PreferredMode(),reason="not_agreed"} end
+            if not intent then intent={mode="P",reason="not_agreed"} end
             if not intent.cycle then intent.cycle=s.active.id end
             if P.CanCommunicate() then Freeze(s) end
         elseif s.state=="idle" then
@@ -603,6 +660,24 @@ function P.RunSelfTest(emit)
             assert(f.settle(true)=="unconfirmed" and f.stats(1).categories.pending.total==1 and not f.archive(1))
         end)
     end
+    Case("only explicit widget outgoing intent can rank",function()
+        assert(ChallengeMode({direction="outgoing"},"R")=="P")
+        assert(ChallengeMode({direction="outgoing",rankedWidget=true},"R")=="R")
+        assert(ChallengeMode({direction="outgoing",rankedWidget=true},"P")=="P")
+        assert(ChallengeMode({direction="incoming"},"R")=="R")
+        assert(ChallengeMode({direction="incoming"},"P")=="P")
+        assert(ChallengeMode({direction="unknown"},"R")=="P")
+    end)
+    Case("rank eligibility is exact-target and mutual preference",function()
+        local guid="Player-2-BBB";local fp=string.rep("a",64)
+        local d={state="compatible",opponent={guid=guid},rankOffer="R|1000|"..fp}
+        local ok,_,selectable=P.EvaluateRankOffer(d,guid,1000,fp);assert(ok and selectable)
+        d.rankOffer="U|1000|"..fp;ok,_,selectable=P.EvaluateRankOffer(d,guid,1000,fp)
+        assert(not ok and selectable)
+        d.rankOffer="R|1001|"..fp;ok,_,selectable=P.EvaluateRankOffer(d,guid,1000,fp);assert(not ok and not selectable)
+        d.rankOffer="R|1000|"..fp;assert(not P.EvaluateRankOffer(d,"Player-3-CCC",1000,fp))
+        d.state="unknown";assert(not P.EvaluateRankOffer(d,guid,1000,fp))
+    end)
     Case("integration remains simulation only",function()
         local s=P.GetSnapshot();assert(s.scope=="LOCAL" and s.state=="disabled" and not s.rankEligible)
     end)

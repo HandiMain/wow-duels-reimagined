@@ -261,13 +261,13 @@ end)
 Check("Opponent discovery / isolated protocol QA","deep",function()
     local log={}
     local p,f=ns.OpponentDiscovery.RunSelfTest(function(line) log[#log+1]=line end)
-    return f==0 and p==13 and "PASS" or "FAIL",
+    return f==0 and p==15 and "PASS" or "FAIL",
         string.format("%d passed / %d failed (SIMULATED)\n",p,f)..table.concat(log,"\n")
 end)
 Check("Peer agreement / isolated protocol QA","deep",function()
     local log={}
     local p,f=ns.PeerAgreement.RunSelfTest(function(line) log[#log+1]=line end)
-    return f==0 and p==21 and "PASS" or "FAIL",
+    return f==0 and p==25 and "PASS" or "FAIL",
         string.format("%d passed / %d failed (SIMULATED)\n",p,f)..table.concat(log,"\n")
 end)
 Check("Result confirmation / isolated record QA","deep",function()
@@ -285,7 +285,7 @@ end)
 Check("Personal history / isolated statistics QA","deep",function()
     local log={}
     local p,f=ns.PersonalHistory.RunSelfTest(function(line) log[#log+1]=line end)
-    return f==0 and p==25 and "PASS" or "FAIL",
+    return f==0 and p==27 and "PASS" or "FAIL",
         string.format("%d passed / %d failed (SIMULATED)\n",p,f)..table.concat(log,"\n")
 end)
 Check("Competitive storage / isolated lifecycle QA","deep",function()
@@ -351,7 +351,7 @@ end)
 Check("Competitive lifecycle / integrated simulation QA","deep",function()
     local log={}
     local p,f=ns.CompetitiveLifecycle.RunSelfTest(function(line) log[#log+1]=line end)
-    return f==0 and p==13 and "PASS" or "FAIL",
+    return f==0 and p==15 and "PASS" or "FAIL",
         string.format("%d passed / %d failed (SIMULATED)\n",p,f)..table.concat(log,"\n")
 end)
 Check("Sync protocol / isolated seasonal compatibility QA","deep",function()

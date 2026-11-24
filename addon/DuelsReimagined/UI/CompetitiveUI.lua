@@ -856,7 +856,7 @@ local historyIcon=ns.Chrome.Icon(historyStats,"Hall")
 local historyMetrics=Metrics(historyStats,{"Total duels","Wins","Losses","Win rate"})
 local historySearch=Search(history,"Search opponent or realm...",function(v)historyQuery=v;history.Render(true)end)
 local function Values(list)local out={};for _,v in ipairs(list)do out[#out+1]={key=v,label=v}end;return out end
-local typeChoice=Choice(history,Values({"All duels","Ranked","Unranked","Practice","Rating capped","Pending","Disputed","Unconfirmed"}),"All duels",function(v)historyType=v;expandedId=nil;history.Render(true)end)
+local typeChoice=Choice(history,Values({"All duels","Ranked","Unranked","Rating capped","Pending","Disputed","Unconfirmed"}),"All duels",function(v)historyType=v;expandedId=nil;history.Render(true)end)
 local outcomeChoice=Choice(history,Values({"All outcomes","Win","Loss","Fled","Opponent fled","Unknown"}),"All outcomes",function(v)historyOutcome=v;expandedId=nil;history.Render(true)end)
 local historyHeader=Panel(history)
 local historyHeaders={}
@@ -875,8 +875,9 @@ local detailMetrics=Metrics(detail,{"Duel","Rating","Elapsed","Result"})
 local detailReason=Text(detail,11,C.muted,"CENTER")
 local function MatchExplanation(item)
     local explanations={
-        practice_selected="Practice selected before the duel. No rating or placement credit.",
-        practice_agreed="Practice agreed before the countdown. No rating or placement credit.",
+        practice_selected="Unranked duel. No rating or placement credit.",
+        practice_agreed="Unranked agreed before countdown. No rating or placement credit.",
+        native_unranked="Native duel invitation. Ranked challenges start in the Duel HUD.",
         not_agreed="No compatible ranked agreement before countdown.",
         capacity="Competitive storage limit reached. No rating change.",
         storage_unavailable="Competitive data unavailable. No rating change.",
@@ -892,7 +893,6 @@ local function MatchExplanation(item)
     if item.category=="Pending" then return "Awaiting the other player's matching result." end
     if item.category=="Disputed" then return "Conflicting evidence. No confirmed rating change." end
     if item.category=="Unconfirmed" then return "Matching competitive result not established." end
-    if item.category=="Practice" then return explanations[item.rankReason] or "Practice duel; no competitive rating change." end
     if item.category=="Unranked" then
         if item.outcome=="fled" or item.outcome=="they_fled" then return explanations.retreat end
         return explanations[item.rankReason] or "No confirmed ranked agreement."

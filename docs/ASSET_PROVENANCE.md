@@ -46,3 +46,6 @@ These are visual interpretations, **not game screenshots, exact arena geometry, 
 
 ### Duel HUD artwork (2026-11-24)
 Media/Skin/DuelHUDArt.png — 512x512 RGBA atlas extracted from the user's selected in-game concept (631405e1-c2b6-419e-91a4-254006456208.webp). Crop/cleaned copper rim, crest, buttons, swords, timer, stat inset and controls; dynamic content removed. Original generated concept art, not Blizzard source extraction or third-party asset reuse. Blob 42af346a7870cf1c90c10e95f59b5a0dc2a980c2. No in-game background or fictional values used as live data.
+
+
+DuelHUDArt.png refined (blob c9a462c1fb549e757844b6dce1f27b3ffb60923d): clean antialiased timer plaque and source gold ornament isolated from rough background; new circular bronze/red portrait bezels. DuelHUDPortraitMask.png (64x64 RGBA, blob b9aed331f31e17c374535ab66a1a276c55741820) is original geometric alpha mask. Dynamic portrait and all text remain native. No third-party art or screenshot data used as live values.

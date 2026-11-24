@@ -24,7 +24,7 @@ end
 -- Protocol bodies deliberately contain delimiters; identity fields do not.
 local function Packet(v)
     v=Plain(v)
-    if type(v)=="string" and #v>0 and #v<=160 and not v:find("%c") then return v end
+    if type(v)=="string" and #v>0 and #v<=237 and not v:find("%c") then return v end
 end
 local function Guid(v)
     v=Text(v)
@@ -47,9 +47,24 @@ local function Build(api)
     local D={}
     local state={state="idle",reason="no_probe",revision=0,scope=api.scope,rankEligible=false}
     local pending,lastProbe,lastReply,seq=nil,-math.huge,-math.huge,0
-    local function Change(status,why,who,rev,untilTime)
+    local listeners={}
+    local confirmed,requester
+    function D.Subscribe(fn)
+        if type(fn)~="function" then return function()end end
+        listeners[fn]=true;return function()listeners[fn]=nil end
+    end
+    local Expire
+    local function Change(status,why,who,rev,untilTime,offer)
         state={state=status,reason=why,revision=state.revision+1,scope=api.scope,
-            rankEligible=false,opponent=who,protocol=rev,expiresAt=untilTime}
+            rankEligible=false,opponent=who,protocol=rev,expiresAt=untilTime,rankOffer=offer}
+        for fn in pairs(listeners) do pcall(fn) end
+        if untilTime and status~="checking" then
+            local revision=state.revision
+            local now=api.now()
+            api.after(type(now)=="number" and math.max(0,untilTime-now) or TTL,function()
+                if state.revision==revision then local t=api.now();if type(t)=="number" then Expire(t) end end
+            end)
+        end
     end
     local function Clock()
         local v=api.now()
@@ -67,13 +82,13 @@ local function Build(api)
         local name=Name(route,api.kind,home)
         if guid and name then return {guid=guid,route=route,key=name} end
     end
-    local function Expire(now)
+    Expire=function(now)
         if pending and now>=pending.deadline then
             local who=pending.peer
             pending=nil
             Change("unknown","no_reply",who)
         elseif state.expiresAt and now>=state.expiresAt then
-            Change("unknown","confirmation_expired",state.opponent)
+            confirmed=nil;Change("unknown","confirmation_expired",state.opponent)
         end
     end
     function D.GetSnapshot()
@@ -89,12 +104,15 @@ local function Build(api)
         end
         return out
     end
-    function D.GetDiagnosticResources() return {pending=pending and 1 or 0} end
+    function D.GetDiagnosticResources()
+        local n=0;for _ in pairs(listeners) do n=n+1 end
+        return {pending=pending and 1 or 0,subscriptions=n}
+    end
     function D.Reset()
-        pending=nil
+        pending,confirmed,requester=nil,nil,nil
         Change("idle","reset")
     end
-    function D.Probe(unit,expectedGuid)
+    function D.Probe(unit,expectedGuid,force)
         local now=Clock()
         if not now then return false,"clock_unavailable" end
         Expire(now)
@@ -102,7 +120,7 @@ local function Build(api)
         if not me or not peer or me.guid==peer.guid or me.key==peer.key or
             (expectedGuid and peer.guid~=expectedGuid) then return false,"identity_unavailable" end
         if pending or now-lastProbe<GAP then return false,"cooldown" end
-        if state.state=="compatible" and state.opponent and state.opponent.guid==peer.guid
+        if not force and state.state=="compatible" and state.opponent and state.opponent.guid==peer.guid
             and state.expiresAt and now<state.expiresAt then return true,"recent_reply" end
         local available,why=api.available()
         if not available then Change("unknown",why or "restricted",peer);return false,why end
@@ -110,6 +128,7 @@ local function Build(api)
         local nonce=api.noncePrefix.."-"..seq
         local msg=table.concat({"H",nonce,api.kind,PROTOCOL,me.guid,peer.guid},"|")
         lastProbe=now -- refused attempts also throttle
+        confirmed=nil
         pending={peer=peer,nonce=nonce,deadline=now+WAIT,me=me.guid}
         Change("checking","request_sent",peer,nil,now+WAIT)
         local sent,reason=api.send(msg,peer.route)
@@ -120,10 +139,46 @@ local function Build(api)
         end) end
         return true
     end
+    local function Offer()
+        if type(api.rankOffer)~="function" then return nil end
+        local ok,v=pcall(api.rankOffer)
+        if ok and type(v)=="string" then return v end
+    end
+    local function Advertise(q,now)
+        local offer=Offer()
+        if q.advertised==offer and q.sent then return true end
+        local reply=q.reply
+        if offer and #reply+#offer+1<=237 then reply=reply.."|"..offer end
+        lastReply=now
+        if api.send(reply,q.route) then q.advertised=offer;q.sent=true;return true end
+    end
+    function D.PublishOffer()
+        local q,now=requester,Clock()
+        if not q or not now or now>=q.expires or not api.available() then return end
+        if now-lastReply<GAP then
+            if not q.queued then
+                q.queued=true
+                api.after(GAP-(now-lastReply),function()
+                    q.queued=false
+                    if requester==q then D.PublishOffer() end
+                end)
+            end
+            return
+        end
+        Advertise(q,now)
+    end
     function D.Receive(body,sender)
         body,sender=Packet(body),Text(sender)
         if not body or not sender then return end
         local kind,nonce,client,rev,from,to=body:match("^([HA])|([%w%-]+)|(%a+)|(%d+)|([^|]+)|([^|]+)$")
+        local offer
+        if not kind then
+            kind,nonce,client,rev,from,to,offer=body:match("^(A)|([%w%-]+)|(%a+)|(%d+)|([^|]+)|([^|]+)|([RU]|%d+|[0-9a-f]+)$")
+            if offer then
+                local mode,epoch,fp=offer:match("^([RU])|(%d+)|([0-9a-f]+)$")
+                if not mode or #fp~=64 or #epoch>10 then return end
+            end
+        end
         if not kind or #nonce>40 or #rev>3 or not Guid(from) or not Guid(to) or
             (client~="forever" and client~="retail") then return end
         local now,me=Clock(),Identity("player")
@@ -137,15 +192,28 @@ local function Build(api)
             -- chat text, no reply loops, globally bounded response rate.
             if now-lastReply<GAP then return end
             lastReply=now
-            api.send(table.concat({"A",nonce,api.kind,PROTOCOL,me.guid,from},"|"),sender)
+            local q={reply=table.concat({"A",nonce,api.kind,PROTOCOL,me.guid,from},"|"),
+                route=sender,expires=now+TTL}
+            if Advertise(q,now) then requester=q end
             return
         end
         local q=pending
-        if not q or q.nonce~=nonce or q.peer.guid~=from or q.me~=to or q.peer.key~=key then return end
+        if not q then
+            -- A changed preference may refresh only the exact previously
+            -- verified request, within its original lifetime. No unsolicited
+            -- discovery or lifetime extension; final agreement is authoritative.
+            q=confirmed
+            if not q or now>=q.expires or q.nonce~=nonce or q.peer.guid~=from or
+                q.me~=to or q.peer.key~=key or client~=api.kind or rev~=PROTOCOL then return end
+            if state.rankOffer~=offer then Change("compatible","preference_updated",q.peer,rev,q.expires,offer) end
+            return
+        end
+        if q.nonce~=nonce or q.peer.guid~=from or q.me~=to or q.peer.key~=key then return end
         pending=nil
         local compatible=client==api.kind and rev==PROTOCOL
+        q.expires=now+TTL;confirmed=compatible and q or nil
         Change(compatible and "compatible" or "incompatible",
-            compatible and "matching_reply" or "protocol_or_client_mismatch",q.peer,rev,now+TTL)
+            compatible and "matching_reply" or "protocol_or_client_mismatch",q.peer,rev,q.expires,compatible and offer or nil)
     end
     return D
 end
@@ -167,12 +235,18 @@ local live=Build({
     home=Home,noncePrefix=NoncePrefix(),
     identity=ns.Group.ReadPlayerIdentity,
     available=ns.Communication.IsAvailable,
+    rankOffer=function()
+        local lifecycle=ns.CompetitiveLifecycle
+        return lifecycle and lifecycle.GetRankOffer and lifecycle.GetRankOffer()
+    end,
     send=function(body,target) return ns.Communication.Send("D1",body,"WHISPER",target) end,
     after=function(delay,fn) if C_Timer and C_Timer.After then C_Timer.After(delay,fn) end end,
 })
 P.GetSnapshot=live.GetSnapshot
 P.GetDiagnosticResources=live.GetDiagnosticResources
-function P.ProbeTarget() return live.Probe("target") end
+P.Subscribe=live.Subscribe
+P.PublishOffer=live.PublishOffer
+function P.ProbeTarget(force) return live.Probe("target",nil,force==true) end
 ns.Communication.Subscribe("D1",function(body,channel,sender)
     if channel=="WHISPER" then live.Receive(body,sender) end
 end)
@@ -206,6 +280,7 @@ function P.RunSelfTest(emit)
     local function Check(v,why) assert(v,why) end
     local function Fixture(kind)
         local time,packets,ready=100,{},true
+        local offer
         local sep=kind=="forever" and " " or "-"
         local a={fullName="Alpha"..sep.."Home",guid="Player-1-AAA"}
         local b={fullName="Beta"..sep.."Other",guid="Player-2-BBB"}
@@ -214,11 +289,13 @@ function P.RunSelfTest(emit)
                 home=function()return "Home" end,noncePrefix=tag,
                 identity=function(unit)return unit=="player" and me or unit=="target" and other end,
                 available=function()return ready, "restricted" end,
+                rankOffer=function()return offer end,
                 send=function(body,target) packets[#packets+1]={body=body,target=target,sender=me.fullName};return true end,
                 after=function()end})
         end
         return {a=Make(a,b,"100-1"),b=Make(b,a,"100-2"),packets=packets,
-            advance=function(n)time=time+n end,lock=function()ready=false end}
+            advance=function(n)time=time+n end,lock=function()ready=false end,
+            setOffer=function(v)offer=v end}
     end
     for _,kind in ipairs({"forever","retail"}) do
         Case(kind.." matching two-peer reply",function()
@@ -235,6 +312,21 @@ function P.RunSelfTest(emit)
             Check(f.a.GetSnapshot().revision==rev,"duplicate reply")
             f.advance(61)
             Check(f.a.GetSnapshot().state=="unknown","expired confirmation")
+        end)
+        Case(kind.." rank preference update bound to verified request",function()
+            local f=Fixture(kind);local fp=string.rep("a",64)
+            f.setOffer("R|1000|"..fp);assert(f.a.Probe("target"))
+            local h=f.packets[1];f.b.Receive(h.body,h.sender)
+            local a=f.packets[2];f.a.Receive(a.body,a.sender)
+            local expiry=f.a.GetSnapshot().expiresAt
+            assert(f.a.GetSnapshot().rankOffer=="R|1000|"..fp)
+            f.advance(4);f.setOffer("U|1000|"..fp);f.b.PublishOffer()
+            local update=assert(f.packets[3]);f.a.Receive(update.body,"Stranger-Else")
+            assert(f.a.GetSnapshot().rankOffer=="R|1000|"..fp)
+            f.a.Receive(update.body,update.sender)
+            assert(f.a.GetSnapshot().rankOffer=="U|1000|"..fp and f.a.GetSnapshot().expiresAt==expiry)
+            f.advance(61);f.a.Receive(update.body,update.sender)
+            assert(f.a.GetSnapshot().state=="unknown")
         end)
         Case(kind.." no reply / late reply",function()
             local f=Fixture(kind);f.a.Probe("target")

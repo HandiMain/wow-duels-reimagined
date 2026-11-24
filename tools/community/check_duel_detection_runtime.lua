@@ -2,7 +2,7 @@
 local function Check(ok,why) if not ok then error(why,2) end end
 local path="addon/DuelsReimagined/Core/"
 local HIDDEN={}
-local function Setup(interface,missing,formats)
+local function Setup(interface,missing,formats,widgetTest)
     local t, timers, frames, hooks=0,{},{},{}
     local people={
         player={name="Alpha",second=interface==16001 and "Ash" or "Home",guid="Player-1"},
@@ -37,9 +37,14 @@ local function Setup(interface,missing,formats)
         return f
     end
     _G.C_Timer={After=function(delay,fn) timers[#timers+1]={at=t+delay,fn=fn} end}
-    _G.StartDuel=function() error("detector must never invoke StartDuel") end
+    local launches=0
+    _G.StartDuel=function(unit)
+        if not widgetTest then error("detector must never invoke StartDuel without a click") end
+        launches=launches+1
+        if hooks.StartDuel then hooks.StartDuel(unit) end
+    end
     _G.hooksecurefunc=function(name,fn) hooks[name]=fn end
-    local ns={}
+    local ns={CompetitiveLifecycle={RankedAvailability=function()return widgetTest==true end}}
     for _,file in ipairs({"Client.lua","Group.lua","DuelDetection.lua"}) do
         assert(loadfile(path..file))("DuelsReimagined",ns)
     end
@@ -63,7 +68,7 @@ local function Setup(interface,missing,formats)
         t=target
     end
     return {D=ns.DuelDetection,G=ns.Group,fire=Fire,advance=Advance,
-        hooks=hooks,people=people,driver=f}
+        hooks=hooks,people=people,driver=f,launches=function()return launches end}
 end
 local function Snap(x) return x.D.GetSnapshot() end
 local function Msg(x,text) x.fire("CHAT_MSG_SYSTEM",text) end
@@ -273,3 +278,22 @@ for _,interface in ipairs({16001,120105}) do
     Check(again==passed and bad==0,"repeat suite did not isolate state")
 end
 print("Duel detection simulated lifecycle contracts: PASS")
+
+-- Explicit launch uses a synchronous one-use origin; native events never inherit it.
+for _,interface in ipairs({120105,16001}) do
+    local x=Setup(interface,nil,nil,true)
+    _G.InCombatLockdown=function()return false end
+    Check(not x.D.LaunchWidgetChallenge(true,"Wrong GUID") and x.launches()==0,"changed target must not launch")
+    Check(x.D.LaunchWidgetChallenge(true,"Player-2") and x.launches()==1,"explicit widget launch")
+    Check(Snap(x).challenge.rankedWidget==true,"widget origin observed")
+    x.hooks.StartDuel("target")
+    Check(not Snap(x).challenge.rankedWidget,"native duplicate invalidates ranked origin")
+    Msg(x,"Duel starting: 3")
+    Check(not Snap(x).active.rankedWidget,"native countdown cannot inherit rank")
+    x=Setup(interface,nil,nil,true)
+    x.hooks.StartDuel("target")
+    Check(not Snap(x).challenge.rankedWidget and x.launches()==0,"ordinary native command unranked")
+    x=Setup(interface,nil,nil,true)
+    Check(x.D.LaunchWidgetChallenge(false,"Player-2") and not Snap(x).challenge.rankedWidget,"widget unranked remains unranked")
+end
+print("Widget origin and native challenge isolation: PASS")

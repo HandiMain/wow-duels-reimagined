@@ -19,14 +19,14 @@ CreateFrame=function()return {RegisterEvent=function()end,SetScript=function()en
 assert(loadfile("addon/DuelsReimagined/Core/OpponentDiscovery.lua"))("DuelsReimagined",ns)
 local P=ns.OpponentDiscovery
 local passed,failed=P.RunSelfTest(function(line)if line:find("FAIL",1,true) then print(line) end end)
-assert(passed==13 and failed==0 and sent==0,"isolated discovery suite")
+assert(passed==15 and failed==0 and sent==0,"isolated discovery suite")
 duel({scope="SIMULATED",state="challenge",challenge={opponent={guid="Player-2-BBB"}}})
 duel({scope="LOCAL",state="challenge",challenge={opponent={guid="Player-3-CCC"}}})
 assert(sent==0,"simulation or unrelated target sent a live probe")
 duel({scope="LOCAL",state="challenge",challenge={opponent={guid="Player-2-BBB"}}})
 assert(sent==1 and P.GetSnapshot().state=="checking" and not P.GetSnapshot().rankEligible,"live challenge probe")
 passed,failed=P.RunSelfTest()
-assert(passed==13 and failed==0 and sent==1 and P.GetSnapshot().state=="checking","QA did not change pending live probe")
+assert(passed==15 and failed==0 and sent==1 and P.GetSnapshot().state=="checking","QA did not change pending live probe")
 print("Opponent discovery simulated protocol and live wiring mock: PASS")
 
 -- Agreement has no live adapter. Guard the existing transport and detector.
@@ -34,7 +34,7 @@ local previous=sent
 assert(loadfile("addon/DuelsReimagined/Core/PeerAgreement.lua"))("DuelsReimagined",ns)
 local A=ns.PeerAgreement
 local ap,af=A.RunSelfTest(function(line)if line:find("FAIL",1,true) then print(line) end end)
-assert(ap==21 and af==0 and sent==previous and P.GetSnapshot().state=="checking","isolated agreement suite")
+assert(ap==25 and af==0 and sent==previous and P.GetSnapshot().state=="checking","isolated agreement suite")
 assert(A.GetSnapshot().state=="disabled" and not A.GetSnapshot().rankEligible,"live agreement gate")
 print("Peer agreement isolated protocol: PASS")
 
@@ -59,7 +59,7 @@ print("Match ledger isolated storage: PASS")
 assert(loadfile("addon/DuelsReimagined/Core/PersonalHistory.lua"))("DuelsReimagined",ns)
 local H=ns.PersonalHistory
 local hp,hf=H.RunSelfTest(function(line)if line:find("FAIL",1,true) then print(line) end end)
-assert(hp==25 and hf==0 and sent==previous and P.GetSnapshot().state=="checking","isolated personal history suite")
+assert(hp==27 and hf==0 and sent==previous and P.GetSnapshot().state=="checking","isolated personal history suite")
 assert(H.GetSnapshot().state=="disabled" and not H.GetSnapshot().rankEligible and _G.DuelsReimaginedDB==originalDB,"live history gate")
 print("Personal history isolated statistics: PASS")
 
@@ -168,7 +168,7 @@ assert(loadfile("addon/DuelsReimagined/Core/DuelDetection.lua"))("DuelsReimagine
 ns.DuelDetection.NewSandbox=sandboxNS.DuelDetection.NewSandbox
 assert(loadfile("addon/DuelsReimagined/Core/CompetitiveLifecycle.lua"))("DuelsReimagined",ns)
 local lp,lf=ns.CompetitiveLifecycle.RunSelfTest(function(line)if line:find("FAIL",1,true)then print(line)end end)
-assert(lp==13 and lf==0 and sent==previous and P.GetSnapshot().state=="checking","integrated competitive lifecycle")
+assert(lp==15 and lf==0 and sent==previous and P.GetSnapshot().state=="checking","integrated competitive lifecycle")
 assert(_G.DuelsReimaginedDB==originalDB and _G.DuelsReimaginedCompetitiveDB==oldAccount
     and _G.DuelsReimaginedCharacterDB==oldChar,"integration QA never writes live roots")
 print("Integrated competitive lifecycle: PASS")

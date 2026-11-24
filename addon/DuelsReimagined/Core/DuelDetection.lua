@@ -1,7 +1,7 @@
 local _, ns = ...
 
--- Single owner of LOCAL duel evidence. No UI, combat-log inference, protected
--- action, saved record, rating or peer communication. See docs/DUEL_DETECTION.md.
+-- Single owner of LOCAL duel evidence and scoped explicit widget launch.
+-- No automatic action, UI, combat-log inference, saved record, rating or peer communication.
 -- The same engine runs in independent instances. Only the live instance
 -- receives real WoW APIs; the sandbox has its own clock, events and identities.
 local function BuildDetector(ns, api)
@@ -17,6 +17,8 @@ local cycle, revision = 0, 0
 local state, reason = "unavailable", "initializing"
 local WAIT, EXPIRE, TRACE_LIMIT = 2, 90, 24
 local suppressDeath = false
+-- Scoped to one synchronous, explicitly clicked native launch. Never persisted.
+local widgetLaunch
 local function Plain(v)
     if type(issecretvalue)=="function" then
         local ok, secret=pcall(issecretvalue,v)
@@ -211,7 +213,7 @@ local function Await(d)
             (d.finishSeen and "result_not_observed" or "finish_not_observed"),false)
     end)
 end
-local function Challenge(name,direction,kind)
+local function Challenge(name,direction,kind,rankedWidget,widgetChallenge)
     if active then
         -- Another request during a confirmed countdown is not proof that
         -- our duel ended or switched to another player.
@@ -220,9 +222,13 @@ local function Challenge(name,direction,kind)
     if challenge and challenge.direction==direction and challenge.kind==kind and
         ((not name and not challenge.opponent) or
          (name and challenge.opponent and name.key==challenge.opponent.key)) then
+        -- A repeated native outgoing attempt must not inherit a widget token.
+        if direction=="outgoing" and challenge.widgetChallenge and not widgetChallenge then
+            challenge.rankedWidget=false;challenge.widgetChallenge=false;Publish("challenge","native_outgoing_attempt")
+        end
         return -- repeated delivery of the same request
     end
-    local c={opponent=Resolve(name),direction=direction,kind=kind,time=Now()}
+    local c={opponent=Resolve(name),direction=direction,kind=kind,time=Now(),rankedWidget=rankedWidget==true,widgetChallenge=widgetChallenge==true}
     challenge=c
     suppressDeath=kind=="death_duel"
     Publish("challenge",direction=="outgoing" and "outgoing_attempt" or "incoming_request")
@@ -254,6 +260,8 @@ local function StartCountdown(n)
     cycle=cycle+1
     active={id=cycle,kind=challenge and challenge.kind or "unclassified",
         direction=challenge and challenge.direction or "unknown",
+        rankedWidget=challenge and challenge.rankedWidget==true or false,
+        widgetChallenge=challenge and challenge.widgetChallenge==true or false,
         opponent=challenge and challenge.opponent,
         player=Identity("player"),acceptedAt=now,countdown=n}
     challenge=nil
@@ -389,7 +397,10 @@ if type(hooksecurefunc)=="function" and type(StartDuel)=="function" then
         unit=Text(unit)
         if unit=="player" then return end -- targeting cursor, not an invitation
         local id=unit and Identity(unit)
-        if id then Challenge(id,"outgoing","unclassified")
+        local widget=id and widgetLaunch and id.guid==widgetLaunch.guid
+        local ranked=widget and widgetLaunch.ranked==true
+        widgetLaunch=nil -- consume on the observed native call, even on mismatch
+        if id then Challenge(id,"outgoing","unclassified",ranked,widget)
         else
             -- Explicit names are supported only when a visible unit supplies
             -- matching full identity. Never silently substitute current target.
@@ -397,6 +408,27 @@ if type(hooksecurefunc)=="function" and type(StartDuel)=="function" then
             Challenge(named and named.guid and named or nil,"outgoing","unclassified")
         end
     end)
+end
+-- The explicit widget click is the only ranked outgoing origin. Native /duel
+-- and unit-menu actions are observed by the same hook without this token.
+function D.LaunchWidgetChallenge(ranked,expectedGuid)
+    if api.scope~="LOCAL" or state~="idle" or not capabilities.outgoing or
+        type(_G.StartDuel)~="function" or widgetLaunch then return false,"unavailable" end
+    local id=Identity("target")
+    if not id or not id.guid or id.guid~=expectedGuid then return false,"target_changed" end
+    if type(InCombatLockdown)=="function" then
+        local ok,v=pcall(InCombatLockdown)
+        if not ok or Plain(v)~=false then return false,"combat" end
+    end
+    if ranked and (not ns.CompetitiveLifecycle or not ns.CompetitiveLifecycle.RankedAvailability(expectedGuid)) then
+        return false,"ranked_unavailable"
+    end
+    widgetLaunch={guid=expectedGuid,ranked=ranked==true}
+    -- Call the currently hooked global, not the pre-hook local reference.
+    local ok,v=pcall(_G.StartDuel,"target")
+    widgetLaunch=nil
+    if not ok or Plain(v)==false then return false,"native_refused" end
+    return true
 end
 -- No automatic actions and no hooks to combat-state events. Actual finish
 -- evidence and the localized result line, not combat, decide the outcome.

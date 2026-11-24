@@ -1617,3 +1617,6 @@ Duel mode control placement decision (2026-11-24): no Practice duels toggle in O
 
 ## Duel HUD foundation — 2026-11-24
 User authorized the independent compact duel companion based on the selected in-game concepts, with default-on visibility, saved movable position, bounded scale, mode selection, rank presentation, health bars and native click actions. See DUEL_HUD.md for scope and blocked per-duel damage totals. No changes to rating math, peer agreement, actual detector, War Games or activation gates. The pre-existing isolated agreement CI failure on 6f4d411 remains open; do not call the branch stable or activate multiplayer until the regression is resolved and verified. HUD appearance is an initial shared-style implementation, not an exact extraction of concept artwork.
+
+
+Decision: Ranked challenges must start with the Duel HUD's Challenge Ranked button; ordinary native invitations are always Unranked. No native slash override. Display only Ranked/Unranked; older Practice records remain readable and appear as Unranked. Keep the December private multiplayer gate unchanged. See DUEL_HUD.md and H09-H12.

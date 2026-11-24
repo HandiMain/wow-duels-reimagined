@@ -32,7 +32,7 @@ for _,client in ipairs({"forever","retail"}) do
         {outcome="lost",mode="unranked",opponent=2},{outcome="unknown",opponent=3},
         {outcome="fled",opponent=4},{outcome="won",mode="pending",opponent=5}})
     assert(mixed.personal.total==5 and mixed.personal.wins==2 and mixed.personal.losses==2 and mixed.personal.unknown==1)
-    assert(mixed.matches[5].category=="Practice" and mixed.matches[5].delta==nil)
+    assert(mixed.matches[5].category=="Unranked" and mixed.matches[5].delta==nil)
     assert(mixed.matches[1].category=="Pending" and mixed.matches[1].delta==nil)
     assert(mixed.view.Leaderboard(1,0,100,"","rating").total==0)
 end
