@@ -94,3 +94,6 @@ Check(Settings.NeedsReload(), "Reset from saved false still needs reload")
 Settings.Set("showInCompartment", false)
 Check(not Settings.NeedsReload(), "Returning to original startup choice should clear reload")
 print("Search and SavedVariables runtime contracts: PASS")
+
+-- Run the isolated duel lifecycle harness after existing smoke checks.
+dofile("tools/community/check_duel_detection_runtime.lua")

@@ -1578,3 +1578,7 @@ User in-game screenshot confirmed the brown stripe was still visible after incre
 
 - First develop CI run #45159722332: all Lua syntax/runtime contract phases passed; the Python suite reported five outdated landing-brand assertions and one unused legacy image. This does **not** prove visual failure, and is not an automated PASS.
 - Updated those legacy landing assertions to the newly authorized `LandingWordmark.png` / `LandingCrest.png` / `LandingRule.png` references while protecting all unrelated main-window header and shared controls. Removed the now-orphaned legacy `Media/Skin/HeaderOption5TintAtlas.png` (it had no remaining runtime reference); the primary header uses `DuelExactBrand.png`, unchanged. CI must be rerun; no claim of in-game visual verification.
+
+## Duel detection foundation — November 24, 2026
+
+The user explicitly authorized building the core detection engine, before any rankings or statistics. See [DUEL_DETECTION.md](DUEL_DETECTION.md) for the approved scope, reference audit, observation contract and test gate. Status: implemented, live gameplay untested. This core-only authorization does not approve further gameplay systems or visual changes. All results are session-local, and rank eligibility remains disabled until separate design and real multiplayer verification.

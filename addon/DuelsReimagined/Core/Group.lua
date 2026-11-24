@@ -87,6 +87,17 @@ local function Identity(unit)
     return first, full
 end
 
+-- Shared player identity reader: duel capture uses the same client-aware
+-- surname/realm handling as the roster, without creating a second roster.
+function Group.ReadPlayerIdentity(unit)
+    if type(unit) ~= "string" or Flag(UnitIsPlayer, unit) ~= true then return nil end
+    local first, full = Identity(unit)
+    if not first then return nil end
+    local guid = ReadOne(UnitGUID, unit)
+    return { name=first, fullName=full,
+        guid=type(guid)=="string" and guid or nil }
+end
+
 local function Member(unit, raidIndex)
     local name, fullName = Identity(unit)
     if not name then return nil end
