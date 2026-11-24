@@ -16,30 +16,39 @@ local function Label(p,txt,size,color,align)
     local f=S.Text(p,txt,size,color);f:SetJustifyH(align or "LEFT");f:SetJustifyV("MIDDLE");f:SetWordWrap(false);return f
 end
 local function Panel(p)
-    local f=CreateFrame("Frame",nil,p);S.Skin(f,C.body,{corner=8,edge=C.goldDim,shine=.10,shade=.12,rim=.8});return f
+    local f=CreateFrame("Frame",nil,p);f.skin=S.Skin(f,C.body,{corner=8,edge=C.goldDim,shine=.10,shade=.12,rim=.8});return f
 end
 local function Icon(p)
     local t=p:CreateTexture(nil,"ARTWORK",nil,2);ns.Chrome.Sharp(t);return t
 end
 local function Native(t,name)
-    t:SetTexture("Interface\\Icons\\"..name);t:SetTexCoord(.07,.93,.07,.93)
+    local ok=t:SetTexture("Interface\\Icons\\"..name)
+    if ok==false then t:SetTexture("Interface\\Icons\\INV_Misc_QuestionMark") end
+    t:SetTexCoord(.07,.93,.07,.93)
 end
 local function Button(p,fn)
     local b=CreateFrame("Button",nil,p);local plate=S.Plate(b,"dark",{corner=8})
     b.label=Label(b,"",14,C.pale,"CENTER");b:SetScript("OnClick",fn)
-    W.PressFeedback(b)
+    local hover=S.FeedbackOverlay(b,{corner=8,inset=2,fill=C.gold,edge=C.gold,shine=.4,rim=.6})
+    hover:SetAlpha(0)
+    b:SetScript("OnEnter",function()ns.Motion.Fade(hover,.24,ns.Motion.Duration("quick"))end)
+    b:SetScript("OnLeave",function()ns.Motion.Fade(hover,0,ns.Motion.Duration("gentle"))end)
+    W.PressFeedback(b,hover)
     function b.Active(on) if plate and plate.SetStyle then plate:SetStyle(on and "gold" or "dark") end end
     return b
 end
 local page=CreateFrame("Frame",nil,ns.Window.content)
 page:SetPoint("TOPLEFT",ns.Window.content,"TOPLEFT",22,-17);page:SetPoint("BOTTOMRIGHT",ns.Window.content,"BOTTOMRIGHT",-22,14)
 page:Hide()
+if ns.DiagnosticAudit then ns.DiagnosticAudit.RegisterUIRoot("Achievements",page) end
 if page.SetClipsChildren then page:SetClipsChildren(true) end
 local hero=Crop(page,"ARTWORK",1,266,0,100,78)
 local title=Label(page,"Achievements",26,C.pale)
 local subtitle=Label(page,"Prove your dueling skill and earn unique achievements.",13,C.text)
 local pointsPanel=Panel(page);local pointsTitle=Label(pointsPanel,"Achievement Points",13,C.pale,"CENTER")
 local points=Label(pointsPanel,"0",29,C.pale,"CENTER")
+local pointsLaurelL=Crop(pointsPanel,"ARTWORK",1,372,0,28,70)
+local pointsLaurelR=Crop(pointsPanel,"ARTWORK",1,440,0,28,70)
 local status=Label(page,"",11,C.muted)
 local left=Panel(page);local categoryTitle=Label(left,"All Achievements",18,C.pale)
 local list=CreateFrame("Frame",nil,page);if list.SetClipsChildren then list:SetClipsChildren(true) end
@@ -61,7 +70,6 @@ for i,cat in ipairs(all) do
 end
 local function Row()
     local f=Panel(list);f.icon=Icon(f)
-    f.edge=f:CreateTexture(nil,"BORDER");f.edge:SetAllPoints(f);f.edge:SetColorTexture(1,1,1,.06)
     f.iconRim=f:CreateTexture(nil,"ARTWORK",nil,1)
     f.name=Label(f,"",16,C.pale);f.desc=Label(f,"",12,C.text)
     f.track=Panel(f);f.fill=f.track:CreateTexture(nil,"ARTWORK",nil,2)
@@ -80,7 +88,8 @@ list:EnableMouseWheel(true);list:SetScript("OnMouseWheel",function(_,d)U.SetPage
 local function Paint(f,r,w,h)
     local color=r.earned and C.gold or colors[r.rarity] or C.gold
     if r.unavailable or r.progress==0 then color=C.muted end
-    f.edge:SetColorTexture(color[1],color[2],color[3],r.earned and .09 or .035)
+    local rim=f.skin and f.skin.groups and f.skin.groups[4]
+    if rim then for _,t in ipairs(rim.regions) do t:SetVertexColor(color[1],color[2],color[3],1) end end
     f.iconRim:SetColorTexture(color[1],color[2],color[3],1)
     local sz=h-12;Place(f.iconRim,f,6,6,sz,sz);Place(f.icon,f,8,8,sz-4,sz-4)
     if r.art then f.icon:SetTexture(ART);local x=(r.art-1)*102;f.icon:SetTexCoord((x+.5)/512,(x+95.5)/512,128.5/512,223.5/512)
@@ -90,8 +99,8 @@ local function Paint(f,r,w,h)
     local pX=w-stateW-81
     local textW=math.max(55,pX-x-10)
     f.name:SetText(r.title);f.name:SetTextColor(unpack(r.earned and C.pale or color))
-    f.desc:SetText(r.description)
-    Place(f.name,f,x,5,textW,22);Place(f.desc,f,x,28,textW,18)
+    f.desc:SetText(r.description);f.desc:SetWordWrap(h>=82)
+    Place(f.name,f,x,5,textW,22);Place(f.desc,f,x,28,textW,h>=82 and 28 or 18)
     Place(f.track,f,x,h-23,textW,16)
     local progress=r.progress/r.target
     Place(f.fill,f.track,3,3,math.max(1,(textW-6)*progress),10)
@@ -117,7 +126,8 @@ Render=function()
     local pw=math.min(244,w*.30)
     -- Shared Back occupies the top-right corner; preserve its hit target.
     Place(pointsPanel,page,w-pw-75,0,pw,55)
-    Place(pointsTitle,pointsPanel,3,2,pw-6,19);Place(points,pointsPanel,3,19,pw-6,33)
+    Place(pointsLaurelL,pointsPanel,5,4,25,47);Place(pointsLaurelR,pointsPanel,pw-30,4,25,47)
+    Place(pointsTitle,pointsPanel,30,2,pw-60,19);Place(points,pointsPanel,30,19,pw-60,33)
     points:SetText(tostring(data.points))
     Place(status,page,0,57,w,16)
     status:SetText(data.scope=="SIMULATED" and "SOLO TEST - SIMULATED" or data.storageReason and "Local history unavailable" or data.recordingDisabled and "Local recording disabled - achievements unavailable" or "Duel achievements - local records")
@@ -163,8 +173,10 @@ function U.Refresh()
     Render()
 end
 function U.Show(on)
+    local wasShown=page:IsShown()
     shown=on==true;page:SetShown(shown)
-    if shown then U.Refresh() else data=nil end
+    if shown and wasShown then U.Refresh() elseif not shown then data=nil end
 end
 page:SetScript("OnSizeChanged",Render)
 page:SetScript("OnShow",function()if shown then U.Refresh()end end)
+page:HookScript("OnHide",function()data=nil end)

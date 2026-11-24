@@ -22,6 +22,36 @@ for _,client in ipairs({"retail","forever"}) do
     local raw=ns.Achievements.Evaluate({scope="SIMULATED",matches={{id="war",kind="wargame",outcome="won"},{id="unknown",kind="unclassified",outcome="won"}}})
     assert(raw.earned==0 and raw.points==0)
     local again=Eval(events);assert(again.points==a.points and Row(again,"first").earnedAt==Row(a,"first").earnedAt)
+    local repeated={};for i=1,8 do repeated[i]={outcome="won",opponent=1} end
+    local capped=Eval(repeated);assert(Row(capped,"rising").progress==8 and Row(capped,"rated").progress<8)
+    -- Exercise the real local provider with canonical, reopened LOCAL history.
+    -- Dependency injection is confined to this process; live gates unchanged.
+    local me,peer="Player-1-SELF","Player-1-RIVAL"
+    local h=assert(ns.PersonalHistory.OpenLocal(client,me))
+    local stamp=1700000100
+    assert(h.Observe("run-1",{scope="LOCAL",client=client,id=1,kind="standard",opponent={guid=peer},
+        acceptedAt=0,endedAt=10,observedAt=stamp,outcome="won",endType="knockout",
+        reason="matching_result_and_finish",outcomeObserved=true,finishObserved=true,resultObserved=true,
+        conflict=false,rankEligible=false}))
+    local saved=h.Save()
+    assert(not ns.PersonalHistory.OpenLocal(client,"Player-1-OTHER",saved))
+    local other=client=="retail" and "forever" or "retail"
+    assert(not ns.PersonalHistory.OpenLocal(other,me,saved))
+    local storage=ns.CompetitiveStorage
+    local oldRead,oldPeer,oldCap,oldEnabled=storage.ReadLocalHistory,storage.ReadPeerView,storage.ReadLocalCapacity,storage.LocalRecordingEnabled
+    storage.ReadLocalHistory=function()return assert(ns.PersonalHistory.OpenLocal(client,me,saved)).Snapshot()end
+    storage.ReadPeerView=function()return nil,"no_evidence"end
+    storage.ReadLocalCapacity=function()return {}end
+    storage.LocalRecordingEnabled=function()return true end
+    ns.Client={Kind=function()return client end}
+    ns.Group={ReadPlayerIdentity=function()return {guid=me}end}
+    GetServerTime=function()return stamp+20 end
+    local localData=ns.Achievements.Evaluate(ns.CompetitivePreview.Local())
+    assert(localData.scope=="LOCAL" and localData.points==10 and localData.earned==2)
+    assert(Row(localData,"first").earnedAt==stamp and Row(localData,"rated").unavailable)
+    local reopened=ns.Achievements.Evaluate(ns.CompetitivePreview.Local())
+    assert(reopened.points==localData.points and Row(reopened,"first").earnedAt==stamp)
+    storage.ReadLocalHistory,storage.ReadPeerView,storage.ReadLocalCapacity,storage.LocalRecordingEnabled=oldRead,oldPeer,oldCap,oldEnabled
 end
 assert(_G.DuelsReimaginedCompetitiveDB==nil and _G.DuelsReimaginedCharacterDB==nil)
 print("Duel-only achievements: PASS (catalogue, evidence, streaks, simulation isolation, duplicate and disabled gates)")

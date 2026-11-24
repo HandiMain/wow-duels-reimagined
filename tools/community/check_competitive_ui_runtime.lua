@@ -178,3 +178,36 @@ U.Show(nil)
 assert(#frames==count,"page navigation must reuse frames")
 assert(_G.DuelsReimaginedCompetitiveDB==nil and _G.DuelsReimaginedCharacterDB==nil)
 print("Competitive UI simulated data and mocked page controllers: PASS")
+
+-- Run the actual Achievements controller against the same reusable frame
+-- mock and the actual simulation provider. No artwork rendering claimed.
+assert(loadfile(base.."Core/Achievements.lua"))("DuelsReimagined",ns)
+ns.Style.Plate=function()return {SetStyle=noop}end
+ns.Style.FeedbackOverlay=function()return Frame(main)end
+ns.Motion.Duration=function()return .1 end
+assert(loadfile(base.."UI/AchievementUI.lua"))("DuelsReimagined",ns)
+local Ach=ns.AchievementUI
+local frameCount=#frames
+assert(P.Command("start"))
+Ach.Show(true)
+assert(HasText("Achievements") and HasText("The Beginning") and HasText("SOLO TEST - SIMULATED"))
+assert(not HasText("Completed"))
+assert(P.Command("win"))
+assert(HasText("Completed") and HasText("1 / 1"))
+Ach.SetPageScroll("achievements",15)
+assert(Ach.GetPageScroll()>0)
+Ach.SetPageScroll("achievements",0)
+assert(HasText("The Beginning"))
+local selected=false
+for _,f in ipairs(frames) do
+    if f.text=="Competitive" and f:IsVisible() and f.parent and f.parent.scripts.OnClick then
+        f.parent.scripts.OnClick();selected=true;break
+    end
+end
+assert(selected and HasText("Into the Arena") and not HasText("The Beginning"))
+assert(P.Command("stop"))
+assert(HasText("Local history unavailable") and not HasText("Completed"))
+Ach.Show(false);Ach.Show(true);Ach.Show(false)
+assert(#frames==frameCount,"Achievement navigation must reuse frames")
+assert(_G.DuelsReimaginedCompetitiveDB==nil and _G.DuelsReimaginedCharacterDB==nil)
+print("Achievements UI mocked controllers: PASS (scope, updates, filters, scroll, reuse)")

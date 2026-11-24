@@ -14,7 +14,7 @@ class WarGamesTests(unittest.TestCase):
         self.assertLess(toc.index("Core\\Group.lua"),toc.index("Core\\WarGames.lua"))
         self.assertLess(toc.index("UI\\WarGames.lua"),toc.index("UI\\Navigation.lua"))
         nav=src("UI/Navigation.lua")
-        self.assertIn('primaryKeys = { hall = true, leaderboard = true, matchhistory = true, wargames = true }',nav)
+        self.assertIn('primaryKeys = { hall = true, leaderboard = true, matchhistory = true, achievements = true, wargames = true }',nav)
         self.assertIn('button:SetEnabled(false)',nav)
         self.assertIn('help:EnableMouse(true)',nav)
         self.assertIn("War Games — Retail only",nav)

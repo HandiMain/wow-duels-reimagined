@@ -1,3 +1,3 @@
 -- Generated offline; advertised identity, not proof of unmodified files.
 local _,ns=...
-ns.CompetitiveManifest={version=1,fingerprint="870f5fd58818a361bf7dde3342f83d703f53fa1d7cd79d0dfa6f2f2cfaa459cc"}
+ns.CompetitiveManifest={version=1,fingerprint="36e1dcf98249c2530570430f09a7ec46a87b9056cc4977da62aa79988fe8f304"}

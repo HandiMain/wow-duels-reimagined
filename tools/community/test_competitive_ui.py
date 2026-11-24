@@ -8,7 +8,8 @@ class CompetitiveUI(unittest.TestCase):
         n=read("UI/Navigation.lua")
         self.assertLess(n.index('key = "hall"'),n.index('key = "leaderboard"'))
         self.assertLess(n.index('key = "leaderboard"'),n.index('key = "matchhistory"'))
-        self.assertLess(n.index('key = "matchhistory"'),n.index('key = "wargames"'))
+        self.assertLess(n.index('key = "matchhistory"'),n.index('key = "achievements"'))
+        self.assertLess(n.index('key = "achievements"'),n.index('key = "wargames"'))
         self.assertIn('if item.key=="wargames" then',n)
         self.assertIn('top=top+21',n)
         self.assertIn('ns.CompetitiveUI.Plaque(button,section.key,"ARTWORK",2)',n)
@@ -138,11 +139,11 @@ class CompetitiveUI(unittest.TestCase):
         for h in (400,510,636,850):
             compact=h<590
             top=20 if compact else 31
-            height=max(48,min(76,(h-95)/4)) if compact else 84
             gap=10 if compact else 15
-            end_of_history=top+3*height+2*gap
-            divider_top=end_of_history+3
-            war_top=end_of_history+gap+21
+            height=max(1,min(76 if compact else 84,(h-top-21-12-4*gap)/5))
+            end_of_achievements=top+4*height+3*gap
+            divider_top=end_of_achievements+3
+            war_top=end_of_achievements+gap+21
             self.assertLessEqual(divider_top+14,war_top)
-            self.assertLessEqual(war_top+height,h)
+            self.assertLessEqual(war_top+height,h-12)
 if __name__=="__main__":unittest.main()
