@@ -72,7 +72,7 @@ local function ParseRequest(body,client,rev,context)
 end
 local function Frames(node,client,body,rev,context)
     local token,index=ParseRequest(body,client,rev,context);if not token then return nil,'request' end
-    local pages=node.Export(token);local page=pages and pages[index];if not page then return nil,'page' end
+    local page=node.ExportPage(token,index);if not page then return nil,'page' end
     local data=Encode(page);if rev=='2' then data=context..'|'..data end
     local count=math.ceil(#data/CHUNK)
     if count>MAX_PARTS then return nil,'capacity' end

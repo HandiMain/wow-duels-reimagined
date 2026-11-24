@@ -70,6 +70,7 @@ local function Open(client,saved,epoch)
     else data=Validate(client,saved) end
     if not data then return nil,"invalid_store" end
     local D={}
+    local sortedIDs
     local function Merge(incoming)
         local l=assert(ns.MatchLedger.OpenSimulated(client,data.ledger))
         local clocks=Copy(data.clocks)
@@ -82,7 +83,7 @@ local function Open(client,saved,epoch)
         end
         local nextData={version=VERSION,scope="SIMULATED",client=client,rule=RULE,ledger=l.Save(),clocks=clocks}
         if Equal(nextData,data) then return true,"unchanged" end
-        data=nextData;return true,"merged"
+        data=nextData;sortedIDs=nil;return true,"merged"
     end
     -- Direct fixture observation: t1/t2 correspond to canonical player1/2.
     -- A two-clock fixture is not proof that either player really reported it.
@@ -97,20 +98,33 @@ local function Open(client,saved,epoch)
         return Merge({ledger=l.Save(),clocks=clocks})
     end
     function D.Save() return Copy(data) end
-    -- Export a frozen, bounded logical snapshot. Later observations require a
-    -- new request. No digest shortcut or claim of global completeness.
+    -- Cache only the canonical ID order; never retain exported record copies.
+    local function IDs()
+        if not sortedIDs then
+            sortedIDs={};for id in pairs(data.ledger.entries) do sortedIDs[#sortedIDs+1]=id end;table.sort(sortedIDs)
+        end
+        return sortedIDs
+    end
+    local function Page(token,index,ids,total)
+        local page={version=VERSION,scope="SIMULATED",client=client,rule=RULE,token=token,index=index,total=total,entries={}}
+        for j=(index-1)*PAGE+1,math.min(index*PAGE,#ids) do
+            local id=ids[j];page.entries[#page.entries+1]={id=id,records=Copy(data.ledger.entries[id]),
+                clocks=data.clocks[id] and Copy(data.clocks[id]) or nil}
+        end
+        return page
+    end
+    -- One requested page, independently frozen. Different requests may see
+    -- different snapshots; no global completeness claim.
+    function D.ExportPage(token,index)
+        if not Token(token) then return nil,"token" end
+        local ids=IDs();local total=math.max(1,math.ceil(#ids/PAGE))
+        if not Int(index,1,total) then return nil,"page" end
+        return Page(token,index,ids,total)
+    end
     function D.Export(token)
         if not Token(token) then return nil,"token" end
-        local ids={};for id in pairs(data.ledger.entries) do ids[#ids+1]=id end;table.sort(ids)
-        local total=math.max(1,math.ceil(#ids/PAGE));local pages={}
-        for i=1,total do
-            local page={version=VERSION,scope="SIMULATED",client=client,rule=RULE,token=token,index=i,total=total,entries={}}
-            for j=(i-1)*PAGE+1,math.min(i*PAGE,#ids) do
-                local id=ids[j];page.entries[#page.entries+1]={id=id,records=Copy(data.ledger.entries[id]),
-                    clocks=data.clocks[id] and Copy(data.clocks[id]) or nil}
-            end
-            pages[i]=page
-        end
+        local ids=IDs();local total=math.max(1,math.ceil(#ids/PAGE));local pages={}
+        for i=1,total do pages[i]=Page(token,i,ids,total) end
         return pages
     end
     -- Sender and request token are injected by a simulation, not authenticated
@@ -252,5 +266,45 @@ function P.RunSelfTest(emit)
         end)
     end
     Case("live sync remains disabled",function()local s=P.GetSnapshot();assert(s.scope=="LOCAL" and s.state=="disabled" and not s.rankEligible)end)
+    return passed,failed
+end
+
+function P.RunPageSelfTest(emit)
+    emit=type(emit)=="function" and emit or function()end
+    local passed,failed=0,0
+    local function Case(label,fn)
+        local ok,err=pcall(fn);if ok then passed=passed+1 else failed=failed+1 end
+        emit("DR | SIMULATED | "..(ok and "PASS " or "FAIL ")..label..(ok and "" or ": "..tostring(err)))
+    end
+    local a,b="Player-1-AAA","Player-2-BBB"
+    for _,client in ipairs({"forever","retail"}) do
+        local function Record(n,reverse)
+            local s="a-"..n..":b-"..n
+            return {scope="SIMULATED",version="1",client=client,session=s,id=client.."|"..a.."|"..b.."|"..s,
+                player1=a,player2=b,winner=reverse and b or a,loser=reverse and a or b,endType="knockout",rankEligible=false,
+                statement1=table.concat({"1",client,s,a,b,reverse and "lost" or "won","1"},"|"),
+                statement2=table.concat({"1",client,s,b,a,reverse and "won" or "lost","2"},"|")}
+        end
+        Case(client.." single pages equal full export and isolated copies",function()
+            local x=assert(Open(client));for i=1,17 do assert(x.Observe(Record(i),i,i)) end
+            local pages=assert(x.Export("q"));assert(#pages==2)
+            for i=1,#pages do assert(Equal(pages[i],x.ExportPage("q",i))) end
+            local p=x.ExportPage("q",1);p.entries[1].records[1].winner="bad";p.entries[1].clocks[1][1]=0
+            assert(Equal(pages[1],x.ExportPage("q",1)) and not x.ExportPage("q",3))
+        end)
+        Case(client.." page order updates after insertion and conflict",function()
+            local x=assert(Open(client));assert(x.Observe(Record(2),2,2));local old=x.ExportPage("q",1)
+            assert(x.Observe(Record(1),1,1));local current=x.ExportPage("q",1);assert(#old.entries==1 and #current.entries==2 and current.entries[1].id==Record(1).id)
+            assert(x.Observe(Record(1,true),1,1));assert(#x.ExportPage("q",1).entries[1].records==2 and #current.entries[1].records==1)
+            assert(Equal(x.Export("q")[1],x.ExportPage("q",1)))
+        end)
+        Case(client.." empty and invalid requests preserve evidence",function()
+            local x=assert(Open(client));local old=x.Save();local p=x.ExportPage("q",1)
+            assert(p.total==1 and #p.entries==0 and Equal(p,x.Export("q")[1]))
+            for _,i in ipairs({0,2,1.5,"1"}) do assert(not x.ExportPage("q",i)) end
+            assert(not x.ExportPage("bad|token",1) and not x.ExportPage("q",nil) and Equal(old,x.Save()))
+        end)
+    end
+    Case("page optimization stays simulation only",function()local s=P.GetSnapshot();assert(s.scope=="LOCAL" and s.state=="disabled" and not s.rankEligible)end)
     return passed,failed
 end

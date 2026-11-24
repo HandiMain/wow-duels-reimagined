@@ -360,6 +360,12 @@ Check("Sync protocol / isolated seasonal compatibility QA","deep",function()
     return f==0 and p==13 and "PASS" or "FAIL",
         string.format("%d passed / %d failed (SIMULATED)\n",p,f)..table.concat(log,"\n")
 end)
+Check("Leaderboard sync / isolated page export QA","deep",function()
+    local log={}
+    local p,f=ns.LeaderboardSync.RunPageSelfTest(function(line) log[#log+1]=line end)
+    return f==0 and p==7 and "PASS" or "FAIL",
+        string.format("%d passed / %d failed (SIMULATED)\n",p,f)..table.concat(log,"\n")
+end)
 Check("Search registry","deep",function()
     local S=ns.Search
     local seen={}

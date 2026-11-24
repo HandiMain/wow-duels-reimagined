@@ -179,3 +179,10 @@ assert(ns.SyncProtocol.GetSnapshot().state=="disabled" and not ns.SyncProtocol.G
     and _G.DuelsReimaginedDB==originalDB and _G.DuelsReimaginedCompetitiveDB==oldAccount
     and _G.DuelsReimaginedCharacterDB==oldChar,"season wire QA never writes live data")
 print("Season-aware synchronization: PASS")
+
+local pp,pf=ns.LeaderboardSync.RunPageSelfTest(function(line)if line:find("FAIL",1,true)then print(line)end end)
+assert(pp==7 and pf==0 and sent==previous and P.GetSnapshot().state=="checking","isolated page export")
+assert(ns.LeaderboardSync.GetSnapshot().state=="disabled" and not ns.LeaderboardSync.GetSnapshot().rankEligible
+    and _G.DuelsReimaginedDB==originalDB and _G.DuelsReimaginedCompetitiveDB==oldAccount
+    and _G.DuelsReimaginedCharacterDB==oldChar,"page QA never writes live data")
+print("Single page export: PASS")
