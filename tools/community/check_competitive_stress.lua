@@ -84,6 +84,23 @@ for _,client in ipairs({"forever","retail"}) do
         end
         t=t+2;return value
     end
+    -- Exercise budgeted cold preparation on both full-size ledgers before
+    -- the wire operation. The existing synchronous fallback is retained.
+    local function Prepare(node,expected)
+        local calls,work=0,0
+        while true do
+            local ready,used=node.PrepareDelta(32)
+            assert(type(ready)=="boolean" and used<=32)
+            calls=calls+1;work=work+used
+            if ready then break end
+            assert(used>0 and calls<=1024)
+        end
+        assert(work==2*expected)
+        return calls
+    end
+    local sourceCalls=Prepare(source,limit)
+    local behindCalls=Prepare(behind,limit-5)
+    print(string.format("%s: budgeted cold preparation %d/%d calls, 32 record operations max per call; PASS",client,sourceCalls,behindCalls))
     local plan=Transfer(assert(q.BeginSummary(a,t)),"summary_complete")
     assert(plan.different>=1 and plan.different<=5)
     local cold=behind.GetDeltaWork();assert(cold.records==limit-5)
@@ -141,4 +158,64 @@ for _,client in ipairs({"forever","retail"}) do
     local savedAccount,savedChar=roots,char
     assert(not OpenStorage().UpdateSeasonEvidence(epoch,Record(client,limit+1),asOf,asOf) and roots==savedAccount and char==savedChar and writes==2)
     print(string.format("%s: %d records; %d personal observations; %d pages; %d frames; %d bytes; full export once %.2f ms; all requested pages %.2f ms; replay %.2f ms; wire processing %.2f ms; archive reopen and historical correction PASS",client,limit,personal,limit/16,frames,bytes,oldMS,newMS,replayMS,syncMS))
+end
+
+-- Multiple independent peers with disjoint histories and late corrections.
+-- Each catch-up is driven through the real simulated packet lifecycle.
+for _,client in ipairs({"forever","retail"}) do
+    local function Node() return assert(ns.LeaderboardSync.OpenSeasonSimulated(client,epoch)) end
+    local a,b,c=Node(),Node(),Node()
+    for i=1,384 do
+        local r=Record(client,i);local t=epoch+i*4000
+        local node=({a,b,c})[(i-1)%3+1];assert(node.Observe(r,t,t))
+    end
+    -- B knows a conflicting outcome for a match owned by A. C has a
+    -- conflicting clock for one owned by B. Neither is a trusted authority.
+    local first=Record(client,1)
+    first.winner,first.loser=first.loser,first.winner
+    first.statement1,first.statement2=first.statement1:gsub("|won|","|lost|"),first.statement2:gsub("|lost|","|won|")
+    assert(b.Observe(first,epoch+4000,epoch+4000))
+    assert(c.Observe(Record(client,2),epoch+8001,epoch+8001))
+    local tick,seq,packetCount=0,0,0
+    local from,to="Player-1-AAA","Player-2-BBB"
+    local function Pull(source,target,mode)
+        seq=seq+1
+        local q=assert(ns.SyncProtocol.NewCatchupSimulated(client,target,"multi-"..seq,from,mode))
+        local r=assert(ns.SyncProtocol.NewResponder(client,source))
+        for _=1,10000 do
+            local st=q.GetStatus()
+            if st.state~="working" then
+                assert(st.state=="summary_agrees" or st.state=="differences_remaining" or st.state=="audit_received",st.state)
+                assert(st.restarts==0 and st.completeness=="unknown")
+                return st
+            end
+            local msg,why=q.Poll(tick)
+            if msg then
+                assert(#msg+3<=240);packetCount=packetCount+1
+                assert(r.Begin(msg,to,to,tick))
+                local packets={}
+                while true do
+                    local body=r.Next(tick);if not body then break end
+                    assert(#body+3<=240);packets[#packets+1]=body
+                    packetCount=packetCount+1;tick=tick+0.5
+                end
+                for i=#packets,1,-1 do assert(q.Receive(packets[i],from,tick)) end
+                tick=tick+2
+            else
+                assert(why=="preparing" or why=="backoff",why)
+                tick=tick+2
+            end
+        end
+        error("multi-peer catch-up exceeded fixture step limit")
+    end
+    Pull(a,b,"delta");Pull(b,c,"delta");Pull(c,a,"audit");Pull(c,b,"delta")
+    assert(Equal(a.Save(),b.Save()) and Equal(b.Save(),c.Save()),"multi-peer union")
+    local opts={epoch=epoch,asOf=epoch+384*4000}
+    local result=assert(a.ReplaySeasonSimulated(opts))
+    assert(result.knownMatched==383 and result.disputed==1 and result.timeDisputed==1 and result.matched==382)
+    assert(Equal(result,b.ReplaySeasonSimulated(opts)) and Equal(result,c.ReplaySeasonSimulated(opts)))
+    local steady=Pull(a,b,"delta");assert(steady.state=="summary_agrees" and steady.pages==0 and steady.requests==1)
+    local audit=Pull(a,b,"audit");assert(audit.state=="audit_received" and audit.pages==24)
+    assert(Equal(a.Save(),b.Save()))
+    print(string.format("%s: three peers, 384 unique matches, late outcome/clock disputes, relay, steady-state and exact audit; %d simulated packets; PASS",client,packetCount))
 end

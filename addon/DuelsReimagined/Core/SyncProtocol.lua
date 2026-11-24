@@ -100,17 +100,36 @@ local function ParseRequest(body,client,rev,context)
     if suffix=='' then return t,p,'page' end
     if rev~='2' then return nil end
     if suffix=='|S' and p==1 then return t,p,'summary' end
+    if suffix=='|A' and p==1 then return t,p,'audit_start' end
+    local session,generation=suffix:match('^|A|([%w%-]+)|(%d+)$')
+    generation=Integer(generation,2147483647)
+    if Token(session) and generation then return t,p,'audit',session,generation end
     local spec=suffix:match('^|D|(.+)$')
     if spec then
         local group,expected=DecodeSpec(spec)
         if group then return t,p,'delta',group,expected,spec end
     end
 end
-local function Frames(node,client,body,rev,context)
+local function Frames(node,client,body,rev,context,audit,sender,now)
     local token,index,mode,group,expected,spec=ParseRequest(body,client,rev,context)
     if not token then return nil,'request' end
-    local data,total
-    if mode=='summary' then
+    local data,total,nextAudit
+    if mode=='audit_start' or mode=='audit' then
+        local generation=node.GetEvidenceRevision()
+        if not Integer(tostring(generation),2147483647) then return nil,'capacity' end
+        local session=token
+        if mode=='audit' then
+            session=group
+            if not audit or audit.peer~=sender or audit.session~=session or audit.generation~=expected
+                or generation~=expected or now>=audit.deadline then return nil,'stale_audit' end
+        end
+        local page,why=node.ExportPage(token,index)
+        if not page then return nil,why end
+        if mode=='audit' and page.total~=audit.total then return nil,'stale_audit' end
+        total=page.total
+        data=context..'|A|'..session..'|'..generation..'|'..Encode(page)
+        nextAudit={peer=sender,session=session,generation=generation,total=total,deadline=now+TTL+60}
+    elseif mode=='summary' then
         local summary=node.DeltaSummary();if not summary then return nil,'summary' end
         data=context..'|S|'..EncodeSummary(summary);total=1
     else
@@ -129,7 +148,7 @@ local function Frames(node,client,body,rev,context)
         local msg=table.concat({'R',rev,client,token,index,total,i,count,data:sub((i-1)*CHUNK+1,i*CHUNK)},'|')
         if not Safe(msg) then return nil,'capacity' end;out[i]=msg
     end
-    return out
+    return out,nil,nextAudit
 end
 -- One outstanding request per fixture; prefix must be unique per simulated run.
 function P.NewRequester(client,node,prefix)
@@ -141,16 +160,17 @@ function P.NewRequester(client,node,prefix)
         return pending and 'waiting' or 'idle'
     end
     function D.Cancel() pending=nil end
-    local function Begin(peer,page,now,mode,group,expected,spec)
+    local function Begin(peer,page,now,mode,group,expected,spec,auditTotal)
         if not Time(now) or not Guid(peer) or type(page)~='number' or not Integer(tostring(page),MAX_PAGE) then return nil,'invalid' end
         if D.Status(now)=='waiting' then return nil,'busy' end
         if seq>=2147483647 then return nil,'capacity' end
         seq=seq+1;local token=prefix..'-'..seq
-        local suffix=mode=='summary' and '|S' or mode=='delta' and ('|D|'..spec) or ''
+        local suffix=mode=='summary' and '|S' or mode=='delta' and ('|D|'..spec)
+            or mode=='audit_start' and '|A' or mode=='audit' and ('|A|'..spec) or ''
         local body='Q|'..rev..'|'..client..'|'..token..'|'..page..suffix..context
         if not Safe(body) then return nil,'capacity' end
         pending={peer=peer,page=page,token=token,deadline=now+TTL,last=now,parts={},received=0,
-            mode=mode,group=group,expected=expected,spec=spec}
+            mode=mode,group=group,expected=expected,spec=spec,auditTotal=auditTotal}
         return body
     end
     function D.Begin(peer,page,now) return Begin(peer,page,now,'page') end
@@ -165,6 +185,20 @@ function P.NewRequester(client,node,prefix)
         local g,info=DecodeSpec(spec)
         if type(page)~='number' or page>math.ceil(info.count/16) then return nil,'page' end
         return Begin(peer,page,now,'delta',g,info,spec)
+    end
+    function D.BeginAudit(peer,now)
+        if rev~='2' then return nil,'season_context_required' end
+        return Begin(peer,1,now,'audit_start')
+    end
+    function D.BeginAuditPage(peer,audit,page,now)
+        if rev~='2' or type(audit)~='table' or audit.scope~='SIMULATED' or audit.peer~=peer
+            or audit.context~=context or not Token(audit.session) or type(audit.generation)~='number'
+            or not Integer(tostring(audit.generation),2147483647) or type(audit.total)~='number'
+            or not Integer(tostring(audit.total),MAX_PAGE) or type(page)~='number' or page>audit.total then
+            return nil,'invalid_audit'
+        end
+        return Begin(peer,page,now,'audit',audit.session,audit.generation,
+            audit.session..'|'..audit.generation,audit.total)
     end
     function D.Receive(body,sender,now)
         if not Time(now) or D.Status(now)~='waiting' then return false,'no_request' end
@@ -197,6 +231,20 @@ function P.NewRequester(client,node,prefix)
             if not plan then return false,why end
             return true,'summary_complete',plan
         end
+        local auditResult
+        if q.mode=='audit_start' or q.mode=='audit' then
+            local session,generation,rest=payload:match('^A|([%w%-]+)|(%d+)|(.+)$')
+            generation=Integer(generation,2147483647)
+            if not generation or not Token(session) then return false,'audit_context' end
+            if q.mode=='audit_start' then
+                if session~=q.token then return false,'audit_context' end
+            elseif session~=q.group or generation~=q.expected or total~=q.auditTotal then
+                return false,'audit_context'
+            end
+            auditResult={scope='SIMULATED',peer=q.peer,context=context,session=session,
+                generation=generation,total=total,index=q.page}
+            payload=rest
+        end
         if q.mode=='delta' then
             local header='D|'..q.spec..'|'
             if payload:sub(1,#header)~=header then return false,'delta_context' end
@@ -209,6 +257,7 @@ function P.NewRequester(client,node,prefix)
         end
         local ok,why=node.Receive(page,sender,q.peer,q.token)
         if not ok then return false,why end
+        if auditResult then return true,'audit_page_complete',auditResult end
         return true,'page_complete',total -- NOT global completeness
     end
     return D
@@ -218,13 +267,15 @@ end
 function P.NewResponder(client,node)
     if not Client(client) then return nil end
     local rev,context=Context(client,node);if not rev then return nil end
-    local D,stream,lastStart={},nil,nil
-    function D.Cancel() stream=nil end
+    local D,stream,lastStart,audit={},nil,nil,nil
+    function D.Cancel() stream=nil;audit=nil end
     function D.Begin(body,sender,expected,now)
         if not Time(now) or not Guid(sender) or sender~=expected then return false,'sender' end
         if stream and now>=stream.deadline then stream=nil end
         if stream or (lastStart and now-lastStart<2) then return false,'busy' end
-        local frames,why=Frames(node,client,body,rev,context);if not frames then return false,why end
+        local frames,why,nextAudit=Frames(node,client,body,rev,context,audit,sender,now)
+        if not frames then return false,why end
+        audit=nextAudit
         stream={frames=frames,next=1,at=now,deadline=now+TTL,peer=sender};lastStart=now;return true
     end
     function D.Next(now)
@@ -234,6 +285,87 @@ function P.NewResponder(client,node)
         local s=stream;local body=s.frames[s.next];s.next=s.next+1;s.at=now+GAP
         if s.next>#s.frames then stream=nil end
         return body,s.peer
+    end
+    return D
+end
+-- One explicit, caller-driven catch-up session. No send API, timer or
+-- automatic peer selection. Retain valid merged pages on retry/cancel.
+function P.NewCatchupSimulated(client,node,prefix,peer,mode)
+    if not Guid(peer) or (mode~='delta' and mode~='audit') or not node.GetSeasonEpoch() then return nil end
+    local q=P.NewRequester(client,node,prefix);if not q then return nil end
+    local D={}
+    local state='working'
+    local task=mode=='delta' and 'summary' or 'audit_start'
+    local requests,restarts,rounds,pages=0,0,0,0
+    local plan,groupIndex,pageIndex,audit
+    local last,due=0,0
+    local function Restart(now)
+        q.Cancel();restarts=restarts+1
+        if restarts>2 then state='retry_exhausted';return end
+        task=mode=='delta' and 'summary' or 'audit_start'
+        plan,groupIndex,pageIndex,audit=nil,nil,nil,nil
+        due=now+2
+    end
+    function D.GetStatus()
+        return {scope='SIMULATED',state=state,mode=mode,requests=requests,restarts=restarts,
+            rounds=rounds,pages=pages,completeness='unknown',rankEligible=false}
+    end
+    function D.Cancel() q.Cancel();state='cancelled';plan=nil;audit=nil end
+    function D.Poll(now)
+        if not Time(now) or now<last then return nil,'clock' end
+        last=now
+        if state~='working' then return nil,state end
+        local status=q.Status(now)
+        if status=='waiting' then return nil,'waiting' end
+        if status=='expired' then Restart(now);return nil,state=='working' and 'backoff' or state end
+        if now<due then return nil,'backoff' end
+        if requests>=2048 then state='request_limit';return nil,state end
+        local body,why
+        if task=='summary' then
+            local ready=node.PrepareDelta(32)
+            if not ready then return nil,'preparing' end
+            body,why=q.BeginSummary(peer,now)
+        elseif task=='delta' then
+            local g=plan.pulls[groupIndex]
+            body,why=q.BeginDelta(peer,g.group,g.expected,pageIndex,now)
+        elseif task=='audit_start' then body,why=q.BeginAudit(peer,now)
+        else body,why=q.BeginAuditPage(peer,audit,pageIndex,now) end
+        if not body then state='request_rejected';return nil,why end
+        requests=requests+1
+        return body,'request'
+    end
+    function D.Receive(body,sender,now)
+        if state~='working' or not Time(now) or now<last then return false,'inactive_or_clock' end
+        last=now
+        -- Check expiry before delegation so a late fragment cannot lose the
+        -- timeout signal and bypass the session retry budget.
+        if q.Status(now)=='expired' then Restart(now);return false,'expired' end
+        local ok,why,value=q.Receive(body,sender,now)
+        if not ok then
+            if q.Status(now)=='idle' and (why~='no_request') then Restart(now) end
+            return false,why
+        end
+        if why=='summary_complete' then
+            if value.different==0 then state='summary_agrees'
+            elseif #value.pulls==0 or rounds>=3 then state='differences_remaining'
+            else
+                rounds=rounds+1;plan=value;groupIndex=1;pageIndex=1;task='delta'
+            end
+            due=now+2
+        elseif why=='page_complete' then
+            pages=pages+1;pageIndex=pageIndex+1
+            if pageIndex>plan.pulls[groupIndex].pages then
+                groupIndex=groupIndex+1;pageIndex=1
+            end
+            if groupIndex>#plan.pulls then task='summary';plan=nil end
+            due=now+2
+        elseif why=='audit_page_complete' then
+            pages=pages+1;audit=value;pageIndex=value.index+1
+            if pageIndex>value.total then state='audit_received';audit=nil
+            else task='audit' end
+            due=now+2
+        end
+        return true,why
     end
     return D
 end
@@ -518,6 +650,120 @@ function P.RunDeltaWireSelfTest(emit)
         end)
     end
     Case('delta wire remains simulation only',function()
+        local s=P.GetSnapshot();assert(s.scope=='LOCAL' and s.state=='disabled' and not s.rankEligible)
+    end)
+    return pass,fail
+end
+
+function P.RunRecoverySelfTest(emit)
+    emit=type(emit)=='function' and emit or function()end
+    local pass,fail=0,0
+    local function Case(label,fn)
+        local ok,err=pcall(fn);if ok then pass=pass+1 else fail=fail+1 end
+        emit('DR | SIMULATED | '..(ok and 'PASS ' or 'FAIL ')..label..(ok and '' or ': '..tostring(err)))
+    end
+    local a,b='Player-1-AAA','Player-2-BBB'
+    local epoch=1000
+    for _,client in ipairs({'forever','retail'}) do
+        local function Node() return assert(ns.LeaderboardSync.OpenSeasonSimulated(client,epoch)) end
+        local function Record(i,reverse)
+            local s='a-'..i..':b-'..i
+            return {scope='SIMULATED',version='1',client=client,session=s,id=client..'|'..a..'|'..b..'|'..s,
+                player1=a,player2=b,winner=reverse and b or a,loser=reverse and a or b,endType='knockout',rankEligible=false,
+                statement1=table.concat({'1',client,s,a,b,reverse and 'lost' or 'won','1'},'|'),
+                statement2=table.concat({'1',client,s,b,a,reverse and 'won' or 'lost','2'},'|')}
+        end
+        local function Source(n)
+            local x=Node()
+            for i=1,n do assert(x.Observe(Record(i),epoch+i,epoch+i)) end
+            return x
+        end
+        local function Drive(q,res,t,hook)
+            for _=1,4096 do
+                local status=q.GetStatus()
+                if status.state~='working' then return status,t end
+                local msg,why=q.Poll(t)
+                if msg then
+                    assert(#msg+3<=240)
+                    local skip=hook and hook(msg,status,t)
+                    if not skip then
+                        local ok,err=res.Begin(msg,b,b,t)
+                        if ok then
+                            local packets={}
+                            while true do
+                                local body=res.Next(t);if not body then break end
+                                assert(#body+3<=240);packets[#packets+1]=body;t=t+GAP
+                            end
+                            for i=#packets,1,-1 do assert(q.Receive(packets[i],a,t)) end
+                            t=t+2
+                        else
+                            assert(err=='stale_audit' or err=='stale_group',err);t=t+TTL
+                        end
+                    else t=t+TTL end
+                elseif why=='waiting' then t=t+TTL
+                else t=t+2 end
+            end
+            error('catch-up did not terminate')
+        end
+        Case(client..' exact audit restarts after source changes and preserves merged pages',function()
+            local x,y=Source(17),Node()
+            local q=assert(P.NewCatchupSimulated(client,y,'audit',a,'audit'))
+            local r=assert(P.NewResponder(client,x));local mutated=false
+            local status=Drive(q,r,0,function(_,st)
+                if st.pages==1 and not mutated then
+                    mutated=true;assert(x.Observe(Record(18),epoch+18,epoch+18))
+                end
+            end)
+            assert(mutated and status.state=='audit_received' and status.restarts==1 and status.pages==3)
+            assert(y.ReplaySeasonSimulated({epoch=epoch,asOf=epoch+18}).matched==18)
+            assert(y.PlanDelta(x.DeltaSummary()).different==0 and status.completeness=='unknown')
+        end)
+        Case(client..' lost delta request retries and reverse reconciliation works',function()
+            local x,y=Source(3),Node()
+            assert(y.Observe(Record(4),epoch+4,epoch+4))
+            local q=assert(P.NewCatchupSimulated(client,y,'pull',a,'delta'))
+            local r=assert(P.NewResponder(client,x));local dropped=false
+            local status,t=Drive(q,r,0,function()
+                if not dropped then dropped=true;return true end
+            end)
+            assert(dropped and status.restarts==1 and status.state=='differences_remaining')
+            assert(y.ReplaySeasonSimulated({epoch=epoch,asOf=epoch+4}).matched==4)
+            local reverse=assert(P.NewCatchupSimulated(client,x,'reverse',a,'delta'))
+            local other=assert(P.NewResponder(client,y))
+            local done=Drive(reverse,other,t);assert(done.state=='summary_agrees')
+            assert(x.PlanDelta(y.DeltaSummary()).different==0)
+        end)
+        Case(client..' retry budget and cancellation stop requests',function()
+            local x=Node();local q=assert(P.NewCatchupSimulated(client,x,'drop',a,'delta'))
+            local r=assert(P.NewResponder(client,Source(1)))
+            local status,t=Drive(q,r,0,function()return true end)
+            assert(status.state=='retry_exhausted' and status.requests==3 and status.restarts==3)
+            assert(not q.Poll(t+1) and next(x.Save().ledger.entries)==nil)
+            local c=assert(P.NewCatchupSimulated(client,x,'cancel',a,'audit'))
+            assert(c.Poll(0));c.Cancel();assert(c.GetStatus().state=='cancelled' and not c.Poll(1))
+        end)
+        Case(client..' audit binding rejects foreign sessions and changed generations',function()
+            local x,y=Source(17),Node()
+            local q=assert(P.NewRequester(client,y,'binding'));local r=assert(P.NewResponder(client,x))
+            local msg=assert(q.BeginAudit(a,0));assert(r.Begin(msg,b,b,0));local t=0;local info
+            while true do
+                local body=r.Next(t);if not body then break end
+                local ok,why,v=q.Receive(body,a,t);assert(ok,why)
+                if why=='audit_page_complete' then info=v end
+                t=t+GAP
+            end
+            assert(info and info.total==2 and info.index==1)
+            local msg2=assert(q.BeginAuditPage(a,info,2,t+2))
+            assert(not r.Begin(msg2,a,a,t+2))
+            local newResponder=assert(P.NewResponder(client,x));assert(not newResponder.Begin(msg2,b,b,t+2))
+            assert(x.Observe(Record(1,true),epoch+1,epoch+1))
+            local ok,why=r.Begin(msg2,b,b,t+2);assert(not ok and why=='stale_audit')
+            q.Cancel();assert(next(y.Save().ledger.entries)~=nil)
+        end)
+    end
+    Case('catch-up requires season-bound simulations',function()
+        local x=assert(ns.LeaderboardSync.OpenSimulated('retail'))
+        assert(not P.NewCatchupSimulated('retail',x,'invalid',a,'audit'))
         local s=P.GetSnapshot();assert(s.scope=='LOCAL' and s.state=='disabled' and not s.rankEligible)
     end)
     return pass,fail

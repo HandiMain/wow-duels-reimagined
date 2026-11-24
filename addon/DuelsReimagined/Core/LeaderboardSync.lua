@@ -109,7 +109,8 @@ local function Open(client,saved,epoch)
     data.ledger=nil
     local D={}
     local sortedIDs,deltaCache
-    local work={groups=0,records=0}
+    local revision=1
+    local work={groups=0,records=0,indexed=0}
     local function Mark(id,added)
         if added then sortedIDs=nil end
         if deltaCache then
@@ -117,7 +118,7 @@ local function Open(client,saved,epoch)
             if added then
                 local ids=deltaCache.groups[group];ids[#ids+1]=id
             end
-            deltaCache.dirty[group]=true
+            deltaCache.dirty[group]=true;deltaCache.partial[group]=nil
         end
     end
     local function Merge(incoming)
@@ -136,8 +137,10 @@ local function Open(client,saved,epoch)
                 Mark(id,false)
             end
         end
+        if changed then revision=revision+1 end
         return true,changed and "merged" or "unchanged"
     end
+    function D.GetEvidenceRevision() return revision end
     -- Direct fixture observation: t1/t2 correspond to canonical player1/2.
     -- A two-clock fixture is not proof that either player really reported it.
     function D.Observe(record,t1,t2)
@@ -180,13 +183,36 @@ local function Open(client,saved,epoch)
         for i=1,total do pages[i]=Page(token,i,ids,total) end
         return pages
     end
-    -- Partition membership changes only when a new canonical ID is inserted.
-    -- Rehash dirty groups lazily, preserving exactly the existing checksum order.
-    local function Refresh(d,g)
-        if not d.dirty[g] then return end
-        local ids=d.groups[g];table.sort(ids)
-        local row={count=#ids,a=1,b=1}
-        for _,id in ipairs(ids) do
+    -- Prepare derived comparison work cooperatively. A mutation invalidates
+    -- only the affected group, including any unfinished hash of that group.
+    local function InitDelta()
+        if not deltaCache then
+            local groups,info={},{}
+            for i=1,GROUPS do groups[i]={};info[i]={count=0,a=1,b=1} end
+            deltaCache={groups=groups,info=info,dirty={},partial={},seed=IDs(),nextID=1}
+        end
+        return deltaCache
+    end
+    local function Partition(d,budget)
+        local used=0
+        while d.seed and d.nextID<=#d.seed and used<budget do
+            local id=d.seed[d.nextID];local g=Group(id);local ids=d.groups[g]
+            ids[#ids+1]=id;d.dirty[g]=true;d.nextID=d.nextID+1;used=used+1
+        end
+        if d.seed and d.nextID>#d.seed then d.seed=nil;d.nextID=nil end
+        work.indexed=work.indexed+used
+        return used
+    end
+    local function Refresh(d,g,budget)
+        if not d.dirty[g] or budget==0 then return 0 end
+        local ids=d.groups[g]
+        local p=d.partial[g]
+        if not p then
+            table.sort(ids);p={nextID=1,row={count=#ids,a=1,b=1}};d.partial[g]=p
+        end
+        local row=p.row;local used=0
+        while p.nextID<=#ids and used<budget do
+            local id=ids[p.nextID]
             local function Add(field)
                 row.a=Hash(row.a,field,131,H1)
                 row.b=Hash(row.b,field,257,H2)
@@ -198,26 +224,35 @@ local function Open(client,saved,epoch)
             local clocks=data.clocks[id] or {}
             Add(tostring(#clocks))
             for _,c in ipairs(clocks) do Add(tostring(c[1]));Add(tostring(c[2])) end
+            p.nextID=p.nextID+1;used=used+1
         end
-        d.info[g]=row;d.dirty[g]=nil
-        work.groups=work.groups+1;work.records=work.records+#ids
+        work.records=work.records+used
+        if p.nextID>#ids then
+            d.info[g]=row;d.dirty[g]=nil;d.partial[g]=nil;work.groups=work.groups+1
+        end
+        return used
     end
     local function Delta(group)
-        if not deltaCache then
-            local groups,info,dirty={},{},{}
-            for i=1,GROUPS do groups[i]={};info[i]={count=0,a=1,b=1} end
-            for _,id in ipairs(IDs()) do
-                local g=Group(id);local ids=groups[g]
-                ids[#ids+1]=id;dirty[g]=true
-            end
-            deltaCache={groups=groups,info=info,dirty=dirty}
-        end
-        local d=deltaCache
-        if group then Refresh(d,group)
-        else for g=1,GROUPS do Refresh(d,g) end end
+        local d=InitDelta()
+        Partition(d,LIMIT)
+        if group then Refresh(d,group,LIMIT)
+        else for g=1,GROUPS do Refresh(d,g,LIMIT) end end
         return d
     end
-    -- Fixture counters measure work, not timing or actual in-game CPU.
+    -- Explicit fixture work budget, NOT a time guarantee. Initial sorted ID
+    -- extraction and per-group sorting are still synchronous. No timer.
+    function D.PrepareDelta(budget)
+        if not epoch or not Int(budget,1,64) then return nil,"invalid_budget" end
+        local d=InitDelta()
+        local used=Partition(d,budget)
+        if not d.seed then
+            for g=1,GROUPS do
+                if used>=budget then break end
+                used=used+Refresh(d,g,budget-used)
+            end
+        end
+        return not d.seed and next(d.dirty)==nil,used
+    end
     function D.GetDeltaWork() return Copy(work) end
     local function Context()
         if epoch then return ns.CompetitiveIntegrity.SeasonDescriptor(client,epoch) end
@@ -647,6 +682,78 @@ function P.RunDeltaCacheSelfTest(emit)
     Case("delta work is isolated and live gate unchanged",function()
         local x=assert(Open("retail"));assert(not x.DeltaSummary())
         assert(x.GetDeltaWork().records==0 and x.GetDeltaWork().groups==0)
+        local s=P.GetSnapshot();assert(s.scope=="LOCAL" and s.state=="disabled" and not s.rankEligible)
+    end)
+    return pass,fail
+end
+
+function P.RunPreparationSelfTest(emit)
+    emit=type(emit)=="function" and emit or function()end
+    local pass,fail=0,0
+    local function Case(label,fn)
+        local ok,err=pcall(fn);if ok then pass=pass+1 else fail=fail+1 end
+        emit("DR | SIMULATED | "..(ok and "PASS " or "FAIL ")..label..(ok and "" or ": "..tostring(err)))
+    end
+    local a,b="Player-1-AAA","Player-2-BBB"
+    local epoch=1000
+    for _,client in ipairs({"forever","retail"}) do
+        local function Record(i,reverse)
+            local s="a-"..i..":b-"..i
+            return {scope="SIMULATED",version="1",client=client,session=s,id=client.."|"..a.."|"..b.."|"..s,
+                player1=a,player2=b,winner=reverse and b or a,loser=reverse and a or b,endType="knockout",rankEligible=false,
+                statement1=table.concat({"1",client,s,a,b,reverse and "lost" or "won","1"},"|"),
+                statement2=table.concat({"1",client,s,b,a,reverse and "won" or "lost","2"},"|")}
+        end
+        local function Node(n)
+            local x=assert(Open(client,nil,epoch))
+            for i=1,n do assert(x.Observe(Record(i),epoch+i,epoch+i)) end
+            return x
+        end
+        local function Finish(x,budget)
+            for _=1,256 do
+                local before=x.GetDeltaWork()
+                local ready,used=x.PrepareDelta(budget)
+                local after=x.GetDeltaWork()
+                assert(type(ready)=="boolean" and used<=budget and used==after.indexed-before.indexed+after.records-before.records)
+                if ready then return end
+                assert(used>0)
+            end
+            error("preparation did not finish")
+        end
+        Case(client.." bounded cold preparation and warm parity",function()
+            local x=Node(32);assert(not x.PrepareDelta(0) and not x.PrepareDelta(65))
+            Finish(x,7)
+            local w=x.GetDeltaWork();assert(w.indexed==32 and w.records==32)
+            local fresh=assert(Open(client,x.Save(),epoch))
+            assert(Equal(x.DeltaSummary(),fresh.DeltaSummary()) and Equal(w,x.GetDeltaWork()))
+            local ready,used=x.PrepareDelta(1);assert(ready and used==0)
+        end)
+        Case(client.." mutations during indexing and hashing preserve exact parity",function()
+            local x=Node(32)
+            local ready,used=x.PrepareDelta(1);assert(not ready and used==1)
+            assert(x.Observe(Record(33),epoch+33,epoch+33))
+            assert(x.Observe(Record(1,true),epoch+1,epoch+1))
+            -- Finish initial indexing, then hash exactly one record.
+            for _=1,31 do assert(select(2,x.PrepareDelta(1))==1) end
+            assert(select(2,x.PrepareDelta(1))==1)
+            assert(x.Observe(Record(1),epoch+2,epoch+2))
+            assert(x.Observe(Record(34),epoch+34,epoch+34))
+            Finish(x,3)
+            local fresh=assert(Open(client,x.Save(),epoch))
+            assert(Equal(x.DeltaSummary(),fresh.DeltaSummary()))
+            assert(x.GetDeltaWork().indexed==32)
+        end)
+        Case(client.." evidence revision changes only after accepted canonical mutation",function()
+            local x=Node(1);local r=x.GetEvidenceRevision()
+            local ok,why=x.Observe(Record(1),epoch+1,epoch+1);assert(ok and why=="unchanged")
+            assert(x.GetEvidenceRevision()==r and not x.Receive({},a,a,"prep"))
+            assert(x.GetEvidenceRevision()==r)
+            assert(x.Observe(Record(1),epoch+2,epoch+2) and x.GetEvidenceRevision()==r+1)
+            assert(x.Observe(Record(1,true),epoch+1,epoch+1) and x.GetEvidenceRevision()==r+2)
+        end)
+    end
+    Case("preparation remains fixture-only",function()
+        local x=assert(Open("retail"));assert(not x.PrepareDelta(1))
         local s=P.GetSnapshot();assert(s.scope=="LOCAL" and s.state=="disabled" and not s.rankEligible)
     end)
     return pass,fail

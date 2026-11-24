@@ -217,3 +217,11 @@ assert(dcp==7 and dcf==0 and sent==previous and P.GetSnapshot().state=="checking
 assert(_G.DuelsReimaginedDB==originalDB and _G.DuelsReimaginedCompetitiveDB==oldAccount
     and _G.DuelsReimaginedCharacterDB==oldChar,"delta cache QA never writes live data")
 print("Incremental comparison: PASS")
+
+local prepP,prepF=ns.LeaderboardSync.RunPreparationSelfTest(function(line)if line:find("FAIL",1,true)then print(line)end end)
+assert(prepP==7 and prepF==0,"cooperative preparation")
+local recP,recF=ns.SyncProtocol.RunRecoverySelfTest(function(line)if line:find("FAIL",1,true)then print(line)end end)
+assert(recP==9 and recF==0 and sent==previous and P.GetSnapshot().state=="checking","isolated recovery sessions")
+assert(_G.DuelsReimaginedDB==originalDB and _G.DuelsReimaginedCompetitiveDB==oldAccount
+    and _G.DuelsReimaginedCharacterDB==oldChar,"recovery QA never writes live data")
+print("Cooperative preparation and recovery sessions: PASS")
