@@ -15,20 +15,29 @@ local function Expected(a,b)
     return gap<0 and 10000-p or p
 end
 local function K(n) return n<PLACEMENTS and K_NEW or K_BASE end
-local function Step(w,l)
+local function Step(w,l,weight,protected)
+    weight=weight or 4
     local p=Expected(w.rating,l.rating)
-    local gain=math.floor((K(w.games)*(10000-p)+5000)/10000)
-    local loss=math.floor((K(l.games)*(10000-p)+5000)/10000)
+    if weight==0 then return 0,0,p end
+    local wg=protected and w.credit/4 or w.games
+    local lg=protected and l.credit/4 or l.games
+    local gain=math.floor((K(wg)*(10000-p)*weight+20000)/40000)
+    local loss=math.floor((K(lg)*(10000-p)*weight+20000)/40000)
+    w.credit=w.credit+weight;l.credit=l.credit+weight
     w.rating=w.rating+gain;l.rating=l.rating-loss
     w.games=w.games+1;l.games=l.games+1;w.wins=w.wins+1;l.losses=l.losses+1
     return gain,loss,p
 end
-local function Player() return {rating=START,games=0,wins=0,losses=0} end
+local function Player() return {rating=START,games=0,wins=0,losses=0,credit=0} end
 function P.GetSnapshot() return {scope="LOCAL",state="disabled",rankEligible=false,rule=RULE} end
 function P.GetDiagnosticResources() return {pending=0,subscriptions=0,timers=0} end
 -- Timestamp map is an explicit simulation fixture, NOT detector uptime or a
 -- trusted network timestamp. Production records still need agreed chronology.
-function P.ReplaySimulated(client,saved,chronology)
+function P.ReplaySimulated(client,saved,chronology,rule)
+    rule=rule or RULE -- retain the original trial as a reproducible baseline
+    local protected=rule==ns.CompetitiveRules.ID
+    if rule~=RULE and not protected then return nil,"unknown_rule" end
+    local pairWeight=protected and ns.CompetitiveRules.NewReplay() or nil
     if type(saved)~="table" or type(chronology)~="table" then return nil,"missing_input" end
     local ledger,why=ns.MatchLedger.OpenSimulated(client,saved)
     if not ledger then return nil,why end
@@ -44,22 +53,26 @@ function P.ReplaySimulated(client,saved,chronology)
     end
     table.sort(ordered,function(a,b) if a.time~=b.time then return a.time<b.time end;return a.record.id<b.record.id end)
     local players,changes={},{}
+    local rated,restricted=0,0
     for _,item in ipairs(ordered) do
         local r=item.record
         local w,l=players[r.winner],players[r.loser]
         if not w then w=Player();players[r.winner]=w end
         if not l then l=Player();players[r.loser]=l end
         local beforeW,beforeL=w.rating,l.rating
-        local gain,loss,p=Step(w,l)
+        local weight,reason=4,"full"
+        if pairWeight then weight,reason=pairWeight(r,item.time) end
+        local gain,loss,p=Step(w,l,weight,protected)
+        if weight>0 then rated=rated+1 else restricted=restricted+1 end
         changes[#changes+1]={id=r.id,time=item.time,winner=r.winner,loser=r.loser,
             winnerBefore=beforeW,loserBefore=beforeL,winnerAfter=w.rating,loserAfter=l.rating,
-            gain=gain,loss=loss,expectedWin=p}
+            gain=gain,loss=loss,expectedWin=p,weight=weight,reason=reason}
     end
     local standings={}
-    for id,p in pairs(players) do standings[#standings+1]={id=id,rating=p.rating,games=p.games,wins=p.wins,losses=p.losses,provisional=p.games<PLACEMENTS} end
+    for id,p in pairs(players) do standings[#standings+1]={id=id,rating=p.rating,games=p.games,wins=p.wins,losses=p.losses,credit=p.credit,provisional=p.credit<PLACEMENTS*4} end
     table.sort(standings,function(a,b) if a.rating~=b.rating then return a.rating>b.rating end;return a.id<b.id end)
-    return {scope="SIMULATED",client=client,rule=RULE,rankEligible=false,players=players,standings=standings,
-        changes=changes,matched=#ordered,disputed=#snap.disputed}
+    return {scope="SIMULATED",client=client,rule=rule,rankEligible=false,players=players,standings=standings,
+        changes=changes,matched=#ordered,disputed=#snap.disputed,rated=rated,restricted=restricted}
 end
 function P.RunSelfTest(emit)
     emit=type(emit)=="function" and emit or function()end
