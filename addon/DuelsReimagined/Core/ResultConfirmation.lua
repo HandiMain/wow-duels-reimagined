@@ -152,8 +152,8 @@ function P.RunSelfTest(emit)
         end
         local f={a=a,b=b,id=id,ca=C(a,b,7),cb=C(b,a,12),ra=R(b,7,"won","unclassified"),rb=R(a,12,"lost","standard")}
         f.d=Build(client,id,a,b)
-        function f.first() return assert(Statement(f.ca,f.ra)) end
-        function f.second() return assert(Statement(f.cb,f.rb)) end
+        function f.first() return assert(P.MakeSimulatedStatement(f.ca,f.ra)) end
+        function f.second() return assert(P.MakeSimulatedStatement(f.cb,f.rb)) end
         function f.match() assert(f.d.Receive(f.first(),a));assert(f.d.Receive(f.second(),b)) end
         return f
     end
@@ -166,24 +166,25 @@ function P.RunSelfTest(emit)
             r.winner="changed";assert(f.d.Snapshot().record.winner==f.a)
         end)
         Case(client.." missing agreement / wrong scope",function()
-            local f=Fixture(client);f.ca.agreement.candidate=false;assert(not Statement(f.ca,f.ra))
-            f.ca.agreement.candidate=true;f.ra.scope="LOCAL";assert(not Statement(f.ca,f.ra))
+            local f=Fixture(client);assert(P.MakeSimulatedStatement(f.ca,f.ra))
+            f.ca.agreement.candidate=false;assert(not P.MakeSimulatedStatement(f.ca,f.ra))
+            f.ca.agreement.candidate=true;f.ra.scope="LOCAL";assert(not P.MakeSimulatedStatement(f.ca,f.ra))
         end)
         Case(client.." incomplete or conflicting local evidence",function()
             local f=Fixture(client)
             for _,k in ipairs({"outcomeObserved","finishObserved","resultObserved"}) do
-                f.ra[k]=false;assert(not Statement(f.ca,f.ra));f.ra[k]=true
+                f.ra[k]=false;assert(not P.MakeSimulatedStatement(f.ca,f.ra));f.ra[k]=true
             end
-            f.ra.conflict=true;assert(not Statement(f.ca,f.ra));f.ra.conflict=false
-            f.ra.outcome="unknown";assert(not Statement(f.ca,f.ra))
+            f.ra.conflict=true;assert(not P.MakeSimulatedStatement(f.ca,f.ra));f.ra.conflict=false
+            f.ra.outcome="unknown";assert(not P.MakeSimulatedStatement(f.ca,f.ra))
         end)
         Case(client.." retreats and death duels excluded",function()
-            local f=Fixture(client);f.ra.endType="retreat";assert(not Statement(f.ca,f.ra))
-            f.ra.endType="knockout";f.ra.kind="death_duel";assert(not Statement(f.ca,f.ra))
+            local f=Fixture(client);f.ra.endType="retreat";assert(not P.MakeSimulatedStatement(f.ca,f.ra))
+            f.ra.endType="knockout";f.ra.kind="death_duel";assert(not P.MakeSimulatedStatement(f.ca,f.ra))
         end)
         Case(client.." wrong cycle and opponent",function()
-            local f=Fixture(client);f.ra.id=8;assert(not Statement(f.ca,f.ra));f.ra.id=7
-            f.ra.opponent.guid=f.a;assert(not Statement(f.ca,f.ra))
+            local f=Fixture(client);f.ra.id=8;assert(not P.MakeSimulatedStatement(f.ca,f.ra));f.ra.id=7
+            f.ra.opponent.guid=f.a;assert(not P.MakeSimulatedStatement(f.ca,f.ra))
         end)
         Case(client.." one report remains unconfirmed",function()
             local f=Fixture(client);f.d.Receive(f.first(),f.a);assert(f.d.Snapshot().state=="pending")

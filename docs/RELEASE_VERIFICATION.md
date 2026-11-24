@@ -98,3 +98,7 @@ Established 2026-11-24; implementation baseline `09cc4e1` (develop). Practical v
 ## Supporting records
 
 [Project guide](PROJECT_GUIDE.md) · [Competitive](COMPETITIVE.md) · [Duel detection](DUEL_DETECTION.md) · [War Games](WAR_GAMES.md) · [Client compatibility](CLIENT_COMPATIBILITY.md) · [Diagnostics](DIAGNOSTICS.md) · [Presence](PRESENCE.md) · [Group roster](GROUP_ROSTER.md) · [Addon status](ADDON_STATUS.md) · [Community](COMMUNITY_GITHUB.md) · [Asset provenance](ASSET_PROVENANCE.md) · [Patch notes](PATCH_NOTES_TEMPLATE.md)
+
+### Open regression — 2026-11-24
+
+- [ ] B-reg01 — Re-run ResultConfirmation isolated QA after correcting omitted simulation scope in fixture calls. Expect all 21 cases to pass; confirm other suites and live-disabled gates unchanged. User report for b5f0e349f9a5: 77/0/1/5, 12 failed result subcases. Prior CI runtime failure also requires review; do not close this item on source inspection alone. No live multiplayer testing requested before December.
