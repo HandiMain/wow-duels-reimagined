@@ -27,6 +27,7 @@ Core\CompetitiveStorage.lua
 Core\CompetitiveRules.lua
 Core\RatingEngine.lua
 Core\LeaderboardSync.lua
+Core\SyncProtocol.lua
 Core\WarGames.lua [AllowLoadGameType standard]
 UI\Fonts.lua
 UI\Style.lua

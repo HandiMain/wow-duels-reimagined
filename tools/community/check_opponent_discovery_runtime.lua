@@ -119,3 +119,13 @@ assert(Y.GetSnapshot().state=="disabled" and not Y.GetSnapshot().rankEligible
     and _G.DuelsReimaginedDB==originalDB and _G.DuelsReimaginedCompetitiveDB==oldAccount
     and _G.DuelsReimaginedCharacterDB==oldChar,"sync QA never writes live data")
 print("Leaderboard sync isolated peer convergence: PASS")
+
+-- Simulated byte packets never use the live transport.
+assert(loadfile("addon/DuelsReimagined/Core/SyncProtocol.lua"))("DuelsReimagined",ns)
+local W=ns.SyncProtocol
+local wp,wf=W.RunSelfTest(function(line)if line:find("FAIL",1,true) then print(line) end end)
+assert(wp==23 and wf==0 and sent==previous and P.GetSnapshot().state=="checking","isolated packet lifecycle")
+assert(W.GetSnapshot().state=="disabled" and not W.GetSnapshot().rankEligible
+    and _G.DuelsReimaginedDB==originalDB and _G.DuelsReimaginedCompetitiveDB==oldAccount
+    and _G.DuelsReimaginedCharacterDB==oldChar,"protocol QA never writes live data")
+print("Sync protocol isolated packet lifecycle: PASS")

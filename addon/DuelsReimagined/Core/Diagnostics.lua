@@ -119,7 +119,7 @@ Check("Client and API profile","health",function()
 end)
 Check("Module ownership / load order","health",function()
     for _,key in ipairs({"Client","Settings","Group","DuelDetection","DuelSelfTest",
-        "Communication","Presence","OpponentDiscovery","PeerAgreement","ResultConfirmation","MatchLedger","PersonalHistory","CompetitiveStorage","CompetitiveRules","RatingEngine","LeaderboardSync","Style","Motion","Widgets","Window","Search",
+        "Communication","Presence","OpponentDiscovery","PeerAgreement","ResultConfirmation","MatchLedger","PersonalHistory","CompetitiveStorage","CompetitiveRules","RatingEngine","LeaderboardSync","SyncProtocol","Style","Motion","Widgets","Window","Search",
         "Header","Navigation","Options","AddonStatus","AccessIcons","BlizzardLanding"}) do
         Assert(type(ns[key])=="table",key.." missing")
     end
@@ -203,6 +203,11 @@ Check("Leaderboard sync / live gate","health",function()
     local p=ns.LeaderboardSync.GetSnapshot()
     Assert(p.scope=="LOCAL" and p.state=="disabled" and p.rankEligible==false,"sync live gate unexpectedly enabled")
     return "PASS","Logical simulation pages v"..p.version.."; no live sync or rating writes."
+end)
+Check("Sync protocol / live gate","health",function()
+    local p=ns.SyncProtocol.GetSnapshot()
+    Assert(p.scope=="LOCAL" and p.state=="disabled" and p.rankEligible==false,"sync protocol live gate unexpectedly enabled")
+    return "PASS","Simulation wire v"..p.version.."; no live network or rating writes."
 end)
 Check("Settings / defaults / bounds","health",function()
     local S=ns.Settings
@@ -301,6 +306,12 @@ Check("Leaderboard sync / isolated peer convergence QA","deep",function()
     local log={}
     local p,f=ns.LeaderboardSync.RunSelfTest(function(line) log[#log+1]=line end)
     return f==0 and p==25 and "PASS" or "FAIL",
+        string.format("%d passed / %d failed (SIMULATED)\n",p,f)..table.concat(log,"\n")
+end)
+Check("Sync protocol / isolated packet QA","deep",function()
+    local log={}
+    local p,f=ns.SyncProtocol.RunSelfTest(function(line) log[#log+1]=line end)
+    return f==0 and p==23 and "PASS" or "FAIL",
         string.format("%d passed / %d failed (SIMULATED)\n",p,f)..table.concat(log,"\n")
 end)
 Check("Search registry","deep",function()
