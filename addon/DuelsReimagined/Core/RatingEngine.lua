@@ -14,28 +14,37 @@ local function Expected(a,b)
     if rem>0 then p=p+math.floor(((EXPECT[i+1]-p)*rem+25)/50) end
     return gap<0 and 10000-p or p
 end
-local function K(n) return n<PLACEMENTS and K_NEW or K_BASE end
-local function Step(w,l,weight,protected)
+local function K(n,placements) return n<(placements or PLACEMENTS) and K_NEW or K_BASE end
+local function Step(w,l,weight,protected,placements)
     weight=weight or 4
     local p=Expected(w.rating,l.rating)
     if weight==0 then return 0,0,p end
     local wg=protected and w.credit/4 or w.games
     local lg=protected and l.credit/4 or l.games
-    local gain=math.floor((K(wg)*(10000-p)*weight+20000)/40000)
-    local loss=math.floor((K(lg)*(10000-p)*weight+20000)/40000)
+    local wk,lk=K(wg,placements),K(lg,placements)
+    local gain=math.floor((wk*(10000-p)*weight+20000)/40000)
+    local loss=math.floor((lk*(10000-p)*weight+20000)/40000)
     w.credit=w.credit+weight;l.credit=l.credit+weight
     w.rating=w.rating+gain;l.rating=l.rating-loss
     w.games=w.games+1;l.games=l.games+1;w.wins=w.wins+1;l.losses=l.losses+1
-    return gain,loss,p
+    return gain,loss,p,wk,lk
 end
 local function Player() return {rating=START,games=0,wins=0,losses=0,credit=0} end
 function P.GetSnapshot() return {scope="LOCAL",state="disabled",rankEligible=false,rule=RULE} end
 function P.GetDiagnosticResources() return {pending=0,subscriptions=0,timers=0} end
 -- Timestamp map is an explicit simulation fixture, NOT detector uptime or a
 -- trusted network timestamp. Production records still need agreed chronology.
-function P.ReplaySimulated(client,saved,chronology,rule)
+function P.ReplaySimulated(client,saved,chronology,rule,options)
     rule=rule or RULE -- retain the original trial as a reproducible baseline
-    local protected=rule==ns.CompetitiveRules.ID
+    local policy=ns.SeasonRules
+    local seasonal=policy and rule==policy.ID
+    local schedule
+    if seasonal then
+        if type(options)~="table" then return nil,"invalid_schedule" end
+        schedule=policy.Schedule(options.epoch,options.asOf)
+        if not schedule then return nil,"invalid_schedule" end
+    end
+    local protected=rule==ns.CompetitiveRules.ID or seasonal
     if rule~=RULE and not protected then return nil,"unknown_rule" end
     local pairWeight=protected and ns.CompetitiveRules.NewReplay() or nil
     if type(saved)~="table" or type(chronology)~="table" then return nil,"missing_input" end
@@ -49,30 +58,76 @@ function P.ReplaySimulated(client,saved,chronology,rule)
     end
     for _,r in ipairs(snap.matched) do
         local t=chronology[r.id];if not t then return nil,"missing_chronology" end
-        ordered[#ordered+1]={time=t,record=r}
+        if not seasonal or policy.SeasonOf(schedule,t) then ordered[#ordered+1]={time=t,record=r} end
     end
     table.sort(ordered,function(a,b) if a.time~=b.time then return a.time<b.time end;return a.record.id<b.record.id end)
     local players,changes={},{}
+    local history,carry={},{}
+    local season=1
+    local function Archive()
+        if next(players)==nil then return end
+        local rows={}
+        for id,p in pairs(players) do
+            if p.credit>0 then
+                p.rank=policy.Rank(p.rating,p.credit,p.rivalCount)
+                rows[id]=p;carry[id]={rating=p.rating,season=season}
+            end
+        end
+        if next(rows) then history[season]={players=rows} end
+    end
+    local function NewPlayer(id)
+        local p=Player()
+        if seasonal then
+            p.rating=policy.START
+            if carry[id] then
+                p.rating=carry[id].rating
+                for _=carry[id].season+1,season do p.rating=policy.Reset(p.rating) end
+            end
+            p.rivals={};p.rivalCount=0;p.peakRating=nil;p.peakRank=nil
+        end
+        return p
+    end
+    local function UpdatePlayer(p,peer)
+        if not p.rivals[peer] then p.rivals[peer]=true;p.rivalCount=p.rivalCount+1 end
+        p.peakRating=math.max(p.peakRating or p.rating,p.rating)
+        local rank=policy.Rank(p.rating,p.credit,p.rivalCount)
+        if not rank.provisional and (not p.peakRankRating or p.rating>p.peakRankRating) then p.peakRankRating=p.rating;p.peakRank=rank end
+    end
     local rated,restricted=0,0
     for _,item in ipairs(ordered) do
         local r=item.record
+        if seasonal then
+            local n=policy.SeasonOf(schedule,item.time)
+            if n~=season then Archive();players={};season=n end
+        end
         local w,l=players[r.winner],players[r.loser]
-        if not w then w=Player();players[r.winner]=w end
-        if not l then l=Player();players[r.loser]=l end
+        if not w then w=NewPlayer(r.winner);players[r.winner]=w end
+        if not l then l=NewPlayer(r.loser);players[r.loser]=l end
         local beforeW,beforeL=w.rating,l.rating
         local weight,reason=4,"full"
         if pairWeight then weight,reason=pairWeight(r,item.time) end
-        local gain,loss,p=Step(w,l,weight,protected)
+        local gain,loss,p,wk,lk=Step(w,l,weight,protected,seasonal and policy.PLACEMENT_CREDIT/4 or nil)
+        if seasonal and weight>0 then UpdatePlayer(w,r.loser);UpdatePlayer(l,r.winner) end
         if weight>0 then rated=rated+1 else restricted=restricted+1 end
         changes[#changes+1]={id=r.id,time=item.time,winner=r.winner,loser=r.loser,
             winnerBefore=beforeW,loserBefore=beforeL,winnerAfter=w.rating,loserAfter=l.rating,
             gain=gain,loss=loss,expectedWin=p,weight=weight,reason=reason}
+        if seasonal then local row=changes[#changes];row.season=season;row.winnerK=wk;row.loserK=lk end
     end
+    if seasonal and season~=schedule.season then Archive();players={};season=schedule.season end
     local standings={}
-    for id,p in pairs(players) do standings[#standings+1]={id=id,rating=p.rating,games=p.games,wins=p.wins,losses=p.losses,credit=p.credit,provisional=p.credit<PLACEMENTS*4} end
+    for id,p in pairs(players) do
+        if not seasonal or p.credit>0 then
+            local row={id=id,rating=p.rating,games=p.games,wins=p.wins,losses=p.losses,credit=p.credit,provisional=p.credit<PLACEMENTS*4}
+            if seasonal then p.rank=policy.Rank(p.rating,p.credit,p.rivalCount);row.rank=p.rank;row.provisional=p.rank.provisional;row.rivalCount=p.rivalCount end
+            standings[#standings+1]=row
+        end
+    end
     table.sort(standings,function(a,b) if a.rating~=b.rating then return a.rating>b.rating end;return a.id<b.id end)
-    return {scope="SIMULATED",client=client,rule=rule,rankEligible=false,players=players,standings=standings,
+    local result={scope="SIMULATED",client=client,rule=rule,rankEligible=false,players=players,standings=standings,
         changes=changes,matched=#ordered,disputed=#snap.disputed,rated=rated,restricted=restricted}
+    if seasonal then result.season=season;result.history=history;result.schedule=schedule;result.completeness="unknown" end
+    return result
 end
 function P.RunSelfTest(emit)
     emit=type(emit)=="function" and emit or function()end

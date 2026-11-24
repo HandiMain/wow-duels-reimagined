@@ -93,6 +93,7 @@ print("Competitive storage explicit probe and isolated lifecycle: PASS")
 
 -- Rebuild ratings only from the isolated, validated ledger.
 assert(loadfile("addon/DuelsReimagined/Core/CompetitiveRules.lua"))("DuelsReimagined",ns)
+assert(loadfile("addon/DuelsReimagined/Core/SeasonRules.lua"))("DuelsReimagined",ns)
 assert(loadfile("addon/DuelsReimagined/Core/RatingEngine.lua"))("DuelsReimagined",ns)
 local E=ns.RatingEngine
 local ep,ef=E.RunSelfTest(function(line)if line:find("FAIL",1,true) then print(line) end end)
@@ -139,3 +140,10 @@ assert(I.GetSnapshot().state=="disabled" and not I.GetSnapshot().rankEligible an
     and _G.DuelsReimaginedDB==originalDB and _G.DuelsReimaginedCompetitiveDB==oldAccount
     and _G.DuelsReimaginedCharacterDB==oldChar,"integrity QA never writes live data")
 print("Competitive integrity isolated compatibility: PASS")
+
+local sp,sf=ns.SeasonRules.RunSelfTest(function(line)if line:find("FAIL",1,true) then print(line) end end)
+assert(sp==23 and sf==0 and sent==previous and P.GetSnapshot().state=="checking","isolated season policy")
+assert(ns.SeasonRules.GetSnapshot().state=="disabled" and not ns.SeasonRules.GetSnapshot().rankEligible
+    and _G.DuelsReimaginedDB==originalDB and _G.DuelsReimaginedCompetitiveDB==oldAccount
+    and _G.DuelsReimaginedCharacterDB==oldChar,"season QA never writes live data")
+print("Season rules isolated replay: PASS")

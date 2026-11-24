@@ -119,7 +119,7 @@ Check("Client and API profile","health",function()
 end)
 Check("Module ownership / load order","health",function()
     for _,key in ipairs({"Client","Settings","Group","DuelDetection","DuelSelfTest",
-        "Communication","Presence","OpponentDiscovery","PeerAgreement","ResultConfirmation","MatchLedger","PersonalHistory","CompetitiveStorage","CompetitiveRules","RatingEngine","LeaderboardSync","SyncProtocol","CompetitiveIntegrity","Style","Motion","Widgets","Window","Search",
+        "Communication","Presence","OpponentDiscovery","PeerAgreement","ResultConfirmation","MatchLedger","PersonalHistory","CompetitiveStorage","CompetitiveRules","RatingEngine","LeaderboardSync","SyncProtocol","CompetitiveIntegrity","SeasonRules","Style","Motion","Widgets","Window","Search",
         "Header","Navigation","Options","AddonStatus","AccessIcons","BlizzardLanding"}) do
         Assert(type(ns[key])=="table",key.." missing")
     end
@@ -213,6 +213,11 @@ Check("Competitive integrity / live gate","health",function()
     local p=ns.CompetitiveIntegrity.GetSnapshot()
     Assert(p.scope=="LOCAL" and p.state=="disabled" and p.rankEligible==false and p.originVerified==false and p.build,"integrity compatibility gate unavailable")
     return "PASS","Advertised build "..p.build:sub(1,12).."; no live compatibility enforcement or file attestation."
+end)
+Check("Season rules / live gate","health",function()
+    local p=ns.SeasonRules.GetSnapshot()
+    Assert(p.scope=="LOCAL" and p.state=="disabled" and p.rankEligible==false,"season live gate unexpectedly enabled")
+    return "PASS","Experimental "..p.rule.."; no live calendar, rankings or archive writes."
 end)
 Check("Settings / defaults / bounds","health",function()
     local S=ns.Settings
@@ -323,6 +328,12 @@ Check("Competitive integrity / isolated compatibility QA","deep",function()
     local log={}
     local p,f=ns.CompetitiveIntegrity.RunSelfTest(function(line) log[#log+1]=line end)
     return f==0 and p==13 and "PASS" or "FAIL",
+        string.format("%d passed / %d failed (SIMULATED)\n",p,f)..table.concat(log,"\n")
+end)
+Check("Season rules / isolated season QA","deep",function()
+    local log={}
+    local p,f=ns.SeasonRules.RunSelfTest(function(line) log[#log+1]=line end)
+    return f==0 and p==23 and "PASS" or "FAIL",
         string.format("%d passed / %d failed (SIMULATED)\n",p,f)..table.concat(log,"\n")
 end)
 Check("Search registry","deep",function()
