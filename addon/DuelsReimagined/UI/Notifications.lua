@@ -5,7 +5,6 @@ local N={};ns.Notifications=N
 local S,C,M,Settings=ns.Style,ns.Style.color,ns.Motion,ns.Settings
 local WIDTH,BODY,CONNECTOR=410,183,35
 local ART="Interface\\AddOns\\DuelsReimagined\\Media\\Skin\\NotificationArt.png"
-local HUD_ART="Interface\\AddOns\\DuelsReimagined\\Media\\Skin\\DuelHUDArt.png"
 local SOUND="Interface\\AddOns\\DuelsReimagined\\Media\\Sounds\\Notifications\\General.mp3"
 local card=CreateFrame("Frame","DuelsReimaginedNotificationCard",UIParent)
 card:SetSize(WIDTH,BODY+CONNECTOR);card:SetFrameStrata("HIGH")
@@ -27,8 +26,12 @@ local function Region(parent,layer,x,y,w,h,ax,ay,aw,ah)
     Position(t,parent,x,y,w,h);return t
 end
 Region(panel,"BACKGROUND",0,0,WIDTH,BODY,8,8,792,356)
+-- Ornaments have their own alpha cells, no rectangular backdrop baked into
+-- the frame. Reserve a clean centered text lane between their inner tips.
+Region(panel,"ARTWORK",32,14,88,20,820,112,192,44)
+Region(panel,"ARTWORK",290,14,88,20,820,168,192,44)
 local connector=Region(card,"ARTWORK",0,BODY,WIDTH,CONNECTOR,8,372,792,66)
-local glow=Region(panel,"OVERLAY",WIDTH/2-88,-34,176,58,820,8,192,88)
+local glow=Region(panel,"OVERLAY",WIDTH/2-88,-38,176,58,820,8,192,88)
 glow:SetAlpha(0)
 local emblem=panel:CreateTexture(nil,"ARTWORK")
 emblem:SetTexture("Interface\\AddOns\\DuelsReimagined\\Media\\Icons\\DuelsDRIcon.png")
@@ -37,9 +40,9 @@ Position(emblem,panel,37,53,69,69)
 local function Label(text,size,color,x,y,w,h)
     local v=S.Text(panel,text,size,color);v:SetJustifyH("CENTER");Position(v,panel,x,y,w,h);return v
 end
-local category=Label("Addon update",14,C.pale,106,6,198,25)
-local heading=Label("",18,C.pale,119,45,270,32)
-local description=Label("",12,C.text,119,79,270,60)
+local category=Label("Addon update",13,C.pale,118,12,174,24)
+local heading=Label("",18,C.pale,120,48,264,32)
+local description=Label("",12,C.text,120,82,264,56)
 description:SetWordWrap(true)
 local current,closing,shownSound,handle,animationKey
 local queue,seen={},{}
@@ -143,27 +146,30 @@ end
 local function Button(text,x,w,gold,fn)
     local b=CreateFrame("Button",nil,panel);Position(b,panel,x,142,w,27)
     b:RegisterForClicks("LeftButtonUp")
-    local tx=b:CreateTexture(nil,"BACKGROUND");tx:SetAllPoints(b);tx:SetTexture(HUD_ART);SmoothTexture(tx)
+    local tx=b:CreateTexture(nil,"BACKGROUND");tx:SetAllPoints(b);tx:SetTexture(ART);SmoothTexture(tx)
     local function Paint()
-        local ay=gold and 64 or 100
-        tx:SetTexCoord(342.25/512,481.75/512,(ay+.25)/512,(ay+31.75)/512)
+        -- Derived from the existing HUD buttons; independent alpha padding
+        -- eliminates the abrupt opaque rectangle around the gold face.
+        local ax=gold and 320 or 8
+        tx:SetTexCoord((ax+.5)/1024,(ax+279.5)/1024,448.5/512,503.5/512)
         local v=b.down and .74 or b.hover and 1 or .91;tx:SetVertexColor(v,v,v,1)
     end
     local label=S.Text(b,text,12,C.text);label:SetAllPoints(b);label:SetJustifyH("CENTER")
+    if label.SetJustifyV then label:SetJustifyV("MIDDLE") end
     b:SetScript("OnEnter",function() b.hover=true;Paint() end)
     b:SetScript("OnLeave",function() b.hover=false;b.down=false;Paint() end)
     b:SetScript("OnMouseDown",function() b.down=true;Paint() end)
     b:SetScript("OnMouseUp",function() b.down=false;Paint() end)
     b:SetScript("OnClick",fn);Paint();return b
 end
-Button("What's new",58,151,false,function()
+Button("What's new",62,147,false,function()
     if Blocked() or not current then return end
     -- Even preview opens only the real, fixed repository releases page.
     if not ns.Window.frame:IsShown() then ns.Window.Toggle() end
     if ns.Footer.ShowReleaseLink() then Dismiss(false) end
 end)
-Button("Got it",224,142,true,function() Dismiss(true) end)
-local close=CreateFrame("Button",nil,panel);Position(close,panel,WIDTH-31,10,18,18)
+Button("Got it",224,140,true,function() Dismiss(true) end)
+local close=CreateFrame("Button",nil,panel);Position(close,panel,WIDTH-35,12,18,18)
 local closeText=S.Text(close,"×",14,C.pale);closeText:SetAllPoints(close);closeText:SetJustifyH("CENTER")
 close:SetScript("OnClick",function() Dismiss(false) end)
 local function Paint(m)

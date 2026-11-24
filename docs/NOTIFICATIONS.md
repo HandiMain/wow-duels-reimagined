@@ -11,3 +11,5 @@ Reference: Polestar Core/Update.lua, UI/UpdateCard.lua, UI/ClassToast.lua and UI
 
 
 Visual refinement: 2x padded atlas, clean header ornament blending, antialiased rim and existing HUD button texture regions. Preserve notification timing/audio/queue and original layout. Previous notification mock passed in CI run 45467802650; full CI still failed in unrelated mixed-history preview. New texture fidelity requires screenshot comparison in-game.
+
+Minor visual follow-up: separate alpha-only header ornaments, center/lower header text, smooth outer rim, alpha-padded normal and gold button textures derived from HUD artwork, inset close and buttons. No behavior, sound, timing, or persistence edits.
