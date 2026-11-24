@@ -59,6 +59,24 @@ for _,client in ipairs({"forever","retail"}) do
     assert(Equal(source.Save(),receiver.Save()) and Equal(replay,receiver.ReplaySeasonSimulated(opts)),"full capacity convergence")
     local r=Record(client,limit+1);local ok,why=receiver.Observe(r,asOf,asOf)
     assert(not ok and why=="capacity" and Equal(source.Save(),receiver.Save()),"capacity must reject without loss")
+    -- Logical catch-up with five missing records, not wire traffic measurement.
+    local partial=source.Save()
+    for i=1,5 do local id=Record(client,i).id;partial.ledger.entries[id]=nil;partial.clocks[id]=nil end
+    local behind=assert(ns.LeaderboardSync.OpenSeasonSimulated(client,epoch,partial))
+    local plan=assert(behind.PlanDelta(source.DeltaSummary()))
+    assert(plan.different>=1 and plan.different<=5)
+    local compared=0
+    for _,g in ipairs(plan.pulls) do
+        for i=g.pages,1,-1 do
+            local page=assert(source.ExportDeltaPage("delta",g.group,g.expected,i))
+            compared=compared+#page.entries
+            assert(behind.Receive(page,"Player-1-AAA","Player-1-AAA","delta"))
+        end
+    end
+    assert(compared>=5 and compared<limit and Equal(source.Save(),behind.Save()))
+    assert(#assert(behind.PlanDelta(source.DeltaSummary())).pulls==0)
+    assert(Equal(replay,behind.ReplaySeasonSimulated(opts)))
+    print(string.format("%s: five missing matches, %d differing groups, %d logical records transferred versus %d full records; exact convergence PASS",client,plan.different,compared,limit))
     -- Exercise durable private roots at the expanded capacity, not just node memory.
     local owner="Player-1-AAA"
     local roots={version=2,kind="account",scope="SIMULATED",clients={[client]={probe=0,ledger=saved.ledger,

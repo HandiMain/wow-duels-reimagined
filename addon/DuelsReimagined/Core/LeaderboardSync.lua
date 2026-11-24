@@ -26,6 +26,21 @@ end
 local function Copy(t)
     local o={};for k,v in pairs(t) do o[k]=type(v)=="table" and Copy(v) or v end;return o
 end
+-- Stable ID partitions and two bounded rolling checksums, for comparison
+-- hints only. Neither checksum authenticates evidence or proves completeness.
+local GROUPS,H1,H2=128,2147483647,2147483629
+local function Hash(h,text,mul,mod)
+    for i=1,#text do h=(h*mul+text:byte(i))%mod end
+    return (h*mul)%mod -- zero-byte field separator
+end
+local function Group(id) return Hash(1,id,131,H1)%GROUPS+1 end
+local function GroupInfo(v)
+    if type(v)~="table" or not Int(v.count,0,LIMIT) or not Int(v.a,0,H1-1)
+        or not Int(v.b,0,H2-1) then return false end
+    for k in pairs(v) do if k~="count" and k~="a" and k~="b" then return false end end
+    if v.count==0 and (v.a~=1 or v.b~=1) then return false end
+    return true
+end
 local function Less(a,b) return a[1]<b[1] or (a[1]==b[1] and a[2]<b[2]) end
 local function Clocks(raw)
     local n=Array(raw,2);if not n or n==0 then return nil end
@@ -76,7 +91,7 @@ local function Open(client,saved,epoch)
     local ledger=assert(ns.MatchLedger.OpenSimulated(client,data.ledger))
     data.ledger=nil
     local D={}
-    local sortedIDs
+    local sortedIDs,deltaCache
     local function Merge(incoming)
         local records,stagedClocks={},{}
         for id,variants in pairs(incoming.ledger.entries) do
@@ -90,7 +105,7 @@ local function Open(client,saved,epoch)
             if not Equal(data.clocks[id],clocks) then data.clocks[id]=clocks;changed=true end
         end
         if not changed then return true,"unchanged" end
-        sortedIDs=nil;return true,"merged"
+        sortedIDs=nil;deltaCache=nil;return true,"merged"
     end
     -- Direct fixture observation: t1/t2 correspond to canonical player1/2.
     -- A two-clock fixture is not proof that either player really reported it.
@@ -133,6 +148,70 @@ local function Open(client,saved,epoch)
         local ids=IDs();local total=math.max(1,math.ceil(#ids/PAGE));local pages={}
         for i=1,total do pages[i]=Page(token,i,ids,total) end
         return pages
+    end
+    -- Partitioning never depends on time or sorted page boundaries.
+    -- Cache only derived ID lists and summaries; invalidate on evidence change.
+    local function Delta()
+        if deltaCache then return deltaCache end
+        local groups,info={},{}
+        for i=1,GROUPS do groups[i]={};info[i]={count=0,a=1,b=1} end
+        for _,id in ipairs(IDs()) do
+            local g=Group(id);local row=info[g];local ids=groups[g]
+            ids[#ids+1]=id;row.count=row.count+1
+            local function Add(field)
+                row.a=Hash(row.a,field,131,H1)
+                row.b=Hash(row.b,field,257,H2)
+            end
+            Add(id)
+            local variants=ledger.ReadVariants(id)
+            Add(tostring(#variants))
+            for _,r in ipairs(variants) do Add(r.statement1);Add(r.statement2) end
+            local clocks=data.clocks[id] or {}
+            Add(tostring(#clocks))
+            for _,c in ipairs(clocks) do Add(tostring(c[1]));Add(tostring(c[2])) end
+        end
+        deltaCache={groups=groups,info=info};return deltaCache
+    end
+    local function Context()
+        if epoch then return ns.CompetitiveIntegrity.SeasonDescriptor(client,epoch) end
+    end
+    function D.DeltaSummary()
+        local context=Context();if not context then return nil,"season_context_required" end
+        return {version=1,scope="SIMULATED",context=context,groups=Copy(Delta().info)}
+    end
+    function D.PlanDelta(remote)
+        local context=Context()
+        if not context or type(remote)~="table" or remote.version~=1 or remote.scope~="SIMULATED"
+            or remote.context~=context or Array(remote.groups,GROUPS)~=GROUPS then return nil,"invalid_summary" end
+        for k in pairs(remote) do if k~="version" and k~="scope" and k~="context" and k~="groups" then return nil,"invalid_summary" end end
+        local total=0
+        for _,g in ipairs(remote.groups) do
+            if not GroupInfo(g) then return nil,"invalid_summary" end
+            total=total+g.count;if total>LIMIT then return nil,"invalid_summary" end
+        end
+        local localInfo=Delta().info
+        local plan={scope="SIMULATED",rankEligible=false,completeness="unknown",different=0,pulls={}}
+        for i,g in ipairs(remote.groups) do
+            if not Equal(g,localInfo[i]) then
+                plan.different=plan.different+1
+                -- A peer with no records in this group has nothing to supply.
+                -- Reverse planning remains necessary for two-way convergence.
+                if g.count>0 then plan.pulls[#plan.pulls+1]={group=i,expected=Copy(g),pages=math.ceil(g.count/PAGE)} end
+            end
+        end
+        return plan
+    end
+    -- Refuse stale group requests before producing a page. A successful
+    -- export is not a frozen multi-page session or proof of remote identity.
+    -- Logical pages only; existing Receive validates every canonical record.
+    function D.ExportDeltaPage(token,group,expected,index)
+        if not Context() or not Token(token) or not Int(group,1,GROUPS)
+            or not GroupInfo(expected) or expected.count==0 then return nil,"invalid_group" end
+        local d=Delta()
+        if not Equal(expected,d.info[group]) then return nil,"stale_group" end
+        local total=math.ceil(expected.count/PAGE)
+        if not Int(index,1,total) then return nil,"page" end
+        return Page(token,index,d.groups[group],total)
     end
     -- Sender and request token are injected by a simulation, not authenticated
     -- WoW events. Accept only bounded pages; validate all before a merge.
@@ -359,5 +438,91 @@ function P.RunMergeSelfTest(emit)
         end)
     end
     Case("batch merge stays simulation only",function()local s=P.GetSnapshot();assert(s.scope=="LOCAL" and s.state=="disabled" and not s.rankEligible)end)
+    return passed,failed
+end
+
+function P.RunDeltaSelfTest(emit)
+    emit=type(emit)=="function" and emit or function()end
+    local passed,failed=0,0
+    local function Case(label,fn)
+        local ok,err=pcall(fn);if ok then passed=passed+1 else failed=failed+1 end
+        emit("DR | SIMULATED | "..(ok and "PASS " or "FAIL ")..label..(ok and "" or ": "..tostring(err)))
+    end
+    local a,b="Player-1-AAA","Player-2-BBB"
+    local epoch=1000
+    for _,client in ipairs({"forever","retail"}) do
+        local function Node() return assert(Open(client,nil,epoch)) end
+        local function Record(i,reverse)
+            local s="a-"..i..":b-"..i
+            return {scope="SIMULATED",version="1",client=client,session=s,id=client.."|"..a.."|"..b.."|"..s,
+                player1=a,player2=b,winner=reverse and b or a,loser=reverse and a or b,endType="knockout",rankEligible=false,
+                statement1=table.concat({"1",client,s,a,b,reverse and "lost" or "won","1"},"|"),
+                statement2=table.concat({"1",client,s,b,a,reverse and "won" or "lost","2"},"|")}
+        end
+        local function Pull(source,target)
+            local plan=assert(target.PlanDelta(source.DeltaSummary()))
+            local count=0
+            for _,g in ipairs(plan.pulls) do
+                for i=g.pages,1,-1 do
+                    local page=assert(source.ExportDeltaPage("delta",g.group,g.expected,i))
+                    count=count+#page.entries
+                    assert(target.Receive(page,a,a,"delta"))
+                end
+            end
+            return plan,count
+        end
+        Case(client.." equal histories need no pulls; copied summaries isolated",function()
+            local x,y=Node(),Node()
+            for i=1,24 do assert(x.Observe(Record(i),epoch+i,epoch+i)) end
+            for i=24,1,-1 do assert(y.Observe(Record(i),epoch+i,epoch+i)) end
+            local summary=x.DeltaSummary();assert(Equal(summary,y.DeltaSummary()))
+            local p=assert(y.PlanDelta(summary));assert(p.different==0 and #p.pulls==0 and p.completeness=="unknown" and not p.rankEligible)
+            summary.groups[1].a=0;assert(Equal(x.DeltaSummary(),y.DeltaSummary()))
+        end)
+        Case(client.." missing evidence converges with fewer records",function()
+            local x,y=Node(),Node()
+            for i=1,128 do
+                local r=Record(i);assert(x.Observe(r,epoch+i,epoch+i))
+                if i~=3 and i~=97 then assert(y.Observe(r,epoch+i,epoch+i)) end
+            end
+            local p,n=Pull(x,y)
+            assert(p.different>=1 and p.different<=2 and n>=2 and n<128)
+            assert(Equal(x.Save(),y.Save()) and #assert(y.PlanDelta(x.DeltaSummary())).pulls==0)
+            assert(Equal(x.ReplaySeasonSimulated({epoch=epoch,asOf=epoch+128}),y.ReplaySeasonSimulated({epoch=epoch,asOf=epoch+128})))
+        end)
+        Case(client.." equal counts with corrected outcomes and clocks detected",function()
+            local x,y=Node(),Node();local r=Record(1)
+            assert(x.Observe(r,epoch,epoch));assert(y.Observe(r,epoch,epoch))
+            local old=x.DeltaSummary()
+            assert(x.Observe(Record(1,true),epoch,epoch))
+            assert(y.Observe(r,epoch+1,epoch+1))
+            local plan=assert(y.PlanDelta(x.DeltaSummary()));assert(plan.different==1 and #plan.pulls==1)
+            local g=plan.pulls[1]
+            local stale,why=x.ExportDeltaPage("delta",g.group,old.groups[g.group],1)
+            assert(not stale and why=="stale_group")
+            Pull(x,y);Pull(y,x);assert(Equal(x.Save(),y.Save()))
+            local replay=assert(x.ReplaySeasonSimulated({epoch=epoch,asOf=epoch+1}));assert(replay.disputed==1 and replay.matched==0)
+        end)
+        Case(client.." incompatible malformed and stale summaries fail closed",function()
+            local x,y=Node(),Node();assert(x.Observe(Record(1),epoch,epoch))
+            local old=x.DeltaSummary();local plan=assert(y.PlanDelta(old));local g=plan.pulls[1]
+            assert(not x.ExportDeltaPage("bad|token",g.group,g.expected,1))
+            assert(not x.ExportDeltaPage("delta",g.group,g.expected,2))
+            local remote=assert(Open(client,nil,epoch+1));assert(not remote.PlanDelta(old))
+            local invalid=x.DeltaSummary();invalid.groups[1].count=LIMIT+1;assert(not y.PlanDelta(invalid))
+            invalid=x.DeltaSummary();invalid.groups[1].extra=true;assert(not y.PlanDelta(invalid))
+            invalid=x.DeltaSummary();invalid.groups[GROUPS]=nil;assert(not y.PlanDelta(invalid))
+            invalid=x.DeltaSummary();invalid.context=invalid.context.."x";assert(not y.PlanDelta(invalid))
+            assert(x.Observe(Record(1),epoch+1,epoch+1))
+            assert(not x.ExportDeltaPage("delta",g.group,g.expected,1))
+            assert(#assert(y.PlanDelta(x.DeltaSummary())).pulls==1)
+            assert(#y.Save().ledger.entries==0 and next(y.Save().ledger.entries)==nil)
+        end)
+    end
+    Case("delta comparisons remain isolated season simulations",function()
+        local x=assert(Open("retail"))
+        assert(not x.DeltaSummary() and not x.PlanDelta({}) and not x.ExportDeltaPage("delta",1,{count=1,a=1,b=1},1))
+        local s=P.GetSnapshot();assert(s.scope=="LOCAL" and s.state=="disabled" and not s.rankEligible)
+    end)
     return passed,failed
 end

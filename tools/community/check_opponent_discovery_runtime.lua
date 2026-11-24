@@ -199,3 +199,9 @@ assert(cp==5 and cf==0 and sent==previous and P.GetSnapshot().state=="checking",
 assert(_G.DuelsReimaginedDB==originalDB and _G.DuelsReimaginedCompetitiveDB==oldAccount
     and _G.DuelsReimaginedCharacterDB==oldChar,"capacity QA never writes live data")
 print("Expanded capacity contracts: PASS")
+
+local dp,df=ns.LeaderboardSync.RunDeltaSelfTest(function(line)if line:find("FAIL",1,true)then print(line)end end)
+assert(dp==9 and df==0 and sent==previous and P.GetSnapshot().state=="checking","isolated delta comparison")
+assert(_G.DuelsReimaginedDB==originalDB and _G.DuelsReimaginedCompetitiveDB==oldAccount
+    and _G.DuelsReimaginedCharacterDB==oldChar,"delta QA never writes live data")
+print("Delta comparison: PASS")

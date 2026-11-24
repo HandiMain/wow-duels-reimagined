@@ -378,6 +378,12 @@ Check("Sync protocol / isolated expanded capacity QA","deep",function()
     return f==0 and p==5 and "PASS" or "FAIL",
         string.format("%d passed / %d failed (SIMULATED)\n",p,f)..table.concat(log,"\n")
 end)
+Check("Leaderboard sync / isolated delta comparison QA","deep",function()
+    local log={}
+    local p,f=ns.LeaderboardSync.RunDeltaSelfTest(function(line) log[#log+1]=line end)
+    return f==0 and p==9 and "PASS" or "FAIL",
+        string.format("%d passed / %d failed (SIMULATED)\n",p,f)..table.concat(log,"\n")
+end)
 Check("Search registry","deep",function()
     local S=ns.Search
     local seen={}
