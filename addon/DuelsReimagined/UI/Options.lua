@@ -322,8 +322,6 @@ local autoPeekRow = AddToggle(behaviorCard, "interface", "autoPeekMoving", "Auto
     "Fade the window during movement; restore it when you stop.", -64, false)
 local reduceMotionRow = AddToggle(behaviorCard, "interface", "reduceMotion", "Reduce motion",
     "Shorten or skip UI animation while retaining visual feedback.", -119, false)
-local previewRow = AddToggle(behaviorCard, "interface", "competitivePreview", "Development preview",
-    "Show simulated competitive screens. Disable to view local data; ranking remains disabled.", -174, false)
 local consentRow
 if ns.CompetitiveStorage and ns.CompetitiveStorage.PeerEpoch() then
     consentRow = AddToggle(behaviorCard,"interface","competitiveConsent","Allow competitive duel exchange",
@@ -601,7 +599,7 @@ local appearanceGroups = {
 }
 local interfaceGroups = {
     { card = behaviorCard, entries = {
-        { widget = autoPeekRow }, { widget = reduceMotionRow }, { widget = previewRow },
+        { widget = autoPeekRow }, { widget = reduceMotionRow },
     }},
     { card = gameAccessCard, entries = {
         { widget = gameMenuRow }, { widget = compartmentToggle },

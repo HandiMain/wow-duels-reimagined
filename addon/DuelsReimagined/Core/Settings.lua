@@ -33,9 +33,6 @@ local boolDefaults = {
     matchFont = false,
     autoPeekMoving = true,
     reduceMotion = false,
-    -- Development build only. Explicitly labelled fixtures never mix with
-    -- the local view. Switch the release default off before distribution.
-    competitivePreview = true,
     competitiveConsent = false,
     warGamesConsent = false,
     showTooltips = true,
@@ -519,9 +516,6 @@ function Settings.Set(key, value)
         if ns.Options and ns.Options.Refresh then ns.Options.Refresh() end
     elseif key == "competitiveConsent" then
         if ns.CompetitiveLifecycle then ns.CompetitiveLifecycle.PreferenceChanged() end
-        if ns.Options and ns.Options.Refresh then ns.Options.Refresh() end
-    elseif key == "competitivePreview" then
-        if ns.CompetitiveUI and ns.CompetitiveUI.Refresh then ns.CompetitiveUI.Refresh() end
         if ns.Options and ns.Options.Refresh then ns.Options.Refresh() end
     elseif key == "showTooltips" then
         if not value and ns.Tooltips then ns.Tooltips.Hide(nil, true) end

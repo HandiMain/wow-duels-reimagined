@@ -3,67 +3,45 @@ local _,ns=...
 -- access SavedVariables or real identities, and use the existing replay.
 local P={}
 ns.CompetitivePreview=P
-local names={"Shadowpriest","Voidreign","Frostblade","Pyrelord","Nightveil","Grimhex","Lightwarden","Felborne","Thundercall","Mindscar","Hawkeye","Stoneguard","Arcanist","Zerathian","Velmora","Kalthiris","Draevyn","Vexalor","Seryndris","Myrren"}
-local classes={"PRIEST","PRIEST","MAGE","MAGE","ROGUE","DEATHKNIGHT","PALADIN","WARLOCK","SHAMAN","PRIEST","HUNTER","WARRIOR","MAGE","ROGUE","MAGE","PRIEST","PALADIN","WARRIOR","PALADIN","ROGUE"}
-local realms={"Silvermoon","Silvermoon","Tarren Mill","Stormrage","Ragnaros","Draenor","Silvermoon","Outland","Draenor","Twisting Nether","Stormrage","Defias Brotherhood","Kazzak"}
-local surnames={"Duskwalker","Nightfall","Frostborn","Emberwind","Shadowblade","Grimforge","Lightbringer","Felthorn","Stormcaller","Mindweaver"}
+-- No pre-populated standings. Explicit session commands generate only
+-- private synthetic observations. Rebuild transactionally through the same
+-- canonical validation and replay used by the isolated regression suites.
+local TEST_ENABLED=true
+local MAX_EVENTS=250
+local MAX_OPPONENTS=20
+local classes={"PRIEST","MAGE","ROGUE","WARRIOR","WARLOCK","PALADIN"}
 local function Guid(i) return string.format("Player-99-DR%04d",i) end
-local function Build(client)
+local function Build(client,events)
     assert(client=="retail" or client=="forever")
+    events=events or {}
+    assert(type(events)=="table" and #events<=MAX_EVENTS)
     local epoch=1700000000
-    local duration=ns.SeasonRules.DURATION
-    local asOf=epoch+2*duration+61*86400
+    local asOf=epoch+#events*120+3600
     local node=assert(ns.LeaderboardSync.OpenSeasonSimulated(client,epoch))
-    local ids,metadata,localRows={},{},{}
-    for i,name in ipairs(names) do
-        local id=Guid(i);ids[i]=id
-        local realm=client=="retail" and realms[(i-1)%#realms+1] or nil
+    local metadata,localRows={},{}
+    local me=Guid(0)
+    local function Identity(n)
+        local id=Guid(n)
+        local name=n==0 and "Test Player" or "Test Rival "..n
         metadata[id]={scope="SIMULATED",client=client,guid=id,name=name,
-            fullName=realm and name.."-"..realm or name.." "..surnames[(i-1)%#surnames+1],
-            realm=realm,class=classes[i],faction=i%3==0 and "Horde" or "Alliance",observedAt=asOf}
+            fullName=name,class=classes[n%#classes+1],observedAt=asOf}
+        return id
     end
-    local me=ids[1];local cycle=0
-    local function Match(i,j,win,t)
-        cycle=cycle+1
-        local a,b=ids[i],ids[j];if b<a then a,b=b,a end
-        local winner=ids[win];local s="preview-"..cycle..":duel-"..cycle
-        local x=table.concat({"1",client,s,a,b,a==winner and "won" or "lost",tostring(cycle)},"|")
-        local y=table.concat({"1",client,s,b,a,b==winner and "won" or "lost",tostring(cycle)},"|")
-        local r=assert(ns.ResultConfirmation.DecodeStatementsSimulated(client,x,y))
-        assert(node.Observe(r,t,t))
-        if a==me or b==me then
-            localRows[#localRows+1]={cycle=cycle,peer=a==me and b or a,outcome=winner==me and "won" or "lost",
-                session=s,matchID=r.id,duration=54+(cycle*17)%94,time=t}
-        end
+    for cycle,event in ipairs(events) do
+        assert(type(event)=="table" and (event.outcome=="won" or event.outcome=="lost")
+            and type(event.opponent)=="number" and event.opponent>=1
+            and event.opponent<=MAX_OPPONENTS and event.opponent==math.floor(event.opponent))
+        local a,b=Identity(0),Identity(event.opponent)
+        local winner=event.outcome=="won" and a or b
+        local session="sim-"..cycle..":duel-"..cycle
+        local time=epoch+3600+cycle*120
+        local x=table.concat({"1",client,session,a,b,a==winner and "won" or "lost",tostring(cycle)},"|")
+        local y=table.concat({"1",client,session,b,a,b==winner and "won" or "lost",tostring(cycle)},"|")
+        local record=assert(ns.ResultConfirmation.DecodeStatementsSimulated(client,x,y))
+        assert(node.Observe(record,time,time))
+        localRows[#localRows+1]={cycle=cycle,peer=b,outcome=event.outcome,
+            session=session,matchID=record.id,duration=60,time=time}
     end
-    -- Round-robin opponent rotation, deterministic outcomes and actual UTC
-    -- fixture chronology. No random state or fake persisted ratings.
-    for season=1,3 do
-        local order={}
-        for i=1,#ids do order[i]=i end
-        for round=1,38 do
-            local t=epoch+(season-1)*duration+(round-1)*math.floor(60*86400/38)+3600
-            for slot=1,#ids/2 do
-                local i,j=order[slot],order[#ids-slot+1]
-                local function Strength(n) return n==2 and 100 or n==1 and 67 or 82-n*3 end
-                local chance=math.max(8,math.min(92,50+Strength(i)-Strength(j)))
-                local roll=(round*37+i*19+j*13+season*29)%100
-                Match(i,j,roll<chance and i or j,t+slot*60)
-            end
-            local last=table.remove(order);table.insert(order,2,last)
-        end
-    end
-    -- Extra same-pair duels exercise zero-credit practice. A late conflicting
-    -- statement and a missing peer confirmation exercise honest history states.
-    for i=1,8 do Match(1,3,1,asOf-1200+i*90) end
-    local disputed=localRows[#localRows-8]
-    local a,b=me,disputed.peer;if b<a then a,b=b,a end
-    local winner=disputed.outcome=="won" and disputed.peer or me
-    local x=table.concat({"1",client,disputed.session,a,b,a==winner and "won" or "lost",tostring(disputed.cycle)},"|")
-    local y=table.concat({"1",client,disputed.session,b,a,b==winner and "won" or "lost",tostring(disputed.cycle)},"|")
-    assert(node.Observe(assert(ns.ResultConfirmation.DecodeStatementsSimulated(client,x,y)),disputed.time,disputed.time))
-    cycle=cycle+1
-    localRows[#localRows+1]={cycle=cycle,peer=ids[5],outcome="won",session="pending-"..cycle..":duel-"..cycle,duration=94}
     local saved=node.Save()
     local ledger=assert(ns.MatchLedger.OpenSimulated(client,saved.ledger))
     local history=assert(ns.PersonalHistory.OpenSimulated(client,me,ledger))
@@ -74,16 +52,7 @@ local function Build(client)
         local ag=row.session and {scope="SIMULATED",state="candidate",candidate=true,rankEligible=false,session=row.session} or nil
         assert(history.Observe("run-1",r,ag))
     end
-    -- A small number of ordinary duels appear among recent rated matches.
-    local extra={}
-    for i,row in ipairs(localRows) do
-        if i>#localRows-10 and i%3==0 then
-            cycle=cycle+1
-            local e={cycle=cycle,peer=ids[(i%18)+2],outcome=i%2==0 and "won" or "lost",duration=72+i%43}
-            Observe(e);extra[#extra+1]=e
-        end
-        Observe(row)
-    end
+    for _,row in ipairs(localRows) do Observe(row) end
     local roots={version=2,kind="account",scope="SIMULATED",clients={[client]={probe=0,ledger=saved.ledger,
         identities=metadata,season={version=1,rule=ns.SeasonRules.BALANCED_ID,epoch=epoch,clocks=saved.clocks}}}}
     local char={version=2,kind="character",scope="SIMULATED",owner=me,clients={[client]={probe=0,runCounter=1,history=history.Save()}}}
@@ -118,7 +87,9 @@ local function Build(client)
         asOf=asOf,epoch=epoch,current=view.Status().season,personal=personal.overall,matches=matches}
 end
 P.Build=Build
-local cached
+local cached,session
+function P.TestEnabled() return TEST_ENABLED end
+function P.IsActive() return TEST_ENABLED and session~=nil end
 -- This read-only source never opens a simulated store or invents a season,
 -- rating, participant or match. Personal observations stay character-local.
 function P.Local()
@@ -184,7 +155,38 @@ function P.Local()
         capacity=capacity,recordingDisabled=not storage.LocalRecordingEnabled()}
 end
 function P.Get()
-    local client=ns.Client.Kind()
-    if not cached or cached.client~=client then cached=Build(client) end
+    if not P.IsActive() then return P.Local() end
     return cached
+end
+local function Refresh()
+    if ns.CompetitiveUI then ns.CompetitiveUI.Refresh() end
+end
+function P.Command(command)
+    if not TEST_ENABLED then return false,"Solo simulation is unavailable in this build." end
+    if command=="help" then return true,"/duels sim start | win [1-20] | loss [1-20] | reset | stop | status" end
+    if command=="stop" then
+        session,cached=nil,nil;Refresh();return true,"Simulation discarded. Real data view restored."
+    end
+    if command=="status" then
+        return true,session and ("SIMULATED: "..#session.." duels; /duels sim stop to exit.") or "Simulation inactive."
+    end
+    if command=="start" or command=="reset" then
+        local ok,data=pcall(Build,ns.Client.Kind(),{})
+        if not ok then return false,"Could not initialize test session." end
+        session,cached={},data;Refresh();return true,"Empty SIMULATED session. No real data changed."
+    end
+    local verb,arg=command:match("^(%a+)%s*(%d*)$")
+    if verb~="win" and verb~="loss" then return false,"Use /duels sim help." end
+    if not session then return false,"Start with /duels sim start." end
+    if #session>=MAX_EVENTS then return false,"Test limit reached. Use /duels sim reset." end
+    local opponent=arg=="" and (#session%5+1) or tonumber(arg)
+    if not opponent or opponent<1 or opponent>MAX_OPPONENTS then return false,"Opponent must be 1-20." end
+    local nextEvents={}
+    for i,e in ipairs(session) do nextEvents[i]=e end
+    nextEvents[#nextEvents+1]={outcome=verb=="win" and "won" or "lost",opponent=opponent}
+    local ok,data=pcall(Build,ns.Client.Kind(),nextEvents)
+    if not ok then return false,"Simulation rejected; previous state preserved." end
+    session,cached=nextEvents,data;Refresh()
+    local profile=data.view.ProfileSummary(data.me,data.current)
+    return true,"SIMULATED "..verb.." vs Test Rival "..opponent.."; rating "..tostring(profile and profile.rating or "unavailable").."."
 end

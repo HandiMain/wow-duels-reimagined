@@ -6,21 +6,28 @@ for _,name in ipairs({"ResultConfirmation","MatchLedger","PersonalHistory","Comp
     assert(loadfile(base.."Core/"..name..".lua"))("DuelsReimagined",ns)
 end
 assert(loadfile(base.."UI/CompetitivePreview.lua"))("DuelsReimagined",ns)
-local cache={}
+local P=ns.CompetitivePreview
+assert(not P.IsActive())
 for _,client in ipairs({"forever","retail"}) do
-    local d=ns.CompetitivePreview.Build(client);cache[client]=d
-    assert(d.scope=="SIMULATED" and not d.rankEligible and d.current==3)
-    local b=d.view.Leaderboard(3,0,100,"","rating")
-    assert(b.total>5 and #b.rows==b.total)
-    assert(d.view.ProfileSummary(d.me,3).rating and d.personal.total==#d.matches)
-    local seen={}
-    for _,m in ipairs(d.matches) do
-        seen[m.category]=true
-        if m.category=="Ranked" then assert(m.before and m.after and m.delta==m.after-m.before and m.confirmed) end
-        if m.category=="Pending" or m.category=="Disputed" then assert(m.delta==nil) end
+    local empty=P.Build(client)
+    assert(empty.scope=="SIMULATED" and empty.current==1 and #empty.matches==0)
+    assert(empty.view.Leaderboard(1,0,100,"","rating").total==0)
+    local events={}
+    for i=1,5 do
+        events[i]={outcome=i==2 and "lost" or "won",opponent=i}
+        local d=P.Build(client,events)
+        local p=assert(d.view.ProfileSummary(d.me,1))
+        assert(d.personal.total==i and #d.matches==i and p.credit==i*4 and p.rivalCount==i)
+        assert(p.rank.provisional==(i<5))
+        assert(d.view.Leaderboard(1,0,100,"","rating").total==(i==5 and 1 or 0))
+        assert(d.matches[1].outcome==events[i].outcome and d.matches[1].category=="Ranked")
+        assert(d.matches[1].delta==d.matches[1].after-d.matches[1].before)
     end
-    assert(seen.Ranked and seen.Practice and seen.Disputed and seen.Pending and seen.Unranked)
-    assert(d.view.Leaderboard(3,0,100,"voidreign","rating").total==1)
+    local repeated={}
+    for i=1,8 do repeated[i]={outcome="won",opponent=1} end
+    local d=P.Build(client,repeated);local p=d.view.ProfileSummary(d.me,1)
+    assert(p.rank.provisional and p.rivalCount==1 and p.credit<32)
+    assert(d.matches[1].category=="Practice" and d.matches[1].delta==0)
 end
 -- Minimal frame mock: tracks scripts, visibility, sizes and text; rendering
 -- is deliberately not certified here. Parent anchors get content dimensions.
@@ -73,16 +80,32 @@ ns.Diagnostics={Record=function(_,detail)error(detail)end}
 local navigations=0
 ns.Navigation={SelectKey=function()navigations=navigations+1 end}
 ns.Client={Kind=function()return "retail" end}
-ns.CompetitivePreview.Get=function()return cache.retail end
+ns.Group={ReadPlayerIdentity=function()return {guid="Player-1-LOCAL"}end}
+assert(not P.IsActive() and P.Get().scope=="LOCAL")
+assert(not P.Command("win"))
+assert(P.Command("start") and P.IsActive())
+assert(P.Get().personal.total==0)
 assert(loadfile(base.."UI/CompetitiveUI.lua"))("DuelsReimagined",ns)
 local U=ns.CompetitiveUI
 local count=#frames
+U.Show("overview")
+local function HasText(t)
+    for _,f in ipairs(frames) do if f.text==t and f:IsVisible() then return true end end
+end
+assert(HasText("Placement Matches") and HasText("0 / 5 credits"))
+for i=1,5 do
+    assert(P.Command(i==2 and "loss" or "win"))
+    assert(#P.Get().matches==i)
+    if i<5 then assert(HasText("Placement Matches") and HasText(i.." / 5 credits")) end
+end
+assert(not HasText("Placement Matches"))
+assert(not P.Command("win 21") and #P.Get().matches==5)
 for _,key in ipairs({"overview","standings","history","standings","overview"}) do
     U.Show(key);U.Refresh();U.SetPageScroll(key,3)
 end
 U.Show("standings");U.SetPageScroll("standings",3)
 local before=U.GetPageScroll("standings")
-local d=cache.retail
+local d=P.Get()
 local row=d.view.Leaderboard(d.current,0,5,"","rating").rows[1]
 U.OpenPlayerCard(row.id)
 assert(U.IsPlayerCardOpen() and navigations==0 and U.GetPageScroll("standings")==before)
@@ -95,6 +118,11 @@ assert(not U.IsPlayerCardOpen() and U.GetPageScroll("standings")==before)
 assert(table.concat(UISpecialFrames,",")=="OtherBefore,DuelsReimaginedWindow,OtherAfter")
 U.OpenPlayerCard(d.me);main:Hide()
 assert(not U.IsPlayerCardOpen() and table.concat(UISpecialFrames,",")=="OtherBefore,DuelsReimaginedWindow,OtherAfter")
+main:Show()
+U.Show("overview")
+assert(P.Command("reset") and #P.Get().matches==0 and HasText("Placement Matches"))
+assert(P.Command("stop") and not P.IsActive() and P.Get().scope=="LOCAL")
+assert(not HasText("Placement Matches"))
 U.Show(nil)
 assert(#frames==count,"page navigation must reuse frames")
 assert(_G.DuelsReimaginedCompetitiveDB==nil and _G.DuelsReimaginedCharacterDB==nil)

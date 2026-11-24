@@ -338,6 +338,18 @@ local preview,profileId
 local pendingScroll={}
 local active
 local function Data() return preview end
+local function Placement(d,p,season)
+    if not d or not season or season<1 or season>d.current or
+        (p and p.rank and not p.rank.provisional) then return nil end
+    local rules=ns.SeasonRules
+    local credit=math.max(0,math.min(rules.PLACEMENT_CREDIT,p and p.credit or 0))
+    local rivals=math.max(0,math.min(rules.MIN_RIVALS,p and p.rivalCount or 0))
+    return {credit=credit,total=rules.PLACEMENT_CREDIT,rivals=rivals,required=rules.MIN_RIVALS}
+end
+local function CreditText(p)
+    local n=string.format("%.2f",p.credit/4):gsub("0+$",""):gsub("%.$","")
+    return n.." / "..p.total/4
+end
 local OpenProfile
 local function Go(section,key)ns.Navigation.SelectKey(section,key)end
 local function Seasons()
@@ -373,7 +385,7 @@ local function Page(key,title,subtitle,previewX,owner)
     local heading=T(f,title,26,C.pale);heading:SetPoint("TOPLEFT",f,"TOPLEFT",0,0);heading:SetSize(360,32)
     local sub=T(f,subtitle,13,C.text);sub:SetPoint("TOPLEFT",f,"TOPLEFT",1,-33);sub:SetSize(460,20)
     local label=Panel(f);label:SetSize(173,24);label:SetPoint("TOPRIGHT",f,"TOPRIGHT",previewX or 0,-4)
-    local caption=T(label,"Preview • Simulated data",11,C.muted,"CENTER");caption:SetAllPoints(label)
+    local caption=T(label,"Local data",11,C.muted,"CENTER");caption:SetAllPoints(label)
     f.dataCaption=caption
     if ns.DiagnosticAudit then ns.DiagnosticAudit.RegisterUIRoot("Competitive / "..title,f) end
     f:Hide();if not owner then pages[key]=f end;return f
@@ -384,6 +396,15 @@ local hallRule=ns.Chrome.Divider(hall,300,12)
 local hero=Panel(hall);local emblem=Rank(hero,120,true)
 local rankText=Text(hero,24,C.pale);local ratingCaption=T(hero,"Rating",13,C.muted)
 local rating=Text(hero,28,C.pale)
+local placementTitle=T(hero,"Placement Matches",19,C.pale)
+local placementCredit=Text(hero,12,C.pale)
+local placementRivals=Text(hero,12,C.muted)
+local placementBars={}
+for i=1,5 do
+    local bg=S.Fill(hero,C.goldDim,"ARTWORK");bg:SetAlpha(.35)
+    local fill=S.Fill(hero,C.gold,"OVERLAY")
+    placementBars[i]={bg=bg,fill=fill}
+end
 local seasonTitle=T(hero,"Season Summary",17,C.pale)
 local seasonInfo=Text(hero,11,C.muted,"RIGHT")
 local heroLine=Hair(hero)
@@ -428,6 +449,27 @@ function hall.Render()
     Place(rankText,hero,icon+16,13,left-icon-24,32);Set(rankText,p and p.rank and p.rank.label or "Unranked")
     Place(ratingCaption,hero,icon+18,50,left-icon-24,20)
     Place(rating,hero,icon+16,69,left-icon-24,34);Set(rating,Number(p and p.rating))
+    local placement=Placement(d,p,d.current)
+    local px,pw=icon+16,math.max(1,left-icon-26)
+    rankText:SetShown(not placement);ratingCaption:SetShown(not placement);rating:SetShown(not placement)
+    placementTitle:SetShown(placement~=nil);placementCredit:SetShown(placement~=nil);placementRivals:SetShown(placement~=nil)
+    if placement then
+        Place(placementTitle,hero,px,11,pw,28)
+        Place(placementCredit,hero,px,39,pw,19)
+        placementCredit:SetText(CreditText(placement).." credits")
+        Place(placementRivals,hero,px,78,pw,20)
+        placementRivals:SetText(placement.rivals.." / "..placement.required.." unique opponents")
+    end
+    local cell=math.max(1,(pw-16)/5)
+    for i,bar in ipairs(placementBars) do
+        bar.bg:SetShown(placement~=nil)
+        local fraction=placement and math.max(0,math.min(1,(placement.credit-(i-1)*4)/4)) or 0
+        bar.fill:SetShown(fraction>0)
+        if placement then
+            Place(bar.bg,hero,px+(i-1)*(cell+4),63,cell,9)
+            if fraction>0 then Place(bar.fill,hero,px+(i-1)*(cell+4),63,cell*fraction,9) end
+        end
+    end
     Place(heroLine,hero,left,13,1,heroH-26)
     Place(seasonTitle,hero,left+18,12,w-left-26,25)
     Place(seasonInfo,hero,left+18,36,w-left-26,17)
@@ -453,7 +495,8 @@ function hall.Render()
     Place(activity,hall,0,middleTop,half,middleH);Place(leaders,hall,half+12,middleTop,half,middleH)
     Place(activityLink,activity,half-104,7,93,23);Place(leadersLink,leaders,half-92,7,81,23)
     local rh=math.min(36,math.max(22,(middleH-41)/5));local count=math.max(1,math.min(5,math.floor((middleH-41)/rh)))
-    local top=d.view.Leaderboard(d.current,0,5,"","rating").rows
+    local topResult=d.view.Leaderboard(d.current,0,5,"","rating")
+    local top=topResult and topResult.rows or {}
     Place(activityEmpty,activity,10,38,half-20,math.max(20,middleH-45))
     Place(leadersEmpty,leaders,10,38,half-20,math.max(20,middleH-45))
     activityEmpty:SetText(d.storageReason and "Local history unavailable" or "No recorded duels")
@@ -485,6 +528,7 @@ function hall.Render()
     Place(currentLabel,current,2,7,side-4,19);Place(currentValue,current,2,26,side-4,31)
     Place(currentDelta,current,2,60,side-4,21);Place(currentHint,current,2,83,side-4,15)
     local points=Points(d.me,d.current,hallFilter);hallGraph.Paint(points)
+    currentLabel:SetText(placement and "Provisional Rating" or "Current Rating")
     Set(currentValue,Number(p and p.rating))
     local diff=#points>0 and p and p.rating and p.rating-points[1].rating
     Set(currentDelta,Delta(diff),diff and diff<0 and RED or GREEN)
@@ -523,7 +567,9 @@ function board.Render(reset)
     Place(standText,standing,9,11,76,40);Place(standRank,standing,85,8,42,42)
     local p=d.view.ProfileSummary(d.me,boardSeason)
     standRank.Paint(p and p.rank)
-    Place(standName,standing,130,11,math.max(60,strip*.63-133),40);Set(standName,p and p.rank and p.rank.label or "Unranked")
+    local placement=Placement(d,p,boardSeason)
+    Place(standName,standing,130,11,math.max(60,strip*.63-133),40)
+    Set(standName,placement and ("Placement\n"..CreditText(placement)) or (p and p.rank and p.rank.label or "Unranked"))
     FitMetrics(standMetrics,standing,strip*.64,3,strip*.36-2,57)
     Set(standMetrics[1].value,Number(p and p.rating));Set(standMetrics[2].value,p and p.position and "#"..p.position or "—")
     local choiceW=math.min(142,w*.15)
@@ -645,7 +691,10 @@ function profile.Render()
     Place(profileIdentity,profileHero,left,48,w*.45-left,20);Set(profileIdentity,v and ((v.class or "Unknown class").."  •  "..(v.faction or "Unknown faction")) or "Identity unavailable")
     Place(profileRealm,profileHero,left,71,w*.45-left,18);Set(profileRealm,v and (v.realm or v.fullName) or "—")
     local rankW=w*.22;Place(profileRank,profileHero,w*.46,39,rankW,29);Set(profileRank,p.rank and p.rank.label or "Unranked")
-    Place(profileRankCaption,profileHero,w*.46,69,rankW,18);Set(profileRankCaption,"Season "..profileSeason)
+    local placement=Placement(d,p,profileSeason)
+    if placement then Set(profileRank,"Placement "..CreditText(placement)) end
+    Place(profileRankCaption,profileHero,w*.46,69,rankW,18)
+    Set(profileRankCaption,placement and (placement.rivals.." / "..placement.required.." rivals") or ("Season "..profileSeason))
     FitMetrics(profileStand,profileHero,w*.69,42,w*.30,heroH-45)
     Set(profileStand[1].value,p.position and "#"..p.position or "—");Set(profileStand[2].value,Number(p.rating))
     Place(profileChoice,profileHero,w-122,7,112,28)
@@ -783,16 +832,16 @@ end
 local failed=T(ns.Window.content,"Competitive data is unavailable.",18,C.muted,"CENTER")
 failed:SetPoint("CENTER",ns.Window.content,"CENTER");failed:SetSize(440,30);failed:Hide()
 local function Caption()
-    if preview.scope=="SIMULATED" then return "Preview • Simulated data" end
+    if preview.scope=="SIMULATED" then return "SOLO TEST - SIMULATED" end
     if preview.storageReason then return "Local data unavailable" end
     if preview.capacity and preview.capacity.history.state=="full" then return "Local • History full" end
     if preview.peerEvidence then return "Peer evidence • Unverified" end
     return preview.recordingDisabled and "Local • Recording disabled" or "Local observations"
 end
 local function EnsureData(force)
-    local simulated=not ns.Settings or not ns.Settings.Get or ns.Settings.Get("competitivePreview")~=false
+    local simulated=ns.CompetitivePreview.IsActive()
     local wanted=simulated and "SIMULATED" or "LOCAL"
-    if not preview or preview.scope~=wanted or (force and wanted=="LOCAL") then
+    if not preview or preview.scope~=wanted or force then
         local switching=not preview or preview.scope~=wanted
         if switching and card:IsShown() then card:Hide() end
         local ok,result=pcall(simulated and ns.CompetitivePreview.Get or ns.CompetitivePreview.Local)
@@ -854,13 +903,16 @@ function U.SetPageScroll(key,offset)
 end
 
 function U.Refresh()
-    local simulated=not ns.Settings or not ns.Settings.Get or ns.Settings.Get("competitivePreview")~=false
+    local simulated=ns.CompetitivePreview.IsActive()
     if preview and (preview.scope=="SIMULATED")~=simulated then
         if card:IsShown() then card:Hide() end
         preview=nil
     end
     if active and pages[active]:IsVisible() then RenderActive(true)
-    elseif preview and preview.scope=="LOCAL" then preview=nil end
+    elseif preview then
+        if card:IsShown() then card:Hide() end
+        preview=nil
+    end
     if card:IsShown() and preview then
         if preview.view.ProfileSummary(profileId,profileSeason) then profile.Render()
         else card:Hide() end

@@ -45,8 +45,17 @@ class CompetitiveUI(unittest.TestCase):
         self.assertIn('function P.Local()',p)
         self.assertIn('storage.ReadLocalHistory()',p)
         self.assertIn('preview.scope~=wanted',ui)
-        self.assertIn('competitivePreview',read("Core/Settings.lua"))
-        self.assertIn('competitivePreview',read("UI/Options.lua"))
+        self.assertNotIn('competitivePreview',read("Core/Settings.lua"))
+        self.assertNotIn('competitivePreview',read("UI/Options.lua"))
+        self.assertIn('ns.CompetitivePreview.IsActive()',ui)
+        self.assertIn('function P.Command(command)',p)
+        self.assertIn('local TEST_ENABLED=true',p)
+        self.assertIn('session,cached=nil,nil',p)
+        self.assertIn('SOLO TEST - SIMULATED',ui)
+        self.assertIn('Placement Matches',ui)
+        self.assertIn('rules.PLACEMENT_CREDIT',ui)
+        self.assertIn('rules.MIN_RIVALS',ui)
+        self.assertNotIn('Voidreign',p)
         self.assertIn('function U.LowerRim(parent)',ui)
 
     def test_gated_production_paths_and_peer_evidence_scope(self):
@@ -73,7 +82,7 @@ class CompetitiveUI(unittest.TestCase):
         ui=read("UI/CompetitiveUI.lua");p=read("UI/CompetitivePreview.lua")
         for key in ("overview","standings","profile","history"):
             self.assertIn('Page("'+key+'"',ui)
-        for token in ("Preview • Simulated data","W.ScrollBar","W.ChoiceControl","W.OpenChoices","W.PressFeedback",
+        for token in ("SOLO TEST - SIMULATED","W.ScrollBar","W.ChoiceControl","W.OpenChoices","W.PressFeedback",
                       "OnEscapePressed","OnEnterPressed","RegisterUIRoot","ProfileSummary","view.Progression","view.Leaderboard"):
             self.assertIn(token,ui)
         for token in ("NewSimulated","OpenSeasonSimulated","OpenCompetitiveView","preview is read-only"):
