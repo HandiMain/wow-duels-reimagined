@@ -76,7 +76,7 @@ local ready,loginDone=false,false
 local unsubscribePresence,unsubscribeDuel
 local delayCount=0
 local expiryTimer,expiryAt,expiryRemaining
-local rankGlowKey
+local rankGlowKey,promotionCelebrated
 local lastSound=-math.huge
 local function Plain(fn,...)
     if type(fn)~="function" then return nil end
@@ -172,7 +172,7 @@ local function StopRankGlow()
     if rankGlowKey then M.Stop(rankGlowKey);rankGlowKey=nil end
 end
 local function Clear()
-    CancelExpiry(false);StopRankGlow()
+    CancelExpiry(false);StopRankGlow();promotionCelebrated=nil
     StopAnimation();StopAudio();card:Hide()
     current,closing,shownSound=nil,false,false;offset=0
 end
@@ -268,7 +268,8 @@ local function ShowCurrent()
     Paint(current);offset=18;Place();card:SetAlpha(0);card:Show()
     if not current.preview then seen[current.id]=true end
     local isPromotion=current.kind=="promotion"
-    local firstAppearance=not shownSound
+    local firstAppearance=not promotionCelebrated
+    if isPromotion then promotionCelebrated=true end
     -- The shared entrance owns the glow until complete; celebration owns
     -- it only afterwards and never replays on a combat resume.
     Animate(0,1,.32,isPromotion and firstAppearance and Celebrate or nil);Play()
