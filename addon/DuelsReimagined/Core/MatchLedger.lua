@@ -74,6 +74,7 @@ local function Open(client,stored,cap)
     end
     return D
 end
+P.OpenSimulated=Open
 function P.RunSelfTest(emit)
     emit=type(emit)=="function" and emit or function() end
     local passed,failed=0,0

@@ -75,6 +75,7 @@ local function Build(client,session,a,b)
 end
 -- Reconstruct a simulated canonical record from its statements. The ledger
 -- never trusts derived fields or a caller-supplied status. Not proof of origin.
+P.MakeSimulatedStatement=Statement
 function P.ValidateSimulatedRecord(r)
     if type(r)~="table" or r.scope~="SIMULATED" or r.version~=VERSION or r.rankEligible~=false
         or (r.client~="forever" and r.client~="retail") or not Session(r.session)

@@ -54,3 +54,11 @@ local lp,lf=L.RunSelfTest(function(line)if line:find("FAIL",1,true) then print(l
 assert(lp==25 and lf==0 and sent==previous and P.GetSnapshot().state=="checking","isolated match ledger suite")
 assert(L.GetSnapshot().state=="disabled" and not L.GetSnapshot().rankEligible and _G.DuelsReimaginedDB==originalDB,"live storage gate")
 print("Match ledger isolated storage: PASS")
+
+-- Personal history derives projections from private ledger instances only.
+assert(loadfile("addon/DuelsReimagined/Core/PersonalHistory.lua"))("DuelsReimagined",ns)
+local H=ns.PersonalHistory
+local hp,hf=H.RunSelfTest(function(line)if line:find("FAIL",1,true) then print(line) end end)
+assert(hp==25 and hf==0 and sent==previous and P.GetSnapshot().state=="checking","isolated personal history suite")
+assert(H.GetSnapshot().state=="disabled" and not H.GetSnapshot().rankEligible and _G.DuelsReimaginedDB==originalDB,"live history gate")
+print("Personal history isolated statistics: PASS")

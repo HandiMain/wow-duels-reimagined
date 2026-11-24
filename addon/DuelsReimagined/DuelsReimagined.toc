@@ -21,6 +21,7 @@ Core\OpponentDiscovery.lua
 Core\PeerAgreement.lua
 Core\ResultConfirmation.lua
 Core\MatchLedger.lua
+Core\PersonalHistory.lua
 Core\WarGames.lua [AllowLoadGameType standard]
 UI\Fonts.lua
 UI\Style.lua

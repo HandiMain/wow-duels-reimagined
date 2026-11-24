@@ -119,7 +119,7 @@ Check("Client and API profile","health",function()
 end)
 Check("Module ownership / load order","health",function()
     for _,key in ipairs({"Client","Settings","Group","DuelDetection","DuelSelfTest",
-        "Communication","Presence","OpponentDiscovery","PeerAgreement","ResultConfirmation","MatchLedger","Style","Motion","Widgets","Window","Search",
+        "Communication","Presence","OpponentDiscovery","PeerAgreement","ResultConfirmation","MatchLedger","PersonalHistory","Style","Motion","Widgets","Window","Search",
         "Header","Navigation","Options","AddonStatus","AccessIcons","BlizzardLanding"}) do
         Assert(type(ns[key])=="table",key.." missing")
     end
@@ -175,6 +175,11 @@ Check("Match ledger / live gate","health",function()
     local p=ns.MatchLedger.GetSnapshot()
     Assert(p.scope=="LOCAL" and p.state=="disabled" and p.rankEligible==false,"ledger live gate unexpectedly enabled")
     return "PASS","Versioned simulated storage only; no live SavedVariables or rating writes."
+end)
+Check("Personal history / live gate","health",function()
+    local p=ns.PersonalHistory.GetSnapshot()
+    Assert(p.scope=="LOCAL" and p.state=="disabled" and p.rankEligible==false,"history live gate unexpectedly enabled")
+    return "PASS","Simulation only; no live history or statistics writes."
 end)
 Check("Settings / defaults / bounds","health",function()
     local S=ns.Settings
@@ -236,6 +241,12 @@ end)
 Check("Match ledger / isolated storage QA","deep",function()
     local log={}
     local p,f=ns.MatchLedger.RunSelfTest(function(line) log[#log+1]=line end)
+    return f==0 and p==25 and "PASS" or "FAIL",
+        string.format("%d passed / %d failed (SIMULATED)\n",p,f)..table.concat(log,"\n")
+end)
+Check("Personal history / isolated statistics QA","deep",function()
+    local log={}
+    local p,f=ns.PersonalHistory.RunSelfTest(function(line) log[#log+1]=line end)
     return f==0 and p==25 and "PASS" or "FAIL",
         string.format("%d passed / %d failed (SIMULATED)\n",p,f)..table.concat(log,"\n")
 end)
