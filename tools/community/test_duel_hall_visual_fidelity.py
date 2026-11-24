@@ -30,7 +30,7 @@ class VisualFidelityTests(unittest.TestCase):
         self.assertIn('button:SetSize(HALL_BUTTON_WIDTH, 84)', n)
         self.assertIn('Style.PlateImage(button, "hall", "ARTWORK", 2)', n)
         self.assertNotIn('DuelHallLaurel.tga', n)
-        self.assertIn('railDivider:SetPoint("TOP", primaryButtons[#primaryButtons].button', n)
+        self.assertIn('railDivider:SetPoint("TOP",self,"TOP",0,-top+gap-3)', n)
         self.assertIn('Window.rail:SetScript("OnSizeChanged", FitTabs)', n)
         self.assertIn('button:SetSize(112, 30)', n)
         self.assertIn('sub:SetSize(174, 35)', n)
@@ -62,7 +62,7 @@ class VisualFidelityTests(unittest.TestCase):
 
     def test_no_extra_gameplay_and_esc_menu_code_unchanged_in_scope(self):
         n = lua("UI/Navigation.lua")
-        self.assertIn('local primaryKeys = { hall = true, wargames = true }', n)
+        self.assertIn('local primaryKeys = { hall = true, leaderboard = true, matchhistory = true, wargames = true }', n)
         self.assertIn('ns.Search.Register("page:" .. section.key', n)
         self.assertIn('SetPatchUnread = function(unread)', n)
         self.assertNotIn('SetScript("OnUpdate"', n)

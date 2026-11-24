@@ -47,6 +47,7 @@ function Theme.Refresh()
     if ns.WarGamesUI and ns.WarGamesUI.Refresh then
         ns.WarGamesUI.Refresh()
     end
+    if ns.CompetitiveUI and ns.CompetitiveUI.Refresh then ns.CompetitiveUI.Refresh() end
     if ns.Footer and ns.Footer.Refresh then ns.Footer.Refresh() end
 end
 

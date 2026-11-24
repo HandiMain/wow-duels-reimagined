@@ -33,8 +33,8 @@ class SecondaryRailRecoveryTests(unittest.TestCase):
         self.assertIn('for index, section in ipairs(sections) do', nav)
         for section in ("community", "patchnotes", "options"):
             self.assertIn('{ key = "' + section + '"', nav)
-        self.assertIn('local primaryKeys = { hall = true, wargames = true }', nav)
-        self.assertIn('if isPrimary then primaryButtons[#primaryButtons + 1] = item end', nav)
+        self.assertIn('local primaryKeys = { hall = true, leaderboard = true, matchhistory = true, wargames = true }', nav)
+        self.assertIn('if isPrimary then item.key=section.key;primaryButtons[#primaryButtons + 1] = item end', nav)
         self.assertIn('ns.Search.Register("page:" .. section.key', nav)
 
     def test_primary_hall_and_subcategories_do_not_share_a_rail(self):

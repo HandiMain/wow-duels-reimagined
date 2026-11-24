@@ -56,7 +56,7 @@ class WindowPolishWorkspaceTests(unittest.TestCase):
         self.assertNotIn('Style.Action(Window.rail, "Back")', nav)
         self.assertIn('close:SetSize(105, 30)', win)
         self.assertIn('Window.closeButton = close', win)
-        self.assertIn('if backButton then backButton:SetShown(#history > 0) end', nav)
+        self.assertIn('backButton:SetShown(page.key=="profile" or (#history > 0 and (not page.competitive or page.key=="overview")))', nav)
         self.assertIn('ns.Search.Register("navigation:back", "Back", "Navigation",', nav)
 
     def test_last_workspace_uses_only_central_account_savedvariables(self):
@@ -68,7 +68,7 @@ class WindowPolishWorkspaceTests(unittest.TestCase):
         self.assertIn('math.min(60000, value)', settings)
         self.assertIn('if type(state) ~= "table"', settings)
         self.assertIn('local workspaceReady = false', nav)
-        self.assertIn('ns.Settings.SetWorkspace(section.key, page.key, offset)', nav)
+        self.assertIn('ns.Settings.SetWorkspace(section.key, page.internal and "standings" or page.key, page.internal and 0 or offset)', nav)
         self.assertNotIn('_G.DuelsReimaginedDB', nav)
         self.assertNotIn('navigationHistory', settings)
         self.assertIn('if #history >= 12 then table.remove(history, 1) end', nav)

@@ -6,9 +6,16 @@ local C, Window = Style.color, ns.Window
 local sections = {
     { key = "hall", label = "Hall", icon = "Hall", pages = {
         { key = "overview", label = "Overview", title = "Welcome to the Hall",
-          subtitle = "Your dueling journey starts here.",
+          subtitle = "Your dueling journey starts here.", competitive = true,
           emptyTitle = "No duels recorded yet",
           emptyDetail = "Your recent activity will appear here." },
+    } },
+    { key = "leaderboard", label = "Leaderboard", icon = "Hall", pages = {
+        { key = "standings", label = "Leaderboard", title = "Leaderboard", subtitle = "Compete. Climb. Earn your rank.", competitive = true },
+        { key = "profile", label = "Player Profile", title = "Player Profile", subtitle = "Competitive overview and performance.", competitive = true, internal = true },
+    } },
+    { key = "matchhistory", label = "Match History", icon = "Hall", pages = {
+        { key = "history", label = "Match History", title = "Match History", subtitle = "Your dueling journey, one match at a time.", competitive = true },
     } },
     { key = "wargames", label = "War Games", icon = "Hall", pages = {
         { key = "player", label = "Players", warGames = true,
@@ -63,7 +70,7 @@ end
 -- Only primary gameplay destinations live in the expandable upper strip.
 -- Secondary utility sections remain in the narrow left rail. New gameplay
 -- sections can be promoted here only when their real pages are implemented.
-local primaryKeys = { hall = true, wargames = true }
+local primaryKeys = { hall = true, leaderboard = true, matchhistory = true, wargames = true }
 local railButtons, primaryButtons, subButtons = {}, {}, {}
 local patchDot, patchPulse
 -- The page heading now belongs to Window.content, not the subcategory bar.
@@ -77,6 +84,7 @@ local scrollMemory = {}
 local function ScrollOwner(page)
     if not page then return nil end
     if page.key == "options" or page.key == "interface" then return ns.Options end
+    if page.competitive then return ns.CompetitiveUI end
     if page.warGames then return ns.WarGamesUI end
     if page.addonStatus then return ns.AddonStatus end
     if page.community then return ns.Community end
@@ -95,7 +103,7 @@ local function CapturePage()
     if type(offset) ~= "number" or offset ~= offset then offset = 0 end
     scrollMemory[id] = offset
     if workspaceReady then
-        ns.Settings.SetWorkspace(section.key, page.key, offset)
+        ns.Settings.SetWorkspace(section.key, page.internal and "standings" or page.key, page.internal and 0 or offset)
     end
 end
 local function RestoreScroll(sectionIndex, pageIndex)
@@ -142,7 +150,7 @@ local function Select(sectionIndex, pageIndex, noMotion, repaintOnly, isBack)
         history[#history + 1] = { section = priorSection, page = priorPage }
     end
     currentSection, currentPage = sectionIndex, pageIndex
-    if backButton then backButton:SetShown(#history > 0) end
+
     -- A theme repaint must NOT close Search, modal dialogs or reset pages.
     if not repaintOnly and ns.Header and ns.Header.CloseSearch then
         ns.Header.CloseSearch(true)
@@ -150,7 +158,12 @@ local function Select(sectionIndex, pageIndex, noMotion, repaintOnly, isBack)
     local section, page = sections[sectionIndex], sections[sectionIndex].pages[pageIndex]
     -- Patch Notes versions live in their own scrollable rail, never in the
     -- horizontal subcategory strip (which would overflow with new releases).
-    Window.nav:SetShown(#section.pages > 1 and section.key ~= "patchnotes")
+    Window.nav:SetShown(#section.pages > 1 and section.key ~= "patchnotes" and not page.competitive)
+    if backButton then
+        backButton:SetShown(page.key=="profile" or (#history > 0 and (not page.competitive or page.key=="overview")))
+        backButton.label:SetText(page.key=="profile" and "Back to Leaderboard" or "Back")
+        backButton:SetWidth(page.key=="profile" and 156 or 60)
+    end
 
     for i, item in ipairs(railButtons) do
         local on = i == sectionIndex
@@ -192,8 +205,8 @@ local function Select(sectionIndex, pageIndex, noMotion, repaintOnly, isBack)
     RestoreScroll(sectionIndex, pageIndex)
     if workspaceReady then
         local _, _, id = PageId(sectionIndex, pageIndex)
-        ns.Settings.SetWorkspace(section.key, page.key,
-            id and scrollMemory[id] or 0)
+        ns.Settings.SetWorkspace(section.key, page.internal and "standings" or page.key,
+            not page.internal and id and scrollMemory[id] or 0)
     end
 end
 
@@ -250,6 +263,14 @@ for index, section in ipairs(sections) do
         button:HookScript("OnHide", function()
             Motion.Stop(hallGlow, 0)
         end)
+    elseif section.key == "leaderboard" or section.key == "matchhistory" then
+        local artwork = ns.CompetitiveUI.Plaque(button,section.key,"ARTWORK",2)
+        local glow = ns.CompetitiveUI.Plaque(button,section.key,"OVERLAY",6)
+        artwork:SetAllPoints(button)
+        glow:SetAllPoints(button)
+        glow:SetBlendMode("ADD");glow:SetVertexColor(1,0.78,0.48);glow:SetAlpha(0)
+        button.hallGlow=glow
+        button:HookScript("OnHide",function() Motion.Stop(glow,0) end)
     elseif section.key == "wargames" then
         -- The approved Coliseum War Games plate keeps its own arena emblem,
         -- gold lettering with a safe lower inset, and Hall-matched framing.
@@ -300,7 +321,7 @@ for index, section in ipairs(sections) do
         label:SetJustifyH("CENTER")
         -- Both primary plaques are finished images. Never draw extra
         -- Blizzard font strings or small icons over the fixed artwork.
-        if section.key == "hall" or section.key == "wargames" then
+        if isPrimary then
             icon:Hide()
             label:Hide()
         end
@@ -391,10 +412,10 @@ for index, section in ipairs(sections) do
         selected = selected, hover = hover, bar = bar, icon = icon, label = label,
     }
     railButtons[index] = item
-    if isPrimary then primaryButtons[#primaryButtons + 1] = item end
+    if isPrimary then item.key=section.key;primaryButtons[#primaryButtons + 1] = item end
 
     local pages = {}
-    if section.key ~= "patchnotes" and section.key ~= "addonstatus" then
+    if section.key ~= "patchnotes" and section.key ~= "addonstatus" and not section.pages[1].competitive then
     for pageIndex, page in ipairs(section.pages) do
         local sub = CreateFrame("Button", nil, Window.nav)
         sub:SetSize(174, 35)
@@ -479,12 +500,7 @@ backButton:SetPoint("TOPRIGHT", Window.content, "TOPRIGHT", -24, -25)
 backButton:SetFrameLevel(Window.content:GetFrameLevel() + 9)
 ns.Tooltips.Bind(backButton, { title = "Back",
     detail = "Return to the previous page. History clears when you close Duels." })
-backButton:SetScript("OnClick", function()
-    local previous = table.remove(history)
-    if not previous then return end
-    Select(previous.section, previous.page, false, false, true)
-    if ns.Feedback then ns.Feedback.Acknowledge("navigation-back-v1") end
-end)
+backButton:SetScript("OnClick",function() ns.Navigation.Back() end)
 if ns.Feedback then
     ns.Feedback.NewBadge(backButton, "navigation-back-v1")
 end
@@ -521,26 +537,36 @@ FitUtilityButtons()
 
 -- Both geometry passes are event-driven; nothing polls an idle window.
 -- Primary gameplay destinations remain independent of the footer and tabs.
+local railDivider = Chrome.Divider(Window.rail,170,14)
+local railMark
 local function FitTabs(self, width)
-    local w = (type(width) == "number" and width > 0) and width or self:GetWidth()
-    local buttonWidth = math.max(112, math.min(HALL_BUTTON_WIDTH, w - 28))
-    for i, item in ipairs(primaryButtons) do
+    local w=(type(width)=="number" and width>0) and width or self:GetWidth()
+    local h=self:GetHeight()
+    local buttonWidth=math.max(112,math.min(HALL_BUTTON_WIDTH,w-28))
+    local compact=h<590
+    local top=compact and 20 or 31
+    local height=compact and math.max(48,math.min(76,(h-95)/4)) or 84
+    local gap=compact and 10 or 15
+    for _,item in ipairs(primaryButtons) do
+        if item.key=="wargames" then
+            railDivider:ClearAllPoints()
+            railDivider:SetPoint("TOP",self,"TOP",0,-top+gap-3)
+            top=top+21
+        end
         item.button:ClearAllPoints()
-        item.button:SetPoint("TOP", self, "TOP", 0, -31 - (i - 1) * 99)
-        item.button:SetWidth(buttonWidth)
+        item.button:SetPoint("TOP",self,"TOP",0,-top)
+        item.button:SetSize(buttonWidth,height)
+        top=top+height+gap
+    end
+    if railMark then
+        local room=h-top-24
+        railMark:SetShown(room>=72)
+        local size=math.max(1,math.min(145,room))
+        railMark:SetSize(size,size)
     end
 end
--- The divider tracks the last gameplay button, leaving the rest of the rail
--- available to future primary destinations without a fixed overlap.
-local railDivider = Chrome.Divider(Window.rail, 170, 14)
-if #primaryButtons > 0 then
-    railDivider:SetPoint("TOP", primaryButtons[#primaryButtons].button,
-        "BOTTOM", 0, -18)
-else
-    railDivider:Hide()
-end
-Window.rail:SetScript("OnSizeChanged", FitTabs)
-FitTabs(Window.rail, Window.rail:GetWidth())
+Window.rail:SetScript("OnSizeChanged",FitTabs)
+FitTabs(Window.rail,Window.rail:GetWidth())
 
 local function FitSubTabs(self, width)
     local w = (type(width) == "number" and width > 0) and width or self:GetWidth()
@@ -570,21 +596,24 @@ Window.nav:SetScript("OnSizeChanged", FitSubTabs)
 FitSubTabs(Window.nav, Window.nav:GetWidth())
 
 -- A subdued crossed-swords watermark lives in the *primary* rail only.
-local railMark = Chrome.Icon(Window.rail, "Hall")
+railMark = Chrome.Icon(Window.rail, "Hall")
 railMark:SetSize(145, 145)
-railMark:SetPoint("BOTTOM", Window.rail, "BOTTOM", 0, 48)
+railMark:SetPoint("BOTTOM", Window.rail, "BOTTOM", 0, 24)
 railMark:SetAlpha(0.10)
 railMark:EnableMouse(false)
+FitTabs(Window.rail,Window.rail:GetWidth())
 
 ns.Navigation = {
     Back = function()
+        local _,page=PageId(currentSection,currentPage)
+        if #history==0 and page and page.internal then Select(currentSection,1,false,false,true);return true end
         if #history == 0 then return false end
         local previous = table.remove(history)
         Select(previous.section, previous.page, false, false, true)
         if ns.Feedback then ns.Feedback.Acknowledge("navigation-back-v1") end
         return true
     end,
-    CanGoBack = function() return #history > 0 end,
+    CanGoBack = function() local _,page=PageId(currentSection,currentPage);return #history>0 or (page and page.internal==true) end,
     ResumeWorkspace = function()
         -- ADDON_LOADED has already seeded SavedVariables when the player
         -- opens Duels; don't mark a hidden Patch Notes page read on login.
@@ -596,7 +625,7 @@ ns.Navigation = {
             for i, section in ipairs(sections) do
                 if section.key == sectionKey then
                     for j, page in ipairs(section.pages) do
-                        if page.key == pageKey then
+                        if page.key == pageKey or (pageKey=="profile" and page.key=="standings") then
                             scrollMemory[sectionKey .. ":" .. pageKey] = offset
                             Select(i, j, true, false, true)
                             return
@@ -639,6 +668,11 @@ ns.Navigation = {
     end,
 }
 
+Window.frame:HookScript("OnShow",function()
+    local _,page=PageId(currentSection,currentPage)
+    if page and page.internal then backButton:Show() end
+end)
+
 -- Like every other real action, Back participates in the ONE Search registry.
 -- It is unavailable until the player actually has somewhere to return.
 ns.Search.Register("navigation:back", "Back", "Navigation",
@@ -660,11 +694,11 @@ end)
 for sectionIndex, section in ipairs(sections) do
     for pageIndex, page in ipairs(section.pages) do
         local si, pi = sectionIndex, pageIndex
-        ns.Search.Register("page:" .. section.key .. ":" .. page.key,
+        if not page.internal then ns.Search.Register("page:" .. section.key .. ":" .. page.key,
             page.label, section.label,
             (page.title or "") .. " " .. (page.subtitle or ""),
             function() Select(si, pi) end,
-            function() return section.key ~= "wargames" or ns.Client.IsRetail() end)
+            function() return section.key ~= "wargames" or ns.Client.IsRetail() end) end
     end
 end
 

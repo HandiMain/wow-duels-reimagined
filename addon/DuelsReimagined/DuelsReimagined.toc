@@ -49,6 +49,8 @@ UI\AddonStatus.lua
 UI\Diagnostics.lua
 UI\WarGamesArenaPicker.lua [AllowLoadGameType standard]
 UI\WarGames.lua [AllowLoadGameType standard]
+UI\CompetitivePreview.lua
+UI\CompetitiveUI.lua
 UI\Navigation.lua
 Community\Credits.lua
 UI\Community.lua

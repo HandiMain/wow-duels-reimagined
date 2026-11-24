@@ -9,7 +9,7 @@ class UtilityRailTests(unittest.TestCase):
     def test_distinct_primary_secondary_and_subpage_owners(self):
         w, n = read("UI/Window.lua"), read("UI/Navigation.lua")
         for token in (
-            'local primaryKeys = { hall = true, wargames = true }',
+            'local primaryKeys = { hall = true, leaderboard = true, matchhistory = true, wargames = true }',
             'local railButtons, primaryButtons, subButtons = {}, {}, {}',
             'local parent = isPrimary and Window.rail or Window.utility',
             'local HALL_BUTTON_WIDTH = 205',
@@ -17,7 +17,7 @@ class UtilityRailTests(unittest.TestCase):
             'button:SetSize(112, 30)',
             'offset = offset + width + (i < #utilityButtons and gap or 0)',
             'sub:SetSize(174, 35)',
-            'Window.nav:SetShown(#section.pages > 1 and section.key ~= "patchnotes")',
+            'Window.nav:SetShown(#section.pages > 1 and section.key ~= "patchnotes" and not page.competitive)',
             'local function FitTabs(self, width)',
             'local function FitSubTabs(self, width)',
         ):
@@ -32,8 +32,8 @@ class UtilityRailTests(unittest.TestCase):
         n = read("UI/Navigation.lua")
         for key in ('community','patchnotes','options'):
             self.assertIn('key = "' + key + '"', n)
-        self.assertIn('if isPrimary then primaryButtons[#primaryButtons + 1] = item end', n)
-        self.assertIn('button:SetPoint("TOP", self, "TOP", 0, -31 - (i - 1) * 99)', n)
+        self.assertIn('if isPrimary then item.key=section.key;primaryButtons[#primaryButtons + 1] = item end', n)
+        self.assertIn('item.button:SetPoint("TOP",self,"TOP",0,-top)', n)
         self.assertIn('item:SetPoint("LEFT", Window.utility, "LEFT",', n)
         self.assertNotIn('button:SetSize(90, 90)', n)
         self.assertIn('local icon = Chrome.Icon(button, section.icon)', n)

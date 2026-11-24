@@ -120,7 +120,7 @@ end)
 Check("Module ownership / load order","health",function()
     for _,key in ipairs({"Client","Settings","Group","DuelDetection","DuelSelfTest",
         "Communication","Presence","OpponentDiscovery","PeerAgreement","ResultConfirmation","MatchLedger","PersonalHistory","CompetitiveStorage","CompetitiveRules","RatingEngine","LeaderboardSync","SyncProtocol","CompetitiveIntegrity","SeasonRules","CompetitiveLifecycle","Style","Motion","Widgets","Window","Search",
-        "Header","Navigation","Options","AddonStatus","AccessIcons","BlizzardLanding"}) do
+        "Header","Navigation","Options","AddonStatus","AccessIcons","BlizzardLanding","CompetitivePreview","CompetitiveUI"}) do
         Assert(type(ns[key])=="table",key.." missing")
     end
     return "PASS","Shared core/UI owners loaded."

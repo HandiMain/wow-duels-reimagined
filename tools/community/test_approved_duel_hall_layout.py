@@ -32,7 +32,7 @@ class ApprovedDuelHallLayoutTests(unittest.TestCase):
         w, n = read("UI/Window.lua"), read("UI/Navigation.lua")
         self.assertIn('nav:SetPoint("TOPLEFT", content, "TOPLEFT", 22, -83)', w)
         self.assertIn('Window.nav = nav', w)
-        self.assertIn('Window.nav:SetShown(#section.pages > 1 and section.key ~= "patchnotes")', n)
+        self.assertIn('Window.nav:SetShown(#section.pages > 1 and section.key ~= "patchnotes" and not page.competitive)', n)
         self.assertIn('Window.nav:SetScript("OnSizeChanged", FitSubTabs)', n)
         self.assertIn('Window.rail:SetScript("OnSizeChanged", FitTabs)', n)
         self.assertIn('sub:SetScript("OnClick", function() Select(index, pageIndex) end)', n)
@@ -72,7 +72,7 @@ class ApprovedDuelHallLayoutTests(unittest.TestCase):
     def test_no_new_gameplay_data_or_menu_dependency(self):
         n = read("UI/Navigation.lua")
         gm = read("UI/GameMenu.lua")
-        self.assertIn('local primaryKeys = { hall = true, wargames = true }', n)
+        self.assertIn('local primaryKeys = { hall = true, leaderboard = true, matchhistory = true, wargames = true }', n)
         self.assertIn('ns.Search.Register("page:" .. section.key', n)
         self.assertIn('local function ManualSlot(menu, upper, addons)', gm)
         self.assertIn('local function HasManualButtons(menu)', gm)

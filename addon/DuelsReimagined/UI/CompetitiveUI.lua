@@ -1,0 +1,715 @@
+local _,ns=...
+local S,M,W,C=ns.Style,ns.Motion,ns.Widgets,ns.Style.color
+local U={}
+ns.CompetitiveUI=U
+local ATLAS="Interface\\AddOns\\DuelsReimagined\\Media\\Skin\\DuelCompetitiveAtlas.png"
+local ranks={Unranked=0,Aspirant=1,Contender=2,Veteran=3,Duelist=4,Master=5,Grandmaster=6}
+local roman={"I","II","III","IV"}
+local GREEN={0.49,0.92,0.30,1}
+local RED={1,0.28,0.20,1}
+local WHITE=C.text
+local function Atlas(parent,layer,sub)
+    local t=parent:CreateTexture(nil,layer or "ARTWORK",nil,sub or 1)
+    t:SetTexture(ATLAS);ns.Chrome.Sharp(t);return t
+end
+function U.Plaque(parent,key,layer,sub)
+    local t=Atlas(parent,layer,sub)
+    local slot=key=="leaderboard" and 0 or 1
+    t:SetTexCoord(slot/4,(slot+1)/4,0.5,240/256)
+    return t
+end
+local function Place(f,parent,x,y,w,h)
+    f:ClearAllPoints();f:SetPoint("TOPLEFT",parent,"TOPLEFT",x,-y)
+    f:SetSize(math.max(1,w),math.max(1,h))
+end
+local function Text(parent,size,color,align)
+    local t=S.Text(parent,"",size,color or C.text)
+    t:SetJustifyH(align or "LEFT");t:SetJustifyV("MIDDLE");t:SetWordWrap(false)
+    return t
+end
+local function T(parent,value,size,color,align)
+    local t=Text(parent,size,color,align);t:SetText(value);return t
+end
+local function Set(t,value,color)
+    t:SetText(value==nil and "—" or tostring(value))
+    if color then t:SetTextColor(unpack(color)) end
+end
+local function Hair(parent)
+    local t=S.Fill(parent,C.border,"ARTWORK");t:SetAlpha(.72);return t
+end
+local function Panel(parent)
+    local f=CreateFrame("Frame",nil,parent)
+    S.Skin(f,C.body,{corner=8,edge=C.goldDim,shine=.10,shade=.10,rim=.65})
+    return f
+end
+local function Action(parent,label,fn)
+    local b=S.Action(parent,label,"footer",{fill=C.nav,hover=C.selected,edge=C.goldDim,light=C.goldDim,dark=C.window,text=C.text,tooltip=false})
+    b:SetScript("OnClick",fn);return b
+end
+local function Rank(parent,size,division)
+    local f=CreateFrame("Frame",nil,parent);f:SetSize(size,size)
+    local art=Atlas(f);art:SetAllPoints(f)
+    local tag=division and T(f,"",15,C.pale,"CENTER") or nil
+    if tag then tag:SetPoint("BOTTOM",f,"BOTTOM",0,0);tag:SetSize(40,19) end
+    function f.Paint(rank)
+        local slot=ranks[rank and rank.name or "Unranked"] or 0
+        art:SetTexCoord(slot/8,(slot+1)/8,0,.5)
+        if tag then tag:SetText(rank and roman[rank.division] or "") end
+    end
+    return f
+end
+local function ClassIcon(parent)
+    local t=parent:CreateTexture(nil,"ARTWORK")
+    t:SetTexCoord(.07,.93,.07,.93)
+    return t
+end
+local function FactionIcon(parent)
+    local t=parent:CreateTexture(nil,"ARTWORK")
+    return t
+end
+local function Identity(row,v,id)
+    row.name:SetText(v and v.name or id or "Unknown player")
+    row.realm:SetText(v and (v.realm or (v.fullName~=v.name and v.fullName or "")) or "")
+    row.class:SetTexture("Interface\\Icons\\ClassIcon_"..(v and v.class or "Unknown"))
+    if not v or not v.class then row.class:SetTexture("Interface\\Icons\\INV_Misc_QuestionMark") end
+    local faction=v and v.faction
+    row.faction:SetShown(faction=="Alliance" or faction=="Horde")
+    if faction=="Alliance" or faction=="Horde" then row.faction:SetTexture("Interface\\TargetingFrame\\UI-PVP-"..faction) end
+end
+local function Rate(v) return v and string.format("%.1f%%",v*100) or "—" end
+local function Number(v) return v and tostring(v):reverse():gsub("(%d%d%d)","%1,"):reverse():gsub("^,","") or "—" end
+local function Delta(v) return v and string.format("%+d",v) or "—" end
+local function Streak(n) return n and n~=0 and (math.abs(n)..(n>0 and "W" or "L")) or "—" end
+local function Outcome(x)
+    if x=="won" then return "Win",GREEN elseif x=="lost" then return "Loss",RED
+    elseif x=="fled" then return "Fled",RED elseif x=="they_fled" then return "Opponent fled",GREEN end
+    return "Unknown",C.muted
+end
+local function Duration(n) return n and string.format("%dm %02ds",math.floor(n/60),math.floor(n%60)) or "—" end
+local function Choice(parent,values,selected,change)
+    local b,label=W.ChoiceControl(parent,150)
+    local current=selected
+    local function Paint()
+        for _,v in ipairs(values) do if v.key==current then label:SetText(v.label);break end end
+    end
+    function b.SetChoice(key) current=key;Paint() end
+    b:SetScript("OnClick",function()
+        W.OpenChoices(b,values,current,function(key)current=key;Paint();change(key)end)
+    end)
+    Paint();return b
+end
+local function Search(parent,placeholder,change)
+    local f=Panel(parent)
+    local glyph=T(f,"",14,C.pale)
+    glyph:SetText("⌕");glyph:SetPoint("LEFT",f,"LEFT",9,0);glyph:SetSize(18,20)
+    local hint=T(f,placeholder,12,C.muted);hint:SetPoint("LEFT",f,"LEFT",29,0)
+    hint:SetPoint("RIGHT",f,"RIGHT",-8,0)
+    local edit=CreateFrame("EditBox",nil,f)
+    edit:SetPoint("TOPLEFT",f,"TOPLEFT",26,0);edit:SetPoint("BOTTOMRIGHT",f,"BOTTOMRIGHT",-6,0)
+    edit:SetAutoFocus(false);edit:SetMaxLetters(128);edit:SetTextInsets(2,2,0,0)
+    edit:SetFont(STANDARD_TEXT_FONT or "Fonts\\FRIZQT__.TTF",13,"")
+    edit:SetTextColor(unpack(C.text));S.BindFont(edit,13,nil,C.text)
+    edit:SetScript("OnEscapePressed",function(self)self:ClearFocus()end)
+    edit:SetScript("OnEnterPressed",function(self)self:ClearFocus()end)
+    edit:SetScript("OnTextChanged",function(self)
+        local value=self:GetText() or "";hint:SetShown(value=="");change(value)
+    end)
+    f:HookScript("OnHide",function()edit:ClearFocus()end)
+    f.edit=edit;return f
+end
+local function Header(parent,title,icon)
+    local f=Panel(parent)
+    local label=T(f,title,17,C.pale)
+    if icon then
+        local image=ns.Chrome.Icon(f,icon);image:SetSize(24,24);image:SetPoint("TOPLEFT",f,"TOPLEFT",11,-7)
+        label:SetPoint("TOPLEFT",f,"TOPLEFT",42,-9)
+    else label:SetPoint("TOPLEFT",f,"TOPLEFT",12,-9) end
+    label:SetHeight(22);label:SetPoint("RIGHT",f,"RIGHT",-12,0)
+    local line=Hair(f);line:ClearAllPoints();line:SetPoint("TOPLEFT",f,"TOPLEFT",10,-35);line:SetPoint("TOPRIGHT",f,"TOPRIGHT",-10,-35);line:SetHeight(1)
+    return f,label
+end
+local function Metric(parent,label)
+    local f=CreateFrame("Frame",nil,parent)
+    local a=T(f,label,12,C.muted,"CENTER");a:SetPoint("TOPLEFT",f,"TOPLEFT",1,-4);a:SetPoint("TOPRIGHT",f,"TOPRIGHT",-1,-4);a:SetHeight(20)
+    local b=T(f,"—",21,C.pale,"CENTER");b:SetPoint("TOPLEFT",f,"TOPLEFT",1,-25);b:SetPoint("TOPRIGHT",f,"TOPRIGHT",-1,-25);b:SetHeight(28)
+    local line=Hair(f);line:ClearAllPoints();line:SetPoint("TOPRIGHT",f,"TOPRIGHT",0,-6);line:SetPoint("BOTTOMRIGHT",f,"BOTTOMRIGHT",0,6);line:SetWidth(1)
+    f.value=b;f.line=line;return f
+end
+local function Metrics(parent,labels)
+    local list={}
+    for _,label in ipairs(labels) do list[#list+1]=Metric(parent,label) end
+    list[#list].line:Hide()
+    return list
+end
+local function FitMetrics(list,parent,x,y,w,h)
+    for i,f in ipairs(list) do Place(f,parent,x+(i-1)*w/#list,y,w/#list,h) end
+end
+local function Row(parent,kind,click)
+    local f=CreateFrame("Button",nil,parent)
+    local hover=S.Fill(f,C.selected,"BACKGROUND");hover:SetAlpha(0)
+    local line=Hair(f);line:ClearAllPoints();line:SetPoint("BOTTOMLEFT",f,"BOTTOMLEFT");line:SetPoint("BOTTOMRIGHT",f,"BOTTOMRIGHT");line:SetHeight(1)
+    f:SetScript("OnEnter",function()M.Fade(hover,f.marked and .46 or .28,.12)end)
+    f:SetScript("OnLeave",function()M.Fade(hover,f.marked and .33 or 0,.15)end)
+    W.PressFeedback(f,hover,{hoverAlpha=.25,clickAlpha=.45})
+    f:SetScript("OnClick",function()if f.item and click then click(f.item) end end)
+    f:HookScript("OnHide",function()M.Stop(hover,0)end)
+    f.class=ClassIcon(f);f.faction=FactionIcon(f)
+    f.name=Text(f,14,C.text);f.realm=Text(f,10,C.muted)
+    f.cols={}
+    local count=kind=="board" and 5 or kind=="history" and 4 or kind=="recent" and 3 or 2
+    for i=1,count do f.cols[i]=Text(f,13,C.text,"CENTER") end
+    if kind=="board" then f.rank=Rank(f,30,false) end
+    function f.Mark(on) f.marked=on;M.Stop(hover,on and .33 or 0) end
+    return f
+end
+local function FitIdentity(f,x,w,h,small)
+    local size=small and 24 or 28
+    Place(f.class,f,x,(h-size)/2,size,size)
+    local nameX=x+size+5
+    if not small then
+        Place(f.faction,f,nameX,(h-16)/2,16,16);nameX=nameX+19
+    else f.faction:Hide() end
+    Place(f.name,f,nameX,small and 0 or 1,math.max(1,w-(nameX-x)-2),small and h or h*.55)
+    Place(f.realm,f,nameX,h*.54,math.max(1,w-(nameX-x)-2),h*.43)
+    f.realm:SetShown(not small)
+end
+local boardWidths={.055,.365,.225,.12,.12,.115}
+local historyWidths={.34,.18,.16,.15,.17}
+local function FitColumns(labels,parent,width,height,widths)
+    local x=0
+    for i,label in ipairs(labels) do
+        local w=width*widths[i]
+        Place(label,parent,x,0,w,height);x=x+w
+    end
+end
+local function BoardRow(f,item,w,h)
+    f.item=item
+    local x=0;local col={}
+    for i,v in ipairs(boardWidths) do col[i]=x;x=x+v*w end
+    Set(f.cols[1],item.position,item.position==1 and C.gold or item.position==2 and C.text or item.position==3 and C.goldDim or C.text)
+    Place(f.cols[1],f,0,0,col[2],h)
+    Identity(f,item.identity,item.id);FitIdentity(f,col[2]+4,w*boardWidths[2]-8,h,false)
+    local size=math.min(30,h-3);Place(f.rank,f,col[3]+2,(h-size)/2,size,size);f.rank.Paint(item.rank)
+    Place(f.cols[2],f,col[3]+size+5,0,w*boardWidths[3]-size-7,h);f.cols[2]:SetJustifyH("LEFT")
+    Set(f.cols[2],item.rank and item.rank.label or "Unranked",C.pale)
+    for i=3,5 do Place(f.cols[i],f,col[i+1],0,w*boardWidths[i+1],h) end
+    Set(f.cols[3],Number(item.rating),C.text);Set(f.cols[4],item.wins.." / "..item.losses,C.text);Set(f.cols[5],Rate(item.winRate),GREEN)
+end
+local function HistoryRow(f,item,w,h)
+    f.item=item;Identity(f,item.identity,item.peer);FitIdentity(f,5,w*historyWidths[1]-10,h,false)
+    local x=w*historyWidths[1]
+    for i=1,4 do local width=w*historyWidths[i+1];Place(f.cols[i],f,x,0,width,h);x=x+width end
+    Set(f.cols[1],item.category,item.category=="Ranked" and C.text or item.category=="Disputed" and C.gold or C.muted)
+    local result,color=Outcome(item.outcome);Set(f.cols[2],result,color)
+    Set(f.cols[3],Duration(item.duration),C.text);Set(f.cols[4],Delta(item.delta),item.delta and (item.delta>0 and GREEN or item.delta<0 and RED or C.text) or C.muted)
+end
+-- One bounded pool per table; the visible rows are always inset from scrollbar.
+local function List(parent,kind,rowHeight,click)
+    local f=CreateFrame("Frame",nil,parent)
+    if f.SetClipsChildren then f:SetClipsChildren(true) end
+    local rows={};for i=1,24 do rows[i]=Row(f,kind,click);rows[i]:Hide() end
+    local empty=T(f,"No matching results",15,C.muted,"CENTER");empty:SetAllPoints(f);empty:Hide()
+    local offset,total,visible=0,0,1
+    local fetch,paint,expanded
+    local bar
+    function f.SetOffset(value)
+        offset=math.max(0,math.min(math.floor(value+.5),math.max(0,total-visible)))
+        f.Render()
+    end
+    function f.Offset()return offset end
+    function f.Configure(provider,painter,extra)
+        fetch,paint,expanded=provider,painter,extra
+    end
+    function f.Render()
+        if not fetch then return end
+        local width=math.max(1,f:GetWidth()-18)
+        visible=math.max(1,math.min(#rows,math.floor((f:GetHeight()-(expanded and expanded.Height() or 0))/rowHeight)))
+        local result,n=fetch(offset,visible);total=n
+        local clamped=math.min(offset,math.max(0,total-visible))
+        if clamped~=offset then offset=clamped;result,n=fetch(offset,visible);total=n end
+        empty:SetShown(total==0)
+        if expanded then expanded.frame:Hide() end
+        local y=0
+        for i,row in ipairs(rows) do
+            local item=result[i]
+            row:SetShown(item~=nil)
+            if item then
+                Place(row,f,0,y,width,rowHeight);paint(row,item,width,rowHeight)
+                y=y+rowHeight
+                if expanded and expanded.Is(item) then
+                    local height=expanded.Height();Place(expanded.frame,f,0,y,width,height)
+                    expanded.Paint(item,width,height);expanded.frame:Show();y=y+height
+                end
+            else row.item=nil end
+        end
+        if bar then bar:Refresh() end
+    end
+    f:EnableMouseWheel(true)
+    local function Wheel(_,delta)f.SetOffset(offset-(delta>0 and 3 or -3))end
+    f:SetScript("OnMouseWheel",Wheel)
+    for _,r in ipairs(rows) do r:EnableMouseWheel(true);r:SetScript("OnMouseWheel",Wheel) end
+    bar=W.ScrollBar(f,function()return visible,total,offset end,f.SetOffset)
+    return f
+end
+-- Fixed-size graph pool. Textures rather than per-match frames; no OnUpdate.
+local function Graph(parent)
+    local f=CreateFrame("Frame",nil,parent)
+    local grid,labels,vertical,segments,areas,dots,ticks={}, {}, {}, {}, {}, {}, {}
+    for i=1,5 do
+        grid[i]=Hair(f);labels[i]=Text(f,11,C.muted,"RIGHT")
+    end
+    for i=1,7 do vertical[i]=Hair(f);vertical[i]:SetAlpha(.35);ticks[i]=Text(f,10,C.muted,"CENTER") end
+    local footer=T(f,"",10,C.muted,"LEFT")
+    local endLabel=T(f,"",10,C.muted,"RIGHT")
+    local no=T(f,"No rating progression recorded",14,C.muted,"CENTER");no:SetAllPoints(f)
+    for i=1,48 do
+        areas[i]=S.Fill(f,C.red,"BACKGROUND");areas[i]:SetAlpha(.18)
+        dots[i]=S.Fill(f,C.gold,"OVERLAY")
+        local line=f:CreateTexture(nil,"ARTWORK",nil,2);line:SetColorTexture(unpack(C.gold));segments[i]=line
+    end
+    local function Hide()
+        for i=1,48 do areas[i]:Hide();dots[i]:Hide();segments[i]:Hide() end
+    end
+    function f.Paint(points)
+        Hide()
+        local w,h=f:GetWidth(),f:GetHeight()
+        local x0,y0=43,7
+        local plotW,plotH=math.max(1,w-53),math.max(1,h-27)
+        local low,high
+        for _,p in ipairs(points) do low=math.min(low or p.rating,p.rating);high=math.max(high or p.rating,p.rating) end
+        no:SetShown(not low)
+        footer:SetShown(low~=nil);endLabel:SetShown(low~=nil)
+        if not low then for i=1,5 do grid[i]:Hide();labels[i]:Hide() end;for i=1,7 do vertical[i]:Hide();ticks[i]:Hide() end;return end
+        local step=math.max(50,math.ceil((high-low)/4/50)*50)
+        low=math.max(0,math.floor(low/step)*step);high=math.max(low+step*4,math.ceil(high/step)*step)
+        for i=1,5 do
+            local y=y0+plotH*(i-1)/4
+            Place(grid[i],f,x0,y,plotW,1);grid[i]:Show()
+            Place(labels[i],f,0,y-8,36,16);Set(labels[i],Number(math.floor(high-(high-low)*(i-1)/4)));labels[i]:Show()
+        end
+        for i=1,7 do Place(vertical[i],f,x0+plotW*(i-1)/6,y0,1,plotH);vertical[i]:Show() end
+        Place(footer,f,x0,h-17,plotW/2,15);Place(endLabel,f,x0+plotW/2,h-17,plotW/2,15)
+        footer:Hide();endLabel:Hide()
+        local dateFn=date or (os and os.date)
+        for i=1,7 do
+            local idx=math.floor(1+(i-1)*(#points-1)/6+.5)
+            local value=points[idx]
+            Place(ticks[i],f,x0+plotW*(i-1)/6-24,h-17,48,15)
+            ticks[i]:SetText(dateFn and value.time and dateFn("!%b %d",value.time) or tostring(idx))
+            ticks[i]:SetShown(i==1 or i==7 or plotW>=420 or i%2==1)
+        end
+        local count=math.min(48,#points);local prevX,prevY
+        for i=1,count do
+            local idx=count==1 and 1 or math.floor(1+(i-1)*(#points-1)/(count-1)+.5)
+            local p=points[idx]
+            local x=x0+(count==1 and plotW/2 or plotW*(i-1)/(count-1))
+            local y=y0+plotH*(high-p.rating)/(high-low)
+            Place(dots[i],f,x-2,y-2,4,4);dots[i]:Show()
+            if prevX then
+                local dx,dy=x-prevX,y-prevY
+                local length=math.sqrt(dx*dx+dy*dy)
+                local line=segments[i];Place(line,f,(prevX+x)/2-length/2,(prevY+y)/2-1,length,2)
+                line:SetRotation(-math.atan2(dy,dx));line:Show()
+                local top=(prevY+y)/2
+                Place(areas[i],f,prevX,top,math.max(1,dx),math.max(1,y0+plotH-top));areas[i]:Show()
+            end
+            prevX,prevY=x,y
+        end
+    end
+    return f
+end
+local preview,profileId
+local pendingScroll={}
+local active
+local function Data() return preview end
+local function OpenProfile(id)
+    if active=="overview" then ns.Navigation.SelectKey("leaderboard","standings") end
+    profileId=id
+    ns.Navigation.SelectKey("leaderboard","profile")
+end
+local function Go(section,key)ns.Navigation.SelectKey(section,key)end
+local function Seasons(change)
+    return {{key=3,label="Season 3"},{key=2,label="Season 2"},{key=1,label="Season 1"}}
+end
+local function Points(id,season,filter)
+    local d=Data();local out={}
+    local first,last=season,season
+    if filter=="All time" then first=1;last=d.current end
+    for n=first,last do
+        local offset=0
+        while true do
+            local page=d.view.Progression(id,n,offset,100)
+            if not page then break end
+            for _,r in ipairs(page.rows) do
+                if filter~="Last 30 days" or r.time>=d.asOf-30*86400 then out[#out+1]=r end
+            end
+            offset=offset+#page.rows
+            if #page.rows==0 or offset>=page.total then break end
+        end
+    end
+    return out
+end
+local pages={}
+local function Page(key,title,subtitle,previewX)
+    local f=CreateFrame("Frame",nil,ns.Window.content)
+    f:SetPoint("TOPLEFT",ns.Window.content,"TOPLEFT",22,-17);f:SetPoint("BOTTOMRIGHT",ns.Window.content,"BOTTOMRIGHT",-22,14)
+    if f.SetClipsChildren then f:SetClipsChildren(true) end
+    local heading=T(f,title,26,C.pale);heading:SetPoint("TOPLEFT",f,"TOPLEFT",0,0);heading:SetSize(360,32)
+    local sub=T(f,subtitle,13,C.text);sub:SetPoint("TOPLEFT",f,"TOPLEFT",1,-33);sub:SetSize(460,20)
+    local label=Panel(f);label:SetSize(173,24);label:SetPoint("TOPRIGHT",f,"TOPRIGHT",previewX or 0,-4)
+    local caption=T(label,"Preview • Simulated data",11,C.muted,"CENTER");caption:SetAllPoints(label)
+    if ns.DiagnosticAudit then ns.DiagnosticAudit.RegisterUIRoot("Competitive / "..title,f) end
+    f:Hide();pages[key]=f;return f
+end
+-- Hall: rank/season hero, activity and leaderboard previews, progression.
+local hall=Page("overview","Welcome to the Hall","Your dueling journey starts here.",-71)
+local hallRule=ns.Chrome.Divider(hall,300,12)
+local hero=Panel(hall);local emblem=Rank(hero,120,true)
+local rankText=Text(hero,24,C.pale);local ratingCaption=T(hero,"Rating",13,C.muted)
+local rating=Text(hero,28,C.pale)
+local seasonTitle=T(hero,"Season Summary",17,C.pale)
+local seasonInfo=Text(hero,11,C.muted,"RIGHT")
+local heroLine=Hair(hero)
+local seasonMetrics=Metrics(hero,{"Wins","Losses","Win Rate","Peak Rating","Current Streak"})
+local activity=Header(hall,"Recent Activity","Hall")
+local activityLink=Action(activity,"View History",function()Go("matchhistory","history")end)
+local leaders=Header(hall,"Leaderboard — Top Duelists")
+local leadersLink=Action(leaders,"View Full",function()Go("leaderboard","standings")end)
+local activityRows,leaderRows={},{}
+for i=1,5 do
+    activityRows[i]=Row(activity,"recent",function()Go("matchhistory","history")end)
+    leaderRows[i]=Row(leaders,"mini",function(item)OpenProfile(item.id)end)
+end
+local graphPanel=Header(hall,"Rating Progression")
+local hallGraph=Graph(graphPanel)
+local hallFilter="This Season"
+local graphButtons={}
+for _,key in ipairs({"This Season","Last 30 days","All time"}) do
+    local k=key
+    graphButtons[#graphButtons+1]=Action(graphPanel,k,function()hallFilter=k;hall.Render()end)
+end
+local current=Panel(graphPanel)
+local currentLabel=T(current,"Current Rating",12,C.muted,"CENTER")
+local currentValue=Text(current,24,C.pale,"CENTER")
+local currentDelta=Text(current,13,GREEN,"CENTER")
+local currentHint=T(current,"vs. first shown match",10,C.muted,"CENTER")
+function hall.Render()
+    local d=Data();if not d then return end
+    local w,h=hall:GetWidth(),hall:GetHeight()
+    local heroH=math.max(110,math.min(146,h*.245))
+    local bodyTop=58;local middleTop=bodyTop+heroH+11
+    local graphH=math.max(145,math.min(198,h*.32))
+    local middleH=math.max(85,h-middleTop-graphH-10)
+    Place(hallRule,hall,0,50,w,12)
+    Place(hero,hall,0,bodyTop,w,heroH)
+    local left=w*.445;local icon=math.min(heroH-14,124)
+    Place(emblem,hero,10,(heroH-icon)/2,icon,icon)
+    local p=d.view.ProfileSummary(d.me,d.current)
+    emblem.Paint(p and p.rank)
+    Place(rankText,hero,icon+16,13,left-icon-24,32);Set(rankText,p and p.rank and p.rank.label or "Unranked")
+    Place(ratingCaption,hero,icon+18,50,left-icon-24,20)
+    Place(rating,hero,icon+16,69,left-icon-24,34);Set(rating,Number(p and p.rating))
+    Place(heroLine,hero,left,13,1,heroH-26)
+    Place(seasonTitle,hero,left+18,12,w-left-26,25)
+    Place(seasonInfo,hero,left+18,36,w-left-26,17)
+    local remain=math.max(0,d.epoch+d.current*ns.SeasonRules.DURATION-d.asOf)
+    seasonInfo:SetText("Season "..d.current.."  —  "..math.floor(remain/86400).."d remaining")
+    FitMetrics(seasonMetrics,hero,left+8,57,w-left-16,heroH-60)
+    local stats=p and p.stats or {}
+    Set(seasonMetrics[1].value,stats.wins or 0,GREEN);Set(seasonMetrics[2].value,stats.losses or 0,RED)
+    Set(seasonMetrics[3].value,Rate(stats.winRate),C.text);Set(seasonMetrics[4].value,Number(p and p.peakRating),C.text)
+    Set(seasonMetrics[5].value,Streak(stats.currentStreak),stats.currentStreak and stats.currentStreak<0 and RED or GREEN)
+    local half=(w-12)/2
+    Place(activity,hall,0,middleTop,half,middleH);Place(leaders,hall,half+12,middleTop,half,middleH)
+    Place(activityLink,activity,half-104,7,93,23);Place(leadersLink,leaders,half-92,7,81,23)
+    local rh=math.min(36,math.max(22,(middleH-41)/5));local count=math.max(1,math.min(5,math.floor((middleH-41)/rh)))
+    local top=d.view.Leaderboard(d.current,0,5,"","rating").rows
+    for i=1,5 do
+        local row=activityRows[i];local item=d.matches[i];row:SetShown(i<=count and item~=nil)
+        if item then
+            row.item=item;Place(row,activity,10,38+(i-1)*rh,half-20,rh)
+            Identity(row,item.identity,item.peer);FitIdentity(row,2,(half-20)*.46,rh,true)
+            local result,color=Outcome(item.outcome)
+            Place(row.cols[1],row,(half-20)*.47,0,(half-20)*.18,rh);Set(row.cols[1],item.category=="Ranked" and result or item.category,item.category=="Ranked" and color or C.pale)
+            Place(row.cols[2],row,(half-20)*.65,0,(half-20)*.14,rh);Set(row.cols[2],Delta(item.delta),item.delta and (item.delta>=0 and GREEN or RED) or C.muted)
+            Place(row.cols[3],row,(half-20)*.79,0,(half-20)*.21,rh);Set(row.cols[3],Duration(item.duration),C.muted)
+        end
+        local lr=leaderRows[i];local item2=top[i];lr:SetShown(i<=count and item2~=nil)
+        if item2 then
+            lr.item=item2;Place(lr,leaders,10,38+(i-1)*rh,half-20,rh)
+            Identity(lr,item2.identity,item2.id);FitIdentity(lr,43,half-135,rh,true)
+            Place(lr.cols[1],lr,1,0,39,rh);Set(lr.cols[1],item2.position,item2.position<=3 and C.gold or C.text)
+            Place(lr.cols[2],lr,half-100,0,75,rh);Set(lr.cols[2],Number(item2.rating))
+        end
+    end
+    Place(graphPanel,hall,0,h-graphH,w,graphH)
+    for i,b in ipairs(graphButtons) do Place(b,graphPanel,w-3*112-8+(i-1)*112,6,106,24);b.label:SetTextColor(unpack(({"This Season","Last 30 days","All time"})[i]==hallFilter and C.gold or C.text)) end
+    local side=math.min(142,w*.19)
+    Place(hallGraph,graphPanel,8,43,w-side-26,graphH-48)
+    Place(current,graphPanel,w-side-10,45,side,graphH-58)
+    Place(currentLabel,current,2,7,side-4,19);Place(currentValue,current,2,26,side-4,31)
+    Place(currentDelta,current,2,60,side-4,21);Place(currentHint,current,2,83,side-4,15)
+    local points=Points(d.me,d.current,hallFilter);hallGraph.Paint(points)
+    Set(currentValue,Number(p and p.rating))
+    local diff=#points>0 and p and p.rating and p.rating-points[1].rating
+    Set(currentDelta,Delta(diff),diff and diff<0 and RED or GREEN)
+end
+-- Leaderboard: native controls, bounded scroll and detail navigation.
+local board=Page("standings","Leaderboard","Compete. Climb. Earn your rank.")
+local boardSeason,boardQuery,boardSort=3,"","rating"
+local standing=Panel(board)
+local standText=T(standing,"Your Standing",12,C.pale)
+local standRank=Rank(standing,44,false)
+local standName=Text(standing,17,C.pale)
+local standMetrics=Metrics(standing,{"Rating","Rank"})
+local boardChoice=Choice(board,Seasons(),3,function(v)boardSeason=v;board.Render(true)end)
+local boardSearch=Search(board,"Search player or realm...",function(v)boardQuery=v;board.Render(true)end)
+local boardHeader=Panel(board)
+local boardHeaders={}
+local sorts={"rating",false,"rating","rating","wins","winRate"}
+for i,name in ipairs({"#","Player","Rank","Rating","W / L","Win rate"}) do
+    local idx=i
+    local b=CreateFrame("Button",nil,boardHeader);local t=T(b,name,13,C.text,"CENTER");t:SetAllPoints(b)
+    if sorts[i] then b:SetScript("OnClick",function()boardSort=sorts[idx];board.Render(true)end) end
+    boardHeaders[i]=b
+end
+local boardList=List(board,"board",37,function(item)OpenProfile(item.id)end)
+local pinned=Row(board,"board",function(item)OpenProfile(item.id)end)
+local boardNote=T(board,"Standings reflect known ranked duels.",11,C.muted)
+boardList.Configure(function(offset,limit)
+    local r=Data().view.Leaderboard(boardSeason,offset,limit,boardQuery,boardSort)
+    return r.rows,r.total
+end,function(row,item,w,h)BoardRow(row,item,w,h);row.Mark(item.id==Data().me)end)
+function board.Render(reset)
+    local d=Data();if not d then return end
+    local w,h=board:GetWidth(),board:GetHeight();local strip=w*.51
+    Place(standing,board,0,58,strip,63)
+    Place(standText,standing,9,20,76,20);Place(standRank,standing,85,8,42,42)
+    local p=d.view.ProfileSummary(d.me,boardSeason)
+    standRank.Paint(p and p.rank)
+    Place(standName,standing,130,11,math.max(60,strip*.63-133),40);Set(standName,p and p.rank and p.rank.label or "Unranked")
+    FitMetrics(standMetrics,standing,strip*.64,3,strip*.36-2,57)
+    Set(standMetrics[1].value,Number(p and p.rating));Set(standMetrics[2].value,p and p.position and "#"..p.position or "—")
+    local choiceW=math.min(142,w*.15)
+    Place(boardChoice,board,strip+16,75,choiceW,30);Place(boardSearch,board,strip+24+choiceW,75,w-strip-24-choiceW,30)
+    Place(boardHeader,board,0,134,w-18,29);FitColumns(boardHeaders,boardHeader,w-18,29,boardWidths)
+    Place(boardList,board,0,165,w,math.max(1,h-225))
+    if reset then boardList.SetOffset(0) else boardList.Render() end
+    if p and p.position then
+        local item={id=d.me,identity=p.identity,rank=p.rank,position=p.position,rating=p.rating,wins=p.stats.wins,losses=p.stats.losses,winRate=p.stats.winRate}
+        Place(pinned,board,0,h-57,w-18,39);BoardRow(pinned,item,w-18,39);pinned.Mark(true);pinned:Show()
+    else pinned:Hide() end
+    Place(boardNote,board,1,h-16,w-4,16)
+end
+-- Player profile is an internal leaderboard detail, not another sidebar tab.
+local profile=Page("profile","Player Profile","Competitive overview and performance.",-170)
+local profileSeason=3
+local profileHero=Panel(profile)
+local profileEmblem=Rank(profileHero,106,true)
+local profileName=Text(profileHero,25,C.pale)
+local profileIdentity=Text(profileHero,14,C.text)
+local profileRealm=Text(profileHero,12,C.muted)
+local profileRank=Text(profileHero,22,C.pale,"CENTER")
+local profileRankCaption=Text(profileHero,12,C.muted,"CENTER")
+local profileStand=Metrics(profileHero,{"Standing","Rating"})
+local profileChoice=Choice(profileHero,Seasons(),3,function(v)profileSeason=v;profile.Render()end)
+local profileStats=Panel(profile)
+local profileMetrics=Metrics(profileStats,{"Wins","Losses","Win Rate","Peak Rating","Current Streak","Best Streak"})
+local profileGraphPanel,profileGraphTitle=Header(profile,"Rating Progression")
+local profileGraph=Graph(profileGraphPanel)
+local seasonsPanel=Header(profile,"Season History")
+local opponentPanel=Header(profile,"Competitive Opponents","Hall")
+local seasonRows,opponentRows={},{}
+for i=1,3 do
+    local row=CreateFrame("Button",nil,seasonsPanel)
+    row.cells={}
+    for j=1,5 do row.cells[j]=Text(row,12,C.text,"CENTER") end
+    row.line=Hair(row);row.line:ClearAllPoints();row.line:SetPoint("BOTTOMLEFT",row,"BOTTOMLEFT");row.line:SetPoint("BOTTOMRIGHT",row,"BOTTOMRIGHT");row.line:SetHeight(1)
+    local hover=S.Fill(row,C.selected);hover:SetAlpha(0);row.highlight=hover
+    row:SetScript("OnEnter",function()M.Fade(hover,.35,.12)end);row:SetScript("OnLeave",function()M.Fade(hover,row.selected and .3 or 0,.12)end)
+    W.PressFeedback(row,hover)
+    row:SetScript("OnClick",function()if row.season then profileSeason=row.season;profileChoice.SetChoice(profileSeason);profile.Render()end end)
+    seasonRows[i]=row
+    opponentRows[i]=Row(opponentPanel,"mini",function(item)OpenProfile(item.id)end)
+end
+local seasonHead,oppHead={},{}
+for i,x in ipairs({"Season","End Rating","Peak Rating","W / L","Win Rate"}) do seasonHead[i]=T(seasonsPanel,x,10,C.muted,"CENTER") end
+for i,x in ipairs({"Opponent","W / L","Win Rate"}) do oppHead[i]=T(opponentPanel,x,10,C.muted,"CENTER") end
+function profile.Render()
+    local d=Data();if not d then return end
+    local w,h=profile:GetWidth(),profile:GetHeight()
+    local p=d.view.Profile(profileId or d.me,profileSeason)
+    if not p then p={id=profileId,stats={},seasons={}} end
+    local v=p.identity;local stat=p.stats
+    local heroH=math.max(102,math.min(128,h*.215))
+    Place(profileHero,profile,0,58,w,heroH)
+    local icon=heroH-12;Place(profileEmblem,profileHero,12,6,icon,icon);profileEmblem.Paint(p.rank)
+    local left=icon+25
+    Place(profileName,profileHero,left,8,w*.45-left,35);Set(profileName,v and v.name or p.id or "Unknown player")
+    Place(profileIdentity,profileHero,left,48,w*.45-left,20);Set(profileIdentity,v and ((v.class or "Unknown class").."  •  "..(v.faction or "Unknown faction")) or "Identity unavailable")
+    Place(profileRealm,profileHero,left,71,w*.45-left,18);Set(profileRealm,v and (v.realm or v.fullName) or "—")
+    local rankW=w*.22;Place(profileRank,profileHero,w*.46,39,rankW,29);Set(profileRank,p.rank and p.rank.label or "Unranked")
+    Place(profileRankCaption,profileHero,w*.46,69,rankW,18);Set(profileRankCaption,"Season "..profileSeason)
+    FitMetrics(profileStand,profileHero,w*.69,42,w*.30,heroH-45)
+    Set(profileStand[1].value,p.position and "#"..p.position or "—");Set(profileStand[2].value,Number(p.rating))
+    Place(profileChoice,profileHero,w-122,7,112,28)
+    local statY=58+heroH+10;Place(profileStats,profile,0,statY,w,62);FitMetrics(profileMetrics,profileStats,0,2,w,58)
+    Set(profileMetrics[1].value,stat.wins or 0,GREEN);Set(profileMetrics[2].value,stat.losses or 0,RED)
+    Set(profileMetrics[3].value,Rate(stat.winRate),GREEN);Set(profileMetrics[4].value,Number(p.peakRating))
+    Set(profileMetrics[5].value,Streak(stat.currentStreak),stat.currentStreak and stat.currentStreak<0 and RED or GREEN);Set(profileMetrics[6].value,Streak(stat.bestStreak))
+    local lowerH=math.max(122,math.min(177,h*.27));local graphY=statY+72;local graphH=math.max(100,h-graphY-lowerH-10)
+    Place(profileGraphPanel,profile,0,graphY,w,graphH);profileGraphTitle:SetText("Rating Progression — Season "..profileSeason)
+    Place(profileGraph,profileGraphPanel,12,41,w-24,graphH-47);profileGraph.Paint(Points(profileId or d.me,profileSeason))
+    local lowerY=h-lowerH;local sw=(w-12)*.54;local ow=w-sw-12
+    Place(seasonsPanel,profile,0,lowerY,sw,lowerH);Place(opponentPanel,profile,sw+12,lowerY,ow,lowerH)
+    local widths={.24,.20,.20,.18,.18};local x=10
+    for i,t in ipairs(seasonHead) do Place(t,seasonsPanel,x,37,(sw-20)*widths[i],17);x=x+(sw-20)*widths[i] end
+    for i,t in ipairs(oppHead) do local xs={10,ow*.57,ow*.78};local ws={ow*.52,ow*.21,ow*.21};Place(t,opponentPanel,xs[i],37,ws[i],17) end
+    local rh=math.max(20,math.min(32,(lowerH-58)/3))
+    for i,row in ipairs(seasonRows) do
+        local item=p.seasons[#p.seasons-i+1];row:SetShown(item~=nil)
+        if item then
+            row.season=item.season;row.selected=item.season==profileSeason
+            row.highlight:SetAlpha(row.selected and .30 or 0);Place(row,seasonsPanel,10,55+(i-1)*rh,sw-20,rh)
+            local values={"Season "..item.season,Number(item.rating),Number(item.peakRating),item.wins.." / "..item.losses,Rate(item.games>0 and item.wins/item.games or nil)}
+            local xx=0
+            for j,t in ipairs(row.cells) do local ww=(sw-20)*widths[j];Place(t,row,xx,0,ww,rh);Set(t,values[j],j==5 and GREEN or C.text);xx=xx+ww end
+        end
+    end
+    local opponents={}
+    for id,stats in pairs(stat.opponents or {}) do opponents[#opponents+1]={id=id,stats=stats} end
+    table.sort(opponents,function(a,b)local x,y=a.stats.wins+a.stats.losses,b.stats.wins+b.stats.losses;if x~=y then return x>y end;return a.id<b.id end)
+    for i,row in ipairs(opponentRows) do
+        local item=opponents[i];row:SetShown(item~=nil)
+        if item then
+            row.item=item;Place(row,opponentPanel,10,55+(i-1)*rh,ow-20,rh)
+            Identity(row,d.identities[item.id],item.id);FitIdentity(row,0,(ow-20)*.55,rh,true)
+            Place(row.cols[1],row,(ow-20)*.55,0,(ow-20)*.23,rh);Set(row.cols[1],item.stats.wins.." / "..item.stats.losses)
+            Place(row.cols[2],row,(ow-20)*.78,0,(ow-20)*.22,rh);Set(row.cols[2],Rate(item.stats.winRate),GREEN)
+        end
+    end
+end
+-- Private history: display local observations, join only confirmed replay IDs.
+local history=Page("history","Match History","Your dueling journey, one match at a time.")
+local historyQuery,historyType,historyOutcome="", "All duels","All outcomes"
+local historySort,reverse="recent",false
+local expandedId
+local historyStats=Panel(history)
+local historyIcon=ns.Chrome.Icon(historyStats,"Hall")
+local historyMetrics=Metrics(historyStats,{"Total duels","Wins","Losses","Win rate"})
+local historySearch=Search(history,"Search opponent or realm...",function(v)historyQuery=v;history.Render(true)end)
+local function Values(list)local out={};for _,v in ipairs(list)do out[#out+1]={key=v,label=v}end;return out end
+local typeChoice=Choice(history,Values({"All duels","Ranked","Unranked","Practice","Pending","Disputed","Unconfirmed"}),"All duels",function(v)historyType=v;expandedId=nil;history.Render(true)end)
+local outcomeChoice=Choice(history,Values({"All outcomes","Win","Loss","Fled","Opponent fled","Unknown"}),"All outcomes",function(v)historyOutcome=v;expandedId=nil;history.Render(true)end)
+local historyHeader=Panel(history)
+local historyHeaders={}
+local historySorts={"opponent","category","outcome","duration","delta"}
+for i,name in ipairs({"Opponent","Type","Outcome","Duration","Rating change"}) do
+    local key=historySorts[i]
+    local b=CreateFrame("Button",nil,historyHeader);local t=T(b,name,13,C.pale,"CENTER");t:SetAllPoints(b)
+    b:SetScript("OnClick",function()if historySort==key then reverse=not reverse else historySort=key;reverse=false end;history.Render(true)end)
+    historyHeaders[i]=b
+end
+local historyList=List(history,"history",38,function(item)
+    expandedId=expandedId==item.id and nil or item.id;history.Render()
+end)
+local detail=Panel(historyList)
+local detailMetrics=Metrics(detail,{"Duel","Rating","Duration","Result"})
+local filtered={}
+local function Refilter()
+    local query=historyQuery:lower()
+    filtered={}
+    for _,r in ipairs(Data().matches) do
+        local v=r.identity
+        local name=v and (v.name.." "..v.fullName.." "..(v.realm or "")) or r.peer or ""
+        local out=Outcome(r.outcome)
+        if name:lower():find(query,1,true) and (historyType=="All duels" or r.category==historyType)
+            and (historyOutcome=="All outcomes" or out==historyOutcome) then filtered[#filtered+1]=r end
+    end
+    if historySort~="recent" then
+        table.sort(filtered,function(a,b)
+            local function value(r)
+                if historySort=="opponent" then return r.identity and r.identity.name or r.peer or "" end
+                return r[historySort] or (historySort=="delta" and 0 or "")
+            end
+            local x,y=value(a),value(b)
+            if x==y then return a.id<b.id end
+            if reverse then return x<y end
+            return x>y
+        end)
+    end
+end
+historyList.Configure(function(offset,limit)
+    local result={};for i=offset+1,math.min(offset+limit,#filtered) do result[#result+1]=filtered[i] end
+    return result,#filtered
+end,function(row,item,w,h)HistoryRow(row,item,w,h);row.Mark(item.id==expandedId)end,{
+    frame=detail,Height=function()return expandedId and 59 or 0 end,
+    Is=function(item)return item.id==expandedId end,
+    Paint=function(item,w,h)
+        FitMetrics(detailMetrics,detail,0,0,w,h)
+        local result,color=Outcome(item.outcome);Set(detailMetrics[1].value,item.category.." — "..result,color)
+        Set(detailMetrics[2].value,item.before and (Number(item.before).." → "..Number(item.after)) or "—",C.pale)
+        Set(detailMetrics[3].value,Duration(item.duration),C.text)
+        Set(detailMetrics[4].value,item.confirmed and "Confirmed" or item.category,item.confirmed and GREEN or C.muted)
+    end
+})
+function history.Render(reset)
+    local d=Data();if not d then return end
+    local w,h=history:GetWidth(),history:GetHeight()
+    Place(historyStats,history,0,58,w,66);Place(historyIcon,historyStats,17,6,60,54)
+    FitMetrics(historyMetrics,historyStats,95,3,w-105,60)
+    Set(historyMetrics[1].value,d.personal.total);Set(historyMetrics[2].value,d.personal.wins,GREEN)
+    Set(historyMetrics[3].value,d.personal.losses,RED);Set(historyMetrics[4].value,Rate(d.personal.winRate),GREEN)
+    Place(historySearch,history,0,141,w*.43,32);Place(typeChoice,history,w*.45,141,w*.25,32);Place(outcomeChoice,history,w*.72,141,w*.28,32)
+    Place(historyHeader,history,0,190,w-18,30);FitColumns(historyHeaders,historyHeader,w-18,30,historyWidths)
+    Place(historyList,history,0,222,w,math.max(1,h-225))
+    Refilter()
+    if reset then historyList.SetOffset(0) else historyList.Render() end
+end
+local failed=T(ns.Window.content,"Competitive preview is unavailable.",18,C.muted,"CENTER")
+failed:SetPoint("CENTER",ns.Window.content,"CENTER");failed:SetSize(440,30);failed:Hide()
+local function RenderActive()
+    if not active then return end
+    if not preview then
+        local ok,result=pcall(ns.CompetitivePreview.Get)
+        if not ok then
+            ns.Diagnostics.Record("Competitive preview",tostring(result))
+            pages[active]:Hide();failed:Show();return
+        end
+        preview=result
+    end
+    local f=pages[active]
+    if f:IsVisible() and f:GetWidth()>1 and f:GetHeight()>1 then
+        f.Render()
+        if pendingScroll[active] then
+            local value=pendingScroll[active];pendingScroll[active]=nil
+            U.SetPageScroll(active,value)
+        end
+    end
+end
+for key,f in pairs(pages) do
+    f:SetScript("OnSizeChanged",function(self)if self:IsVisible() and preview then self.Render()end end)
+    f:SetScript("OnShow",function()if active==key then RenderActive()end end)
+    f:HookScript("OnHide",function()W.CloseChoices()end)
+end
+function U.Show(key)
+    if active~=key then W.CloseChoices() end
+    for k,f in pairs(pages) do if k~=key then f:Hide() end end
+    failed:Hide();active=pages[key] and key or nil
+    if active=="profile" then profileSeason=boardSeason;profileChoice.SetChoice(profileSeason) end
+    if active then
+        pages[active]:Show()
+        if pages[active]:IsVisible() then RenderActive() end
+    end
+end
+function U.GetPageScroll(key)
+    if key=="standings" then return boardList.Offset() elseif key=="history" then return historyList.Offset() end
+    return 0
+end
+function U.SetPageScroll(key,offset)
+    if key~="standings" and key~="history" then return end
+    if not preview then pendingScroll[key]=offset;return end
+    if key=="standings" then boardList.SetOffset(offset) elseif key=="history" then historyList.SetOffset(offset) end
+end
+
+function U.Refresh() if active and pages[active]:IsVisible() then RenderActive() end end
