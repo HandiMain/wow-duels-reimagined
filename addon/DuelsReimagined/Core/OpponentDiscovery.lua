@@ -150,6 +150,11 @@ local function Build(api)
     return D
 end
 
+-- Explicit sandbox only; never returns or dispatches to the live receiver.
+function P.NewSimulated(api)
+    if type(api)~="table" or api.scope~="SIMULATED" then return nil end
+    return Build(api)
+end
 local function Home() return Call(GetNormalizedRealmName) end
 local function NoncePrefix()
     local t=Call(GetTime) or 0

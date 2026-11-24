@@ -161,3 +161,14 @@ assert(ns.CompetitiveStorage.GetSnapshot().rankEligible==false
     and _G.DuelsReimaginedDB==originalDB and _G.DuelsReimaginedCompetitiveDB==oldAccount
     and _G.DuelsReimaginedCharacterDB==oldChar,"archive QA never writes live data")
 print("Competitive storage isolated seasonal archive: PASS")
+
+-- Detector sandbox uses injected APIs. The mock live detector is deliberately unavailable.
+local sandboxNS={Client={Kind=function()return "retail" end,IsSupported=function()return false end},Group=ns.Group}
+assert(loadfile("addon/DuelsReimagined/Core/DuelDetection.lua"))("DuelsReimagined",sandboxNS)
+ns.DuelDetection.NewSandbox=sandboxNS.DuelDetection.NewSandbox
+assert(loadfile("addon/DuelsReimagined/Core/CompetitiveLifecycle.lua"))("DuelsReimagined",ns)
+local lp,lf=ns.CompetitiveLifecycle.RunSelfTest(function(line)if line:find("FAIL",1,true)then print(line)end end)
+assert(lp==13 and lf==0 and sent==previous and P.GetSnapshot().state=="checking","integrated competitive lifecycle")
+assert(_G.DuelsReimaginedDB==originalDB and _G.DuelsReimaginedCompetitiveDB==oldAccount
+    and _G.DuelsReimaginedCharacterDB==oldChar,"integration QA never writes live roots")
+print("Integrated competitive lifecycle: PASS")

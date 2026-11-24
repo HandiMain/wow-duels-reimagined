@@ -71,6 +71,7 @@ local function Build(client,prefix,now,available,send)
     return D
 end
 
+P.NewSimulated=Build
 function P.RunSelfTest(emit)
     emit=type(emit)=="function" and emit or function() end
     local passed,failed=0,0

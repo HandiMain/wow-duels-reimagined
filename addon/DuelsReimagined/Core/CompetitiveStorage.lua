@@ -168,6 +168,10 @@ local function Build(read,write,client,identity,scope)
     end
     return D
 end
+-- Injected private roots only. No production adapter.
+function P.NewSimulated(read,write,client,identity)
+    return Build(read,write,client,identity,"SIMULATED")
+end
 local live=Build(function() return _G.DuelsReimaginedCompetitiveDB,_G.DuelsReimaginedCharacterDB end,
     function(a,c) _G.DuelsReimaginedCompetitiveDB=a;_G.DuelsReimaginedCharacterDB=c end,
     function() return ns.Client.Kind() end,
