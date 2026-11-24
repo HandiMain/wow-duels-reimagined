@@ -38,8 +38,13 @@ local function Setup(interface,missing,formats,widgetTest)
     end
     _G.C_Timer={After=function(delay,fn) timers[#timers+1]={at=t+delay,fn=fn} end}
     local launches=0
-    _G.StartDuel=function(unit)
+    local range=true
+    _G.CheckInteractDistance=function(unit,index) assert(unit=="target" and index==3);return range end
+    _G.ERR_DUEL_REQUESTED="Duel requested";_G.ERR_DUEL_CANCELLED="Duel canceled"
+    _G.ERR_TOO_FAR_TO_INTERACT="Too far"
+    _G.StartDuel=function(unit,exact)
         if not widgetTest then error("detector must never invoke StartDuel without a click") end
+        assert(exact==true)
         launches=launches+1
         if hooks.StartDuel then hooks.StartDuel(unit) end
     end
@@ -68,7 +73,8 @@ local function Setup(interface,missing,formats,widgetTest)
         t=target
     end
     return {D=ns.DuelDetection,G=ns.Group,fire=Fire,advance=Advance,
-        hooks=hooks,people=people,driver=f,launches=function()return launches end}
+        hooks=hooks,people=people,driver=f,launches=function()return launches end,
+        setRange=function(v)range=v end}
 end
 local function Snap(x) return x.D.GetSnapshot() end
 local function Msg(x,text) x.fire("CHAT_MSG_SYSTEM",text) end
@@ -297,3 +303,27 @@ for _,interface in ipairs({120105,16001}) do
     Check(x.D.LaunchWidgetChallenge(false,"Player-2") and not Snap(x).challenge.rankedWidget,"widget unranked remains unranked")
 end
 print("Widget origin and native challenge isolation: PASS")
+
+for _,interface in ipairs({120105,16001}) do
+    local x=Setup(interface,nil,nil,true)
+    x.setRange(false)
+    Check(not x.D.LaunchWidgetChallenge(false,"Player-2") and x.launches()==0,"out of range does not launch")
+    x.setRange(HIDDEN)
+    Check(not x.D.LaunchWidgetChallenge(false,"Player-2") and x.launches()==0,"secret range fails closed")
+    x.setRange(true)
+    Check(x.D.LaunchWidgetChallenge(false,"Player-2"),"nearby request attempted")
+    Check(not Snap(x).challenge.requestConfirmed,"hook alone is not a confirmed request")
+    x.advance(5.1)
+    Check(Snap(x).state=="idle" and Snap(x).reason=="request_not_confirmed","unconfirmed request releases lock")
+    Check(x.D.LaunchWidgetChallenge(false,"Player-2"),"retry available")
+    x.fire("UI_ERROR_MESSAGE","Too far")
+    Check(Snap(x).state=="idle" and Snap(x).reason=="request_refused","known refusal releases immediately")
+    Check(x.D.LaunchWidgetChallenge(false,"Player-2"),"retry after refusal")
+    x.fire("UI_INFO_MESSAGE","Duel requested")
+    Check(Snap(x).challenge.requestConfirmed,"client request acknowledgement")
+    x.advance(6)
+    Check(Snap(x).state=="challenge","acknowledged request survives short timeout")
+    x.fire("UI_INFO_MESSAGE","Duel canceled")
+    Check(Snap(x).state=="idle" and not Snap(x).last,"cancellation creates no match")
+end
+print("Range and outgoing request feedback: PASS")

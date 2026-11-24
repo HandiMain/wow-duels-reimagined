@@ -180,12 +180,18 @@ challenge=Action("Challenge Target",18,277,157,27,function()
         H.Refresh();return
     end
     lastRequest=now
-    local ok=ns.DuelDetection.LaunchWidgetChallenge(ranked,id.guid)
-    if not ok then note:SetText("Challenge unavailable; try again") end
+    local ok,why=ns.DuelDetection.LaunchWidgetChallenge(ranked,id.guid)
+    if not ok then
+        if why=="range" then note:SetText("Move closer or range unavailable")
+        else note:SetText("Request not confirmed; try again") end
+    end
 end,false)
 forfeit=Action("Forfeit",187,277,131,27,function()
-    if preview or ns.CompetitivePreview.IsActive() or not snap or not snap.active or snap.state=="finishing" then return end
-    Native(ForfeitDuel)
+    if preview or ns.CompetitivePreview.IsActive() or not snap or snap.state=="finishing" then return end
+    if snap.challenge and snap.challenge.direction=="outgoing" then
+        if not snap.challenge.requestConfirmed then ns.DuelDetection.DismissUnconfirmed()
+        elseif not Combat() then Native(CancelDuel) end
+    elseif snap.active then Native(ForfeitDuel) end
 end,true)
 local function Enable(b,value) b.usable=value==true;b:SetEnabled(b.usable);b.Paint() end
 local function ResetDamage(id)
@@ -265,6 +271,7 @@ local function Tick()
         shownResult=nil;H.Refresh()
     end
 end
+local lastRange,lastRangeReason
 local function Paint()
     if not root:IsShown() or not snap then return end
     if preview then
@@ -294,24 +301,56 @@ local function Paint()
     Enable(modeRank,idle and not Combat() and selectable and not ns.CompetitivePreview.IsActive())
     Enable(modePractice,idle and not Combat() and not ns.CompetitivePreview.IsActive())
     challenge.label:SetText(effectiveRank and "Challenge Ranked" or "Challenge Unranked")
-    Enable(challenge,idle and not Combat() and opponent~=nil and self~=nil and opponent.guid~=self.guid and
+    lastRange,lastRangeReason=nil,nil
+    if idle and opponent and self and opponent.guid~=self.guid then
+        lastRange,lastRangeReason=ns.DuelDetection.GetChallengeRange(opponent.guid)
+    end
+    Enable(challenge,idle and not Combat() and lastRange==true and
         type(StartDuel)=="function" and not ns.CompetitivePreview.IsActive())
-    Enable(forfeit,snap.active~=nil and snap.state~="finishing" and type(ForfeitDuel)=="function" and not ns.CompetitivePreview.IsActive())
+    local outgoing=snap.challenge and snap.challenge.direction=="outgoing"
+    forfeit.label:SetText(outgoing and (snap.challenge.requestConfirmed and "Cancel Request" or "Dismiss") or "Forfeit")
+    Enable(forfeit,not ns.CompetitivePreview.IsActive() and
+        ((snap.active~=nil and snap.state~="finishing" and type(ForfeitDuel)=="function")
+        or (outgoing and (not snap.challenge.requestConfirmed or (not Combat() and type(CancelDuel)=="function")))) or false)
     done:SetText("—");taken:SetText("—")
     if snap.active then
         note:SetText("Duel damage unavailable")
         Tick()
     elseif snap.challenge then
-        state:SetText(snap.challenge.kind=="death_duel" and "Death duel - excluded" or "Challenge pending")
-        timer:SetText("00:00");note:SetText("Waiting for Blizzard countdown")
+        local outgoing=snap.challenge.direction=="outgoing"
+        state:SetText(snap.challenge.kind=="death_duel" and "Death duel - excluded" or
+            outgoing and not snap.challenge.requestConfirmed and "Checking request" or "Challenge pending")
+        timer:SetText("00:00")
+        note:SetText(outgoing and not snap.challenge.requestConfirmed and "Waiting for client confirmation" or "Waiting for Blizzard countdown")
     elseif shownResult then
         state:SetText(shownResult.text);timer:SetText(shownResult.duration)
         note:SetText("Rating not confirmed")
     else
-        state:SetText(snap.state=="unavailable" and "Duel detection unavailable" or opponent and "Ready to challenge" or "Select a player to duel")
+        local refusal=snap.reason=="request_not_confirmed" or snap.reason=="request_refused" or snap.reason=="request_dismissed"
+        state:SetText(snap.state=="unavailable" and "Duel detection unavailable" or
+            opponent and (lastRange==true and "Ready to challenge" or lastRangeReason or "Range unavailable") or "Select a player to duel")
         timer:SetText("00:00")
-        note:SetText(canRank and (intent and "Unranked selected" or "Ranked available") or why or "Unranked only")
+        note:SetText(refusal and "Previous request not confirmed" or
+            canRank and (intent and "Unranked selected" or "Ranked available") or why or "Unranked only")
     end
+end
+local function UpdateDriver()
+    -- Range changes while moving without a target-change event. A lightweight
+    -- probe only while visible, idle and targeting another player; no full
+    -- refresh unless the range state changes.
+    local id=not preview and snap and snap.state=="idle" and Identity("target")
+    local me=id and Identity("player")
+    local checkRange=id and me and id.guid~=me.guid and not Combat()
+    root:SetScript("OnUpdate",not preview and snap and (snap.active or shownResult or checkRange) and function(_,dt)
+        H.elapsed=(H.elapsed or 0)+dt
+        if H.elapsed<.25 then return end
+        H.elapsed=0
+        if snap.active or shownResult then Tick() end
+        if snap.state=="idle" and not Combat() then
+            local v,why=ns.DuelDetection.GetChallengeRange()
+            if v~=lastRange or why~=lastRangeReason then Paint() end
+        end
+    end or nil)
 end
 local function Receive(s)
     snap=s
@@ -336,10 +375,7 @@ local function Receive(s)
         activeID,acceptedAt,countdownUntil=nil,nil,nil
     elseif s.challenge then shownResult=nil end
     Paint()
-    root:SetScript("OnUpdate",not preview and (s.active or shownResult) and function(_,dt)
-        H.elapsed=(H.elapsed or 0)+dt
-        if H.elapsed>=.2 then H.elapsed=0;Tick() end
-    end or nil)
+    UpdateDriver()
 end
 function H.ApplyPosition()
     if dragging then return end
@@ -395,8 +431,14 @@ root:SetScript("OnEvent",function(_,event,unit)
         end
         return
     end
+    if event=="PLAYER_TARGET_CHANGED" then
+        local c=snap and snap.challenge
+        local id=Identity("target")
+        if c and c.direction=="outgoing" and not c.requestConfirmed and
+            (not id or not c.opponent or id.guid~=c.opponent.guid) then ns.DuelDetection.DismissUnconfirmed() end
+    end
     if event=="PLAYER_TARGET_CHANGED" or event=="PLAYER_REGEN_ENABLED" then ProbeSelected() end
-    Paint()
+    Paint();UpdateDriver()
 end)
 root:SetScript("OnShow",function()
     rankDirty=true

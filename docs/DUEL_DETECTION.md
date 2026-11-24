@@ -54,3 +54,6 @@ User reported a successful Forever duel loss (outgoing attempts, four challenge 
 
 ### Explicit widget launch origin (2026-11-24)
 The passive detector now also owns the narrow explicit-click launch wrapper, because a single scoped origin marker must be consumed by its existing StartDuel hook. No other call path acquires it. Native outgoing actions are always unranked; origin captured on a challenge and cleared on synchronous return. Sandbox cannot launch the native action. Normal Blizzard incoming request, countdown and result evidence are unchanged. No native command override, automatic action, network ownership or rating write in this module. Client protected-action behavior must be verified live.
+
+
+Outgoing native hooks are attempt evidence only. The scoped widget launch now checks the client-native duel interaction range (index 3), uses exact matching and observes localized request acknowledgment/cancellation and specific refusal messages. A five-second unconfirmed attempt timeout or local dismissal returns the detector to idle without recording a match; acknowledged attempts retain 90-second expiry. No new automatic actions or writes. Real client delivery needs verification.

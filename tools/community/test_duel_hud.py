@@ -43,3 +43,14 @@ class DuelHUDTests(unittest.TestCase):
         self.assertIn('Action("Unranked"',h)
         self.assertIn('ns.OpponentDiscovery.Subscribe(Paint)',h)
         self.assertNotIn('Action("Practice"',h)
+
+    def test_range_and_request_recovery(self):
+        d,h=read("Core/DuelDetection.lua"),read("UI/DuelHUD.lua")
+        self.assertIn('api.interactDistance,"target",3',d)
+        self.assertIn('D.GetChallengeRange(expectedGuid)~=true',d)
+        self.assertIn('ACK_WAIT=5',d)
+        self.assertIn('request_not_confirmed',d)
+        self.assertIn('requestConfirmed=true',d)
+        self.assertIn('pcall(_G.StartDuel,"target",true)',d)
+        self.assertIn('lastRange==true',h)
+        self.assertIn('ns.DuelDetection.DismissUnconfirmed()',h)

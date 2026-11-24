@@ -16,6 +16,7 @@ local challenge, active, last
 local cycle, revision = 0, 0
 local state, reason = "unavailable", "initializing"
 local WAIT, EXPIRE, TRACE_LIMIT = 2, 90, 24
+local ACK_WAIT=5
 local suppressDeath = false
 -- Scoped to one synchronous, explicitly clicked native launch. Never persisted.
 local widgetLaunch
@@ -213,6 +214,20 @@ local function Await(d)
             (d.finishSeen and "result_not_observed" or "finish_not_observed"),false)
     end)
 end
+local function ClearAttempt(c,why)
+    if challenge~=c or active then return end
+    challenge=nil;Publish("idle",why)
+end
+local function Acknowledge(c)
+    if challenge~=c or c.direction~="outgoing" or c.requestConfirmed or active then return end
+    c.requestConfirmed=true
+    Publish("challenge","outgoing_request_observed")
+    pendingTimers=pendingTimers+1
+    C_Timer.After(EXPIRE,function()
+        pendingTimers=pendingTimers-1
+        ClearAttempt(c,"challenge_expired")
+    end)
+end
 local function Challenge(name,direction,kind,rankedWidget,widgetChallenge)
     if active then
         -- Another request during a confirmed countdown is not proof that
@@ -233,15 +248,12 @@ local function Challenge(name,direction,kind,rankedWidget,widgetChallenge)
     suppressDeath=kind=="death_duel"
     Publish("challenge",direction=="outgoing" and "outgoing_attempt" or "incoming_request")
     pendingTimers=pendingTimers+1
-    C_Timer.After(EXPIRE,function()
+    C_Timer.After(direction=="outgoing" and ACK_WAIT or EXPIRE,function()
         pendingTimers=pendingTimers-1
-        if challenge==c and not active then
-            challenge=nil
-            -- Preserve known death-duel exclusion until finish/world reset
-            -- or a fresh ordinary challenge; don't convert it into a duel.
-            Publish("idle","challenge_expired")
-        end
+        if direction=="incoming" then ClearAttempt(c,"challenge_expired")
+        elseif not c.requestConfirmed then ClearAttempt(c,"request_not_confirmed") end
     end)
+    return c
 end
 local function StartCountdown(n)
     if suppressDeath then return end
@@ -317,9 +329,31 @@ local function Finish()
         Await(d)
     end
 end
+local function RequestFeedback(message,isError)
+    local text=Text(message)
+    if not text then return end
+    local feedback
+    if Text(api.requested)==text then feedback="ack"
+    elseif Text(api.cancelled)==text then feedback="cancel"
+    elseif isError then
+        -- Only explicit known native errors; arbitrary combat/spell errors
+        -- cannot terminate an invitation or an active duel.
+        for _,value in pairs(api.requestErrors or {}) do
+            if Text(value)==text then feedback="refused";break end
+        end
+    end
+    if not feedback then return end
+    if widgetLaunch then widgetLaunch.feedback=feedback;return end
+    local c=challenge
+    if not c or active then return end
+    if feedback=="ack" then Acknowledge(c)
+    elseif feedback=="cancel" then ClearAttempt(c,"challenge_cancelled")
+    elseif c.direction=="outgoing" and not c.requestConfirmed then ClearAttempt(c,"request_refused") end
+end
 local function System(message)
     local text=Text(message)
     if not text then return end
+    RequestFeedback(text,false)
     local countdown=Match(rules.countdown,text)
     if countdown then
         local n=tonumber(countdown[1])
@@ -377,18 +411,22 @@ Register("finish","DUEL_FINISHED")
 Register("system","CHAT_MSG_SYSTEM")
 Register("world","PLAYER_ENTERING_WORLD")
 Register("death","DUEL_TO_THE_DEATH_REQUESTED")
+Register("requestInfo","UI_INFO_MESSAGE")
+Register("requestError","UI_ERROR_MESSAGE")
 if not (capabilities.finish and capabilities.system and capabilities.world and
     capabilities.countdown and capabilities.knockout and capabilities.retreat) then
     driver:UnregisterAllEvents()
     Publish("unavailable","required_evidence_unavailable")
     return D
 end
-driver:SetScript("OnEvent",function(_,event,value)
+driver:SetScript("OnEvent",function(_,event,value,message)
     if event=="DUEL_REQUESTED" then
         Challenge(Name(value),"incoming","standard")
     elseif event=="DUEL_TO_THE_DEATH_REQUESTED" then
         Challenge(Name(value),"incoming","death_duel")
     elseif event=="CHAT_MSG_SYSTEM" then System(value)
+    elseif event=="UI_INFO_MESSAGE" or event=="UI_ERROR_MESSAGE" then
+        RequestFeedback(message or value,event=="UI_ERROR_MESSAGE")
     elseif event=="DUEL_FINISHED" then Finish()
     elseif event=="PLAYER_ENTERING_WORLD" then ResetWorld() end
 end)
@@ -397,10 +435,14 @@ if type(hooksecurefunc)=="function" and type(StartDuel)=="function" then
         unit=Text(unit)
         if unit=="player" then return end -- targeting cursor, not an invitation
         local id=unit and Identity(unit)
-        local widget=id and widgetLaunch and id.guid==widgetLaunch.guid
-        local ranked=widget and widgetLaunch.ranked==true
+        local launch=widgetLaunch
+        local widget=id and launch and id.guid==launch.guid
+        local ranked=widget and launch.ranked==true
         widgetLaunch=nil -- consume on the observed native call, even on mismatch
-        if id then Challenge(id,"outgoing","unclassified",ranked,widget)
+        if id then
+            local c=Challenge(id,"outgoing","unclassified",ranked,widget)
+            if c and widget and launch.feedback=="ack" then Acknowledge(c)
+            elseif c and widget and launch.feedback then ClearAttempt(c,"request_refused") end
         else
             -- Explicit names are supported only when a visible unit supplies
             -- matching full identity. Never silently substitute current target.
@@ -411,6 +453,26 @@ if type(hooksecurefunc)=="function" and type(StartDuel)=="function" then
 end
 -- The explicit widget click is the only ranked outgoing origin. Native /duel
 -- and unit-menu actions are observed by the same hook without this token.
+function D.GetChallengeRange(expectedGuid)
+    local id,me=Identity("target"),Identity("player")
+    if not id or not me or not id.guid or id.guid==me.guid or (expectedGuid and id.guid~=expectedGuid) then
+        return nil,"Select another player"
+    end
+    if type(api.interactDistance)~="function" then return nil,"Duel range unavailable" end
+    local ok,v=pcall(api.interactDistance,"target",3)
+    if not ok then return nil,"Duel range unavailable" end
+    v=Plain(v)
+    if v==true or v==1 then return true end
+    if v==false or v==0 then return false,"Move closer to target" end
+    return nil,"Duel range unavailable"
+end
+function D.DismissUnconfirmed()
+    local c=challenge
+    if c and c.direction=="outgoing" and not c.requestConfirmed and not active then
+        ClearAttempt(c,"request_dismissed");return true
+    end
+    return false
+end
 function D.LaunchWidgetChallenge(ranked,expectedGuid)
     if api.scope~="LOCAL" or state~="idle" or not capabilities.outgoing or
         type(_G.StartDuel)~="function" or widgetLaunch then return false,"unavailable" end
@@ -420,14 +482,18 @@ function D.LaunchWidgetChallenge(ranked,expectedGuid)
         local ok,v=pcall(InCombatLockdown)
         if not ok or Plain(v)~=false then return false,"combat" end
     end
+    if D.GetChallengeRange(expectedGuid)~=true then return false,"range" end
     if ranked and (not ns.CompetitiveLifecycle or not ns.CompetitiveLifecycle.RankedAvailability(expectedGuid)) then
         return false,"ranked_unavailable"
     end
     widgetLaunch={guid=expectedGuid,ranked=ranked==true}
     -- Call the currently hooked global, not the pre-hook local reference.
-    local ok,v=pcall(_G.StartDuel,"target")
+    local ok,v=pcall(_G.StartDuel,"target",true)
     widgetLaunch=nil
-    if not ok or Plain(v)==false then return false,"native_refused" end
+    if not ok or Plain(v)==false then
+        D.DismissUnconfirmed();return false,"native_refused"
+    end
+    if not challenge or challenge.direction~="outgoing" then return false,"not_observed" end
     return true
 end
 -- No automatic actions and no hooks to combat-state events. Actual finish
@@ -441,6 +507,9 @@ local live = BuildDetector(ns,{
     scope="LOCAL", GetTime=GetTime, CreateFrame=CreateFrame, C_Timer=C_Timer,
     hooksecurefunc=hooksecurefunc, StartDuel=StartDuel, issecretvalue=issecretvalue,
     countdown=DUEL_COUNTDOWN, knockout=DUEL_WINNER_KNOCKOUT, retreat=DUEL_WINNER_RETREAT,
+    interactDistance=CheckInteractDistance,requested=ERR_DUEL_REQUESTED,cancelled=ERR_DUEL_CANCELLED,
+    requestErrors={ERR_OUT_OF_RANGE,ERR_TOO_FAR_TO_INTERACT,ERR_UNIT_NOT_FOUND,ERR_GENERIC_NO_TARGET,
+        ERR_INVALID_ATTACK_TARGET,ERR_PLAYER_DEAD,ERR_CLIENT_LOCKED_OUT,ERR_DUEL_IN_PROGRESS},
 })
 ns.DuelDetection=live
 
