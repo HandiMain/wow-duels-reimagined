@@ -95,5 +95,74 @@ Settings.Set("showInCompartment", false)
 Check(not Settings.NeedsReload(), "Returning to original startup choice should clear reload")
 print("Search and SavedVariables runtime contracts: PASS")
 
+
+-- Access appearance settings: isolate SavedVariables and verify the default
+-- transition, live callback, independent modes, and reset behavior.
+local originalDB = _G.DuelsReimaginedDB
+local updates, modified, fullRefresh, peekRefresh = 0, 0, 0, 0
+_G.DuelsReimaginedDB = {}
+ns.AccessIcons = { Refresh=function() updates=updates+1 end }
+ns.Options = { RefreshAccessModified=function() modified=modified+1 end,
+               Refresh=function() fullRefresh=fullRefresh+1 end }
+ns.Header = { RefreshAutoPeek=function() peekRefresh=peekRefresh+1 end }
+Check(Settings.GetDefault("autoPeekMoving")==true and Settings.Get("autoPeekMoving")==true,
+    "Auto Peek defaults on")
+Check(not Settings.IsModified("autoPeekMoving"), "default ON is not modified")
+Settings.Set("autoPeekMoving",false)
+Check(Settings.Get("autoPeekMoving")==false and Settings.IsModified("autoPeekMoving"),
+    "OFF is modified and must expose reset")
+Check(peekRefresh==1,"peek reacts to change")
+Settings.Reset("autoPeekMoving")
+Check(Settings.Get("autoPeekMoving") and not Settings.IsModified("autoPeekMoving"),
+    "reset restores ON")
+Check(peekRefresh==2,"peek reacts to reset")
+Check(Settings.Get("minimapSize")==36 and Settings.Get("minimapTransparency")==0,
+    "minimap defaults")
+local before=fullRefresh
+Settings.Set("minimapSize",51)
+Settings.Set("minimapTransparency",0.42)
+Check(Settings.Get("minimapSize")==52 and math.abs(Settings.Get("minimapTransparency")-0.4)<0.001,
+    "minimap values normalize to slider steps")
+Check(Settings.Get("widgetSize")==42 and Settings.Get("widgetTransparency")==0,
+    "minimap must not modify widget")
+Check(updates==2 and modified==2 and fullRefresh==before,
+    "live sliders refresh access icons and markers without full page refresh")
+Settings.Set("widgetSize",80)
+Settings.Set("widgetTransparency",0.65)
+for _,mode in ipairs({"widget","both","none","minimap"}) do
+    Settings.Set("iconMode",mode)
+    Check(Settings.Get("minimapSize")==52 and Settings.Get("widgetSize")==80,
+        "switching modes preserves independent sizes")
+    Check(math.abs(Settings.Get("minimapTransparency")-0.4)<0.001 and
+          math.abs(Settings.Get("widgetTransparency")-0.65)<0.001,
+        "switching modes preserves independent opacity")
+end
+Settings.Set("minimapSize",1000)
+Settings.Set("minimapTransparency",2)
+Check(Settings.Get("minimapSize")==64 and Settings.Get("minimapTransparency")==0.90,
+    "clamp upper minimap bounds")
+Settings.Set("minimapSize",-100)
+Settings.Set("minimapTransparency",-2)
+Check(Settings.Get("minimapSize")==24 and Settings.Get("minimapTransparency")==0,
+    "clamp lower minimap bounds")
+_G.DuelsReimaginedDB.minimapSize="invalid"
+_G.DuelsReimaginedDB.minimapTransparency=0/0
+Check(Settings.Get("minimapSize")==36 and Settings.Get("minimapTransparency")==0,
+    "invalid saved minimap settings use defaults")
+Settings.Set("minimapSize",60)
+Settings.Set("minimapTransparency",0.8)
+Settings.Reset("minimapSize")
+Settings.Reset("minimapTransparency")
+Check(not Settings.IsModified("minimapSize") and not Settings.IsModified("minimapTransparency"),
+    "individual minimap resets")
+Check(Settings.Get("widgetSize")==80 and math.abs(Settings.Get("widgetTransparency")-0.65)<0.001,
+    "minimap reset does not reset widget")
+_G.DuelsReimaginedDB.autoPeekMoving=false
+Check(Settings.Get("autoPeekMoving")==false and Settings.IsModified("autoPeekMoving"),
+    "existing explicit OFF remains saved and resettable")
+_G.DuelsReimaginedDB=originalDB
+ns.AccessIcons, ns.Options, ns.Header = nil,nil,nil
+print("Independent access settings and default-on Peek: PASS")
+
 -- Run the isolated duel lifecycle harness after existing smoke checks.
 dofile("tools/community/check_duel_detection_runtime.lua")

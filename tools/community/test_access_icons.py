@@ -67,7 +67,8 @@ class AccessIconsTests(unittest.TestCase):
         a = read("UI/AccessIcons.lua")
         self.assertIn('Motion.Value(root, root:GetScale()', a)
         self.assertIn("Motion.Value(sweep, 0, 1, 0.28", a)
-        self.assertIn("button.duelsIdleToken", a)
+        self.assertIn("Motion.Stop(minimapOpacityKey)", a)
+        self.assertNotIn("IDLE_ALPHA", a)
         self.assertIn('self:SetScript("OnUpdate", nil)', a)
         self.assertIn("Minimap:HookScript", a)
         self.assertIn("GetMinimapShape", a)
@@ -80,7 +81,7 @@ class AccessIconsTests(unittest.TestCase):
         s = read("Core/Settings.lua")
         self.assertIn('Section(accessCard, "minimap", "Minimap & Widget"', o)
         for name in ("iconMode", "widgetSize", "widgetTransparency",
-                     "resetIconPositions"):
+                     "minimapSize", "minimapTransparency", "resetIconPositions"):
             self.assertIn('RegisterOption("' + name + '"', o)
         self.assertIn("SetAvailable(hasWidget)", o)
         self.assertIn("formatValue and formatValue(clean)", read("UI/Widgets.lua"))
@@ -146,16 +147,42 @@ class AccessIconsTests(unittest.TestCase):
 
     def test_collector_controls_minimap_root_alpha_not_our_idle_effect(self):
         a = read("UI/AccessIcons.lua")
-        self.assertIn('Motion.Fade(button == miniButton and button.duelsFace.icon or button, 1, 0.16)', a)
-        self.assertEqual(a.count('Motion.Fade(button.duelsFace.icon, IDLE_ALPHA, 0.30)'), 2)
-        self.assertNotIn('Motion.Fade(button, IDLE_ALPHA', a)
-        self.assertIn('if isWidget then\n            Motion.Stop(self, 1)\n        else\n            Motion.Stop(face.icon, 1)', a)
+        self.assertIn('if button == miniButton then MinimapOpacity(true)', a)
+        self.assertIn('and 1 or (1 - Settings.Get("minimapTransparency"))', a)
+        self.assertIn('local face = button.duelsFace.face', a)
+        self.assertIn('Motion.Value(minimapOpacityKey, face:GetAlpha()', a)
+        self.assertIn('if isWidget then\n            Motion.Stop(self, 1)\n        else\n            Motion.Stop(minimapOpacityKey)', a)
+        self.assertNotIn('miniButton:SetAlpha(', a)
+        self.assertNotIn('Motion.Fade(miniButton,', a)
         self.assertIn('Motion.Fade(button, target, 0.18)', a) # floating-widget settings still live
         self.assertIn('if not OwnsMinimapPlacement()', a) # drag respects collector ownership
         self.assertIn('miniButton:GetParent() ~= UIParent', a)
         self.assertNotIn('C_Timer.NewTicker', a)
         self.assertIn('Minimap:HookScript("OnShow"', a)
         self.assertIn('Minimap:HookScript("OnSizeChanged"', a)
+
+    def test_minimap_sliders_independent_live_and_mode_specific(self):
+        a, o, s = read("UI/AccessIcons.lua"), read("UI/Options.lua"), read("Core/Settings.lua")
+        self.assertIn("autoPeekMoving = true,", s)
+        self.assertIn("minimapSize = 36, minimapTransparency = 0", s)
+        self.assertIn("Settings.MIN_MINIMAP_SIZE, Settings.MAX_MINIMAP_SIZE = 24, 64", s)
+        self.assertIn('miniButton:SetSize(miniSize, miniSize)', a)
+        self.assertIn('miniButton.duelsFace.Size(miniSize)', a)
+        self.assertIn('if miniWanted then MinimapOpacity(false, true) end', a)
+        self.assertIn('local minimapOpacityKey = {}', a)
+        self.assertIn('face:SetAlpha(target)', a)
+        self.assertIn('if mask then mask:SetSize(glyph, glyph) end', a)
+        for key, predicate in (("minimapSize", "HasMinimap"),
+                               ("minimapTransparency", "HasMinimap"),
+                               ("widgetSize", "HasWidget"),
+                               ("widgetTransparency", "HasWidget")):
+            self.assertIn("{ widget = " + key + ", visible = " + predicate + " }", o)
+            self.assertIn(key + ':SetModified(Settings.IsModified("' + key + '"))', o)
+            self.assertIn(key + ':SetValue(Settings.Get("' + key + '"))', o)
+            self.assertIn(key + ", " + predicate + ")", o)
+        self.assertIn("widget:SetShown(visible)", o)
+        self.assertIn("end, available)", o)
+        self.assertNotIn("C_Timer.After", a)
 
     def test_compartment_toggle_and_collector_contract(self):
         s, a, o = read("Core/Settings.lua"), read("UI/AccessIcons.lua"), read("UI/Options.lua")

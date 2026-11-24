@@ -12,8 +12,10 @@ ns.AccessIcons = Access
 -- AddOn Compartment, and TOC AddOns-list icon. Fixed color (not theme-tinted).
 -- Preserve the existing access, drag, tooltip and motion machinery.
 local ICON = "Interface\\AddOns\\DuelsReimagined\\Media\\Icons\\DuelsDRIcon.png"
-local EDGE, MINIMAP_SIZE = 8, 36
-local IDLE_DELAY, IDLE_ALPHA = 4, 0.60
+local EDGE = 8
+-- Independent tween key: face scaling and opacity must never cancel each
+-- other's animation in the shared Motion driver.
+local minimapOpacityKey = {}
 local loginReady = false
 local iconMode
 local miniButton, widgetButton
@@ -100,8 +102,9 @@ local function BuildFace(button)
     if sweep.SetRotation then sweep:SetRotation(math.rad(-18)) end
     sweep:SetAlpha(0)
     sweep:Hide()
+    local mask
     if face.CreateMaskTexture and sweep.AddMaskTexture then
-        local mask = face:CreateMaskTexture()
+        mask = face:CreateMaskTexture()
         mask:SetTexture("Interface\\CHARACTERFRAME\\TempPortraitAlphaMask")
         mask:SetPoint("CENTER")
         mask:SetSize(30, 30)
@@ -119,7 +122,8 @@ local function BuildFace(button)
         local glyph = math.max(18, math.floor(size * 0.82 + 0.5))
         mark:SetSize(glyph, glyph)
         highlight:SetSize(glyph, glyph)
-        sweep:SetHeight(size)
+        sweep:SetSize(math.max(3, size * 7 / 42), size)
+        if mask then mask:SetSize(glyph, glyph) end
     end
     style.Size = Size
     Size(button:GetWidth())
@@ -133,7 +137,8 @@ local function Sweep(style)
     Motion.Value(sweep, 0, 1, 0.28, function(region, progress)
         local v = SmoothStep(progress)
         region:ClearAllPoints()
-        region:SetPoint("CENTER", style.face, "CENTER", -20 + 40 * v, 0)
+        local width = style.face:GetWidth()
+        region:SetPoint("CENTER", style.face, "CENTER", width * (v - 0.5), 0)
         region:SetAlpha(math.sin(math.pi * progress) * 0.40)
         if progress >= 1 then region:Hide() end
     end)
@@ -159,30 +164,26 @@ local function Press(button, on)
     end
 end
 
-local function Wake(button)
-    button.duelsIdleToken = (button.duelsIdleToken or 0) + 1
-    -- Collectors such as EllesmereUI own the minimap button's root alpha.
-    -- Fade only our artwork, never override the collector's hidden state.
-    Motion.Fade(button == miniButton and button.duelsFace.icon or button, 1, 0.16)
-end
-
-local function IdleMinimap()
+-- Fade our entire artwork face, never the external owner's button alpha.
+-- The separate tween key leaves the existing scale/press animation intact.
+local function MinimapOpacity(forceOpaque, immediate)
     if not miniButton then return end
     local button = miniButton
-    button.duelsIdleToken = (button.duelsIdleToken or 0) + 1
-    local token = button.duelsIdleToken
-    if not loginReady or not button:IsShown() or button.duelsHovering or
-        button.duelsDragging then return end
-    if C_Timer and C_Timer.After then
-        C_Timer.After(IDLE_DELAY, function()
-            if button.duelsIdleToken == token and button:IsShown() and
-                not button.duelsHovering and not button.duelsDragging then
-                Motion.Fade(button.duelsFace.icon, IDLE_ALPHA, 0.30)
-            end
-        end)
+    local face = button.duelsFace.face
+    local target = (forceOpaque or button.duelsHovering or button.duelsDragging)
+        and 1 or (1 - Settings.Get("minimapTransparency"))
+    if immediate then
+        Motion.Stop(minimapOpacityKey)
+        face:SetAlpha(target)
     else
-        Motion.Fade(button.duelsFace.icon, IDLE_ALPHA, 0.30)
+        Motion.Value(minimapOpacityKey, face:GetAlpha(), target, 0.18,
+            function(_, value) face:SetAlpha(value) end)
     end
+end
+
+local function Wake(button)
+    if button == miniButton then MinimapOpacity(true)
+    else Motion.Fade(button, 1, 0.16) end
 end
 
 local function WidgetOpacity()
@@ -209,7 +210,7 @@ local function ConnectClick(button, isWidget)
     end)
     button:SetScript("OnLeave", function(self)
         Hover(self, false)
-        if isWidget then WidgetOpacity() else IdleMinimap() end
+        if isWidget then WidgetOpacity() else MinimapOpacity() end
     end)
     button:SetScript("OnMouseDown", function(self, mouse)
         if mouse ~= "LeftButton" then return end
@@ -224,16 +225,16 @@ local function ConnectClick(button, isWidget)
         Toggle()
     end)
     button:HookScript("OnHide", function(self)
-        self.duelsIdleToken = (self.duelsIdleToken or 0) + 1
         local face = self.duelsFace
         -- The collector may have hidden our minimap button with SetAlpha(0).
         -- Never reset its root alpha in OnHide; widget alpha remains ours.
         if isWidget then
             Motion.Stop(self, 1)
         else
-            Motion.Stop(face.icon, 1)
+            Motion.Stop(minimapOpacityKey)
         end
         Motion.Stop(face.face, 1)
+        face.face:SetScale(1)
         Motion.Stop(face.glow, 0.035)
         Motion.Stop(face.ring, 0.10)
         Motion.Stop(face.highlight, 0.02)
@@ -262,7 +263,7 @@ end
 -- frame and Minimap only anchors its position. EllesmereUI collects
 -- direct Minimap children and cannot sweep this button into its flyout.
 miniButton = CreateFrame("Button", "DuelsReimaginedMinimapButton", UIParent)
-miniButton:SetSize(MINIMAP_SIZE, MINIMAP_SIZE)
+miniButton:SetSize(Settings.Get("minimapSize"), Settings.Get("minimapSize"))
 miniButton:SetFrameStrata("MEDIUM")
 miniButton:SetFrameLevel((Minimap and Minimap:GetFrameLevel() or 1) + 8)
 miniButton.duelsFace = BuildFace(miniButton)
@@ -384,7 +385,7 @@ miniButton:SetScript("OnDragStop", function(self)
     if pendingMinimapAngle then Settings.SetMinimapAngle(pendingMinimapAngle) end
     pendingMinimapAngle = nil
     PositionMinimap()
-    if not self.duelsHovering then IdleMinimap() end
+    MinimapOpacity()
 end)
 miniButton:HookScript("OnHide", function(self)
     self:SetScript("OnUpdate", nil)
@@ -418,6 +419,9 @@ end)
 
 function Access.Refresh()
     iconMode = Mode()
+    local miniSize = Settings.Get("minimapSize")
+    miniButton:SetSize(miniSize, miniSize)
+    miniButton.duelsFace.Size(miniSize)
     widgetButton:SetSize(Settings.Get("widgetSize"), Settings.Get("widgetSize"))
     widgetButton.duelsFace.Size(Settings.Get("widgetSize"))
     PositionMinimap()
@@ -428,7 +432,7 @@ function Access.Refresh()
     miniButton:SetShown(miniWanted and true or false)
     widgetButton:SetShown(loginReady and
         (iconMode == "widget" or iconMode == "both"))
-    if miniWanted then IdleMinimap() end
+    if miniWanted then MinimapOpacity(false, true) end
     WidgetOpacity()
     if pendingPatchPing then Access.NotifyPatchNotes(true) end
 end
@@ -460,6 +464,8 @@ function Access.GetRuntimeState()
     return {
         mode = Mode(), minimapShown = miniButton:IsShown(),
         widgetShown = widgetButton:IsShown(),
+        minimapSize = Settings.Get("minimapSize"),
+        minimapTransparency = Settings.Get("minimapTransparency"),
         widgetSize = Settings.Get("widgetSize"),
         widgetTransparency = Settings.Get("widgetTransparency"),
         minimapAngle = Settings.Get("minimapAngle"),

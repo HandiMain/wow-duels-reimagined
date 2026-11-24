@@ -18,16 +18,20 @@ Settings.FONT_SCALE_STEP = 0.05
 Settings.MIN_WIDGET_SIZE, Settings.MAX_WIDGET_SIZE = 24, 128
 Settings.WIDGET_SIZE_STEP = 2
 Settings.MAX_WIDGET_TRANSPARENCY = 0.90
+Settings.MIN_MINIMAP_SIZE, Settings.MAX_MINIMAP_SIZE = 24, 64
+Settings.MINIMAP_SIZE_STEP = 2
+Settings.MAX_MINIMAP_TRANSPARENCY = 0.90
 local accessDefaults = {
     iconMode = "minimap", widgetSize = 42,
     widgetTransparency = 0, minimapAngle = 225,
+    minimapSize = 36, minimapTransparency = 0,
 }
 local allowedModes = { minimap = true, widget = true, both = true, none = true }
 
 -- Every persistent Options toggle belongs here, including future ones.
 local boolDefaults = {
     matchFont = false,
-    autoPeekMoving = false,
+    autoPeekMoving = true,
     reduceMotion = false,
     showTooltips = true,
     patchNotesReminder = true,
@@ -275,6 +279,20 @@ function Settings.Get(key)
         local value = db and db.iconMode
         return allowedModes[value] and value or accessDefaults.iconMode
     end
+    if key == "minimapSize" then
+        local value = db and db.minimapSize
+        if type(value) ~= "number" or value ~= value then return accessDefaults.minimapSize end
+        local low, high, step = Settings.MIN_MINIMAP_SIZE,
+            Settings.MAX_MINIMAP_SIZE, Settings.MINIMAP_SIZE_STEP
+        return math.max(low, math.min(high, low + step *
+            math.floor((value - low) / step + 0.5)))
+    end
+    if key == "minimapTransparency" then
+        local value = db and db.minimapTransparency
+        if type(value) ~= "number" or value ~= value then return accessDefaults.minimapTransparency end
+        return math.max(0, math.min(Settings.MAX_MINIMAP_TRANSPARENCY,
+            math.floor(value / 0.05 + 0.5) * 0.05))
+    end
     if key == "widgetSize" then
         local value = db and db.widgetSize
         if type(value) ~= "number" or value ~= value then return accessDefaults.widgetSize end
@@ -354,6 +372,14 @@ function Settings.Set(key, value)
             if not allowedModes[value] then return end
         elseif type(value) ~= "number" or value ~= value then
             return
+        elseif key == "minimapSize" then
+            local low, high, step = Settings.MIN_MINIMAP_SIZE,
+                Settings.MAX_MINIMAP_SIZE, Settings.MINIMAP_SIZE_STEP
+            value = math.max(low, math.min(high, low + step *
+                math.floor((value - low) / step + 0.5)))
+        elseif key == "minimapTransparency" then
+            value = math.max(0, math.min(Settings.MAX_MINIMAP_TRANSPARENCY,
+                math.floor(value / 0.05 + 0.5) * 0.05))
         elseif key == "widgetSize" then
             value = math.max(24, math.min(128, 24 +
                 2 * math.floor((value - 24) / 2 + 0.5)))

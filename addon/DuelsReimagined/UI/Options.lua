@@ -275,7 +275,7 @@ end
 
 -- Search must reveal the target in scrollable pages, not merely select a page
 -- while the relevant row remains below the viewport.
-local function RegisterOption(key, name, detail, pageKey, widget)
+local function RegisterOption(key, name, detail, pageKey, widget, available)
     ns.Search.Register("setting:" .. key, name,
         "Options / " .. (pageKey == "options" and "Appearance" or "Interface"),
         detail, function()
@@ -299,7 +299,7 @@ local function RegisterOption(key, name, detail, pageKey, widget)
             -- our earlier addon's 2-pulse destination outline: it follows the same
             -- real widget/search target and cancels the previous pulse.
             if widget and ns.Feedback then ns.Feedback.PulseTarget(widget) end
-        end)
+        end, available)
 end
 
 local function AddToggle(card, pageKey, key, name, detail, top, requiresEllesmere)
@@ -385,6 +385,38 @@ RegisterOption("iconMode", "Icon mode",
 RegisterOption("minimapButton", "Minimap button",
     "Configure minimap button and floating widget", "interface", iconMode)
 
+local function HasMinimap()
+    local mode = Settings.Get("iconMode")
+    return mode == "minimap" or mode == "both"
+end
+local function HasWidget()
+    local mode = Settings.Get("iconMode")
+    return mode == "widget" or mode == "both"
+end
+local minimapSize = Widgets.SliderRow(accessCard, "Minimap icon size",
+    "Resize the minimap icon (24 to 64 pixels).",
+    Settings.MIN_MINIMAP_SIZE, Settings.MAX_MINIMAP_SIZE, Settings.MINIMAP_SIZE_STEP,
+    function(value) Settings.Set("minimapSize", value) end,
+    function()
+        Settings.Reset("minimapSize")
+        if ns.Options and ns.Options.Refresh then ns.Options.Refresh() end
+    end,
+    function(value) return math.floor(value + 0.5) .. " px" end, true)
+MarkPosition(minimapSize, accessCard, -131)
+RegisterOption("minimapSize", "Minimap icon size",
+    "Resize the minimap button live.", "interface", minimapSize, HasMinimap)
+local minimapTransparency = Widgets.SliderRow(accessCard, "Minimap transparency",
+    "Fade the minimap icon when you are not hovering over it.",
+    0, Settings.MAX_MINIMAP_TRANSPARENCY, 0.05,
+    function(value) Settings.Set("minimapTransparency", value) end,
+    function()
+        Settings.Reset("minimapTransparency")
+        if ns.Options and ns.Options.Refresh then ns.Options.Refresh() end
+    end, nil, true)
+MarkPosition(minimapTransparency, accessCard, -200)
+RegisterOption("minimapTransparency", "Minimap transparency",
+    "Set idle opacity of the minimap icon.", "interface", minimapTransparency, HasMinimap)
+
 local widgetSize = Widgets.SliderRow(accessCard, "Widget size",
     "Size of the movable floating icon (24 to 128 pixels).",
     Settings.MIN_WIDGET_SIZE, Settings.MAX_WIDGET_SIZE, Settings.WIDGET_SIZE_STEP,
@@ -399,7 +431,7 @@ widgetSize:SetPoint("TOPRIGHT", accessCard, "TOPRIGHT", -20, -131)
 MarkPosition(widgetSize, accessCard, -131)
 RegisterOption("widgetSize", "Widget size",
     "Resize the floating access widget; hover to show a live widget preview",
-    "interface", widgetSize)
+    "interface", widgetSize, HasWidget)
 
 local widgetTransparency = Widgets.SliderRow(accessCard, "Widget transparency",
     "Fade the floating widget when you are not hovering over it.",
@@ -413,7 +445,7 @@ widgetTransparency:SetPoint("TOPLEFT", accessCard, "TOPLEFT", 20, -200)
 widgetTransparency:SetPoint("TOPRIGHT", accessCard, "TOPRIGHT", -20, -200)
 MarkPosition(widgetTransparency, accessCard, -200)
 RegisterOption("widgetTransparency", "Widget transparency",
-    "Set idle opacity of the floating access icon", "interface", widgetTransparency)
+    "Set idle opacity of the floating access icon", "interface", widgetTransparency, HasWidget)
 -- Miniatures are anchored to our own window, without changing any setting
 -- or intercepting the live slider. Both rows can show the same preview.
 if ns.Feedback then
@@ -495,6 +527,9 @@ local function LayoutPage(page, groups, width)
         local y = largeText and 104 or ROW_TOP
         for _, entry in ipairs(group.entries) do
             local widget = entry.widget
+            local visible = not entry.visible or entry.visible()
+            widget:SetShown(visible)
+            if visible then
             widget:ClearAllPoints()
             widget:SetPoint("TOPLEFT", card, "TOPLEFT", 20, -y)
             widget:SetWidth(usable)
@@ -518,6 +553,7 @@ local function LayoutPage(page, groups, width)
                 widget.optionsY = sectionY + y
             end
             y = y + widget:GetHeight() + rowGap
+            end
         end
         if group.footer then y = group.footer(card, sectionY, y, usable) end
         local cardHeight = y + (isAppearance and 10 or 6)
@@ -557,8 +593,11 @@ local interfaceGroups = {
         { widget = gameMenuRow }, { widget = compartmentToggle },
     }},
     { card = accessCard, entries = {
-        { widget = iconMode }, { widget = widgetSize },
-        { widget = widgetTransparency },
+        { widget = iconMode },
+        { widget = minimapSize, visible = HasMinimap },
+        { widget = minimapTransparency, visible = HasMinimap },
+        { widget = widgetSize, visible = HasWidget },
+        { widget = widgetTransparency, visible = HasWidget },
     }, footer = function(card, sectionY, y, usable)
         local buttonY = y + 4
         resetAccess:ClearAllPoints()
@@ -583,6 +622,8 @@ interface:Relayout(interface:GetWidth())
 -- During a live slider drag repaint only its reset/modified indicator.
 -- A full Refresh would programmatically reassign the active thumb.
 function Options.RefreshAccessModified()
+    minimapSize:SetModified(Settings.IsModified("minimapSize"))
+    minimapTransparency:SetModified(Settings.IsModified("minimapTransparency"))
     widgetSize:SetModified(Settings.IsModified("widgetSize"))
     widgetTransparency:SetModified(Settings.IsModified("widgetTransparency"))
     -- The widget sliders already update live. Repaint only the noninteractive
@@ -631,6 +672,12 @@ function Options.Refresh()
     iconMode:SetChoices(accessModes, Settings.Get("iconMode"))
     iconMode:SetAvailable(true)
     iconMode:SetModified(Settings.IsModified("iconMode"))
+    minimapSize:SetValue(Settings.Get("minimapSize"))
+    minimapSize:SetModified(Settings.IsModified("minimapSize"))
+    minimapSize:RefreshColors()
+    minimapTransparency:SetValue(Settings.Get("minimapTransparency"))
+    minimapTransparency:SetModified(Settings.IsModified("minimapTransparency"))
+    minimapTransparency:RefreshColors()
     widgetSize:SetValue(Settings.Get("widgetSize"))
     widgetSize:SetModified(Settings.IsModified("widgetSize"))
     widgetSize:RefreshColors()
@@ -638,8 +685,9 @@ function Options.Refresh()
     widgetTransparency:SetModified(Settings.IsModified("widgetTransparency"))
     widgetTransparency:RefreshColors()
     if ns.Feedback then ns.Feedback.RefreshWidgetPreview() end
-    local mode = Settings.Get("iconMode")
-    local hasWidget = mode == "widget" or mode == "both"
+    local hasWidget, hasMinimap = HasWidget(), HasMinimap()
+    minimapSize:SetAvailable(hasMinimap)
+    minimapTransparency:SetAvailable(hasMinimap)
     widgetSize:SetAvailable(hasWidget)
     widgetTransparency:SetAvailable(hasWidget)
     -- Disabled sliders must still explain how to make them available.
