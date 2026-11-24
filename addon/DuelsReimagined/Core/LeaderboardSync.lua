@@ -136,7 +136,7 @@ local function Open(client,saved)
         local clean=Validate(client,incoming);if not clean then return false,"invalid_evidence" end
         return Merge(clean)
     end
-    function D.Replay()
+    local function Replay(rule,options)
         local l=assert(ns.MatchLedger.OpenSimulated(client,data.ledger));local s=l.Snapshot()
         local eligible=l.Save();local times={};local missing,conflict=0,0
         for _,r in ipairs(s.matched) do
@@ -145,10 +145,13 @@ local function Open(client,saved)
             elseif c[2] then conflict=conflict+1;eligible.entries[r.id]=nil
             else times[r.id]=math.max(c[1][1],c[1][2]) end
         end
-        local result=assert(ns.RatingEngine.ReplaySimulated(client,eligible,times,RULE))
+        local result,why=ns.RatingEngine.ReplaySimulated(client,eligible,times,rule,options)
+        if not result then return nil,why end
         result.knownMatched=#s.matched;result.missingTime=missing;result.timeDisputed=conflict
         result.completeness="unknown";return result
     end
+    function D.Replay() return Replay(RULE) end
+    function D.ReplaySeasonSimulated(options) return Replay(ns.SeasonRules.BALANCED_ID,options) end
     return D
 end
 P.OpenSimulated=Open

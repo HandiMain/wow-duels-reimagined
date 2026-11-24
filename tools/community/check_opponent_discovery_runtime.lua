@@ -154,3 +154,10 @@ assert(ns.SeasonRules.GetSnapshot().state=="disabled" and not ns.SeasonRules.Get
     and _G.DuelsReimaginedDB==originalDB and _G.DuelsReimaginedCompetitiveDB==oldAccount
     and _G.DuelsReimaginedCharacterDB==oldChar,"balance QA never writes live data")
 print("Season rating balance isolated replay: PASS")
+
+local ap,af=ns.CompetitiveStorage.RunArchiveSelfTest(function(line)if line:find("FAIL",1,true) then print(line) end end)
+assert(ap==15 and af==0 and sent==previous and P.GetSnapshot().state=="checking","isolated season archive")
+assert(ns.CompetitiveStorage.GetSnapshot().rankEligible==false
+    and _G.DuelsReimaginedDB==originalDB and _G.DuelsReimaginedCompetitiveDB==oldAccount
+    and _G.DuelsReimaginedCharacterDB==oldChar,"archive QA never writes live data")
+print("Competitive storage isolated seasonal archive: PASS")
