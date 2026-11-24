@@ -147,3 +147,10 @@ assert(ns.SeasonRules.GetSnapshot().state=="disabled" and not ns.SeasonRules.Get
     and _G.DuelsReimaginedDB==originalDB and _G.DuelsReimaginedCompetitiveDB==oldAccount
     and _G.DuelsReimaginedCharacterDB==oldChar,"season QA never writes live data")
 print("Season rules isolated replay: PASS")
+
+local bp,bf=ns.SeasonRules.RunBalanceSelfTest(function(line)if line:find("FAIL",1,true) then print(line) end end)
+assert(bp==14 and bf==0 and sent==previous and P.GetSnapshot().state=="checking","isolated rating balance")
+assert(ns.SeasonRules.GetSnapshot().state=="disabled" and not ns.SeasonRules.GetSnapshot().rankEligible
+    and _G.DuelsReimaginedDB==originalDB and _G.DuelsReimaginedCompetitiveDB==oldAccount
+    and _G.DuelsReimaginedCharacterDB==oldChar,"balance QA never writes live data")
+print("Season rating balance isolated replay: PASS")

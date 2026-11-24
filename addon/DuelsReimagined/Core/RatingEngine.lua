@@ -37,7 +37,8 @@ function P.GetDiagnosticResources() return {pending=0,subscriptions=0,timers=0} 
 function P.ReplaySimulated(client,saved,chronology,rule,options)
     rule=rule or RULE -- retain the original trial as a reproducible baseline
     local policy=ns.SeasonRules
-    local seasonal=policy and rule==policy.ID
+    local balanced=policy and rule==policy.BALANCED_ID
+    local seasonal=policy and (rule==policy.ID or balanced)
     local schedule
     if seasonal then
         if type(options)~="table" then return nil,"invalid_schedule" end
@@ -64,13 +65,19 @@ function P.ReplaySimulated(client,saved,chronology,rule,options)
     local players,changes={},{}
     local history,carry={},{}
     local season=1
+    local function Visible(skill) return balanced and policy.DisplayRating(skill) or skill end
+    local function FinishPlayer(p)
+        if balanced then p.skillRating=p.rating;p.rating=Visible(p.rating) end
+    end
     local function Archive()
         if next(players)==nil then return end
         local rows={}
         for id,p in pairs(players) do
             if p.credit>0 then
+                carry[id]={rating=p.rating,season=season}
+                FinishPlayer(p)
                 p.rank=policy.Rank(p.rating,p.credit,p.rivalCount)
-                rows[id]=p;carry[id]={rating=p.rating,season=season}
+                rows[id]=p
             end
         end
         if next(rows) then history[season]={players=rows} end
@@ -81,7 +88,7 @@ function P.ReplaySimulated(client,saved,chronology,rule,options)
             p.rating=policy.START
             if carry[id] then
                 p.rating=carry[id].rating
-                for _=carry[id].season+1,season do p.rating=policy.Reset(p.rating) end
+                for _=carry[id].season+1,season do p.rating=balanced and policy.ResetSkill(p.rating) or policy.Reset(p.rating) end
             end
             p.rivals={};p.rivalCount=0;p.peakRating=nil;p.peakRank=nil
         end
@@ -89,9 +96,10 @@ function P.ReplaySimulated(client,saved,chronology,rule,options)
     end
     local function UpdatePlayer(p,peer)
         if not p.rivals[peer] then p.rivals[peer]=true;p.rivalCount=p.rivalCount+1 end
-        p.peakRating=math.max(p.peakRating or p.rating,p.rating)
-        local rank=policy.Rank(p.rating,p.credit,p.rivalCount)
-        if not rank.provisional and (not p.peakRankRating or p.rating>p.peakRankRating) then p.peakRankRating=p.rating;p.peakRank=rank end
+        local rating=Visible(p.rating)
+        p.peakRating=math.max(p.peakRating or rating,rating)
+        local rank=policy.Rank(rating,p.credit,p.rivalCount)
+        if not rank.provisional and (not p.peakRankRating or rating>p.peakRankRating) then p.peakRankRating=rating;p.peakRank=rank end
     end
     local rated,restricted=0,0
     for _,item in ipairs(ordered) do
@@ -103,20 +111,23 @@ function P.ReplaySimulated(client,saved,chronology,rule,options)
         local w,l=players[r.winner],players[r.loser]
         if not w then w=NewPlayer(r.winner);players[r.winner]=w end
         if not l then l=NewPlayer(r.loser);players[r.loser]=l end
-        local beforeW,beforeL=w.rating,l.rating
+        local beforeW,beforeL=Visible(w.rating),Visible(l.rating)
         local weight,reason=4,"full"
         if pairWeight then weight,reason=pairWeight(r,item.time) end
         local gain,loss,p,wk,lk=Step(w,l,weight,protected,seasonal and policy.PLACEMENT_CREDIT/4 or nil)
         if seasonal and weight>0 then UpdatePlayer(w,r.loser);UpdatePlayer(l,r.winner) end
+        local afterW,afterL=Visible(w.rating),Visible(l.rating)
+        if balanced then gain,loss=afterW-beforeW,beforeL-afterL end
         if weight>0 then rated=rated+1 else restricted=restricted+1 end
         changes[#changes+1]={id=r.id,time=item.time,winner=r.winner,loser=r.loser,
-            winnerBefore=beforeW,loserBefore=beforeL,winnerAfter=w.rating,loserAfter=l.rating,
+            winnerBefore=beforeW,loserBefore=beforeL,winnerAfter=afterW,loserAfter=afterL,
             gain=gain,loss=loss,expectedWin=p,weight=weight,reason=reason}
         if seasonal then local row=changes[#changes];row.season=season;row.winnerK=wk;row.loserK=lk end
     end
     if seasonal and season~=schedule.season then Archive();players={};season=schedule.season end
     local standings={}
     for id,p in pairs(players) do
+        FinishPlayer(p)
         if not seasonal or p.credit>0 then
             local row={id=id,rating=p.rating,games=p.games,wins=p.wins,losses=p.losses,credit=p.credit,provisional=p.credit<PLACEMENTS*4}
             if seasonal then p.rank=policy.Rank(p.rating,p.credit,p.rivalCount);row.rank=p.rank;row.provisional=p.rank.provisional;row.rivalCount=p.rivalCount end

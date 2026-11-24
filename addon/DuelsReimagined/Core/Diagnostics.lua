@@ -336,6 +336,12 @@ Check("Season rules / isolated season QA","deep",function()
     return f==0 and p==23 and "PASS" or "FAIL",
         string.format("%d passed / %d failed (SIMULATED)\n",p,f)..table.concat(log,"\n")
 end)
+Check("Season rules / isolated rating balance QA","deep",function()
+    local log={}
+    local p,f=ns.SeasonRules.RunBalanceSelfTest(function(line) log[#log+1]=line end)
+    return f==0 and p==14 and "PASS" or "FAIL",
+        string.format("%d passed / %d failed (SIMULATED)\n",p,f)..table.concat(log,"\n")
+end)
 Check("Search registry","deep",function()
     local S=ns.Search
     local seen={}
