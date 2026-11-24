@@ -119,7 +119,7 @@ Check("Client and API profile","health",function()
 end)
 Check("Module ownership / load order","health",function()
     for _,key in ipairs({"Client","Settings","Group","DuelDetection","DuelSelfTest",
-        "Communication","Presence","OpponentDiscovery","PeerAgreement","ResultConfirmation","MatchLedger","PersonalHistory","CompetitiveStorage","Style","Motion","Widgets","Window","Search",
+        "Communication","Presence","OpponentDiscovery","PeerAgreement","ResultConfirmation","MatchLedger","PersonalHistory","CompetitiveStorage","RatingEngine","Style","Motion","Widgets","Window","Search",
         "Header","Navigation","Options","AddonStatus","AccessIcons","BlizzardLanding"}) do
         Assert(type(ns[key])=="table",key.." missing")
     end
@@ -188,6 +188,11 @@ Check("Competitive storage / lifecycle gate","health",function()
         return p.reason=="identity_unavailable" and "SKIP" or "FAIL","Storage unavailable: "..tostring(p.reason).."; data preserved."
     end
     return "PASS","Read-only schema v"..p.version..(p.prepared and " prepared" or " preparation pending").."; account probe="..p.accountProbe.."; character probe="..p.characterProbe.."; match writes disabled."
+end)
+Check("Rating engine / live gate","health",function()
+    local p=ns.RatingEngine.GetSnapshot()
+    Assert(p.scope=="LOCAL" and p.state=="disabled" and p.rankEligible==false,"rating live gate unexpectedly enabled")
+    return "PASS","Experimental "..p.rule.."; no live rating or rank writes."
 end)
 Check("Settings / defaults / bounds","health",function()
     local S=ns.Settings
@@ -268,6 +273,12 @@ Check("Competitive storage / isolated record roundtrip QA","deep",function()
     local log={}
     local p,f=ns.CompetitiveStorage.RunRecordSelfTest(function(line) log[#log+1]=line end)
     return f==0 and p==15 and "PASS" or "FAIL",
+        string.format("%d passed / %d failed (SIMULATED)\n",p,f)..table.concat(log,"\n")
+end)
+Check("Rating engine / isolated replay QA","deep",function()
+    local log={}
+    local p,f=ns.RatingEngine.RunSelfTest(function(line) log[#log+1]=line end)
+    return f==0 and p==25 and "PASS" or "FAIL",
         string.format("%d passed / %d failed (SIMULATED)\n",p,f)..table.concat(log,"\n")
 end)
 Check("Search registry","deep",function()

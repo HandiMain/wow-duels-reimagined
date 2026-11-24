@@ -90,3 +90,13 @@ end)
 _G.DuelsReimaginedCompetitiveDB=oldAccount;_G.DuelsReimaginedCharacterDB=oldChar
 assert(ok,err)
 print("Competitive storage explicit probe and isolated lifecycle: PASS")
+
+-- Rebuild ratings only from the isolated, validated ledger.
+assert(loadfile("addon/DuelsReimagined/Core/RatingEngine.lua"))("DuelsReimagined",ns)
+local E=ns.RatingEngine
+local ep,ef=E.RunSelfTest(function(line)if line:find("FAIL",1,true) then print(line) end end)
+assert(ep==25 and ef==0 and sent==previous and P.GetSnapshot().state=="checking","isolated rating replay")
+assert(E.GetSnapshot().state=="disabled" and not E.GetSnapshot().rankEligible
+    and _G.DuelsReimaginedDB==originalDB and _G.DuelsReimaginedCompetitiveDB==oldAccount
+    and _G.DuelsReimaginedCharacterDB==oldChar,"rating QA never writes live data")
+print("Rating engine isolated replay: PASS")
