@@ -1613,3 +1613,7 @@ Explicit Practice preference (next challenge), mode-aware gated agreement, ratin
 
 
 Duel mode control placement decision (2026-11-24): no Practice duels toggle in Options. Mode is a gameplay control intended for the future Duel HUD; keep current commands and shared Settings ownership. No HUD authorized by this adjustment.
+
+
+## Duel HUD foundation — 2026-11-24
+User authorized the independent compact duel companion based on the selected in-game concepts, with default-on visibility, saved movable position, bounded scale, mode selection, rank presentation, health bars and native click actions. See DUEL_HUD.md for scope and blocked per-duel damage totals. No changes to rating math, peer agreement, actual detector, War Games or activation gates. The pre-existing isolated agreement CI failure on 6f4d411 remains open; do not call the branch stable or activate multiplayer until the regression is resolved and verified. HUD appearance is an initial shared-style implementation, not an exact extraction of concept artwork.

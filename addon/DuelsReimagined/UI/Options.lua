@@ -322,6 +322,10 @@ local autoPeekRow = AddToggle(behaviorCard, "interface", "autoPeekMoving", "Auto
     "Fade the window during movement; restore it when you stop.", -64, false)
 local reduceMotionRow = AddToggle(behaviorCard, "interface", "reduceMotion", "Reduce motion",
     "Shorten or skip UI animation while retaining visual feedback.", -119, false)
+local hudEnabledRow=AddToggle(accessCard,"interface","duelHUDEnabled","Show Duel HUD",
+    "Show the independent duel companion, separate from the floating access icon.",-174,false)
+local hudLockRow=AddToggle(accessCard,"interface","duelHUDLocked","Lock Duel HUD",
+    "Prevent moving the duel companion by its header.",-230,false)
 local consentRow
 if ns.CompetitiveStorage and ns.CompetitiveStorage.PeerEpoch() then
     consentRow = AddToggle(behaviorCard,"interface","competitiveConsent","Allow competitive duel exchange",
@@ -445,6 +449,13 @@ RegisterOption("widgetSize", "Widget size",
     "Resize the floating access widget; hover to show a live widget preview",
     "interface", widgetSize, HasWidget)
 
+local hudScale=Widgets.SliderRow(accessCard,"Duel HUD scale",
+    "Resize the duel companion, from 80% to 120%.",
+    .8,1.2,.05,function(v) Settings.Set("duelHUDScale",v) end,
+    function() Settings.Reset("duelHUDScale") end,
+    function(v) return math.floor(v*100+.5).."%" end,true)
+MarkPosition(hudScale,accessCard,-300)
+RegisterOption("duelHUDScale","Duel HUD scale","Size of the duel companion","interface",hudScale)
 local widgetTransparency = Widgets.SliderRow(accessCard, "Widget transparency",
     "Fade the floating widget when you are not hovering over it.",
     0, Settings.MAX_WIDGET_TRANSPARENCY, 0.05,
@@ -610,6 +621,7 @@ local interfaceGroups = {
         { widget = minimapTransparency, visible = HasMinimap },
         { widget = widgetSize, visible = HasWidget },
         { widget = widgetTransparency, visible = HasWidget },
+        { widget = hudEnabledRow }, { widget = hudLockRow }, { widget = hudScale },
     }, footer = function(card, sectionY, y, usable)
         local buttonY = y + 4
         resetAccess:ClearAllPoints()
@@ -698,6 +710,9 @@ function Options.Refresh()
     widgetTransparency:SetValue(Settings.Get("widgetTransparency"))
     widgetTransparency:SetModified(Settings.IsModified("widgetTransparency"))
     widgetTransparency:RefreshColors()
+    hudScale:SetValue(Settings.Get("duelHUDScale"))
+    hudScale:SetModified(Settings.IsModified("duelHUDScale"))
+    hudScale:RefreshColors()
     if ns.Feedback then ns.Feedback.RefreshWidgetPreview() end
     local hasWidget, hasMinimap = HasWidget(), HasMinimap()
     minimapSize:SetAvailable(hasMinimap)

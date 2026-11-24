@@ -35,6 +35,8 @@ local boolDefaults = {
     reduceMotion = false,
     competitiveConsent = false,
     practiceDuels = false,
+    duelHUDEnabled = true,
+    duelHUDLocked = false,
     warGamesConsent = false,
     showTooltips = true,
     patchNotesReminder = true,
@@ -61,6 +63,7 @@ local function IsMatchPreference(key)
 end
 
 function Settings.GetDefault(key)
+    if key == "duelHUDScale" then return 1 end
     if key == "menuScale" then return 1 end
     if key == "fontChoice" then return "default" end
     if key == "fontScale" then return 1 end
@@ -336,6 +339,11 @@ end
 
 function Settings.Get(key)
     local db = ReadDB()
+    if key == "duelHUDScale" then
+        local v=db and db.duelHUDScale
+        if type(v)~="number" or v~=v then return 1 end
+        return math.max(.8,math.min(1.2,math.floor(v*20+.5)/20))
+    end
     if key == "menuScale" then
         return Settings.NormalizeScale(db and db.menuScale)
     end
@@ -415,6 +423,22 @@ function Settings.SetWidgetPosition(x, y)
     WriteDB().widgetPosition = { x = x, y = y }
 end
 
+function Settings.GetDuelHUDPosition()
+    local db=ReadDB();local p=db and db.duelHUDPosition
+    if type(p)=="table" and type(p.x)=="number" and type(p.y)=="number"
+        and p.x==p.x and p.y==p.y and p.x>=0 and p.x<=1 and p.y>=0 and p.y<=1 then
+        return p.x,p.y
+    end
+    return .30,.52
+end
+function Settings.SetDuelHUDPosition(x,y)
+    if type(x)~="number" or type(y)~="number" or x~=x or y~=y then return end
+    WriteDB().duelHUDPosition={x=math.max(0,math.min(1,x)),y=math.max(0,math.min(1,y))}
+end
+function Settings.ResetDuelHUDPosition()
+    WriteDB().duelHUDPosition=nil
+    if ns.DuelHUD then ns.DuelHUD.ApplyPosition() end
+end
 function Settings.SetMinimapAngle(value)
     if type(value) ~= "number" or value ~= value then return end
     WriteDB().minimapAngle = value % 360
@@ -429,6 +453,13 @@ function Settings.ResetAccessPositions()
 end
 
 function Settings.Set(key, value)
+    if key=="duelHUDScale" then
+        if type(value)~="number" or value~=value then return end
+        WriteDB().duelHUDScale=math.max(.8,math.min(1.2,math.floor(value*20+.5)/20))
+        if ns.DuelHUD then ns.DuelHUD.Refresh() end
+        if ns.Options and ns.Options.Refresh then ns.Options.Refresh() end
+        return
+    end
     if accessDefaults[key] ~= nil then
         if key == "minimapAngle" then
             Settings.SetMinimapAngle(value)
@@ -515,7 +546,11 @@ function Settings.Set(key, value)
     elseif key == "warGamesConsent" then
         if ns.WarGames then ns.WarGames.PreferenceChanged() end
         if ns.Options and ns.Options.Refresh then ns.Options.Refresh() end
+    elseif key == "duelHUDEnabled" or key == "duelHUDLocked" then
+        if ns.DuelHUD then ns.DuelHUD.Refresh() end
+        if ns.Options and ns.Options.Refresh then ns.Options.Refresh() end
     elseif key == "practiceDuels" then
+        if ns.DuelHUD then ns.DuelHUD.Refresh() end
         -- The live lifecycle captures the choice on the next challenge.
         if ns.Options and ns.Options.Refresh then ns.Options.Refresh() end
     elseif key == "competitiveConsent" then
@@ -563,6 +598,7 @@ loader:SetScript("OnEvent", function(self, _, loadedName)
             db[key] = default
         end
     end
+    db.duelHUDScale = Settings.Get("duelHUDScale")
     db.menuScale = Settings.NormalizeScale(db.menuScale)
     -- Normalize through the same getters, keeping existing SavedVariables.
     -- Retire old theme/color overrides; retain font and other player settings.

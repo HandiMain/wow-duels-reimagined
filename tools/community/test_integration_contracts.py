@@ -66,9 +66,13 @@ class IntegrationContracts(unittest.TestCase):
         registered = set(re.findall(
             r'\bAddToggle\(\s*\w+\s*,\s*"(?:options|interface)"\s*,\s*"([^"]+)"',
             options, re.S))
-        self.assertTrue(set(toggle_keys).issubset(registered),
+        # Mode is an immediate gameplay choice, not a general option.
+        gameplay = {"practiceDuels"}
+        self.assertTrue((set(toggle_keys) - gameplay).issubset(registered),
             "Missing Options/Search registration for toggles: " +
-            str(sorted(set(toggle_keys) - registered)))
+            str(sorted(set(toggle_keys) - gameplay - registered)))
+        self.assertNotIn("practiceDuels", registered)
+        self.assertIn('Settings.Set("practiceDuels",practice)',read("UI/DuelHUD.lua"))
         for key in ("iconMode", "widgetSize", "widgetTransparency",
                     "fontChoice", "fontScale", "fontOutline", "minimapButton",
                     "resetIconPositions"):

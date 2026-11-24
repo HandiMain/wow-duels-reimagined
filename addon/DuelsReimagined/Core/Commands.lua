@@ -2,6 +2,12 @@ local _, ns = ...
 
 SLASH_DUELSREIMAGINED1 = "/duels"
 SlashCmdList.DUELSREIMAGINED = function(message)
+    if message=="hud" or message=="hud reset" or message=="hud preview" then
+        if message=="hud reset" then ns.Settings.ResetDuelHUDPosition();ns.Settings.Reset("duelHUDScale")
+        elseif message=="hud preview" then ns.DuelHUD.TogglePreview()
+        else ns.Settings.Set("duelHUDEnabled",not ns.Settings.Get("duelHUDEnabled")) end
+        return
+    end
     if message=="sim" or message:match("^sim%s") then
         local command=message:match("^sim%s+(.+)$") or "help"
         local ok,why=ns.CompetitivePreview.Command(command)

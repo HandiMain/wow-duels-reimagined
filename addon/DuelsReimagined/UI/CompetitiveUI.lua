@@ -68,6 +68,7 @@ local function Rank(parent,size,division)
     end
     return f
 end
+U.CreateRankEmblem=Rank
 local function ClassIcon(parent)
     local t=parent:CreateTexture(nil,"ARTWORK")
     t:SetTexCoord(.07,.93,.07,.93)
@@ -1025,6 +1026,7 @@ function U.SetPageScroll(key,offset)
 end
 
 function U.Refresh()
+    if ns.DuelHUD and ns.DuelHUD.InvalidateRank then ns.DuelHUD.InvalidateRank() end
     local simulated=ns.CompetitivePreview.IsActive()
     if preview and (preview.scope=="SIMULATED")~=simulated then
         if card:IsShown() then card:Hide() end
