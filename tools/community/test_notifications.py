@@ -45,3 +45,13 @@ class NotificationTests(unittest.TestCase):
         self.assertIn('Preview rank promotion',read("UI/Options.lua"))
         self.assertIn('message=="notify rank"',read("Core/Commands.lua"))
         self.assertTrue((ROOT/"Media/Skin/RankPromotionArt.tga").is_file())
+
+    def test_original_promotion_sound_and_lifetime(self):
+        import hashlib
+        sound=(ROOT/"Media/Sounds/Notifications/RankPromotion.mp3").read_bytes()
+        self.assertEqual(len(sound),257280)
+        self.assertEqual(hashlib.sha1(b"blob "+str(len(sound)).encode()+b"\0"+sound).hexdigest(),
+                         "80476e35942961d0dd732b78d81fc4637239c927")
+        u=read("UI/Notifications.lua")
+        self.assertIn("local PROMOTION_SOUND_SECONDS=8.04",u)
+        self.assertIn("PROMOTION_SOUND_SECONDS+2",u)

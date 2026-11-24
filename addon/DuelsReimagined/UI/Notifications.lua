@@ -8,9 +8,8 @@ local ART="Interface\\AddOns\\DuelsReimagined\\Media\\Skin\\NotificationArt.png"
 local SOUND="Interface\\AddOns\\DuelsReimagined\\Media\\Sounds\\Notifications\\General.mp3"
 local PROMOTION_SOUND="Interface\\AddOns\\DuelsReimagined\\Media\\Sounds\\Notifications\\RankPromotion.mp3"
 local PROMOTION_ART="Interface\\AddOns\\DuelsReimagined\\Media\\Skin\\RankPromotionArt.tga"
--- Duration will be set from the original MP3 once available.
-local PROMOTION_SOUND_SECONDS=nil
-local PROMOTION_FALLBACK_SECONDS=8
+-- Original MP3 measured with ffprobe: 8.040 seconds.
+local PROMOTION_SOUND_SECONDS=8.04
 local card=CreateFrame("Frame","DuelsReimaginedNotificationCard",UIParent)
 card:SetSize(WIDTH,BODY+CONNECTOR);card:SetFrameStrata("HIGH")
 card:SetClampedToScreen(true);card:EnableMouse(true);card:Hide()
@@ -260,7 +259,7 @@ local function Paint(m)
 end
 local function StartExpiry()
     if not current or current.kind~="promotion" or not C_Timer or not C_Timer.NewTimer then return end
-    local seconds=expiryRemaining or (PROMOTION_SOUND_SECONDS and PROMOTION_SOUND_SECONDS+2 or PROMOTION_FALLBACK_SECONDS)
+    local seconds=expiryRemaining or (PROMOTION_SOUND_SECONDS+2)
     local now=Plain(GetTime)
     expiryAt=type(now)=="number" and now+seconds or nil
     local m=current

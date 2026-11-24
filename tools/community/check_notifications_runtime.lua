@@ -44,10 +44,10 @@ _G.C_Timer={After=function(_,fn)timers[#timers+1]=fn end,NewTimer=function(secon
     local t={seconds=seconds,fn=fn};function t:Cancel() self.cancelled=true end
     expiry[#expiry+1]=t;return t
 end}
-local played,stopped=0,0
+local played,stopped,lastPlayedPath=0,0,nil
 _G.PlaySoundFile=function(path,channel)
     assert((path:find("General.mp3",1,true) or path:find("RankPromotion.mp3",1,true)) and channel=="SFX")
-    played=played+1;return true,played
+    lastPlayedPath=path;played=played+1;return true,played
 end
 _G.StopSound=function()stopped=stopped+1 end
 local prefs={notificationEnabled=true,notificationSounds=true}
@@ -116,9 +116,10 @@ prefs.notificationEnabled=false;N.Refresh();assert(not card:IsShown() and not N.
 print("Update notification mock: PASS (versions, queue, preview, SFX, defer, snooze, anchor, disable)")
 prefs.notificationEnabled=true;prefs.notificationSounds=true;hud:Show();now=130
 assert(N.PreviewPromotion() and card:IsShown() and played==3)
+assert(lastPlayedPath:find("RankPromotion.mp3",1,true))
 assert(card.point[2]==hud and card.point[3]=="TOP")
 assert(not buttons["Got it"]:IsShown() and not buttons["What's new"]:IsShown())
-assert(expiry[#expiry].seconds==8 and not N.Preview())
+assert(math.abs(expiry[#expiry].seconds-10.04)<.001 and not N.Preview())
 local rank
 for _,f in ipairs(frames) do if f.kind=="Rank" then rank=f.rank end end
 assert(rank.label=="Duelist IV")
@@ -131,7 +132,7 @@ assert(foundTransition and foundColor)
 now=133;combat=true;fire("PLAYER_REGEN_DISABLED")
 assert(not card:IsShown() and expiry[#expiry].cancelled)
 combat=false;fire("PLAYER_REGEN_ENABLED")
-assert(card:IsShown() and played==3 and expiry[#expiry].seconds==5)
+assert(card:IsShown() and played==3 and math.abs(expiry[#expiry].seconds-7.04)<.001)
 expiry[#expiry].fn();flush()
 assert(not card:IsShown() and snoozed=="0.1.1")
 now=145;assert(N.Preview() and card:IsShown() and played==4)
