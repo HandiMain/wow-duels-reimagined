@@ -137,13 +137,17 @@ class CompetitiveUI(unittest.TestCase):
         self.assertIn('local parent=owner or ns.Window.frame',widgets)
     def test_sidebar_compact_geometry(self):
         for h in (400,510,636,850):
-            compact=h<590
-            top=20 if compact else 31
-            gap=10 if compact else 15
-            height=max(1,min(76 if compact else 84,(h-top-21-12-4*gap)/5))
-            end_of_achievements=top+4*height+3*gap
-            divider_top=end_of_achievements+3
-            war_top=end_of_achievements+gap+21
-            self.assertLessEqual(divider_top+14,war_top)
-            self.assertLessEqual(war_top+height,h-12)
+            for count in (5,6,7):
+                compact=h<590
+                top=16 if compact else 24
+                gap=8 if compact else 10
+                height=max(1,min(68,(h-top-21-12-(count-1)*gap)/count))
+                end_of_duel_buttons=top+(count-1)*height+(count-2)*gap
+                divider_top=end_of_duel_buttons+3
+                war_top=end_of_duel_buttons+gap+21
+                self.assertLessEqual(divider_top+14,war_top)
+                self.assertLessEqual(war_top+height,h-12+1e-8)
+                if h>=636:
+                    self.assertEqual(height,68) # two future slots at full intended size
+
 if __name__=="__main__":unittest.main()

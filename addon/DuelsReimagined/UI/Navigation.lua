@@ -237,7 +237,7 @@ end
 
 -- Keep the gameplay tab compact; primary tabs can still shrink if the
 -- available width becomes constrained.
-local HALL_BUTTON_WIDTH = 205
+local HALL_BUTTON_WIDTH, HALL_BUTTON_HEIGHT = 166, 68
 local utilityButtons = {}
 for index, section in ipairs(sections) do
     local isPrimary = primaryKeys[section.key] == true
@@ -247,7 +247,7 @@ for index, section in ipairs(sections) do
     if isPrimary then
         -- Game destinations stack vertically; later pages never displace the
         -- secondary footer links or Options subcategories.
-        button:SetSize(HALL_BUTTON_WIDTH, 84)
+        button:SetSize(HALL_BUTTON_WIDTH, HALL_BUTTON_HEIGHT)
         button:SetPoint("TOP", Window.rail, "TOP", 0, -31)
     else
         button:SetSize(112, 30)
@@ -564,11 +564,13 @@ local railMark
 local function FitTabs(self, width)
     local w=(type(width)=="number" and width>0) and width or self:GetWidth()
     local h=self:GetHeight()
-    local buttonWidth=math.max(112,math.min(HALL_BUTTON_WIDTH,w-28))
     local compact=h<590
-    local top=compact and 20 or 31
-    local height=math.max(1,math.min(compact and 76 or 84,(h-top-21-12-(#primaryButtons-1)*(compact and 10 or 15))/#primaryButtons))
-    local gap=compact and 10 or 15
+    local top=compact and 16 or 24
+    local gap=compact and 8 or 10
+    local maxWidth=math.max(1,math.min(HALL_BUTTON_WIDTH,w-28))
+    local height=math.max(1,math.min(HALL_BUTTON_HEIGHT,maxWidth*HALL_BUTTON_HEIGHT/HALL_BUTTON_WIDTH,
+        (h-top-21-12-(#primaryButtons-1)*gap)/#primaryButtons))
+    local buttonWidth=height*HALL_BUTTON_WIDTH/HALL_BUTTON_HEIGHT
     for _,item in ipairs(primaryButtons) do
         if item.key=="wargames" then
             railDivider:ClearAllPoints()

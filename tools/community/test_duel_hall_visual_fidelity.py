@@ -26,8 +26,8 @@ class VisualFidelityTests(unittest.TestCase):
 
     def test_primary_hall_is_a_standalone_crimson_plaque(self):
         n = lua("UI/Navigation.lua")
-        self.assertIn('local HALL_BUTTON_WIDTH = 205', n)
-        self.assertIn('button:SetSize(HALL_BUTTON_WIDTH, 84)', n)
+        self.assertIn('local HALL_BUTTON_WIDTH, HALL_BUTTON_HEIGHT = 166, 68', n)
+        self.assertIn('button:SetSize(HALL_BUTTON_WIDTH, HALL_BUTTON_HEIGHT)', n)
         self.assertIn('Style.PlateImage(button, "hall", "ARTWORK", 2)', n)
         self.assertNotIn('DuelHallLaurel.tga', n)
         self.assertIn('railDivider:SetPoint("TOP",self,"TOP",0,-top+gap-3)', n)
