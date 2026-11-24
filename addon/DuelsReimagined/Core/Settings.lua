@@ -40,6 +40,8 @@ local boolDefaults = {
     warGamesConsent = false,
     showTooltips = true,
     patchNotesReminder = true,
+    notificationEnabled = true,
+    notificationSounds = true,
     showGameMenuButton = true,
     -- This is our membership in Blizzard's addon compartment, NOT the
     -- visibility of Blizzard's own compartment button.
@@ -123,6 +125,18 @@ end
 
 -- Patch Notes is account-wide presentation state, not a real addon version.
 -- The stable content ID is stored alongside other preferences, by this owner.
+-- One bounded account-wide acknowledgement. Preview never calls this.
+function Settings.IsUpdateSnoozed(version,now)
+    local db=ReadDB();local v=db and db.updateNoticeSnooze
+    return type(version)=="string" and type(now)=="number" and type(v)=="table"
+        and v.version==version and type(v.untilTime)=="number"
+        and v.untilTime>now and v.untilTime<=now+86400
+end
+function Settings.SnoozeUpdate(version,now)
+    if type(version)~="string" or #version>24 or not version:match("^%d+%.%d+%.%d+$")
+        or type(now)~="number" or now~=now or now<=0 or now>=math.huge then return end
+    WriteDB().updateNoticeSnooze={version=version,untilTime=now+86400}
+end
 function Settings.GetPatchNotesSeenId()
     local db = ReadDB()
     local id = db and db.patchNotesSeenId
@@ -538,6 +552,9 @@ function Settings.Set(key, value)
         if ns.PatchNotes and ns.PatchNotes.RefreshReminder then
             ns.PatchNotes.RefreshReminder()
         end
+    elseif key == "notificationEnabled" or key == "notificationSounds" then
+        if ns.Notifications then ns.Notifications.Refresh() end
+        if ns.Options and ns.Options.Refresh then ns.Options.Refresh() end
     elseif key == "autoPeekMoving" then
         if ns.Header and ns.Header.RefreshAutoPeek then
             ns.Header.RefreshAutoPeek()

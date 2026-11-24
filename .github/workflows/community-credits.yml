@@ -57,6 +57,7 @@ jobs:
           lua5.1 tools/community/check_presence_runtime.lua
           lua5.1 tools/community/check_wargames_runtime.lua
           lua5.1 tools/community/check_competitive_stress.lua
+          lua5.1 tools/community/check_notifications_runtime.lua
           lua5.1 tools/community/check_competitive_ui_runtime.lua
 
       - name: Check generator and UI contracts without network

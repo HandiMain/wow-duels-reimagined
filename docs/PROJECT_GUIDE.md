@@ -1620,3 +1620,7 @@ User authorized the independent compact duel companion based on the selected in-
 
 
 Decision: Ranked challenges must start with the Duel HUD's Challenge Ranked button; ordinary native invitations are always Unranked. No native slash override. Display only Ranked/Unranked; older Practice records remain readable and appear as Unranked. Keep the December private multiplayer gate unchanged. See DUEL_HUD.md and H09-H12.
+
+
+## Notifications foundation — update producer only (2026-11-24)
+User authorized the selected bronze notification card attached above the Duel HUD, and narrowed the first implementation to addon updates. Sound must follow Blizzard Effects volume; use original General.mp3 through PlaySoundFile(path,"SFX"), never change CVars or provide a competing volume control. See NOTIFICATIONS.md. Other three uploaded sounds remain uncommitted until their actual systems are authorized. No release/version bump, ranked activation, achievement/rank/season/community triggers or new transport. Prior mixed-history CI failure on b5cd610 remains open.

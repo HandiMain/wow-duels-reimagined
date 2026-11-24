@@ -49,3 +49,7 @@ Media/Skin/DuelHUDArt.png — 512x512 RGBA atlas extracted from the user's selec
 
 
 DuelHUDArt.png refined (blob c9a462c1fb549e757844b6dce1f27b3ffb60923d): clean antialiased timer plaque and source gold ornament isolated from rough background; new circular bronze/red portrait bezels. DuelHUDPortraitMask.png (64x64 RGBA, blob b9aed331f31e17c374535ab66a1a276c55741820) is original geometric alpha mask. Dynamic portrait and all text remain native. No third-party art or screenshot data used as live values.
+
+
+### Notification card (2026-11-24)
+Media/Skin/NotificationArt.png (512x256 RGBA, Git blob 33bd44d51d26f194bbb05fe318d849b28a28dc45) extracted from user-approved image 0e6f1239-a380-4b55-868b-0004a0915678.webp: exact bronze frame, header motifs, connector and buttons; remove fictional rank text and emblem from the interior, mask away game background, add separate alpha glow. Runtime icon/text are native dynamic content. Media/Sounds/Notifications/General.mp3 (129024 bytes, blob 6cd6a693a28d882b1f99ebfcb085096cc3b27d1a) is the exact user-supplied general_notification.mp3, renamed with no edits. User explicitly authorized private implementation; redistribution rights not independently established and must be confirmed before release. Achievement, promotion and warning uploads are not packaged in this milestone.

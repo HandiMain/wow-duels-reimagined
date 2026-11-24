@@ -18,6 +18,7 @@ Core\Diagnostics.lua
 Core\DiagnosticAudit.lua
 Core\Communication.lua
 Core\Presence.lua
+Core\UpdateNotices.lua
 Core\OpponentDiscovery.lua
 Core\PeerAgreement.lua
 Core\ResultConfirmation.lua
@@ -58,6 +59,7 @@ UI\Community.lua
 UI\Options.lua
 UI\PatchNotes.lua
 UI\Footer.lua
+UI\Notifications.lua
 UI\GameMenu.lua
 Core\Commands.lua
 UI\AccessIcons.lua

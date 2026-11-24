@@ -168,10 +168,11 @@ function Footer.ShowPopup()
 end
 function Footer.ShowCommunityLink(title, url)
     if type(title) ~= "string" or type(url) ~= "string" then return end
-    -- Only public links to this repository's GitHub issue forms are allowed.
+    -- Only explicit public URLs belonging to this repository are allowed.
     local prefix = "https://github.com/HandiMain/wow-duels-reimagined/issues/new?template="
     if url ~= prefix .. "bug-report.yml" and
-       url ~= prefix .. "feature-request.yml" then return end
+       url ~= prefix .. "feature-request.yml" and
+       url ~= "https://github.com/HandiMain/wow-duels-reimagined/releases" then return end
     dialog:SetHeight(218)
     logo:Hide()
     heading:SetText(title)
@@ -184,7 +185,13 @@ function Footer.ShowCommunityLink(title, url)
     if OpenDialog() then
         copyBox:SetFocus()
         copyBox:HighlightText()
+        return true
     end
+    return false
+end
+function Footer.ShowReleaseLink()
+    return Footer.ShowCommunityLink("Duels Reimagined releases",
+        "https://github.com/HandiMain/wow-duels-reimagined/releases")
 end
 copyBox:SetScript("OnEscapePressed", Footer.ClosePopup)
 copyBox:SetScript("OnEnterPressed", Footer.ClosePopup)

@@ -377,12 +377,14 @@ local function Receive(s)
     Paint()
     UpdateDriver()
 end
+function H.GetNotificationAnchor() return root end
 function H.ApplyPosition()
     if dragging then return end
     local x,y=Settings.GetDuelHUDPosition()
     local ratio=UIParent:GetEffectiveScale()/root:GetEffectiveScale()
     root:ClearAllPoints()
     root:SetPoint("CENTER",UIParent,"BOTTOMLEFT",UIParent:GetWidth()*x*ratio,UIParent:GetHeight()*y*ratio)
+    if ns.Notifications then ns.Notifications.Reanchor() end
 end
 local function StopDrag()
     if not dragging then return end
@@ -392,6 +394,7 @@ local function StopDrag()
     if x and y and UIParent:GetWidth()>0 and UIParent:GetHeight()>0 then
         Settings.SetDuelHUDPosition(x*ratio/UIParent:GetWidth(),y*ratio/UIParent:GetHeight())
     end
+    if ns.Notifications then ns.Notifications.Reanchor() end
 end
 header:SetScript("OnDragStart",function()
     if Settings.Get("duelHUDLocked") or Combat() then return end

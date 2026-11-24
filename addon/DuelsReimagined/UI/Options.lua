@@ -264,8 +264,8 @@ Section(typographyCard, "typography", "Typography",
     "Choose text appearance independently of window scale.",
     "Font matching is controlled under Appearance.")
 Section(notificationsCard, "notifications", "Notifications & Help",
-    "Choose which hints and update reminders Duels shows.",
-    "These controls do not change gameplay notifications.")
+    "Choose which hints and update notifications Duels shows.",
+    "Notification audio follows Blizzard's Effects volume.")
 
 local unavailable = "Enable EllesmereUI and its third-party skinning support to use this setting."
 local rows = {}
@@ -341,6 +341,21 @@ local tooltipsRow = AddToggle(notificationsCard, "interface", "showTooltips", "S
 local reminderRow = AddToggle(notificationsCard, "interface", "patchNotesReminder", "New patch reminder",
     "Show a subtle unread dot on Patch Notes when a new update is published.",
     -119, false)
+local notifyRow=AddToggle(notificationsCard,"interface","notificationEnabled","Show notifications",
+    "Show Duels update cards above the Duel HUD. Never interrupts duels or combat.",-174,false)
+local notifySoundRow=AddToggle(notificationsCard,"interface","notificationSounds","Notification sounds",
+    "Play your notification sound through Blizzard's Effects channel.",-230,false)
+local notifyPreview=Style.Action(notificationsCard,"Preview update notification","footer")
+notifyPreview:SetHeight(30)
+MarkPosition(notifyPreview,notificationsCard,-284)
+notifyPreview:SetScript("OnClick",function()
+    if ns.Notifications then
+        local ok,why=ns.Notifications.Preview()
+        if not ok and ns.Feedback then ns.Feedback.Toast(why,notifyPreview) end
+    end
+end)
+RegisterOption("previewUpdateNotification","Preview update notification",
+    "Preview the update card and its sound without inventing a real release.","interface",notifyPreview)
 local gameMenuRow = AddToggle(gameAccessCard, "interface", "showGameMenuButton", "Show Escape menu button",
     "Add Duels Reimagined to Blizzard's Escape menu. Uses Blizzard's normal look unless EllesmereUI skins that menu.",
     -64, false)
@@ -636,6 +651,7 @@ local interfaceGroups = {
     }},
     { card = notificationsCard, entries = {
         { widget = tooltipsRow }, { widget = reminderRow },
+        { widget = notifyRow }, { widget = notifySoundRow }, { widget = notifyPreview, height=30 },
     }},
 }
 if consentRow then interfaceGroups[1].entries[#interfaceGroups[1].entries+1]={widget=consentRow} end
