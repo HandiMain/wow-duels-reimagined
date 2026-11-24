@@ -187,7 +187,7 @@ Check("Competitive storage / lifecycle gate","health",function()
     if p.state~="ready" then
         return p.reason=="identity_unavailable" and "SKIP" or "FAIL","Storage unavailable: "..tostring(p.reason).."; data preserved."
     end
-    return "PASS","Read-only schema v"..p.version.."; account probe="..p.accountProbe.."; character probe="..p.characterProbe.."; match writes disabled."
+    return "PASS","Read-only schema v"..p.version..(p.prepared and " prepared" or " preparation pending").."; account probe="..p.accountProbe.."; character probe="..p.characterProbe.."; match writes disabled."
 end)
 Check("Settings / defaults / bounds","health",function()
     local S=ns.Settings
@@ -262,6 +262,12 @@ Check("Competitive storage / isolated lifecycle QA","deep",function()
     local log={}
     local p,f=ns.CompetitiveStorage.RunSelfTest(function(line) log[#log+1]=line end)
     return f==0 and p==21 and "PASS" or "FAIL",
+        string.format("%d passed / %d failed (SIMULATED)\n",p,f)..table.concat(log,"\n")
+end)
+Check("Competitive storage / isolated record roundtrip QA","deep",function()
+    local log={}
+    local p,f=ns.CompetitiveStorage.RunRecordSelfTest(function(line) log[#log+1]=line end)
+    return f==0 and p==15 and "PASS" or "FAIL",
         string.format("%d passed / %d failed (SIMULATED)\n",p,f)..table.concat(log,"\n")
 end)
 Check("Search registry","deep",function()

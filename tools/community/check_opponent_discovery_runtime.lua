@@ -78,6 +78,13 @@ local ok,err=pcall(function()
     local q=S.GetSnapshot()
     assert(sp==21 and sf==0 and q.accountProbe==1 and q.characterProbe==1 and not q.rankEligible,"isolated storage lifecycle suite")
     assert(a==_G.DuelsReimaginedCompetitiveDB and c==_G.DuelsReimaginedCharacterDB and _G.DuelsReimaginedDB==originalDB,"QA never writes live roots")
+    local dp,df=S.RunRecordSelfTest(function(line)if line:find("FAIL",1,true) then print(line) end end)
+    assert(dp==15 and df==0 and a==_G.DuelsReimaginedCompetitiveDB and c==_G.DuelsReimaginedCharacterDB,"isolated durable record suite")
+    _G.DuelsReimaginedCompetitiveDB={version=1,kind="account",clients={retail={probe=1}}}
+    _G.DuelsReimaginedCharacterDB={version=1,kind="character",owner="Player-1-AAA",clients={retail={probe=1}}}
+    assert(not S.GetSnapshot().prepared and S.PrepareSchema(),"explicit legacy migration")
+    q=S.GetSnapshot()
+    assert(q.prepared and q.version==2 and q.accountProbe==1 and q.characterProbe==1,"preserve probe values")
     assert(sent==previous and P.GetSnapshot().state=="checking","existing transport untouched")
 end)
 _G.DuelsReimaginedCompetitiveDB=oldAccount;_G.DuelsReimaginedCharacterDB=oldChar

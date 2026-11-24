@@ -42,7 +42,7 @@ local function Rate(c)
 end
 local function Build(client,me,ledger,cap)
     assert((client=="forever" or client=="retail") and Guid(me))
-    local D,rows,ids,linked={}, {},{},{}
+    local D,rows,ids,linked,sources={}, {},{},{},{}
     cap=cap or 2048
     function D.Observe(run,r,agreement)
         if not Run(run) or type(r)~="table" or r.scope~="SIMULATED" or r.client~=client
@@ -71,9 +71,24 @@ local function Build(client,me,ledger,cap)
         if ids[id] then return false,Same(ids[id],row) and "duplicate" or "conflicting_observation" end
         if row.matchID and linked[row.matchID] then return false,"duplicate_session" end
         if #rows>=cap then return false,"capacity" end
+        -- Retain bounded evidence, not the derived counters or ledger status.
+        local source={run=run,result={scope="SIMULATED",client=client,id=r.id,kind=r.kind,
+            opponent=peer and {guid=peer} or nil,acceptedAt=r.acceptedAt,endedAt=r.endedAt,
+            outcome=out,endType=out=="unknown" and nil or r.endType,
+            reason=r.reason=="matching_result_and_finish" and r.reason or "not_observed",
+            outcomeObserved=r.outcomeObserved==true,finishObserved=r.finishObserved==true,
+            resultObserved=r.resultObserved==true,conflict=r.conflict~=false,rankEligible=false}}
+        -- Unknown outcome never needs an end type, including malformed input.
+        if out=="unknown" then source.result.endType=nil end
+        if row.matchID then source.agreement={scope="SIMULATED",state="candidate",candidate=true,
+            rankEligible=false,session=agreement.session} end
+        sources[#sources+1]=source
         rows[#rows+1]=row;ids[id]=row
         if row.matchID then linked[row.matchID]=true end
         return true
+    end
+    function D.Save()
+        return {version=1,scope="SIMULATED",client=client,character=me,observations=Copy(sources)}
     end
     function D.Snapshot()
         local snapshot=ledger.Snapshot()
@@ -104,6 +119,33 @@ local function Build(client,me,ledger,cap)
         return s
     end
     return D
+end
+-- Compare only against the bounded canonical tree; untrusted nested data is
+-- never copied recursively. Extra fields and sparse arrays fail closed.
+local function EqualSaved(clean,raw)
+    if type(clean)~=type(raw) then return false end
+    if type(clean)~="table" then return clean==raw end
+    for k,v in pairs(clean) do if not EqualSaved(v,raw[k]) then return false end end
+    for k in pairs(raw) do if clean[k]==nil then return false end end
+    return true
+end
+function P.OpenSimulated(client,me,ledger,stored,cap)
+    if (client~="forever" and client~="retail") or not Guid(me) then return nil,"identity" end
+    cap=cap or 2048
+    local d=Build(client,me,ledger,cap)
+    if stored==nil then return d end
+    if type(stored)~="table" or stored.version~=1 or stored.scope~="SIMULATED"
+        or stored.client~=client or stored.character~=me or type(stored.observations)~="table" then return nil,"schema" end
+    local n=0
+    for k in pairs(stored.observations) do
+        n=n+1;if not Cycle(k) or k>cap or n>cap then return nil,"invalid_observations" end
+    end
+    for i=1,n do
+        local src=stored.observations[i]
+        if type(src)~="table" or not d.Observe(src.run,src.result,src.agreement) then return nil,"invalid_observation" end
+    end
+    if not EqualSaved(d.Save(),stored) then return nil,"noncanonical_history" end
+    return d
 end
 function P.RunSelfTest(emit)
     emit=type(emit)=="function" and emit or function()end
