@@ -1,11 +1,13 @@
 local _,ns=...
--- Shared, bounded presentation queue. Only the update producer is enabled.
+-- Shared, bounded presentation queue. Update producer and simulated promotion preview.
 -- No gameplay, network, patch-catalogue or ranking writes.
 local N={};ns.Notifications=N
 local S,C,M,Settings=ns.Style,ns.Style.color,ns.Motion,ns.Settings
 local WIDTH,BODY,CONNECTOR=410,183,35
 local ART="Interface\\AddOns\\DuelsReimagined\\Media\\Skin\\NotificationArt.png"
 local SOUND="Interface\\AddOns\\DuelsReimagined\\Media\\Sounds\\Notifications\\General.mp3"
+local PROMOTION_SOUND="Interface\\AddOns\\DuelsReimagined\\Media\\Sounds\\Notifications\\RankPromotion.mp3"
+local PROMOTION_ART="Interface\\AddOns\\DuelsReimagined\\Media\\Skin\\RankPromotionArt.tga"
 local card=CreateFrame("Frame","DuelsReimaginedNotificationCard",UIParent)
 card:SetSize(WIDTH,BODY+CONNECTOR);card:SetFrameStrata("HIGH")
 card:SetClampedToScreen(true);card:EnableMouse(true);card:Hide()
@@ -28,8 +30,8 @@ end
 Region(panel,"BACKGROUND",0,0,WIDTH,BODY,8,8,792,356)
 -- Ornaments have their own alpha cells, no rectangular backdrop baked into
 -- the frame. Reserve a clean centered text lane between their inner tips.
-Region(panel,"ARTWORK",32,14,88,20,820,112,192,44)
-Region(panel,"ARTWORK",290,14,88,20,820,168,192,44)
+local ornamentLeft=Region(panel,"ARTWORK",32,14,88,20,820,112,192,44)
+local ornamentRight=Region(panel,"ARTWORK",290,14,88,20,820,168,192,44)
 local connector=Region(card,"ARTWORK",0,BODY,WIDTH,CONNECTOR,8,372,792,66)
 local glow=Region(panel,"OVERLAY",WIDTH/2-88,-38,176,58,820,8,192,88)
 glow:SetAlpha(0)
@@ -44,11 +46,37 @@ local category=Label("Addon update",13,C.pale,118,12,174,24)
 local heading=Label("",18,C.pale,120,48,264,32)
 local description=Label("",12,C.text,120,82,264,56)
 description:SetWordWrap(true)
+-- The approved rank card is a distinct content layer inside the SAME card.
+-- Text and the shared rank emblem remain live, never baked into artwork.
+local promotion=CreateFrame("Frame",nil,panel);promotion:SetAllPoints(panel);promotion:Hide()
+local function PromotionArt(x,y,w,h,u1,u2,v1,v2)
+    local t=promotion:CreateTexture(nil,"ARTWORK")
+    t:SetTexture(PROMOTION_ART);SmoothTexture(t);t:SetTexCoord(u1,u2,v1,v2)
+    Position(t,promotion,x,y,w,h);return t
+end
+PromotionArt(63,-17,284,43,0,1,0,.25)
+PromotionArt(35,14,126,151,0,.5,.25,1)
+local rankArt=ns.CompetitiveUI.CreateRankEmblem(promotion,106,false)
+Position(rankArt,promotion,45,41,106,106)
+local function RankLabel(value,size,color,x,y,w,h)
+    local t=S.Text(promotion,value,size,color);t:SetJustifyH("CENTER")
+    Position(t,promotion,x,y,w,h);return t
+end
+local rankCategory=RankLabel("",13,C.pale,76,-9,258,27)
+local congrats=RankLabel("Congratulations!",15,C.text,169,38,222,24)
+local newRank=RankLabel("",25,C.pale,166,65,228,36)
+local transition=RankLabel("",13,C.pale,164,107,232,24)
+local ratingGain=RankLabel("",16,{.49,.92,.30,1},164,137,232,25)
+local rankColors={Aspirant={.76,.53,.32,1},Contender={.77,.81,.86,1},
+    Veteran={.97,.77,.36,1},Duelist={1,.82,.40,1},
+    Master={.58,.81,1,1},Grandmaster={1,.65,.28,1}}
 local current,closing,shownSound,handle,animationKey
 local queue,seen={},{}
 local ready,loginDone=false,false
 local unsubscribePresence,unsubscribeDuel
 local delayCount=0
+local expiryTimer,expiryAt,expiryRemaining
+local rankGlowKey
 local lastSound=-math.huge
 local function Plain(fn,...)
     if type(fn)~="function" then return nil end
@@ -82,7 +110,10 @@ local function Play()
     local now=Plain(GetTime)
     -- Prevent overlap even when the client does not return a sound handle.
     if type(now)~="number" or now-lastSound<4.1 or type(PlaySoundFile)~="function" then return end
-    local ok,played,id=pcall(PlaySoundFile,SOUND,"SFX")
+    local path=current and current.kind=="promotion" and PROMOTION_SOUND or SOUND
+    local ok,played,id
+    if path==SOUND then ok,played,id=pcall(PlaySoundFile,SOUND,"SFX")
+    else ok,played,id=pcall(PlaySoundFile,PROMOTION_SOUND,"SFX") end
     if ok and played==true then lastSound=now;handle=id end
 end
 local offset=0
@@ -126,7 +157,22 @@ local function Animate(from,to,duration,done)
     Apply(key,from)
     if animationKey==key then M.Value(key,from,to,duration,Apply) end
 end
+local function CancelExpiry(pause)
+    if expiryTimer then
+        if pause then
+            local now=Plain(GetTime)
+            if type(now)=="number" and expiryAt then expiryRemaining=math.max(0,expiryAt-now) end
+        end
+        expiryTimer:Cancel();expiryTimer=nil;delayCount=delayCount-1
+    end
+    expiryAt=nil
+    if not pause then expiryRemaining=nil end
+end
+local function StopRankGlow()
+    if rankGlowKey then M.Stop(rankGlowKey);rankGlowKey=nil end
+end
 local function Clear()
+    CancelExpiry(false);StopRankGlow()
     StopAnimation();StopAudio();card:Hide()
     current,closing,shownSound=nil,false,false;offset=0
 end
@@ -139,6 +185,7 @@ local function Dismiss(snooze)
         if type(now)=="number" then Settings.SnoozeUpdate(m.version,now) end
     end
     closing=true
+    CancelExpiry(false);StopRankGlow()
     Animate(card:GetAlpha(),0,.19,function()
         Clear();Later(Pump)
     end)
@@ -162,26 +209,66 @@ local function Button(text,x,w,gold,fn)
     b:SetScript("OnMouseUp",function() b.down=false;Paint() end)
     b:SetScript("OnClick",fn);Paint();return b
 end
-Button("What's new",62,147,false,function()
+local updateAction=Button("What's new",62,147,false,function()
     if Blocked() or not current then return end
     -- Even preview opens only the real, fixed repository releases page.
     if not ns.Window.frame:IsShown() then ns.Window.Toggle() end
     if ns.Footer.ShowReleaseLink() then Dismiss(false) end
 end)
-Button("Got it",224,140,true,function() Dismiss(true) end)
+local updateDismiss=Button("Got it",224,140,true,function() Dismiss(true) end)
 local close=CreateFrame("Button",nil,panel);Position(close,panel,WIDTH-35,12,18,18)
 local closeText=S.Text(close,"×",14,C.pale);closeText:SetAllPoints(close);closeText:SetJustifyH("CENTER")
 close:SetScript("OnClick",function() Dismiss(false) end)
+local function Visible(region,show) if show then region:Show() else region:Hide() end end
+local rankClose=close:CreateTexture(nil,"BACKGROUND")
+rankClose:SetAllPoints(close);rankClose:SetTexture("Interface\\AddOns\\DuelsReimagined\\Media\\Artwork\\Header\\Close.png")
+SmoothTexture(rankClose);rankClose:Hide()
 local function Paint(m)
-    category:SetText(m.preview and "PREVIEW: Addon update" or "Addon update")
-    heading:SetText(m.title)
-    description:SetText(m.body)
+    local ranked=m.kind=="promotion"
+    for _,region in ipairs({ornamentLeft,ornamentRight,emblem,category,heading,description,updateAction,updateDismiss,closeText}) do
+        Visible(region,not ranked)
+    end
+    Visible(promotion,ranked);Visible(rankClose,ranked)
+    if ranked then
+        rankCategory:SetText(m.preview and "PREVIEW: Rank promotion" or "RANK PROMOTION")
+        rankArt.Paint(m.newRank)
+        newRank:SetText(m.newRank.label)
+        newRank:SetTextColor(unpack(rankColors[m.newRank.name] or C.pale))
+        transition:SetText(m.oldRank.label.." → "..m.newRank.label)
+        ratingGain:SetText("+"..m.gain.." rating")
+    else
+        category:SetText(m.preview and "PREVIEW: Addon update" or "Addon update")
+        heading:SetText(m.title)
+        description:SetText(m.body)
+    end
+end
+local function StartExpiry()
+    if not current or current.kind~="promotion" or not C_Timer or not C_Timer.NewTimer then return end
+    local seconds=expiryRemaining or 8
+    local now=Plain(GetTime)
+    expiryAt=type(now)=="number" and now+seconds or nil
+    local m=current
+    delayCount=delayCount+1
+    expiryTimer=C_Timer.NewTimer(seconds,function()
+        expiryTimer=nil;expiryAt=nil;expiryRemaining=nil;delayCount=delayCount-1
+        if current==m and card:IsShown() then Dismiss(false) end
+    end)
+end
+local function Celebrate()
+    StopRankGlow()
+    local key={};rankGlowKey=key
+    M.Value(key,1,0,.95,function(_,v)
+        if rankGlowKey~=key then return end
+        glow:SetAlpha(.55+.45*v)
+        if v==0 then rankGlowKey=nil end
+    end)
 end
 local function ShowCurrent()
     if not current or card:IsShown() then return end
     Paint(current);offset=18;Place();card:SetAlpha(0);card:Show()
     if not current.preview then seen[current.id]=true end
     Animate(0,1,.32);Play()
+    if current.kind=="promotion" then StartExpiry();Celebrate() end
 end
 local function Snoozed(m)
     local now=Plain(GetServerTime)
@@ -193,7 +280,7 @@ Pump=function()
     if Blocked() then
         if current and card:IsShown() then
             if closing then Clear()
-            else StopAnimation();StopAudio();card:Hide() end
+            else CancelExpiry(true);StopRankGlow();StopAnimation();StopAudio();card:Hide() end
         end
         return
     end
@@ -241,6 +328,19 @@ function N.Preview()
     if current or #queue>0 then return false,"Dismiss the current notification first" end
     return Enqueue({id="preview:update",preview=true,title="New update available",
         body="Example version 0.2.0.\nSimulated preview — not a real release."})
+end
+function N.PreviewPromotion()
+    if not PREVIEW_ENABLED or not ready then return false,"Preview unavailable" end
+    if Blocked() then return false,"Finish your duel or combat first" end
+    if not Settings.Get("notificationEnabled") then return false,"Notifications are disabled" end
+    if current or #queue>0 then return false,"Dismiss the current notification first" end
+    -- Fictional values through the existing read-only rank policy. Never insert
+    -- a ledger result, mutate rating, or expose a live promotion producer.
+    local rules=ns.SeasonRules
+    local previous=rules.Rank(2188,rules.PLACEMENT_CREDIT,rules.MIN_RIVALS)
+    local nextRank=rules.Rank(2212,rules.PLACEMENT_CREDIT,rules.MIN_RIVALS)
+    return Enqueue({id="preview:promotion",kind="promotion",preview=true,
+        oldRank=previous,newRank=nextRank,gain=24})
 end
 function N.GetDiagnosticResources()
     return {subscriptions=(unsubscribePresence and 1 or 0)+(unsubscribeDuel and 1 or 0),

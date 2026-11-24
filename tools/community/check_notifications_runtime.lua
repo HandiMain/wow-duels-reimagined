@@ -1,6 +1,6 @@
 -- Isolated mock for evidence and notification presentation. No WoW/network.
 local root="addon/DuelsReimagined/"
-local frames,buttons,timers={}, {}, {}
+local frames,buttons,timers,expiry={}, {}, {}, {}
 local function Frame(kind,name,parent)
     local f={kind=kind,name=name,parent=parent,shown=true,alpha=1,scale=1,scripts={},events={},width=410,height=218}
     local function noop() end
@@ -25,6 +25,7 @@ local function Frame(kind,name,parent)
     function f:UnregisterEvent(k) self.events[k]=nil end
     function f:CreateTexture() return Frame("Texture") end
     function f:SetText(v) self.text=v end
+    function f:SetTextColor(...) self.color={...} end
     for _,k in ipairs({"SetFrameStrata","SetClampedToScreen","EnableMouse","SetTexture","SetTexCoord",
         "SetVertexColor","SetAllPoints","SetJustifyH","SetWordWrap","RegisterForClicks"}) do f[k]=noop end
     frames[#frames+1]=f
@@ -39,10 +40,13 @@ _G.GetServerTime=function()return 1700000000+now end
 _G.InCombatLockdown=function()return combat end
 _G.IsInInstance=function()return false end
 _G.C_AddOns={GetAddOnMetadata=function()return version end}
-_G.C_Timer={After=function(_,fn)timers[#timers+1]=fn end}
+_G.C_Timer={After=function(_,fn)timers[#timers+1]=fn end,NewTimer=function(seconds,fn)
+    local t={seconds=seconds,fn=fn};function t:Cancel() self.cancelled=true end
+    expiry[#expiry+1]=t;return t
+end}
 local played,stopped=0,0
 _G.PlaySoundFile=function(path,channel)
-    assert(path:find("General.mp3",1,true) and channel=="SFX")
+    assert((path:find("General.mp3",1,true) or path:find("RankPromotion.mp3",1,true)) and channel=="SFX")
     played=played+1;return true,played
 end
 _G.StopSound=function()stopped=stopped+1 end
@@ -51,6 +55,9 @@ local snoozed,pc,dc,links
 links=0
 local ns={
     Client={IsSupported=function()return true end},
+    CompetitiveUI={CreateRankEmblem=function(parent)
+        local f=Frame("Rank",nil,parent);f.Paint=function(r)f.rank=r end;return f
+    end},
     Style={color={pale={1,1,1},text={1,1,1}},Text=function(parent,value)
         local f=Frame("Text");f.text=value
         if parent.kind=="Button" then buttons[value]=parent end
@@ -80,6 +87,7 @@ assert(not U.Select("0.1.0",R("0.1.1","0.1.2")))
 assert(not U.Select("0.1.0",R("9.9.9","9.9.9")))
 local stale=R("0.1.1","0.1.1");stale.stale=true;assert(not U.Select("0.1.0",stale))
 U.Observe(R("0.1.1","0.1.1"));assert(not U.GetNotice())
+assert(loadfile(root.."Core/SeasonRules.lua"))("DuelsReimagined",ns)
 assert(loadfile(root.."UI/Notifications.lua"))("DuelsReimagined",ns)
 local card,events
 for _,f in ipairs(frames) do
@@ -106,3 +114,22 @@ pc(R("0.1.1","0.1.1"));assert(not card:IsShown())
 now=120;prefs.notificationSounds=false;assert(N.Preview() and played==2)
 prefs.notificationEnabled=false;N.Refresh();assert(not card:IsShown() and not N.Preview())
 print("Update notification mock: PASS (versions, queue, preview, SFX, defer, snooze, anchor, disable)")
+prefs.notificationEnabled=true;prefs.notificationSounds=true;hud:Show();now=130
+assert(N.PreviewPromotion() and card:IsShown() and played==3)
+assert(card.point[2]==hud and card.point[3]=="TOP")
+assert(not buttons["Got it"]:IsShown() and not buttons["What's new"]:IsShown())
+assert(expiry[#expiry].seconds==8 and not N.Preview())
+local rank
+for _,f in ipairs(frames) do if f.kind=="Rank" then rank=f.rank end end
+assert(rank.label=="Duelist IV")
+now=133;combat=true;fire("PLAYER_REGEN_DISABLED")
+assert(not card:IsShown() and expiry[#expiry].cancelled)
+combat=false;fire("PLAYER_REGEN_ENABLED")
+assert(card:IsShown() and played==3 and expiry[#expiry].seconds==5)
+expiry[#expiry].fn();flush()
+assert(not card:IsShown() and snoozed=="0.1.1")
+now=145;assert(N.Preview() and card:IsShown() and played==4)
+assert(buttons["Got it"]:IsShown() and buttons["What's new"]:IsShown())
+buttons["Got it"].scripts.OnClick();flush()
+assert(not card:IsShown() and N.GetDiagnosticResources().timers==0)
+print("Rank promotion mock: PASS (existing rank policy, shared anchor, sound, expiry pause, update restoration)")

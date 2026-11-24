@@ -35,3 +35,13 @@ class NotificationTests(unittest.TestCase):
         self.assertIn('118,12,174,24',u)
         self.assertIn('448.5/512,503.5/512',u)
         self.assertNotIn('218.25/256',u)
+
+    def test_rank_promotion_preview_contract(self):
+        u=read("UI/Notifications.lua")
+        for token in ('ns.CompetitiveUI.CreateRankEmblem','ns.SeasonRules','PREVIEW: Rank promotion',
+                      'pcall(PlaySoundFile,PROMOTION_SOUND,"SFX")','C_Timer.NewTimer',
+                      'CancelExpiry(true)','preview:promotion','function N.PreviewPromotion()'):
+            self.assertIn(token,u)
+        self.assertIn('Preview rank promotion',read("UI/Options.lua"))
+        self.assertIn('message=="notify rank"',read("Core/Commands.lua"))
+        self.assertTrue((ROOT/"Media/Skin/RankPromotionArt.tga").is_file())

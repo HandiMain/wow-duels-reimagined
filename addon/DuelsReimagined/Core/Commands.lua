@@ -2,6 +2,11 @@ local _, ns = ...
 
 SLASH_DUELSREIMAGINED1 = "/duels"
 SlashCmdList.DUELSREIMAGINED = function(message)
+    if message=="notify rank" then
+        local ok,why=ns.Notifications.PreviewPromotion()
+        if not ok then print("DR | "..tostring(why)) end
+        return
+    end
     if message=="notify" or message=="notify preview" or message=="notify status" then
         if message=="notify status" then
             local status=ns.UpdateNotices.GetStatus()
