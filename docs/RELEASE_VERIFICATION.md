@@ -1,0 +1,95 @@
+# Pre-release verification register
+
+Established 2026-11-24; implementation baseline `09cc4e1` (develop). Practical verification is deferred until **December 15, 2026**, when the user plans to obtain a second WoW account. An optional separately authorized Retail War Games session with Dalaran Gaming may occur earlier. No unsolicited distribution.
+
+## Maintenance and closure rules
+
+- Read this register on every development resumption. Every new feature, fix or changed dependency must add/update its relevant entry. Preserve IDs and evidence history; reopen affected checks after changes.
+- Unchecked means outstanding, not necessarily unimplemented. Record exact commit/build, client/version, date, scenario, observed outcome and evidence (log, screenshot or user report) before checking an item. Record failed/skipped scenarios explicitly.
+- Distinguish PLANNED, IMPLEMENTED/UNTESTED, AUTOMATED PASS, SOLO IN-GAME VERIFIED and MULTIPLAYER VERIFIED. Simulation, CI and API acceptance are not live evidence.
+- Both clients require applicable checks. Use isolated test characters and backed-up test SavedVariables. No destructive resets, automatic acceptance, unapproved activation, distribution or release.
+- This is a consolidated starting register from the audit and subsystem records, not exhaustive certification of every historical change. Reconcile older individual checks before release.
+- Existing evidence: prior documented simulation/CI checkpoints and one user-reported Forever outgoing duel loss in DUEL_DETECTION.md. Neither verifies the new integration baseline; no new tests were performed when creating this register.
+
+## A. Engineering blockers (not merely tests)
+
+- [ ] A01 — Sustainable retention beyond 8,192 shared IDs and 8,192 personal observations: exact evidence or explicit archive trust/finality, no silent loss, deterministic replay, late corrections and rolling seven-day opponent budget across seasons.
+- [ ] A02 — Durable late conflicting-claim handling after settlement; provenance, relayed claims, correction and replay policy; no claims of global authoritative standings.
+- [ ] A03 — Finalize season epoch, rollover, version compatibility, privacy/metadata/consent, migration and release scope.
+- [ ] A04 — Review new gated adapter call contracts, source, client/API limitations and matching-build CI failures before activation.
+- [ ] A05 — Authorize isolated local-only test build first; then separate peer test activation with common test epoch and consent. Keep production season disabled until approved.
+
+## B. Automated checks and persistence
+
+- [ ] B01 — Review matching-commit CI; run Lua syntax, TOC/load-order, client, manifest, regression, assets and simulation suites; add tests for new live-adapter contracts; record actual results.
+- [ ] B02 — Fresh install and upgrade from prior builds; defaults, invalid/missing roots, unsupported schema, failed writes, no destructive reset; preserve preferences.
+- [ ] B03 — Account vs character separation, Forever vs Retail separation, reload/relog, durable run ID, duplicate terminal cycles, saved local history and peer ledger reconstruction.
+- [ ] B04 — Capacity near/full behavior, duplicate/stale writes, compact round-trip, canonical validation, deterministic dispute selection, no silent eviction or simulation contamination.
+- [ ] B05 — Confirm release build fingerprint matches packaged files; compare diagnostics baseline and investigate all new failures/warnings.
+
+## C. Ordinary duels and personal recording (both clients)
+
+- [ ] C01 — Incoming/outgoing invitation, cancellation/decline/expiry, accepted countdown, ordinary win/loss both roles, repeated rematches; exactly one local record per accepted duel.
+- [ ] C02 — Opponent without addon; no reply is unknown not absence; personal wins/losses still recorded, rating unchanged.
+- [ ] C03 — Retreat both roles, finish/result event order, duplicate/missing/late/conflicting lines, unrelated nearby duel, disconnect/reload/zone interruption; unknown not automatically a loss.
+- [ ] C04 — Identity resolution: target/focus/mouseover/nameplate, absent/ambiguous identity, Forever surnames and accents, Retail realm-qualified names, localization and secret values.
+- [ ] C05 — Validate elapsed duration label, server timestamps, opponent name/class/faction and missing metadata; exclude known death duels and spectator events (do not perform lethal tests).
+- [ ] C06 — Verify persistence after reload/relog and character swap; no duplicate stats, false match or live writes while disabled.
+
+## D. Multiplayer ranking and communication (both clients)
+
+- [ ] D01 — Two enabled clients, opt-in/out, addon discovery and exact sender/GUID, compatible/incompatible build/season, same/cross-realm as supported, no response, restricted communication.
+- [ ] D02 — Handshake before countdown in both directions; fast acceptance, expired/missing offer/ack/final confirmation, wrong sender, stale/replayed packets, opt-out; never auto-accept or upgrade late.
+- [ ] D03 — Complementary results, timestamps within tolerance, duplicate/conflicting results, timeout, refused sends, disconnects, late conflict policy, both clients converge without inventing evidence.
+- [ ] D04 — Known Elo expected values, placements, unique opponents, repeat-opponent weight limits, practice matches, peak/streak, ranks, season rollover and carry; compare deterministic reference results.
+- [ ] D05 — Bounded delta sync, request/responder pacing, duplicate/reordered/malformed fragments, partial failure, reconnect/retry, combat/zone cancellation, privacy and compatibility; no permanent traffic.
+- [ ] D06 — Multi-peer convergence, partial leaderboard honesty, conflicting relayed data, new player catch-up, unknown names; requires additional participants beyond initial two accounts.
+
+## E. Competitive UI (both clients)
+
+- [ ] E01 — Preview on/off, no cross-contamination, empty/error/disabled states, real history and Hall statistics, known standings and player card, correct pending/disputed/unconfirmed/practice/ranked labels.
+- [ ] E02 — Search, filters, sorting, scrolling, pinned standing, graph time range, dynamic seasons, long names, missing icons/metadata, history detail rating changes, capacity notices.
+- [ ] E03 — Independent movable/closable player card, focus/stacking, Back button, navigation and preserved scroll; no stale simulated profile after switching.
+- [ ] E04 — Approved main design, War Games lower rim, Your Standing wrap, missing glyph fixes, hover/click/selection, scaling and font legibility; validate screenshots at minimum/default/large windows.
+
+## F. Shared UI and client compatibility
+
+- [ ] F01 — Retail/Forever load without Lua errors, unsupported client and optional API handling; all supported features gated correctly.
+- [ ] F02 — Main window, landing page, Options, Addon Status, Community, Patch Notes, footer, search, Back, tooltip and all navigation states; no cropping, broken assets or seam overlap.
+- [ ] F03 — Default Blizzard chat Enter/Escape, keyboard focus, menus, dialogs, combat, close/reopen, movement peek, dragging and resizing, reduced motion, font/scale settings.
+- [ ] F04 — EllesmereUI enabled/disabled, theme/font matching and unavailable explanations; Escape-menu addon button coexists with Polestar and other addons, no overlap; Blizzard default fallback.
+- [ ] F05 — Minimap/widget/both/hidden modes, independent size/opacity, drag, reset, tooltips, reload and Search visibility; all preferences centralized and persisted.
+
+## G. Retail War Games (separate test authorization)
+
+- [ ] G01 — Forever disabled/unavailable; Retail Players and Host/Spectate, party/raid leader, group/bracket checks, absent or unsupported APIs, combat restriction, inside/outside arena transitions.
+- [ ] G02 — Captain selection, duplicate prevention, one/zero friends, online/offline indicators where observable, scroll, clearing and Battle.net routing.
+- [ ] G03 — Arena gallery: all supported/client-discovered maps, search, favorites, selected state, Cancel/Escape/outside click, resize, native thumbnails, labelled illustrations and unavailable art; no incorrect map association.
+- [ ] G04 — Actual native challenges, acceptance, match entry for both teams, spectator entry and roster, tournament rules ON/OFF, invalid/refused requests and reconnect. API acceptance alone is not success. Additional participants may be needed.
+- [ ] G05 — Team borders and scrollbar gutters, separate emblem, nav placement, button feedback and dropdown consistency.
+
+## H. Group, presence and diagnostics
+
+- [ ] H01 — Real solo/party/raid roster changes, leadership, incomplete/secret identities, cross-realm/Forever surname behavior, group recovery and addon-user presence/version display; no response treated as unknown.
+- [ ] H02 — Diagnostics entry points, full scan, cancellation, copy report, developer controls, baselines, saved report isolation, error capture forwarding/restoration and BugGrabber coexistence.
+- [ ] H03 — Performance: idle/open/hidden UI, animation cleanup, resource counts, repeated page/card opens, memory samples, frame-time during replay and synchronization at capacity; no simulated performance claims.
+- [ ] H04 — Verify no regression to War Games, chat, Options, other addon buttons, group status or lifecycle after each fix.
+
+## I. Public release gate
+
+- [ ] I01 — Reconcile all older per-change unverified checks in PROJECT_GUIDE.md and linked subsystem documents; reopen affected evidence when implementation changes.
+- [ ] I02 — Review source provenance, permissions and required notices, media assets and generated illustrations; confirm reference addon reuse and redistribution rights.
+- [ ] I03 — Remove/disable development preview by default; remove fake patch-note fixtures from public presentation, verify real version metadata and honest statuses.
+- [ ] I04 — Community report/suggestion links and browser forms, credits workflow and verified-fix rules; no automatic publishing or invented credits.
+- [ ] I05 — Clean package/install/update on both supported clients; correct TOC/version only with approval, release notes, supported scope, privacy explanation and known limitations.
+- [ ] I06 — Review all applicable blockers, evidence and exclusions; get explicit release approval before merging main or distributing. No public release just because two-account tests pass.
+
+## Evidence log
+
+| ID | Commit/build | Client/version | Date | Result | Evidence / remaining limitation |
+|---|---|---|---|---|---|
+| — | 09cc4e1 | Both | 2026-11-24 | IMPLEMENTED/UNTESTED | Integration baseline; no new live tests. |
+
+## Supporting records
+
+[Project guide](PROJECT_GUIDE.md) · [Competitive](COMPETITIVE.md) · [Duel detection](DUEL_DETECTION.md) · [War Games](WAR_GAMES.md) · [Client compatibility](CLIENT_COMPATIBILITY.md) · [Diagnostics](DIAGNOSTICS.md) · [Presence](PRESENCE.md) · [Group roster](GROUP_ROSTER.md) · [Addon status](ADDON_STATUS.md) · [Community](COMMUNITY_GITHUB.md) · [Asset provenance](ASSET_PROVENANCE.md) · [Patch notes](PATCH_NOTES_TEMPLATE.md)

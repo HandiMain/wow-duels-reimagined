@@ -1596,3 +1596,8 @@ Current branch is develop. Core competitive foundations and approved visual page
 ## Gated integration checkpoint — 2026-11-24
 
 Step 23 in COMPETITIVE.md documents the new local recorder, separately scoped peer settlement/sync and real UI read path. Recording and peer exchange remain build-disabled; no production season epoch. Development preview stays isolated and enabled by default for development only. Preserve the exact-evidence capacity stop; indefinite retention/finality is still a release blocker, not solved by compact encoding. No public release, main merge, version bump or manual tests. Resume with December local-only validation, then separately authorized peer test activation; do not describe the system as live verified or release-ready.
+
+
+## Mandatory pre-release verification register — 2026-11-24
+
+[RELEASE_VERIFICATION.md](RELEASE_VERIFICATION.md) is the persistent outstanding engineering and verification register. Read it when resuming development, update it for every new or modified feature, retain matching-build evidence, and reopen affected items after changes. Initial practical verification is planned for December 15, 2026 with the user's second account; optional separately authorized War Games testing may occur earlier. No release until applicable engineering and verification blockers are closed and user approval is explicit. No tests performed or activation changes in this documentation checkpoint.
