@@ -131,7 +131,11 @@ local check = Style.Action(root, "Check Again", "footer", {
     dark=C.window, hover=C.selected, text=C.pale,
 })
 check:SetSize(196, 36)
-check:SetPoint("BOTTOM", root, "BOTTOM", 0, 20)
+check:SetPoint("BOTTOMRIGHT", root, "BOTTOM", -6, 20)
+local diagnostics=Style.Action(root,"Diagnostics","footer",{plate="dark"})
+diagnostics:SetSize(196,36)
+diagnostics:SetPoint("BOTTOMLEFT",root,"BOTTOM",6,20)
+diagnostics:SetScript("OnClick",function() ns.DiagnosticsUI.Open() end)
 if check.SetMotionScriptsWhileDisabled then
     check:SetMotionScriptsWhileDisabled(true)
 end

@@ -160,6 +160,11 @@ local open = PlatedButton("Open Duels Reimagined",
     "LandingPrimary.png", 159, 157, 230, 44)
 local community = PlatedButton("View Community",
     "LandingSecondary.png", 175, 200, 197, 40)
+-- Small separate developer entry, below the two approved calls to action.
+local diagnostics = Style.Action(layout,"Diagnostics","footer",{plate="dark",tooltip=false})
+diagnostics:SetSize(128,23)
+diagnostics:SetPoint("TOP",layout,"TOP",0,-240)
+diagnostics:SetScript("OnClick",function() ns.DiagnosticsUI.Open() end)
 
 local function Fit()
     local w = math.max(1, surface:GetWidth())

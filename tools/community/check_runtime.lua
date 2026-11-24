@@ -166,3 +166,6 @@ print("Independent access settings and default-on Peek: PASS")
 
 -- Run the isolated duel lifecycle harness after existing smoke checks.
 dofile("tools/community/check_duel_detection_runtime.lua")
+
+-- Diagnostics tests use a separate namespace and isolated SavedVariables.
+dofile("tools/community/check_diagnostics_runtime.lua")

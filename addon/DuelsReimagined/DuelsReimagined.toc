@@ -13,6 +13,7 @@ Core\Settings.lua
 Core\Group.lua
 Core\DuelDetection.lua
 Core\DuelSelfTest.lua
+Core\Diagnostics.lua
 Core\Communication.lua
 Core\Presence.lua
 Core\WarGames.lua [AllowLoadGameType standard]
@@ -29,6 +30,7 @@ UI\Search.lua
 UI\Header.lua
 UI\PatchNotesData.lua
 UI\AddonStatus.lua
+UI\Diagnostics.lua
 UI\WarGamesArenaPicker.lua [AllowLoadGameType standard]
 UI\WarGames.lua [AllowLoadGameType standard]
 UI\Navigation.lua

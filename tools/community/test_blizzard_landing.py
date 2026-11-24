@@ -24,6 +24,8 @@ class BlizzardLandingTests(unittest.TestCase):
         self.assertEqual(re.findall(r'PlatedButton\("([^"]+)"', s),
                          ["Open Duels Reimagined", "View Community"])
         self.assertIn('OpenDuels("community", "community")', s)
+        self.assertIn('Style.Action(layout,"Diagnostics","footer"',s)
+        self.assertIn('ns.DiagnosticsUI.Open()',s)
         self.assertIn("ns.Navigation.SelectKey(section, page)", s)
         self.assertIn("ns.Window.Toggle()", s)
         self.assertIn('Style.Action(layout, caption, "landing-art")', s)

@@ -71,3 +71,10 @@ function Motion.Stop(region, value)
     if value ~= nil then region:SetAlpha(value) end
     if not next(active) then driver:SetScript("OnUpdate", nil) end
 end
+
+-- Read-only diagnostic probe; never expose or alter the active tween table.
+function Motion.GetRuntimeState()
+    local count=0
+    for _ in pairs(active) do count=count+1 end
+    return {active=count,driver=driver:GetScript("OnUpdate")~=nil}
+end

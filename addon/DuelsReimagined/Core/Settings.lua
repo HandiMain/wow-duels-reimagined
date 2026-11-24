@@ -249,6 +249,37 @@ function Settings.ToggleWarGamesArenaFavorite(name)
     return true,not removed
 end
 
+-- Explicit diagnostic exports only. One storage owner, bounded text,
+-- no live duel records or automatic writes from scanning.
+function Settings.GetDiagnosticReports()
+    local db=ReadDB()
+    local out={}
+    local list=db and db.diagnosticReports
+    if type(list)=="table" then
+        for i=1,3 do
+            local item=list[i]
+            if type(item)=="table" and type(item.text)=="string" and
+                #item.text<=98304 and type(item.label)=="string" and #item.label<=80 then
+                out[#out+1]={text=item.text,label=item.label}
+            end
+        end
+    end
+    return out
+end
+function Settings.SaveDiagnosticReport(label,report)
+    if type(label)~="string" or #label>80 or type(report)~="string" or
+        #report==0 or #report>98304 then return false end
+    local list=Settings.GetDiagnosticReports()
+    table.insert(list,1,{label=label,text=report})
+    while #list>3 do table.remove(list) end
+    WriteDB().diagnosticReports=list
+    return true
+end
+function Settings.ClearDiagnosticReports()
+    local db=ReadDB()
+    if db then db.diagnosticReports=nil end
+end
+
 function Settings.GetWorkspace()
     local db = ReadDB()
     local state = db and db.lastWorkspace

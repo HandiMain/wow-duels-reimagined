@@ -10,5 +10,9 @@ SlashCmdList.DUELSREIMAGINED = function(message)
         ns.DuelSelfTest.Run(nil,message=="test verbose")
         return
     end
+    if message=="diagnostics" then
+        ns.DiagnosticsUI.Open()
+        return
+    end
     ns.Window.Toggle()
 end
