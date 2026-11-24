@@ -21,14 +21,24 @@ class AchievementArtTests(unittest.TestCase):
         self.assertNotIn("Interface\\\\Icons",ui)
         self.assertNotIn("wreathL",ui)
         self.assertNotIn("pointsLaurel",ui)
-        self.assertIn('f.medallion=Crop(f,"ARTWORK",1,0,752,128,128)',ui)
-        self.assertIn('pointsPlaque=Crop(pointsPanel,"ARTWORK",1,0,640,384,96)',ui)
+        self.assertIn('f.medallion=Crop(f,"ARTWORK",1,768,274,128,92)',ui)
+        self.assertIn('pointsPlaque=Crop(pointsPanel,"ARTWORK",1,0,784,384,126)',ui)
         self.assertIn("f.points:SetText(tostring(r.points))",ui)
         self.assertIn("points:SetText(tostring(data.points))",ui)
+    def test_shared_motion_contract(self):
+        ui=(ADDON/"UI/AchievementUI.lua").read_text()
+        self.assertIn("local M=ns.Motion",ui)
+        self.assertIn("W.PressFeedback(b,hover,{corner=11,hoverAlpha=.25,clickAlpha=.52})",ui)
+        self.assertIn("if b.chosen==on then return end",ui)
+        self.assertIn("M.Fade(selected,on and .13 or 0,.18)",ui)
+        self.assertIn("M.Stop(b._duelsPressFlash,0)",ui)
+        self.assertNotIn('SetScript("OnUpdate"',ui)
+        self.assertNotIn("CreateAnimationGroup",ui)
+
     def test_exact_packaged_atlas(self):
         data=(ADDON/"Media/Skin/DuelAchievementArt.png").read_bytes()
         self.assertEqual(data[:8],b"\x89PNG\r\n\x1a\n")
-        self.assertEqual(struct.unpack(">II",data[16:24]),(512,1024))
-        self.assertEqual(hashlib.sha1(b"blob "+str(len(data)).encode()+b"\0"+data).hexdigest(),"efcb19538395a035a469e2490fe8d098632510a8")
+        self.assertEqual(struct.unpack(">II",data[16:24]),(1024,1024))
+        self.assertEqual(hashlib.sha1(b"blob "+str(len(data)).encode()+b"\0"+data).hexdigest(),"b61e3b9afc29c8114fabffb1f6042f612a3cfc93")
 
 if __name__=="__main__": unittest.main()

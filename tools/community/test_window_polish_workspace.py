@@ -143,7 +143,7 @@ class WindowPolishWorkspaceTests(unittest.TestCase):
         self.assertNotIn('SkinDecor', toc)
         self.assertIn('db.uiTheme = nil', settings)
         self.assertIn('CreateFrame("Button", "DuelsReimaginedMinimapButton", UIParent)', access)
-        self.assertIn('local HALL_BUTTON_WIDTH = 205', read("UI/Navigation.lua"))
+        self.assertIn('local HALL_BUTTON_WIDTH, HALL_BUTTON_HEIGHT = 166, 68', read("UI/Navigation.lua"))
         self.assertIn('UI\\Motion.lua', toc)
         self.assertIn('UI\\Feedback.lua', toc)
         self.assertNotIn('PlaySound(', window)

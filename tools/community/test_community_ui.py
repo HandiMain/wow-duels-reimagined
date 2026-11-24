@@ -183,7 +183,7 @@ class CommunityUITests(unittest.TestCase):
         self.assertNotIn('primary = true', navigation)
         self.assertNotIn('Chrome.PrimaryRail', navigation)
         self.assertNotIn('function Chrome.PrimaryRail', chrome)
-        self.assertIn('button:SetSize(HALL_BUTTON_WIDTH, 84)', navigation)
+        self.assertIn('button:SetSize(HALL_BUTTON_WIDTH, HALL_BUTTON_HEIGHT)', navigation)
         self.assertIn('button:SetSize(112, 30)', navigation)
         self.assertIn('Window.utility', navigation)
         self.assertIn('button:SetPoint("TOP", Window.rail, "TOP",', navigation)

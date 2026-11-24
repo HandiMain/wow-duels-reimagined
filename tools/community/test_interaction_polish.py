@@ -145,7 +145,7 @@ class InteractionPolishTests(unittest.TestCase):
         self.assertNotIn('UI\\UISounds.lua', toc)
         self.assertNotIn('PlaySound(', feedback)
         self.assertNotIn('PlaySoundFile(', feedback)
-        self.assertIn('local HALL_BUTTON_WIDTH = 205', nav)
+        self.assertIn('local HALL_BUTTON_WIDTH, HALL_BUTTON_HEIGHT = 166, 68', nav)
         self.assertIn('local initialMode = Mode()', read("UI/AccessIcons.lua"))
         self.assertNotIn('themeChoice', opts)
         self.assertIn('local matchFontRow = AddToggle(appearanceCard', opts)

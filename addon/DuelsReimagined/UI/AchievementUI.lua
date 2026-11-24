@@ -14,10 +14,10 @@ local iconSlots={
 local HIDDEN_SLOT=35
 local function Sample(t,x,y,w,h)
     t:SetTexture(ART)
-    t:SetTexCoord((x+.5)/512,(x+w-.5)/512,(y+.5)/1024,(y+h-.5)/1024)
+    t:SetTexCoord((x+.5)/1024,(x+w-.5)/1024,(y+.5)/1024,(y+h-.5)/1024)
 end
 local function PaintIcon(t,slot)
-    Sample(t,(slot%6)*80+2,math.floor(slot/6)*80+2,76,76)
+    Sample(t,(slot%6)*128+1,math.floor(slot/6)*128+1,126,126)
 end
 local function Place(f,p,x,y,w,h)
     f:ClearAllPoints();f:SetPoint("TOPLEFT",p,"TOPLEFT",x,-y);f:SetSize(math.max(1,w),math.max(1,h))
@@ -26,7 +26,7 @@ local function Crop(p,layer,sub,x,y,w,h)
     local t=p:CreateTexture(nil,layer,nil,sub);ns.Chrome.Sharp(t)
     Sample(t,x,y,w,h);return t
 end
-function U.Plaque(p,layer,sub)return Crop(p,layer,sub,0,512,256,108) end
+function U.Plaque(p,layer,sub)return Crop(p,layer,sub,768,0,256,108) end
 local function Label(p,txt,size,color,align)
     local f=S.Text(p,txt,size,color);f:SetJustifyH(align or "LEFT");f:SetJustifyV("MIDDLE");f:SetWordWrap(false);return f
 end
@@ -39,12 +39,29 @@ end
 local function Button(p,fn)
     local b=CreateFrame("Button",nil,p);local plate=S.Plate(b,"dark",{corner=8})
     b.label=Label(b,"",14,C.pale,"CENTER");b:SetScript("OnClick",fn)
-    local hover=S.FeedbackOverlay(b,{corner=8,inset=2,fill=C.gold,edge=C.gold,shine=.4,rim=.6})
-    hover:SetAlpha(0)
-    b:SetScript("OnEnter",function()ns.Motion.Fade(hover,.24,ns.Motion.Duration("quick"))end)
-    b:SetScript("OnLeave",function()ns.Motion.Fade(hover,0,ns.Motion.Duration("gentle"))end)
-    W.PressFeedback(b,hover)
-    function b.Active(on) if plate and plate.SetStyle then plate:SetStyle(on and "gold" or "dark") end end
+    -- Same separate chosen/hover/press layers and durations as main navigation.
+    -- Motion owns reduced-motion behavior. Render never restarts an unchanged tween.
+    local M=ns.Motion
+    local selected=S.FeedbackOverlay(b,{corner=10,inset=2,fill=C.goldDim,edge=C.gold,shine=.46,rim=.86})
+    local hover=S.FeedbackOverlay(b,{corner=10,inset=2,fill=C.gold,edge=C.gold,shine=.67,rim=.75})
+    selected:SetAlpha(0);hover:SetAlpha(0)
+    b.achievementSelected=selected;b.achievementHover=hover
+    b:SetScript("OnEnter",function()M.Fade(hover,b.chosen and .16 or .42,M.Duration("quick"))end)
+    b:SetScript("OnLeave",function()M.Fade(hover,0,M.Duration("gentle"))end)
+    W.PressFeedback(b,hover,{corner=11,hoverAlpha=.25,clickAlpha=.52})
+    function b.Active(on)
+        if b.chosen==on then return end
+        local initial=b.chosen==nil
+        b.chosen=on
+        if plate and plate.SetStyle then plate:SetStyle(on and "gold" or "dark") end
+        if initial then M.Stop(selected,on and .13 or 0)
+        else M.Fade(selected,on and .13 or 0,.18);M.Fade(hover,0,.13) end
+    end
+    function b.ResetMotion()
+        M.Stop(hover,0);M.Stop(selected,b.chosen and .13 or 0)
+        if b._duelsPressFlash then M.Stop(b._duelsPressFlash,0) end
+    end
+    b:HookScript("OnHide",b.ResetMotion)
     return b
 end
 local page=CreateFrame("Frame",nil,ns.Window.content)
@@ -52,11 +69,11 @@ page:SetPoint("TOPLEFT",ns.Window.content,"TOPLEFT",22,-17);page:SetPoint("BOTTO
 page:Hide()
 if ns.DiagnosticAudit then ns.DiagnosticAudit.RegisterUIRoot("Achievements",page) end
 if page.SetClipsChildren then page:SetClipsChildren(true) end
-local hero=Crop(page,"ARTWORK",1,272,512,80,80)
+local hero=Crop(page,"ARTWORK",1,778,154,112,80)
 local title=Label(page,"Achievements",26,C.pale)
 local subtitle=Label(page,"Prove your dueling skill and earn unique achievements.",13,C.text)
 local pointsPanel=CreateFrame("Frame",nil,page)
-local pointsPlaque=Crop(pointsPanel,"ARTWORK",1,0,640,384,96);pointsPlaque:SetAllPoints(pointsPanel)
+local pointsPlaque=Crop(pointsPanel,"ARTWORK",1,0,784,384,126);pointsPlaque:SetAllPoints(pointsPanel)
 local pointsTitle=Label(pointsPanel,"Achievement Points",13,C.pale,"CENTER")
 local points=Label(pointsPanel,"0",29,C.pale,"CENTER")
 local status=Label(page,"",11,C.muted)
@@ -78,7 +95,7 @@ end
 local all={"All"};for _,cat in ipairs(ns.Achievements.Categories) do all[#all+1]=cat end
 for i,cat in ipairs(all) do
     local key=cat;local b=Button(left,function()Select(key)end);b.icon=Icon(b)
-    if i==1 then Sample(b.icon,272,512,80,80) else PaintIcon(b.icon,28+i) end
+    if i==1 then Sample(b.icon,778,154,112,80) else PaintIcon(b.icon,28+i) end
     filters[i]=b
 end
 local function Row()
@@ -87,7 +104,7 @@ local function Row()
     f.track=Panel(f);f.fill=f.track:CreateTexture(nil,"ARTWORK",nil,2)
     f.fill:SetColorTexture(1,.73,.25,1);f.counter=Label(f.track,"",12,C.text,"CENTER")
     f.counter:SetAllPoints(f.track)
-    f.medallion=Crop(f,"ARTWORK",1,0,752,128,128)
+    f.medallion=Crop(f,"ARTWORK",1,768,274,128,92)
     f.points=Label(f,"",21,C.pale,"CENTER");f.pointsLabel=Label(f,"Points",11,C.text,"CENTER")
     f.state=Label(f,"",12,C.pale,"CENTER");f.when=Label(f,"",11,C.muted,"CENTER")
     f:EnableMouseWheel(true);f:SetScript("OnMouseWheel",function(_,d)U.SetPageScroll(nil,offset-(d>0 and 1 or -1))end)
@@ -104,8 +121,10 @@ local function Paint(f,r,w,h)
     local sz=h-10;Place(f.icon,f,5,5,sz,sz)
     PaintIcon(f.icon,r.hidden and HIDDEN_SLOT or iconSlots[r.id] or HIDDEN_SLOT)
     local locked=r.unavailable or (not r.earned and r.progress==0)
-    f.icon:SetDesaturated(locked)
-    f.icon:SetVertexColor(locked and .78 or 1,locked and .78 or 1,locked and .78 or 1,1)
+    -- Keep authored metal and colored silhouettes readable even when locked.
+    -- The existing state text and subdued rim distinguish unavailable rows.
+    f.icon:SetDesaturated(false)
+    f.icon:SetVertexColor(locked and .86 or 1,locked and .86 or 1,locked and .86 or 1,1)
     local x=sz+17;local stateW=w>=530 and 130 or 90
     local pX=w-stateW-81
     local textW=math.max(55,pX-x-10)
@@ -117,11 +136,14 @@ local function Paint(f,r,w,h)
     Place(f.fill,f.track,3,3,math.max(1,(textW-6)*progress),10)
     f.fill:SetColorTexture(color[1],color[2],color[3],1);f.fill:SetShown(progress>0 and not r.unavailable)
     f.counter:SetText(r.unavailable and "Unavailable" or r.hidden and "?" or r.progress.." / "..r.target)
-    local medSize=math.min(78,h-6)
-    Place(f.medallion,f,pX+(81-medSize)/2,(h-medSize)/2,medSize,medSize)
+    -- A single sculpted open wreath; no baked-in shield, label or number.
+    local medW=math.min(81,(h-6)*128/92)
+    local medH=medW*92/128
+    local medY=(h-medH)/2
+    Place(f.medallion,f,pX+(81-medW)/2,medY,medW,medH)
     f.medallion:SetDesaturated(locked)
-    f.medallion:SetVertexColor(locked and .78 or 1,locked and .78 or 1,locked and .78 or 1,1)
-    Place(f.points,f,pX+12,(h-42)/2,57,25);Place(f.pointsLabel,f,pX+12,(h-42)/2+24,57,16)
+    f.medallion:SetVertexColor(locked and .91 or 1,locked and .91 or 1,locked and .91 or 1,1)
+    Place(f.points,f,pX+12,medY+3,57,25);Place(f.pointsLabel,f,pX+12,medY+25,57,15)
     f.points:SetText(tostring(r.points));f.points:SetTextColor(unpack(locked and C.muted or C.pale))
     f.pointsLabel:SetTextColor(unpack(locked and C.muted or C.text))
     Place(f.state,f,w-stateW-4,15,stateW,22);Place(f.when,f,w-stateW-4,37,stateW,18)
@@ -135,15 +157,15 @@ Render=function()
     local w,h=page:GetWidth(),page:GetHeight()
     if w<10 or h<10 then return end
     local narrow=w<700;local heroW=narrow and 55 or 68
-    Place(hero,page,0,0,heroW,heroW)
+    Place(hero,page,0,2,heroW,heroW*80/112)
     Place(title,page,heroW+8,0,math.max(90,w*.48-heroW),34)
     Place(subtitle,page,heroW+8,32,math.max(100,w*.57-heroW),20)
-    local pw=math.min(270,w*.34)
-    -- Keep the single plaque at its natural aspect; shared Back stays clear.
-    local ph=pw/4
+    local pw=math.min(230,w*.34)
+    -- Natural ribbon proportions and a safe gap to the category strip.
+    local ph=pw*126/384
     Place(pointsPanel,page,w-pw-75,0,pw,ph)
-    Place(pointsTitle,pointsPanel,pw*.13,ph*.06,pw*.74,ph*.28)
-    Place(points,pointsPanel,pw*.43,ph*.36,pw*.33,ph*.52)
+    Place(pointsTitle,pointsPanel,pw*.16,ph*.295,pw*.68,ph*.23)
+    Place(points,pointsPanel,pw*.30,ph*.575,pw*.40,ph*.32)
     points:SetText(tostring(data.points))
     Place(status,page,0,57,w,16)
     status:SetText(data.scope=="SIMULATED" and "SOLO TEST - SIMULATED" or data.storageReason and "Local history unavailable" or data.recordingDisabled and "Local recording disabled - achievements unavailable" or "Duel achievements - local records")
@@ -157,8 +179,8 @@ Render=function()
     end
     local lw=math.min(200,w*.235)
     Place(left,page,0,140,lw,math.max(1,h-140))
-    Place(categoryEmblem,left,9,7,29,29)
-    if category=="All" then Sample(categoryEmblem,272,512,80,80)
+    Place(categoryEmblem,left,9,8,29,26)
+    if category=="All" then Sample(categoryEmblem,778,154,112,80)
     else for i,cat in ipairs(ns.Achievements.Categories) do if cat==category then PaintIcon(categoryEmblem,29+i);break end end end
     Place(categoryTitle,left,42,8,lw-50,31);categoryTitle:SetText(category=="All" and "Collection" or category)
     for i,b in ipairs(filters) do
@@ -198,4 +220,8 @@ function U.Show(on)
 end
 page:SetScript("OnSizeChanged",Render)
 page:SetScript("OnShow",function()if shown then U.Refresh()end end)
-page:HookScript("OnHide",function()data=nil end)
+page:HookScript("OnHide",function()
+    data=nil
+    for _,b in ipairs(tabs) do b.ResetMotion() end
+    for _,b in ipairs(filters) do b.ResetMotion() end
+end)

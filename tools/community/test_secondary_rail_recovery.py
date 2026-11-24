@@ -39,7 +39,7 @@ class SecondaryRailRecoveryTests(unittest.TestCase):
 
     def test_primary_hall_and_subcategories_do_not_share_a_rail(self):
         nav, window = text("UI/Navigation.lua"), text("UI/Window.lua")
-        self.assertIn('button:SetSize(HALL_BUTTON_WIDTH, 84)', nav)
+        self.assertIn('button:SetSize(HALL_BUTTON_WIDTH, HALL_BUTTON_HEIGHT)', nav)
         self.assertIn('button:SetSize(112, 30)', nav)
         self.assertIn('sub:SetSize(174, 35)', nav)
         self.assertIn('Window.nav:SetScript("OnSizeChanged", FitSubTabs)', nav)

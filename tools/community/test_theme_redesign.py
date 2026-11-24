@@ -19,8 +19,8 @@ class ThemeRedesignTests(unittest.TestCase):
             'local pageIcon = Chrome.Icon(content, "Options")',
         ):
             self.assertIn(token, w)
-        self.assertIn('local HALL_BUTTON_WIDTH = 205', n)
-        self.assertIn('button:SetSize(HALL_BUTTON_WIDTH, 84)', n)
+        self.assertIn('local HALL_BUTTON_WIDTH, HALL_BUTTON_HEIGHT = 166, 68', n)
+        self.assertIn('button:SetSize(HALL_BUTTON_WIDTH, HALL_BUTTON_HEIGHT)', n)
         self.assertIn('button:SetSize(112, 30)', n)
         self.assertIn('sub:SetSize(174, 35)', n)
         self.assertIn('local function FitSubTabs(self, width)', n)

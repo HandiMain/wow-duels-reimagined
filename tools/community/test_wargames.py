@@ -130,8 +130,8 @@ class WarGamesTests(unittest.TestCase):
 
     def test_same_sized_primary_skin_reuses_existing_art(self):
         nav=src("UI/Navigation.lua")
-        self.assertIn("HALL_BUTTON_WIDTH = 205",nav)
-        self.assertIn('button:SetSize(HALL_BUTTON_WIDTH, 84)',nav)
+        self.assertIn("HALL_BUTTON_WIDTH, HALL_BUTTON_HEIGHT = 166, 68",nav)
+        self.assertIn('button:SetSize(HALL_BUTTON_WIDTH, HALL_BUTTON_HEIGHT)',nav)
         self.assertIn('Style.PlateImage(button, "hall", "ARTWORK", 2)',nav)
         self.assertIn('DuelWarGamesPlate.png',nav)
         self.assertIn('button.hallGlow = glow',nav)

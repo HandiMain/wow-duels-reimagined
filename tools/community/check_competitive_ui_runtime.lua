@@ -199,15 +199,26 @@ assert(Ach.GetPageScroll()>0)
 Ach.SetPageScroll("achievements",0)
 assert(HasText("The Beginning"))
 local selected=false
+local categoryButton
 for _,f in ipairs(frames) do
     if f.text=="Competitive" and f:IsVisible() and f.parent and f.parent.scripts.OnClick then
-        f.parent.scripts.OnClick();selected=true;break
+        categoryButton=f.parent
+        local b=categoryButton
+        assert(b.achievementHover:GetAlpha()==0 and b.achievementSelected:GetAlpha()==0)
+        b.scripts.OnEnter();assert(b.achievementHover:GetAlpha()==.42)
+        b.scripts.OnLeave();assert(b.achievementHover:GetAlpha()==0)
+        b.scripts.OnClick();selected=true
+        assert(b.chosen and b.achievementSelected:GetAlpha()==.13)
+        b.scripts.OnEnter();assert(b.achievementHover:GetAlpha()==.16)
+        Ach.Refresh();assert(b.achievementHover:GetAlpha()==.16,"refresh must not restart feedback")
+        break
     end
 end
 assert(selected and HasText("Into the Arena") and not HasText("The Beginning"))
 assert(P.Command("stop"))
 assert(HasText("Local history unavailable") and not HasText("Completed"))
-Ach.Show(false);Ach.Show(true);Ach.Show(false)
+Ach.Show(false);assert(categoryButton.achievementHover:GetAlpha()==0)
+Ach.Show(true);Ach.Show(false)
 assert(#frames==frameCount,"Achievement navigation must reuse frames")
 assert(_G.DuelsReimaginedCompetitiveDB==nil and _G.DuelsReimaginedCharacterDB==nil)
 print("Achievements UI mocked controllers: PASS (scope, updates, filters, scroll, reuse)")

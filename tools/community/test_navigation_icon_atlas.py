@@ -40,8 +40,8 @@ class NavigationIconAtlasTests(unittest.TestCase):
     def test_fixed_atlas_icons_fit_new_hall_and_footer_buttons(self):
         nav = source("UI/Navigation.lua")
         for token in (
-            "button:SetSize(HALL_BUTTON_WIDTH, 84)",
-            "local HALL_BUTTON_WIDTH = 205",
+            "button:SetSize(HALL_BUTTON_WIDTH, HALL_BUTTON_HEIGHT)",
+            "local HALL_BUTTON_WIDTH, HALL_BUTTON_HEIGHT = 166, 68",
             "button:SetSize(112, 30)",
             "icon:SetSize(isPrimary and 48 or 20",
             'icon:SetPoint("TOP", button, "TOP", 0, -4)',
