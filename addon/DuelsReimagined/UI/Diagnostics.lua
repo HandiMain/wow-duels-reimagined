@@ -27,7 +27,7 @@ local function Build()
     local close=ns.Header.CreateCloseButton(frame)
     close:SetPoint("TOPRIGHT",frame,"TOPRIGHT",-12,-12)
     close:SetScript("OnClick",function() frame:Hide() end)
-    local status=Style.Text(frame,"Runtime health and Developer QA",13,C.text)
+    local status=Style.Text(frame,"Run a full scan, then copy the report to share with support.",13,C.text)
     status:SetPoint("TOPLEFT",frame,"TOPLEFT",20,-51)
     local StopMonitor
     local function Button(label,x,y,w,plate,fn)
@@ -40,8 +40,8 @@ local function Build()
         end);return b
     end
     local scroll=CreateFrame("ScrollFrame",nil,frame)
-    scroll:SetPoint("TOPLEFT",frame,"TOPLEFT",20,-156)
-    scroll:SetPoint("BOTTOMRIGHT",frame,"BOTTOMRIGHT",-20,84)
+    scroll:SetPoint("TOPLEFT",frame,"TOPLEFT",20,-120)
+    scroll:SetPoint("BOTTOMRIGHT",frame,"BOTTOMRIGHT",-20,66)
     scroll:EnableMouseWheel(true)
     Style.Skin(scroll,C.body,{corner=8,edge=C.border,shine=.08,shade=.08})
     local box=CreateFrame("EditBox",nil,scroll)
@@ -79,11 +79,24 @@ local function Build()
     end)
     scroll:SetScript("OnVerticalScroll",function() bar:Refresh() end)
     scroll:SetScript("OnScrollRangeChanged",function() bar:Refresh() end)
-    local advanced=false
+    -- Players get the complete technical report without choosing a mode.
+    local advanced=true
+    local toggle
+    local toolsOpen=false
+    local tools={}
+    local function Tool(label,x,y,w,plate,fn)
+        local b=Button(label,x,y,w,plate,fn)
+        tools[#tools+1]=b
+        b:Hide()
+        return b
+    end
     local function Render()
+        if toggle then toggle.label:SetText(advanced and "Summary" or "Full Report") end
         local r=ns.Diagnostics.GetLast()
-        status:SetText(r and ("Last run: "..r.status.."  |  "..r.mode.."  |  "..r.stamp) or "Run a health check or complete QA.")
-        SetText(ns.Diagnostics.BuildReport(r,advanced))
+        status:SetText(r and ("Scan finished: "..r.status.."  |  "..r.stamp) or
+            "Run a full scan, then copy the report to share with support.")
+        SetText(r and ns.Diagnostics.BuildReport(r,advanced) or
+            "No report yet. Click Run Full Scan to check the addon.")
     end
     local function Run(mode)
         local ok,err=ns.Diagnostics.RunAsync(mode,function(r,why)
@@ -91,12 +104,33 @@ local function Build()
         end,function(message) status:SetText(message) end)
         if not ok then status:SetText(err or "Check unavailable") end
     end
-    Button("Run Health Check",20,78,164,"dark",function() Run("health") end)
-    Button("Run Complete Check",192,78,190,"gold",function() Run("complete") end)
-    local toggle
-    toggle=Button("Advanced Report",390,78,160,"dark",function()
+    Button("Run Full Scan",20,78,220,"gold",function()
+        advanced=true
+        SetText("Running full diagnostics. Please keep this window open.")
+        Run("complete")
+    end)
+    local disclosure
+    local function SetTools(open)
+        toolsOpen=open
+        for _,b in ipairs(tools) do b:SetShown(open) end
+        disclosure.label:SetText(open and "Hide Developer Tools" or "Developer Tools")
+        scroll:ClearAllPoints()
+        scroll:SetPoint("TOPLEFT",frame,"TOPLEFT",20,open and -234 or -120)
+        scroll:SetPoint("BOTTOMRIGHT",frame,"BOTTOMRIGHT",-20,66)
+        if not open then
+            advanced=true
+            if toggle then toggle.label:SetText("Summary") end
+        end
+        Fit();bar:Refresh()
+    end
+    disclosure=Button("Developer Tools",546,78,194,"dark",function()
+        SetTools(not toolsOpen)
+        Render()
+    end)
+    Tool("Quick Health",20,116,174,"dark",function() Run("health") end)
+    toggle=Tool("Summary",202,116,174,"dark",function()
         advanced=not advanced
-        toggle.label:SetText(advanced and "Summary" or "Advanced Report");Render()
+        toggle.label:SetText(advanced and "Summary" or "Full Report");Render()
     end)
     -- Separate developer tools row. No extra permanent driver.
     local monitor=false
@@ -112,7 +146,7 @@ local function Build()
         status:SetText("Performance | "..state)
         SetText(detail)
     end
-    perf=Button("Performance",20,116,164,"dark",function()
+    perf=Tool("Performance",384,116,174,"dark",function()
         if monitor then StopMonitor();Render();return end
         monitor=true
         perf.label:SetText("Stop Monitor");Sample()
@@ -122,7 +156,7 @@ local function Build()
             end)
         end
     end)
-    Button("Error Capture",192,116,164,"dark",function()
+    Tool("Error Capture",566,116,174,"dark",function()
         StopMonitor()
         local a=ns.DiagnosticAudit
         local ok,detail
@@ -130,7 +164,7 @@ local function Build()
         else ok,detail=a.StartCapture() end
         status:SetText(detail)
     end)
-    Button("Save Baseline",364,116,174,"gold",function()
+    Tool("Save Baseline",20,154,174,"dark",function()
         StopMonitor()
         local r=ns.Diagnostics.GetLast()
         if not r or r.mode~="complete" or r.status~="PASS" then
@@ -139,14 +173,14 @@ local function Build()
         local ok=ns.Settings.SaveDiagnosticBaseline(ns.Client.Kind(),r)
         status:SetText(ok and "Healthy baseline saved for this client." or "Baseline not saved.")
     end)
-    Button("Release Gate",546,116,194,"dark",function()
+    Tool("Release Gate",202,154,174,"dark",function()
         StopMonitor()
         status:SetText("Release readiness")
         SetText(ns.DiagnosticAudit.ReleaseGate(ns.Diagnostics.GetLast()))
     end)
     local savedIndex=0
     local confirmClear=false
-    Button("Incident Log",558,78,182,"dark",function()
+    Tool("Incident Log",384,154,174,"dark",function()
         local lines={"Session incidents (addon-attributable only)"}
         for _,i in ipairs(ns.Diagnostics.GetIncidents()) do
             lines[#lines+1]=i.kind.." x"..i.count.." | "..i.latest.."\n"..i.message
@@ -155,36 +189,42 @@ local function Build()
         status:SetText("Session incident history");SetText(table.concat(lines,"\n"))
     end)
     local bottom=frame:CreateFontString(nil,"OVERLAY","GameFontHighlightSmall")
-    bottom:SetPoint("BOTTOMLEFT",frame,"BOTTOMLEFT",20,55)
-    bottom:SetText("Ctrl+C copies selected text. Memory refresh is manual.")
-    local sample=Button("Sample Memory",0,0,156,"dark",function()
+    bottom:SetPoint("BOTTOMLEFT",frame,"BOTTOMLEFT",20,49)
+    bottom:SetText("Copy Report selects the text. Press Ctrl+C, then review before sharing.")
+    Tool("Sample Memory",566,154,174,"dark",function()
         local ok,detail=ns.DiagnosticAudit.SampleMemory()
         status:SetText(detail)
         if ok then local _,report=ns.DiagnosticAudit.Performance();SetText(report) end
     end)
-    sample:ClearAllPoints();sample:SetPoint("BOTTOMRIGHT",frame,"BOTTOMRIGHT",-20,46)
     local function Footer(label,x,w,plate,fn)
         local b=Button(label,x,0,w,plate,fn)
         b:ClearAllPoints();b:SetPoint("BOTTOMLEFT",frame,"BOTTOMLEFT",x,16)
         return b
     end
-    Footer("Select Report",20,126,"dark",function() box:SetFocus();box:HighlightText() end)
-    Footer("Save Report",154,126,"gold",function()
+    Footer("Copy Report",20,174,"dark",function()
+        if not toolsOpen then
+            if not ns.Diagnostics.GetLast() then status:SetText("Run Full Scan first.");return end
+            advanced=true;Render()
+        end
+        box:SetFocus();box:HighlightText()
+        status:SetText("Report selected. Press Ctrl+C to copy, then paste into your message.")
+    end)
+    Tool("Save Report",20,192,174,"dark",function()
         local r=ns.Diagnostics.GetLast()
         if not r then status:SetText("Run a check first.");return end
         local ok=ns.Settings.SaveDiagnosticReport(r.stamp,ns.Diagnostics.BuildReport(r,true))
         status:SetText(ok and "Saved. /reload or logout writes DuelsReimaginedDB.lua." or "Report not saved.")
     end)
-    Footer("Saved Reports",288,136,"dark",function()
+    Tool("Saved Reports",202,192,174,"dark",function()
         local reports=ns.Settings.GetDiagnosticReports()
         if #reports==0 then status:SetText("No saved reports.");return end
         savedIndex=savedIndex%#reports+1
         status:SetText("Saved "..savedIndex.."/"..#reports.." | "..reports[savedIndex].label)
         SetText(reports[savedIndex].text)
     end)
-    Footer("Latest",432,82,"dark",Render)
+    Tool("Latest",384,192,174,"dark",Render)
     local clear
-    clear=Footer("Clear Saved",522,96,"dark",function()
+    clear=Tool("Clear Saved",566,192,174,"dark",function()
         if not confirmClear then
             confirmClear=true;clear.label:SetText("Confirm")
             status:SetText("Click Confirm to delete only saved diagnostic reports.")
@@ -194,14 +234,20 @@ local function Build()
         confirmClear=false;clear.label:SetText("Clear Saved");savedIndex=0
         Render();status:SetText("Saved diagnostic reports cleared.")
     end)
-    Footer("Close",626,114,"hall",function() frame:Hide() end)
+    -- Closing is always available, including while a batched scan is running.
+    local closeFooter=Footer("Close",626,114,"hall",function() frame:Hide() end)
+    closeFooter:SetScript("OnClick",function() frame:Hide() end)
     frame:SetScript("OnHide",function()
         ns.Diagnostics.CancelPending()
         StopMonitor()
         confirmClear=false;clear.label:SetText("Clear Saved")
         box:ClearFocus();frame:StopMovingOrSizing()
     end)
-    frame:SetScript("OnShow",function() advanced=false;toggle.label:SetText("Advanced Report");Render() end)
+    frame:SetScript("OnShow",function()
+        advanced=true
+        SetTools(false)
+        Render()
+    end)
     if type(UISpecialFrames)=="table" then table.insert(UISpecialFrames,"DuelsReimaginedDiagnosticsWindow") end
 end
 function View.Open()

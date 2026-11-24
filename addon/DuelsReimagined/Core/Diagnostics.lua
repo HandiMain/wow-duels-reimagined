@@ -363,7 +363,7 @@ function D.RunAsync(mode,callback,progress)
     return true
 end
 function D.BuildReport(result,advanced)
-    if not result then return "No scan yet. Run Health Check or Run Complete Check." end
+    if not result then return "No report yet. Click Run Full Scan to check the addon." end
     local r=result
     local lines={"Duels Reimagined Diagnostics | "..r.stamp,
         "Runtime "..r.mode.." | "..r.status.." | "..ns.Client.Kind(),

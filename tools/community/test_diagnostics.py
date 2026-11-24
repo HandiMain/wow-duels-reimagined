@@ -59,9 +59,27 @@ class DiagnosticsContracts(unittest.TestCase):
         self.assertIn("GetNumRegions",a)
         self.assertIn("function D.RunAsync",d)
         self.assertIn("ns.Diagnostics.CancelPending()",u)
-        self.assertIn('Button("Sample Memory"',u)
+        self.assertIn('Tool("Sample Memory"',u)
         for page in ("Options","Community","AddonStatus","WarGames","PatchNotes"):
             self.assertIn("RegisterUIRoot",read("UI/"+page+".lua"))
+
+    def test_player_first_diagnostics_disclosure(self):
+        u=read("UI/Diagnostics.lua")
+        self.assertIn('Button("Run Full Scan",20,78,220,"gold"',u)
+        self.assertIn('Run("complete")',u)
+        self.assertIn('local advanced=true',u)
+        self.assertIn('SetTools(false)',u)
+        self.assertIn('for _,b in ipairs(tools) do b:SetShown(open) end',u)
+        self.assertIn('Footer("Copy Report"',u)
+        self.assertIn('box:SetFocus();box:HighlightText()',u)
+        self.assertIn('Press Ctrl+C',u)
+        self.assertIn('closeFooter:SetScript("OnClick",function() frame:Hide() end)',u)
+        for label in ("Quick Health","Summary","Performance","Error Capture","Save Baseline",
+                      "Release Gate","Incident Log","Sample Memory","Save Report","Saved Reports",
+                      "Latest","Clear Saved"):
+            self.assertIn('Tool("'+label+'"',u)
+        self.assertNotIn('Button("Run Complete Check"',u)
+        self.assertNotIn('Button("Run Health Check"',u)
 
     def test_report_storage_owned_by_settings(self):
         self.assertIn("function Settings.SaveDiagnosticReport",read("Core/Settings.lua"))
