@@ -12,6 +12,7 @@ Core\Client.lua
 Core\Settings.lua
 Core\Group.lua
 Core\DuelDetection.lua
+Core\DuelSelfTest.lua
 Core\Communication.lua
 Core\Presence.lua
 Core\WarGames.lua [AllowLoadGameType standard]

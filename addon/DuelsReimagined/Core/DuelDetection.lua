@@ -2,8 +2,14 @@ local _, ns = ...
 
 -- Single owner of LOCAL duel evidence. No UI, combat-log inference, protected
 -- action, saved record, rating or peer communication. See docs/DUEL_DETECTION.md.
+-- The same engine runs in independent instances. Only the live instance
+-- receives real WoW APIs; the sandbox has its own clock, events and identities.
+local function BuildDetector(ns, api)
+local GetTime, CreateFrame, C_Timer = api.GetTime, api.CreateFrame, api.C_Timer
+local hooksecurefunc, StartDuel, issecretvalue = api.hooksecurefunc, api.StartDuel, api.issecretvalue
+local DUEL_COUNTDOWN, DUEL_WINNER_KNOCKOUT, DUEL_WINNER_RETREAT =
+    api.countdown, api.knockout, api.retreat
 local D = {}
-ns.DuelDetection = D
 local listeners, trace, capabilities = {}, {}, {}
 local challenge, active, last
 local cycle, revision = 0, 0
@@ -36,7 +42,7 @@ local function Copy(x)
 end
 function D.GetSnapshot()
     return Copy({state=state,reason=reason,revision=revision,
-        client=ns.Client.Kind(),challenge=challenge,active=active,last=last,
+        client=ns.Client.Kind(),scope=api.scope,challenge=challenge,active=active,last=last,
         capabilities=capabilities,trace=trace})
 end
 function D.Subscribe(fn)
@@ -167,7 +173,7 @@ local function Finalize(why,allowResult)
     local result=allowResult and d.result and d.finishSeen and not d.conflict
         and d.result or nil
     active,challenge=nil,nil
-    last={id=d.id,client=ns.Client.Kind(),scope="LOCAL",
+    last={id=d.id,client=ns.Client.Kind(),scope=api.scope,
         kind=d.kind,direction=d.direction,opponent=Copy(d.opponent),
         acceptedAt=d.acceptedAt,endedAt=Now(),
         outcome=result and result.outcome or "unknown",
@@ -303,7 +309,7 @@ local function ResetWorld()
 end
 function D.PrintStatus(verbose)
     local s=D.GetSnapshot()
-    print("Duels Reimagined | LOCAL detector: "..s.state.." ("..s.reason..") | "..s.client)
+    print("Duels Reimagined | "..api.scope.." detector: "..s.state.." ("..s.reason..") | "..s.client)
     local current=s.active or s.challenge
     if current then
         print("Opponent: "..(current.opponent and current.opponent.display or "not observed"))
@@ -330,7 +336,7 @@ if not ns.Client.IsSupported() or not ns.Group.ReadPlayerIdentity or
     type(CreateFrame)~="function" or type(GetTime)~="function" or
     not C_Timer or type(C_Timer.After)~="function" then
     Publish("unavailable","unsupported_client_or_api")
-    return
+    return D
 end
 local driver=CreateFrame("Frame")
 local function Register(key,event)
@@ -346,7 +352,7 @@ if not (capabilities.finish and capabilities.system and capabilities.world and
     capabilities.countdown and capabilities.knockout and capabilities.retreat) then
     driver:UnregisterAllEvents()
     Publish("unavailable","required_evidence_unavailable")
-    return
+    return D
 end
 driver:SetScript("OnEvent",function(_,event,value)
     if event=="DUEL_REQUESTED" then
@@ -374,3 +380,84 @@ end
 -- No automatic actions and no hooks to combat-state events. Actual finish
 -- evidence and the localized result line, not combat, decide the outcome.
 Publish("idle","detector_ready")
+
+return D
+end
+
+local live = BuildDetector(ns,{
+    scope="LOCAL", GetTime=GetTime, CreateFrame=CreateFrame, C_Timer=C_Timer,
+    hooksecurefunc=hooksecurefunc, StartDuel=StartDuel, issecretvalue=issecretvalue,
+    countdown=DUEL_COUNTDOWN, knockout=DUEL_WINNER_KNOCKOUT, retreat=DUEL_WINNER_RETREAT,
+})
+ns.DuelDetection=live
+
+-- Only this explicitly simulated constructor is exposed. No caller can
+-- dispatch fake signals into the live instance or replace the real APIs.
+function live.NewSandbox(kind, currentLocale, missing)
+    if kind~="forever" and kind~="retail" then return nil end
+    local clock, timers, hooks = 0, {}, {}
+    local hidden={}
+    local frame={events={},scripts={}}
+    function frame:RegisterEvent(event)
+        if event==missing then error("SIMULATED unavailable event") end
+        self.events[event]=true
+    end
+    function frame:UnregisterAllEvents() self.events={} end
+    function frame:SetScript(key,fn) self.scripts[key]=fn end
+    local sep=kind=="forever" and " " or "-"
+    local people={
+        player={fullName="TestAlpha"..sep.."Home",guid="SIMULATED-1"},
+        target={fullName="TestBeta"..sep.."Other",guid="SIMULATED-2"},
+    }
+    local formats={
+        countdown="Duel starting: %d",
+        knockout="%1$s has defeated %2$s in a duel",
+        retreat="%2$s has fled from %1$s in a duel",
+    }
+    if currentLocale then
+        formats.countdown=DUEL_COUNTDOWN
+        formats.knockout=DUEL_WINNER_KNOCKOUT
+        formats.retreat=DUEL_WINNER_RETREAT
+    end
+    local fakeNS={
+        Client={Kind=function() return kind end,IsSupported=function() return true end,
+            IsForever=function() return kind=="forever" end},
+        Group={ReadPlayerIdentity=function(unit) return people[unit] end},
+    }
+    local d=BuildDetector(fakeNS,{
+        scope="SIMULATED",GetTime=function() return clock end,
+        CreateFrame=function() return frame end,
+        C_Timer={After=function(delay,fn)
+            timers[#timers+1]={at=clock+delay,fn=fn}
+        end},
+        hooksecurefunc=function(key,fn) hooks[key]=fn end,
+        StartDuel=function() error("SIMULATED action forbidden") end,
+        issecretvalue=function(v) return v==hidden end,
+        countdown=formats.countdown,knockout=formats.knockout,retreat=formats.retreat,
+    })
+    local box={detector=d,people=people,hidden=hidden,formats=formats}
+    function box.Fire(event,value)
+        if frame.events[event] and frame.scripts.OnEvent then
+            frame.scripts.OnEvent(frame,event,value)
+        end
+    end
+    function box.Outgoing(unit)
+        local callback=hooks.StartDuel
+        if callback then callback(unit) end
+    end
+    function box.Advance(seconds)
+        local untilTime=clock+seconds
+        while true do
+            local best
+            for i,job in ipairs(timers) do
+                if job.at<=untilTime and (not best or job.at<timers[best].at) then best=i end
+            end
+            if not best then break end
+            local job=table.remove(timers,best)
+            clock=job.at
+            job.fn()
+        end
+        clock=untilTime
+    end
+    return box
+end

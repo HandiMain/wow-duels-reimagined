@@ -248,4 +248,28 @@ Check(Snap(x).state=="unavailable" and not Snap(x).capabilities.finish,
     "missing required event fails closed")
 x=Setup(120105,nil,{"bad %f","%s vs %s","%2$s fled %1$s"})
 Check(Snap(x).state=="unavailable","unsupported format fails closed")
+-- Exercise the actual in-game solo command suite, not a separate copy.
+for _,interface in ipairs({16001,120105}) do
+    local live=Setup(interface)
+    local kind=interface==16001 and "forever" or "retail"
+    local ns={DuelDetection=live.D,Client={Kind=function() return kind end}}
+    assert(loadfile(path.."DuelSelfTest.lua"))("DuelsReimagined",ns)
+    live.fire("DUEL_REQUESTED",kind=="forever" and "Beta Oak" or "Beta-Other")
+    local before=live.D.GetSnapshot()
+    local originalClock,originalFrame,originalTimer=GetTime,CreateFrame,C_Timer
+    local count=0
+    local remove=live.D.Subscribe(function() count=count+1 end)
+    local passed,failed=ns.DuelSelfTest.Run(function(line)
+        if line:find("FAIL ",1,true) then print(line) end
+    end,true)
+    Check(passed==42 and failed==0,"in-game solo suite failed: "..passed.."/"..failed)
+    local after=live.D.GetSnapshot()
+    Check(count==0 and before.revision==after.revision and after.state=="challenge",
+        "simulation altered live challenge or notified live subscribers")
+    Check(GetTime==originalClock and CreateFrame==originalFrame and C_Timer==originalTimer,
+        "simulation replaced global APIs")
+    remove()
+    local again,bad=ns.DuelSelfTest.Run(function() end)
+    Check(again==passed and bad==0,"repeat suite did not isolate state")
+end
 print("Duel detection simulated lifecycle contracts: PASS")

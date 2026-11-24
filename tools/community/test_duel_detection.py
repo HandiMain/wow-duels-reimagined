@@ -29,6 +29,22 @@ class DuelDetectionContracts(unittest.TestCase):
                          "function D.Subscribe(fn)"):
             self.assertIn(required,s)
 
+    def test_solo_sandbox_isolated_and_repeatable(self):
+        e=(ADDON/"Core/DuelDetection.lua").read_text()
+        s=(ADDON/"Core/DuelSelfTest.lua").read_text()
+        toc=(ADDON/"DuelsReimagined.toc").read_text()
+        self.assertLess(toc.index("Core\\DuelDetection.lua"),toc.index("Core\\DuelSelfTest.lua"))
+        self.assertIn("local function BuildDetector(ns, api)",e)
+        self.assertIn('scope="LOCAL", GetTime=GetTime',e)
+        self.assertIn('scope="SIMULATED",GetTime=function() return clock end',e)
+        self.assertIn("function live.NewSandbox",e)
+        self.assertIn("before.revision==after.revision",s)
+        self.assertIn('s.last.scope=="SIMULATED" and not s.last.rankEligible',s)
+        for forbidden in ("_G.", "SendAddonMessage", "DuelsReimaginedDB",
+                          "C_Timer.After", "AcceptDuel(", "StartDuel("):
+            self.assertNotIn(forbidden,s)
+        self.assertIn('message=="test verbose"',(ADDON/"Core/Commands.lua").read_text())
+
     def test_runtime_and_diagnostic_commands(self):
         test=(ROOT/"tools/community/check_runtime.lua").read_text()
         self.assertIn('dofile("tools/community/check_duel_detection_runtime.lua")',test)

@@ -6,5 +6,9 @@ SlashCmdList.DUELSREIMAGINED = function(message)
         ns.DuelDetection.PrintStatus(message=="trace")
         return
     end
+    if message=="test" or message=="test verbose" then
+        ns.DuelSelfTest.Run(nil,message=="test verbose")
+        return
+    end
     ns.Window.Toggle()
 end
