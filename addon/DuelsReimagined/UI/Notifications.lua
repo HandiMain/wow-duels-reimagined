@@ -267,8 +267,12 @@ local function ShowCurrent()
     if not current or card:IsShown() then return end
     Paint(current);offset=18;Place();card:SetAlpha(0);card:Show()
     if not current.preview then seen[current.id]=true end
-    Animate(0,1,.32);Play()
-    if current.kind=="promotion" then StartExpiry();Celebrate() end
+    local isPromotion=current.kind=="promotion"
+    local firstAppearance=not shownSound
+    -- The shared entrance owns the glow until complete; celebration owns
+    -- it only afterwards and never replays on a combat resume.
+    Animate(0,1,.32,isPromotion and firstAppearance and Celebrate or nil);Play()
+    if isPromotion then StartExpiry() end
 end
 local function Snoozed(m)
     local now=Plain(GetServerTime)
