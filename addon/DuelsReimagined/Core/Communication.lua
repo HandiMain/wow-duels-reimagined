@@ -66,6 +66,13 @@ end
 
 -- Message tags are uppercase letters plus a numeric protocol revision,
 -- for example P1 (presence) or a future W1 (retail War Games).
+function Comm.GetDiagnosticResources()
+    local n=0
+    for _,callbacks in pairs(receivers) do
+        for _ in pairs(callbacks) do n=n+1 end
+    end
+    return {subscriptions=n}
+end
 function Comm.Subscribe(tag, callback)
     if type(tag) ~= "string" or not tag:match("^[A-Z]%d$") or
         type(callback) ~= "function" then return function() end end

@@ -11,6 +11,7 @@ local DUEL_COUNTDOWN, DUEL_WINNER_KNOCKOUT, DUEL_WINNER_RETREAT =
     api.countdown, api.knockout, api.retreat
 local D = {}
 local listeners, trace, capabilities = {}, {}, {}
+local pendingTimers=0
 local challenge, active, last
 local cycle, revision = 0, 0
 local state, reason = "unavailable", "initializing"
@@ -44,6 +45,11 @@ function D.GetSnapshot()
     return Copy({state=state,reason=reason,revision=revision,
         client=ns.Client.Kind(),scope=api.scope,challenge=challenge,active=active,last=last,
         capabilities=capabilities,trace=trace})
+end
+function D.GetDiagnosticResources()
+    local n=0
+    for _ in pairs(listeners) do n=n+1 end
+    return {subscriptions=n,timers=pendingTimers}
 end
 function D.Subscribe(fn)
     if type(fn)~="function" then return function() end end
@@ -186,7 +192,9 @@ end
 local function Await(d)
     if d.waiting then return end
     d.waiting=true
+    pendingTimers=pendingTimers+1
     C_Timer.After(WAIT,function()
+        pendingTimers=pendingTimers-1
         if active~=d then return end
         Finalize(d.conflict and "conflicting_result" or
             (d.finishSeen and "result_not_observed" or "finish_not_observed"),false)
@@ -207,7 +215,9 @@ local function Challenge(name,direction,kind)
     challenge=c
     suppressDeath=kind=="death_duel"
     Publish("challenge",direction=="outgoing" and "outgoing_attempt" or "incoming_request")
+    pendingTimers=pendingTimers+1
     C_Timer.After(EXPIRE,function()
+        pendingTimers=pendingTimers-1
         if challenge==c and not active then
             challenge=nil
             -- Preserve known death-duel exclusion until finish/world reset

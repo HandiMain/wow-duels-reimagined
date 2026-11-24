@@ -190,6 +190,11 @@ end
 
 function Group.GetSnapshot() return Copy(current) end
 function Group.IsReady() return current.complete end
+function Group.GetDiagnosticResources()
+    local n=0
+    for _ in pairs(listeners) do n=n+1 end
+    return {subscriptions=n}
+end
 function Group.Subscribe(fn)
     if type(fn) ~= "function" then return function() end end
     listeners[fn] = true

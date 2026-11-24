@@ -4,6 +4,7 @@ local D={}
 ns.Diagnostics=D
 local providers,ids,incidents,last={},{},{},nil
 local running=false
+local lastHealthyComplete
 local function Plain(v)
     if type(issecretvalue)=="function" then
         local ok,secret=pcall(issecretvalue,v)
@@ -197,6 +198,15 @@ end)
 Check("Incident history / Lua error integration","health",function()
     return ImportErrors()
 end)
+Check("Native Lua error capture","health",function()
+    return ns.DiagnosticAudit.ErrorCoverage()
+end)
+Check("Owned UI geometry and texture sources","deep",function()
+    return ns.DiagnosticAudit.UIAudit()
+end)
+Check("Addon memory and CPU metrics","deep",function()
+    return ns.DiagnosticAudit.Performance()
+end)
 local function Fingerprint()
     local d=ns.DuelDetection.GetSnapshot()
     local g=ns.Group.GetSnapshot()
@@ -237,6 +247,7 @@ function D.Run(mode)
             Scan("deep","Deep Health / ")
             local before=Fingerprint()
             local motionBefore=ns.Motion.GetRuntimeState()
+            local resourcesBefore,coveredBefore=ns.DiagnosticAudit.Resources()
             local log={}
             local t=Clock()
             local passed,failed=ns.DuelSelfTest.Run(function(line)
@@ -254,8 +265,14 @@ function D.Run(mode)
             Add(r,"Leak Sentinel / shared animation probe",unchanged and "PASS" or "FAIL",
                 "Active tweens before="..motionBefore.active.."; after="..motionAfter.active..
                 ". QA is synchronous and must not start live animations.")
+            local resourcesAfter,coveredAfter=ns.DiagnosticAudit.Resources()
+            local unchangedResources,changes=ns.DiagnosticAudit.CompareResources(resourcesBefore,resourcesAfter)
+            Add(r,"Leak Sentinel / owned frame, region, timer and subscriber counts",
+                not unchangedResources and "FAIL" or (coveredBefore and coveredAfter and "PASS" or "SKIP"),
+                ns.DiagnosticAudit.ResourceText(resourcesAfter)..(unchangedResources and
+                    "\nTracked counts unchanged during QA." or "\nChanged:\n"..changes))
             Add(r,"Leak Sentinel / remaining resource coverage","SKIP",
-                "Full frame and timer ownership instrumentation not installed.")
+                "Anonymous frames outside known roots, uninstrumented UI timers and repeated real interactions are not certified.")
             Scan("health","Final Health / ")
             Add(r,"Static package / Lua syntax","SKIP","Source file syntax and TOC validation are CI-only; not readable from WoW Lua.")
             Add(r,"Live gameplay / multiplayer","SKIP","Requires real players. Simulated results never prove Blizzard event delivery.")
@@ -273,6 +290,16 @@ function D.Run(mode)
     r.ms=start and done and done-start or nil
     r.status=r.counts.FAIL and "FAIL" or r.counts.WARN and "WARN" or "PASS"
     r.previous=last and last.status or "none"
+    if r.mode=="complete" and ns.DiagnosticAudit then
+        local ok,status,detail=pcall(function()
+            local baseline=ns.Settings.GetDiagnosticBaseline(ns.Client.Kind()) or lastHealthyComplete
+            return ns.DiagnosticAudit.CompareBaseline(r,baseline)
+        end)
+        Add(r,"Regression Intelligence / baseline",ok and status or "FAIL",ok and detail or SafeText(status))
+        r.status=r.counts.FAIL and "FAIL" or r.counts.WARN and "WARN" or "PASS"
+        if r.status=="PASS" then lastHealthyComplete=Copy(r) end
+    end
+    if ns.DiagnosticAudit then r.release=ns.DiagnosticAudit.ReleaseGate(r) end
     last=r
     running=false
     return Copy(r)
@@ -285,11 +312,16 @@ function D.BuildReport(result,advanced)
         string.format("PASS %d | WARN %d | FAIL %d | SKIP %d",r.counts.PASS or 0,
             r.counts.WARN or 0,r.counts.FAIL or 0,r.counts.SKIP or 0),
         "Previous scan: "..r.previous,
+        "Release Gate: "..(r.release or "Not evaluated"),
+        "Learning receipt: "..r.mode.." scan, "..#r.rows.." checks; previous status "..r.previous..".",
+        "Changes under test: native capture, resource counts, UI audit, baseline comparison, performance and release gate.",
+        "Evidence: each row below names its check; skipped checks remain unverified.",
+        "No automated repair; live records and preferences are not modified by scans.",
         r.ms and string.format("Elapsed: %.2f ms (synchronous checks)",r.ms) or "Timing unavailable",
         "Runtime evidence only; not a source-code or multiplayer certification.",""}
     for _,row in ipairs(r.rows) do
         lines[#lines+1]=row.status.." | "..row.id..(row.ms and string.format(" (%.2f ms)",row.ms) or "")
-        if advanced or row.status=="FAIL" or row.status=="WARN" then lines[#lines+1]=row.detail end
+        if advanced or row.status=="FAIL" or row.status=="WARN" or row.status=="SKIP" then lines[#lines+1]=row.detail end
     end
     if advanced then
         lines[#lines+1]="\nLOCAL DUEL TRANSITIONS (no player names)"

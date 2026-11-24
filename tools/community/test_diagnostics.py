@@ -24,6 +24,27 @@ class DiagnosticsContracts(unittest.TestCase):
         self.assertIn('Static package / Lua syntax","SKIP"',core)
         self.assertIn('Live gameplay / multiplayer","SKIP"',core)
         self.assertIn('ns.Motion.GetRuntimeState()',core)
+    def test_extended_audit_contracts(self):
+        audit=read("Core/DiagnosticAudit.lua")
+        core=read("Core/Diagnostics.lua")
+        ui=read("UI/Diagnostics.lua")
+        toc=read("DuelsReimagined.toc")
+        self.assertLess(toc.index("Core\\Diagnostics.lua"),toc.index("Core\\DiagnosticAudit.lua"))
+        for owner in ("DuelDetection","Group","Presence","Communication","WarGames"):
+            self.assertIn("GetDiagnosticResources()",read("Core/"+owner+".lua"))
+        for marker in ("C_AddOnProfiler.GetAddOnMetric","RecentAverageTime",
+                       "GetAddOnMemoryUsage","CompareResources","CompareBaseline",
+                       "RELEASE BLOCKED","geterrorhandler","state.previous"):
+            self.assertIn(marker,audit)
+        self.assertIn("C_Timer.NewTicker(5",ui)
+        self.assertIn("ticker:Cancel()",ui)
+        self.assertIn("SaveDiagnosticBaseline",ui)
+        self.assertIn("Regression Intelligence / baseline",core)
+        self.assertIn("Leak Sentinel / remaining resource coverage",core)
+        self.assertNotIn("SetScript(\"OnUpdate\"",audit)
+        self.assertIn("Learning receipt:",core)
+        self.assertIn("function Settings.SaveDiagnosticBaseline",read("Core/Settings.lua"))
+
     def test_report_storage_owned_by_settings(self):
         self.assertIn("function Settings.SaveDiagnosticReport",read("Core/Settings.lua"))
         self.assertIn("ns.Settings.SaveDiagnosticReport",read("UI/Diagnostics.lua"))

@@ -29,13 +29,17 @@ local function Build()
     close:SetScript("OnClick",function() frame:Hide() end)
     local status=Style.Text(frame,"Runtime health and Developer QA",13,C.text)
     status:SetPoint("TOPLEFT",frame,"TOPLEFT",20,-51)
+    local StopMonitor
     local function Button(label,x,y,w,plate,fn)
         local b=Style.Action(frame,label,"footer",{plate=plate or "dark",tooltip=false})
         b:SetSize(w,30);b:SetPoint("TOPLEFT",frame,"TOPLEFT",x,-y)
-        b:SetScript("OnClick",fn);return b
+        b:SetScript("OnClick",function(...)
+            if label~="Performance" and StopMonitor then StopMonitor() end
+            fn(...)
+        end);return b
     end
     local scroll=CreateFrame("ScrollFrame",nil,frame)
-    scroll:SetPoint("TOPLEFT",frame,"TOPLEFT",20,-120)
+    scroll:SetPoint("TOPLEFT",frame,"TOPLEFT",20,-156)
     scroll:SetPoint("BOTTOMRIGHT",frame,"BOTTOMRIGHT",-20,84)
     scroll:EnableMouseWheel(true)
     Style.Skin(scroll,C.body,{corner=8,edge=C.border,shine=.08,shade=.08})
@@ -91,6 +95,52 @@ local function Build()
         advanced=not advanced
         toggle.label:SetText(advanced and "Summary" or "Advanced Report");Render()
     end)
+    -- Separate developer tools row. No extra permanent driver.
+    local monitor=false
+    local ticker
+    local perf
+    StopMonitor=function()
+        if ticker then ticker:Cancel();ticker=nil end
+        monitor=false
+        if perf then perf.label:SetText("Performance") end
+    end
+    local function Sample()
+        local state,detail=ns.DiagnosticAudit.Performance()
+        status:SetText("Performance | "..state)
+        SetText(detail)
+    end
+    perf=Button("Performance",20,116,164,"dark",function()
+        if monitor then StopMonitor();Render();return end
+        monitor=true
+        perf.label:SetText("Stop Monitor");Sample()
+        if C_Timer and C_Timer.NewTicker then
+            ticker=C_Timer.NewTicker(5,function()
+                if frame:IsVisible() and monitor then Sample() else StopMonitor() end
+            end)
+        end
+    end)
+    Button("Error Capture",192,116,164,"dark",function()
+        StopMonitor()
+        local a=ns.DiagnosticAudit
+        local ok,detail
+        if a.CaptureState()=="active" then ok=a.StopCapture();detail=ok and "Native capture stopped." or "Handler restore failed."
+        else ok,detail=a.StartCapture() end
+        status:SetText(detail)
+    end)
+    Button("Save Baseline",364,116,174,"gold",function()
+        StopMonitor()
+        local r=ns.Diagnostics.GetLast()
+        if not r or r.mode~="complete" or r.status~="PASS" then
+            status:SetText("Run a healthy Complete Check before saving.");return
+        end
+        local ok=ns.Settings.SaveDiagnosticBaseline(ns.Client.Kind(),r)
+        status:SetText(ok and "Healthy baseline saved for this client." or "Baseline not saved.")
+    end)
+    Button("Release Gate",546,116,194,"dark",function()
+        StopMonitor()
+        status:SetText("Release readiness")
+        SetText(ns.DiagnosticAudit.ReleaseGate(ns.Diagnostics.GetLast()))
+    end)
     local savedIndex=0
     local confirmClear=false
     Button("Incident Log",558,78,182,"dark",function()
@@ -137,6 +187,7 @@ local function Build()
     end)
     Footer("Close",626,114,"hall",function() frame:Hide() end)
     frame:SetScript("OnHide",function()
+        StopMonitor()
         confirmClear=false;clear.label:SetText("Clear Saved")
         box:ClearFocus();frame:StopMovingOrSizing()
     end)

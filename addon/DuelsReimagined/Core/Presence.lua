@@ -11,6 +11,7 @@ local CHECK_GAP = 15
 local REPLY_GAP = 10
 local WAIT_SECONDS = 8
 local callbacks = {}
+local pendingTimers=0
 local known = {}
 local signature
 local lastCheck = -math.huge
@@ -131,6 +132,11 @@ local function Changed()
     for cb in pairs(callbacks) do pcall(cb, Presence.GetSnapshot()) end
 end
 
+function Presence.GetDiagnosticResources()
+    local n=0
+    for _ in pairs(callbacks) do n=n+1 end
+    return {subscriptions=n,timers=pendingTimers}
+end
 function Presence.Subscribe(fn)
     if type(fn) ~= "function" then return function() end end
     callbacks[fn] = true
@@ -141,7 +147,9 @@ local function ScheduleExpiry()
     epoch = epoch + 1
     local id = epoch
     if C_Timer and type(C_Timer.After) == "function" then
+        pendingTimers=pendingTimers+1
         C_Timer.After(WAIT_SECONDS + 0.05, function()
+            pendingTimers=pendingTimers-1
             if epoch ~= id then return end
             pendingUntil = 0
             Changed()

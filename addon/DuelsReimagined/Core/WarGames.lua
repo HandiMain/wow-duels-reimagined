@@ -118,6 +118,11 @@ function WarGames.Refresh()
     arena = IsArena()
     Notify()
 end
+function WarGames.GetDiagnosticResources()
+    local n=0
+    for _ in pairs(listeners) do n=n+1 end
+    return {subscriptions=n}
+end
 function WarGames.Subscribe(fn)
     if type(fn) ~= "function" then return function() end end
     listeners[fn] = true

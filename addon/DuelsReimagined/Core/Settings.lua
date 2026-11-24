@@ -275,6 +275,39 @@ function Settings.SaveDiagnosticReport(label,report)
     WriteDB().diagnosticReports=list
     return true
 end
+-- Explicit reference baselines; bounded and separated by client.
+local function CleanBaseline(value)
+    if type(value)~="table" or type(value.stamp)~="string" or #value.stamp>80
+        or value.mode~="complete" or type(value.rows)~="table" then return nil end
+    local out={stamp=value.stamp,mode="complete",rows={}}
+    for i=1,math.min(#value.rows,200) do
+        local row=value.rows[i]
+        if type(row)=="table" and type(row.id)=="string" and #row.id<=180 and
+            (row.status=="PASS" or row.status=="WARN" or row.status=="SKIP" or row.status=="FAIL") then
+            out.rows[#out.rows+1]={id=row.id,status=row.status}
+        end
+    end
+    if #out.rows==0 then return nil end
+    return out
+end
+function Settings.GetDiagnosticBaseline(kind)
+    if kind~="forever" and kind~="retail" then return nil end
+    local db=ReadDB()
+    local b=db and db.diagnosticBaselines
+    return type(b)=="table" and CleanBaseline(b[kind]) or nil
+end
+function Settings.SaveDiagnosticBaseline(kind,value)
+    if kind~="forever" and kind~="retail" then return false end
+    local b=CleanBaseline(value)
+    if not b then return false end
+    for _,row in ipairs(b.rows) do
+        if row.status=="FAIL" or row.status=="WARN" then return false end
+    end
+    local db=WriteDB()
+    if type(db.diagnosticBaselines)~="table" then db.diagnosticBaselines={} end
+    db.diagnosticBaselines[kind]=b
+    return true
+end
 function Settings.ClearDiagnosticReports()
     local db=ReadDB()
     if db then db.diagnosticReports=nil end
