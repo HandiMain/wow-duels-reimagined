@@ -45,6 +45,24 @@ class DiagnosticsContracts(unittest.TestCase):
         self.assertIn("Learning receipt:",core)
         self.assertIn("function Settings.SaveDiagnosticBaseline",read("Core/Settings.lua"))
 
+    def test_cost_and_capture_regressions(self):
+        a=read("Core/DiagnosticAudit.lua")
+        d=read("Core/Diagnostics.lua")
+        u=read("UI/Diagnostics.lua")
+        self.assertIn("bg.GetDB or bg.GetErrors",a)
+        self.assertIn("ns.DiagnosticAudit.BugGrabberAPI()",d)
+        self.assertIn("GetSessionId",d)
+        self.assertIn("external_unknown",a)
+        self.assertNotIn("UpdateAddOnMemoryUsage",a.split("function A.Performance()",1)[1])
+        self.assertIn("now-prior.time<15",a)
+        self.assertIn("coroutine.yield()",a)
+        self.assertIn("GetNumRegions",a)
+        self.assertIn("function D.RunAsync",d)
+        self.assertIn("ns.Diagnostics.CancelPending()",u)
+        self.assertIn('Button("Sample Memory"',u)
+        for page in ("Options","Community","AddonStatus","WarGames","PatchNotes"):
+            self.assertIn("RegisterUIRoot",read("UI/"+page+".lua"))
+
     def test_report_storage_owned_by_settings(self):
         self.assertIn("function Settings.SaveDiagnosticReport",read("Core/Settings.lua"))
         self.assertIn("ns.Settings.SaveDiagnosticReport",read("UI/Diagnostics.lua"))

@@ -19,6 +19,7 @@ local atlas = art .. "PatchNotesAtlas.tga"
 local heroArtPath = art .. "PatchNotesHero.png"
 
 local root = CreateFrame("Frame", nil, Window.content)
+if ns.DiagnosticAudit then ns.DiagnosticAudit.RegisterUIRoot("Patch Notes",root) end
 root:SetAllPoints(Window.content)
 root:Hide()
 local heading = Style.Text(root, "Patch Notes", 24, C.pale, nil, "display")

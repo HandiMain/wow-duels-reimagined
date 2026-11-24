@@ -9,6 +9,7 @@ local Status = {}
 ns.AddonStatus = Status
 
 local root = CreateFrame("Frame", nil, Window.content)
+if ns.DiagnosticAudit then ns.DiagnosticAudit.RegisterUIRoot("Addon Status",root) end
 root:SetAllPoints(Window.content)
 root:EnableMouse(false)
 root:Hide()

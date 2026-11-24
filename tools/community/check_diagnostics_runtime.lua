@@ -78,6 +78,78 @@ Check(A.CaptureState()=="replaced" and A.StopCapture() and current==other,"never
 _G.BugGrabber={}
 Check(not A.StartCapture(),"defer to BugGrabber")
 geterrorhandler,seterrorhandler,_G.BugGrabber=oldGet,oldSet,oldBG
+-- Actual BugGrabber v12.1.1 API: GetDB, GetSessionId, IsPaused.
+local oldBG2=_G.BugGrabber
+local cache={
+    {message="Interface/AddOns/DuelsReimagined/Core.lua:1: old",session=1,counter=1},
+    {message="Interface/AddOns/DuelsReimagined/Core.lua:2: current",session=2,counter=1},
+    {message="Interface/AddOns/Other/Core.lua:1: unrelated",session=2,counter=1},
+}
+_G.BugGrabber=setmetatable({}, {__index={
+    GetDB=function()return cache end,
+    GetSessionId=function()return 2 end,
+    IsPaused=function()return false end,
+}})
+Check(A.CaptureState()=="external","GetDB collector recognized")
+local bg,why,reader=A.BugGrabberAPI()
+Check(bg and why=="available" and reader(bg)==cache,"read actual public database")
+D.ClearIncidents()
+D.Run("health")
+local imported=0
+for _,item in ipairs(D.GetIncidents()) do
+    if item.kind=="BugGrabber" then
+        imported=imported+1
+        Check(item.message:find("current",1,true),"only current-session attributable errors")
+    end
+end
+Check(imported==1 and #cache==3,"collector import is read only")
+_G.BugGrabber={}
+Check(A.CaptureState()=="external_unknown","incompatible global explicitly marked")
+Check(not A.StartCapture(),"unknown external handler preserved")
+_G.BugGrabber=oldBG2
+
+-- No expensive refresh from normal sampling; manual history is bounded.
+local oldTime,oldRefresh,oldMemory=GetTime,UpdateAddOnMemoryUsage,GetAddOnMemoryUsage
+local now,refreshes=100,0
+GetTime=function()return now end
+UpdateAddOnMemoryUsage=function()refreshes=refreshes+1 end
+GetAddOnMemoryUsage=function()return 5000+refreshes end
+A.Performance();A.Performance()
+Check(refreshes==0,"periodic CPU never refreshes memory")
+A.MarkScanEnd()
+Check(not A.SampleMemory(),"reject immediate post-scan sample")
+now=106
+Check(A.SampleMemory() and refreshes==1,"manual refresh")
+Check(not A.SampleMemory() and refreshes==1,"manual refresh throttled")
+now=122
+Check(A.SampleMemory() and refreshes==2,"second spaced sample")
+Check(A.MemoryText():find("+1.0 KiB",1,true),"memory comparison")
+A.Performance()
+Check(refreshes==2,"report uses cached memory")
+GetTime,UpdateAddOnMemoryUsage,GetAddOnMemoryUsage=oldTime,oldRefresh,oldMemory
+
+-- Batched walk and page buckets with mock frame tree. No real UI mutation.
+local oldRoot=_G.DuelsReimaginedWindow
+local function Node(regions,children,kind)
+    return {GetRegions=function()return unpack(regions or {})end,
+        GetNumRegions=function()return #(regions or {})end,
+        GetChildren=function()return unpack(children or {})end,
+        GetObjectType=function()return kind or "Frame" end,
+        IsVisible=function()return false end}
+end
+local regions={}
+for i=1,320 do regions[i]=Node(nil,nil,i%2==0 and "Texture" or "FontString") end
+local page=Node(regions)
+_G.DuelsReimaginedWindow=Node({}, {page})
+A.RegisterUIRoot("Fixture page",page)
+local step=A.BeginUIAudit()
+local done,st,report=step()
+Check(not done,"audit actually yields")
+local slices=1
+while not done do done,st,report=step();slices=slices+1;Check(slices<20,"audit terminates") end
+Check(report:find("Fixture page: 1 frames, 320 regions, 160 textures, 160 font strings",1,true),"page counts correct")
+_G.DuelsReimaginedWindow=oldRoot
+
 local equal,detail=A.CompareResources({frames=2,timers=1},{frames=2,timers=2})
 Check(not equal and detail:find("timers",1,true),"resource difference detected")
 Check(A.CompareResources({frames=2},{frames=2}),"unchanged resources")

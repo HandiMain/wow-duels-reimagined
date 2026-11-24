@@ -34,6 +34,7 @@ local function Build()
         local b=Style.Action(frame,label,"footer",{plate=plate or "dark",tooltip=false})
         b:SetSize(w,30);b:SetPoint("TOPLEFT",frame,"TOPLEFT",x,-y)
         b:SetScript("OnClick",function(...)
+            if ns.Diagnostics.IsRunning() then status:SetText("Complete Check is running. Close to cancel.");return end
             if label~="Performance" and StopMonitor then StopMonitor() end
             fn(...)
         end);return b
@@ -85,8 +86,10 @@ local function Build()
         SetText(ns.Diagnostics.BuildReport(r,advanced))
     end
     local function Run(mode)
-        local r,err=ns.Diagnostics.Run(mode)
-        if r then Render() else status:SetText(err or "Check unavailable") end
+        local ok,err=ns.Diagnostics.RunAsync(mode,function(r,why)
+            if r then Render() else status:SetText(why or "Check unavailable") end
+        end,function(message) status:SetText(message) end)
+        if not ok then status:SetText(err or "Check unavailable") end
     end
     Button("Run Health Check",20,78,164,"dark",function() Run("health") end)
     Button("Run Complete Check",192,78,190,"gold",function() Run("complete") end)
@@ -153,7 +156,13 @@ local function Build()
     end)
     local bottom=frame:CreateFontString(nil,"OVERLAY","GameFontHighlightSmall")
     bottom:SetPoint("BOTTOMLEFT",frame,"BOTTOMLEFT",20,55)
-    bottom:SetText("Select text to copy with Ctrl+C. Reports saved only on request.")
+    bottom:SetText("Ctrl+C copies selected text. Memory refresh is manual.")
+    local sample=Button("Sample Memory",0,0,156,"dark",function()
+        local ok,detail=ns.DiagnosticAudit.SampleMemory()
+        status:SetText(detail)
+        if ok then local _,report=ns.DiagnosticAudit.Performance();SetText(report) end
+    end)
+    sample:ClearAllPoints();sample:SetPoint("BOTTOMRIGHT",frame,"BOTTOMRIGHT",-20,46)
     local function Footer(label,x,w,plate,fn)
         local b=Button(label,x,0,w,plate,fn)
         b:ClearAllPoints();b:SetPoint("BOTTOMLEFT",frame,"BOTTOMLEFT",x,16)
@@ -187,6 +196,7 @@ local function Build()
     end)
     Footer("Close",626,114,"hall",function() frame:Hide() end)
     frame:SetScript("OnHide",function()
+        ns.Diagnostics.CancelPending()
         StopMonitor()
         confirmClear=false;clear.label:SetText("Clear Saved")
         box:ClearFocus();frame:StopMovingOrSizing()

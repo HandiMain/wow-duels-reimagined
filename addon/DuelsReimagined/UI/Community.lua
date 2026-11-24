@@ -52,6 +52,7 @@ local function Entry(item)
 end
 
 local root = CreateFrame("Frame", nil, Window.content)
+if ns.DiagnosticAudit then ns.DiagnosticAudit.RegisterUIRoot("Community",root) end
 root:SetAllPoints(Window.content)
 root:EnableMouse(false)
 root:Hide()

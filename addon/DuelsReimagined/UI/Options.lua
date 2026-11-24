@@ -121,6 +121,8 @@ end
 
 local appearance = Page(130)
 local interface = Page(740)
+if ns.DiagnosticAudit then ns.DiagnosticAudit.RegisterUIRoot("Options / Appearance",appearance.scrollOwner) end
+if ns.DiagnosticAudit then ns.DiagnosticAudit.RegisterUIRoot("Options / Interface",interface.scrollOwner) end
 
 -- Every preference stays on the SAME Interface page and uses the existing
 -- whole-card responsive layout. No extra tab or separate settings owner.

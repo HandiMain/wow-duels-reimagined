@@ -23,8 +23,19 @@ end
 -- Opt-in session capture. Forward to the prior handler, never suppress errors
 -- or replace another addon's subsequently installed handler.
 local capture
+-- BugGrabber 12.1.1 exposes GetDB, GetSessionId and IsPaused.
+-- The presence of its global alone is not evidence that the API is readable.
+function A.BugGrabberAPI()
+    local bg=Plain(_G.BugGrabber)
+    if type(bg)~="table" then return nil,"absent" end
+    local ok,reader=pcall(function() return bg.GetDB or bg.GetErrors end)
+    if not ok or type(reader)~="function" then return nil,"incompatible" end
+    return bg,"available",reader
+end
 function A.CaptureState()
-    if _G.BugGrabber then return "external" end
+    local bg,why=A.BugGrabberAPI()
+    if bg then return "external" end
+    if why=="incompatible" then return "external_unknown" end
     if not capture or not capture.enabled then return "off" end
     return Call(geterrorhandler)==capture.wrapper and "active" or "replaced"
 end
@@ -39,7 +50,8 @@ function A.StopCapture()
     return true
 end
 function A.StartCapture()
-    if _G.BugGrabber then return false,"BugGrabber owns error capture." end
+    local bg,why=A.BugGrabberAPI()
+    if bg or why=="incompatible" then return false,"External error collector detected; leaving its handler untouched." end
     if A.CaptureState()=="active" then return true,"Capture already active." end
     if capture then A.StopCapture() end
     local previous=Call(geterrorhandler)
@@ -50,7 +62,8 @@ function A.StartCapture()
     state.wrapper=function(msg)
         if state.busy then return end
         state.busy=true
-        if state.enabled and not _G.BugGrabber then
+        local _,external=A.BugGrabberAPI()
+        if state.enabled and external=="absent" then
             pcall(function()
                 local m=Text(msg)
                 if m:lower():gsub("\\","/"):find("duelsreimagined/",1,true) then
@@ -76,25 +89,40 @@ end
 function A.ErrorCoverage()
     local state=A.CaptureState()
     if state=="active" then return "PASS","Native handler active; forwards existing handler. Only path-attributable errors captured." end
-    if state=="external" then return "SKIP","External BugGrabber collector; cached errors checked separately." end
+    if state=="external" then return "SKIP","BugGrabber public reader available; its capture ownership is preserved." end
+    if state=="external_unknown" then return "SKIP","BugGrabber global exists but its API is incompatible; handler ownership left untouched." end
     if state=="replaced" then return "WARN","Another addon replaced the native handler." end
     return "SKIP","Native capture is off. Start Capture to record later Lua errors."
 end
 
 local roots={"DuelsReimaginedWindow","DuelsReimaginedDiagnosticsWindow",
     "DuelsReimaginedBlizzardSettingsPanel","DuelsReimaginedMinimapButton","DuelsReimaginedAccessWidget","DuelsReimaginedArenaPicker"}
-local LIMIT=8000
-local function Inspect(check)
+local LIMIT=20000
+local pageRoots={}
+function A.RegisterUIRoot(label,frame)
+    if type(label)=="string" and frame then pageRoots[frame]=label end
+end
+local function Inspect(check,slice)
+    local processed=0
+    local function Budget()
+        if not slice then return end
+        processed=processed+1
+        if processed>=150 then processed=0;coroutine.yield() end
+    end
     local r={frames=0,regions=0,visible=0,textureSources=0,unknownTextures=0,
-        problems={},missingRoots=0,limited=false,unreadable=0}
+        problems={},missingRoots=0,limited=false,unreadable=0,pages={}}
     local seen={}
     local function Issue(label,msg)
         if #r.problems<30 then r.problems[#r.problems+1]=label..": "..msg end
     end
-    local function Walk(f,label,isRoot)
+    local function Walk(f,label,isRoot,page)
         if not f or seen[f] then return end
+        Budget()
+        page=pageRoots[f] or page or label
+        if not r.pages[page] then r.pages[page]={frames=0,regions=0,textures=0,fonts=0} end
+        local bucket=r.pages[page]
         if r.frames+r.regions>=LIMIT then r.limited=true;return end
-        seen[f]=true;r.frames=r.frames+1
+        seen[f]=true;r.frames=r.frames+1;bucket.frames=bucket.frames+1
         local visible=Call(f.IsVisible,f)==true
         if visible then
             r.visible=r.visible+1
@@ -109,14 +137,23 @@ local function Inspect(check)
                 end
             end
         end
-        if type(f.GetRegions)=="function" then
+        -- Count-only snapshots avoid allocating/inspecting thousands of regions.
+        local count=not check and Number(Call(f.GetNumRegions,f))
+        if count then
+            r.regions=r.regions+count;bucket.regions=bucket.regions+count
+            if r.frames+r.regions>=LIMIT then r.limited=true end
+        elseif type(f.GetRegions)=="function" then
             local ok,regions=pcall(function()return {f:GetRegions()} end)
             if ok then
                 for _,region in ipairs(regions) do
                     if r.frames+r.regions>=LIMIT then r.limited=true;break end
                     if not seen[region] then
-                        seen[region]=true;r.regions=r.regions+1
-                        if check and Call(region.GetObjectType,region)=="Texture" and Call(region.IsVisible,region)==true then
+                        Budget()
+                        seen[region]=true;r.regions=r.regions+1;bucket.regions=bucket.regions+1
+                        local objectType=check and Call(region.GetObjectType,region)
+                        if objectType=="Texture" then bucket.textures=bucket.textures+1
+                        elseif objectType=="FontString" then bucket.fonts=bucket.fonts+1 end
+                        if objectType=="Texture" and Call(region.IsVisible,region)==true then
                             local texture,atlas=Call(region.GetTexture,region),Call(region.GetAtlas,region)
                             if texture~=nil or atlas~=nil then r.textureSources=r.textureSources+1
                             else r.unknownTextures=r.unknownTextures+1 end
@@ -132,10 +169,11 @@ local function Inspect(check)
         if type(f.GetChildren)=="function" and not r.limited then
             local ok,children=pcall(function()return {f:GetChildren()} end)
             if ok then
-                for i,child in ipairs(children) do Walk(child,label.."/"..i,false);if r.limited then break end end
+                for i,child in ipairs(children) do Walk(child,label.."/"..i,false,page);if r.limited then break end end
             else r.unreadable=r.unreadable+1 end
         end
     end
+    -- Attribute nested roots to the nearest registered page, never double count.
     for _,name in ipairs(roots) do
         local root=_G[name]
         if root then Walk(root,name,true)
@@ -143,15 +181,41 @@ local function Inspect(check)
     end
     return r
 end
-function A.UIAudit()
-    local r=Inspect(true)
+local function FormatAudit(r)
+    local pages={}
+    for name,v in pairs(r.pages) do pages[#pages+1]={name=name,v=v} end
+    table.sort(pages,function(x,y)
+        if x.v.regions==y.v.regions then return x.name<y.name end
+        return x.v.regions>y.v.regions
+    end)
+    local breakdown={"\nOwned page breakdown (non-overlapping; hidden included):"}
+    for _,entry in ipairs(pages) do
+        local v=entry.v
+        breakdown[#breakdown+1]=string.format("%s: %d frames, %d regions, %d textures, %d font strings",
+            entry.name,v.frames,v.regions,v.textures,v.fonts)
+    end
     local detail=string.format("%d frames, %d regions, %d visible frames, %d texture sources, %d unclassified textures, %d unreadable, %d roots absent.",
         r.frames,r.regions,r.visible,r.textureSources,r.unknownTextures,r.unreadable,r.missingRoots)
+    detail=detail..table.concat(breakdown,"\n")
     if #r.problems>0 then return "WARN",detail.."\n"..table.concat(r.problems,"\n") end
     if r.limited or r.unreadable>0 or r.frames==0 or r.missingRoots>0 then
         return "SKIP",detail.." Partial traversal; visual/pixel validation not performed."
     end
     return "PASS",detail.." Visible root/control geometry and readable atlas references checked; texture presence does not prove image loading."
+end
+function A.UIAudit()
+    return FormatAudit(Inspect(true))
+end
+-- Yield only outside protected calls. Each slice processes at most 150
+-- objects; scheduler exists only for an explicitly requested scan.
+function A.BeginUIAudit()
+    local co=coroutine.create(function() return FormatAudit(Inspect(true,true)) end)
+    return function()
+        local ok,status,detail=coroutine.resume(co)
+        if not ok then return true,"FAIL",Text(status) end
+        if coroutine.status(co)=="dead" then return true,status,detail end
+        return false
+    end
 end
 function A.Resources()
     local r=Inspect(false)
@@ -181,11 +245,45 @@ function A.ResourceText(values)
     table.sort(lines)
     return table.concat(lines,", ")
 end
+local memorySamples={}
+local lastScanEnd
+function A.MarkScanEnd() lastScanEnd=Number(Call(GetTime)) end
+function A.SampleMemory()
+    local now=Number(Call(GetTime))
+    local prior=memorySamples[#memorySamples]
+    if not now then return false,"Session clock unavailable." end
+    if ns.Diagnostics.IsRunning() then return false,"Finish diagnostics first." end
+    if lastScanEnd and now-lastScanEnd<5 then return false,"Wait at least 5 seconds after a scan to sample memory." end
+    if prior and now-prior.time<15 then return false,"Wait 15 seconds between manual memory samples." end
+    if type(UpdateAddOnMemoryUsage)~="function" then return false,"Memory refresh API unavailable." end
+    local start=Number(Call(debugprofilestop))
+    local ok=pcall(UpdateAddOnMemoryUsage)
+    local kb=ok and Number(Call(GetAddOnMemoryUsage,"DuelsReimagined"))
+    local finish=Number(Call(debugprofilestop))
+    if not kb then return false,"Client memory measurement unavailable." end
+    memorySamples[#memorySamples+1]={time=now,kb=kb,ms=start and finish and finish-start or nil}
+    if #memorySamples>8 then table.remove(memorySamples,1) end
+    return true,"Memory sample captured. Compare repeated quiet samples; not proof of a leak."
+end
+function A.MemoryText()
+    local last=memorySamples[#memorySamples]
+    if not last then return "Memory: not manually sampled this session. Use Sample Memory." end
+    local first=memorySamples[1]
+    local now=Number(Call(GetTime))
+    local lines={string.format("Memory: %.1f KiB (manual cached sample, age %s)",last.kb,
+        now and string.format("%.0f s",math.max(0,now-last.time)) or "unknown"),
+        string.format("Quiet-sample history: %d/8; delta from oldest: %+.1f KiB",#memorySamples,last.kb-first.kb)}
+    for i,v in ipairs(memorySamples) do
+        lines[#lines+1]=string.format("Sample %d: %.1f KiB%s",i,v.kb,
+            v.ms and string.format(" (refresh %.2f ms)",v.ms) or "")
+    end
+    lines[#lines+1]="Samples are spaced and taken outside scans; GC and game activity can change memory. No leak verdict."
+    return table.concat(lines,"\n")
+end
 function A.Performance()
     local lines={}
-    if type(UpdateAddOnMemoryUsage)=="function" then pcall(UpdateAddOnMemoryUsage) end
-    local kb=Number(Call(GetAddOnMemoryUsage,"DuelsReimagined"))
-    if kb then lines[#lines+1]=string.format("Addon memory: %.1f KiB (client-reported)",kb) end
+    -- The native memory refresh is expensive and cannot be time-sliced.
+    -- Never invoke it in the periodic monitor or Complete Check.
     local metrics=Enum and Enum.AddOnProfilerMetric
     local fn=C_AddOnProfiler and C_AddOnProfiler.GetAddOnMetric
     local recent
@@ -201,8 +299,10 @@ function A.Performance()
     if recent and fps and fps>0 then
         lines[#lines+1]=string.format("Recent CPU: %.2f%% of current frame-time budget (estimate)",recent*fps/10)
     end
-    if #lines==0 then return "SKIP","Addon memory/profiler API unavailable." end
-    return "PASS",table.concat(lines,"\n").."\nClient-reported sample; no profiler reset or performance threshold certification."
+    local available=#lines>0
+    lines[#lines+1]=A.MemoryText()
+    return available and "PASS" or "SKIP",table.concat(lines,"\n")..
+        "\nClient-reported CPU sample; memory is refreshed manually only. No profiler reset or performance threshold certification."
 end
 function A.CompareBaseline(current,baseline)
     if not baseline then return "SKIP","No matching complete baseline. Save a healthy Complete Check first." end

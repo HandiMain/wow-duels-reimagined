@@ -7,6 +7,7 @@ local View = {}
 ns.WarGamesUI = View
 
 local root = CreateFrame("Frame", nil, Window.content)
+if ns.DiagnosticAudit then ns.DiagnosticAudit.RegisterUIRoot("War Games",root) end
 root:SetAllPoints(Window.content)
 root:Hide()
 local active = "player"

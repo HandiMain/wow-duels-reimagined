@@ -4,6 +4,8 @@ local D={}
 ns.Diagnostics=D
 local providers,ids,incidents,last={},{},{},nil
 local running=false
+local pendingAudit
+local preparedAudit
 local lastHealthyComplete
 local function Plain(v)
     if type(issecretvalue)=="function" then
@@ -68,17 +70,26 @@ driver:SetScript("OnEvent",function(_,event,a,b)
     elseif name=="DuelsReimagined" then D.Record(event,SafeText(b)) end
 end)
 local function ImportErrors()
-    local bg=_G.BugGrabber
-    if type(bg)~="table" or type(bg.GetErrors)~="function" then
-        return "SKIP","BugGrabber not available; uncaught Lua errors not fully observable."
+    local bg,why,reader=ns.DiagnosticAudit.BugGrabberAPI()
+    if not bg then
+        return "SKIP",why=="incompatible" and "BugGrabber public reader incompatible." or
+            "BugGrabber not loaded; native capture is optional."
     end
-    local ok,items=pcall(bg.GetErrors,bg)
+    local ok,items=pcall(reader,bg)
     if not ok or type(Plain(items))~="table" then return "SKIP","BugGrabber history unavailable." end
-    local found=0
+    local found,older=0,0
+    local session
+    if type(bg.GetSessionId)=="function" then
+        local good,value=pcall(bg.GetSessionId,bg)
+        if good then session=Plain(value) end
+    end
     for _,e in pairs(items) do
         if type(Plain(e))=="table" then
             local m,stack=SafeText(e.message,1800),SafeText(e.stack,3000)
             if (m.." "..stack):lower():find("duelsreimagined",1,true) then
+                if type(session)=="number" and Plain(e.session)~=session then
+                    older=older+1
+                else
                 found=found+1
                 -- Do not inflate counts by reimporting the same cached error.
                 local msg=m.."\n"..stack:sub(1,1200)
@@ -88,11 +99,18 @@ local function ImportErrors()
                     if item.kind=="BugGrabber" and item.message==msg then seen=true;break end
                 end
                 if not seen then D.Record("BugGrabber",msg) end
+                end
             end
         end
     end
-    return found>0 and "WARN" or "PASS",
-        tostring(found).." attributable cached Lua error(s); not a full source scan."
+    local paused=false
+    if type(bg.IsPaused)=="function" then
+        local good,value=pcall(bg.IsPaused,bg);paused=good and Plain(value)==true
+    end
+    return (found>0 or paused) and "WARN" or "PASS",
+        tostring(found).." attributable current-session cached error(s); "..older..
+        " older error(s) excluded. "..(paused and "Collector paused. " or "")..
+        "Database read only; not proof of no uncaught errors."
 end
 Check("Client and API profile","health",function()
     local k=ns.Client.Kind()
@@ -217,13 +235,13 @@ local function Fingerprint()
     return table.concat(parts,"|")
 end
 function D.GetLast() return Copy(last) end
-function D.IsRunning() return running end
+function D.IsRunning() return running or pendingAudit~=nil end
 local function Add(result,id,status,detail,ms)
     result.rows[#result.rows+1]={id=id,status=status,detail=SafeText(detail,16000),ms=ms}
     result.counts[status]=(result.counts[status] or 0)+1
 end
 function D.Run(mode)
-    if running then return nil,"Already running" end
+    if D.IsRunning() then return nil,"Already running" end
     running=true
     local r={mode=mode=="complete" and "complete" or "health",stamp=Stamp(),rows={},counts={}}
     local start=Clock()
@@ -231,13 +249,18 @@ function D.Run(mode)
         for _,p in ipairs(providers) do
             if p.profile==profile then
                 local t=Clock()
-                local ok,status,detail=pcall(p.run)
+                local ok,status,detail
+                if p.id=="Owned UI geometry and texture sources" and preparedAudit then
+                    ok,status,detail=true,preparedAudit.status,preparedAudit.detail
+                else ok,status,detail=pcall(p.run) end
                 if not ok then detail=SafeText(status);status="FAIL";D.Record("Check "..p.id,detail) end
                 if status~="PASS" and status~="WARN" and status~="SKIP" and status~="FAIL" then
                     status="FAIL";detail="Invalid provider return"
                 end
                 local done=Clock()
-                Add(r,prefix..p.id,status,detail,t and done and done-t or nil)
+                local ms=t and done and done-t or nil
+                if p.id=="Owned UI geometry and texture sources" and preparedAudit then ms=preparedAudit.ms end
+                Add(r,prefix..p.id,status,detail,ms)
             end
         end
     end
@@ -288,6 +311,9 @@ function D.Run(mode)
     if not ok then Add(r,"Diagnostics coordinator","FAIL",SafeText(err));D.Record("Coordinator",SafeText(err)) end
     local done=Clock()
     r.ms=start and done and done-start or nil
+    if preparedAudit and r.ms then r.ms=r.ms+preparedAudit.ms end
+    r.batched=preparedAudit~=nil
+    preparedAudit=nil
     r.status=r.counts.FAIL and "FAIL" or r.counts.WARN and "WARN" or "PASS"
     r.previous=last and last.status or "none"
     if r.mode=="complete" and ns.DiagnosticAudit then
@@ -302,7 +328,39 @@ function D.Run(mode)
     if ns.DiagnosticAudit then r.release=ns.DiagnosticAudit.ReleaseGate(r) end
     last=r
     running=false
+    if ns.DiagnosticAudit then ns.DiagnosticAudit.MarkScanEnd() end
     return Copy(r)
+end
+function D.CancelPending()
+    pendingAudit=nil
+end
+function D.RunAsync(mode,callback,progress)
+    if D.IsRunning() then return false,"Already running" end
+    if mode~="complete" or not C_Timer or type(C_Timer.After)~="function" then
+        local r,err=D.Run(mode);callback(r,err);return true
+    end
+    local job={step=ns.DiagnosticAudit.BeginUIAudit(),ms=0}
+    pendingAudit=job
+    local function Next()
+        if pendingAudit~=job then return end
+        local start=Clock()
+        local ok,done,status,detail=pcall(job.step)
+        local finish=Clock()
+        if start and finish then job.ms=job.ms+finish-start end
+        if not ok then done,status,detail=true,"FAIL",SafeText(done) end
+        if done then
+            pendingAudit=nil
+            preparedAudit={status=status,detail=detail,ms=job.ms}
+            local r,err=D.Run(mode)
+            preparedAudit=nil
+            callback(r,err)
+        else
+            C_Timer.After(0,Next)
+        end
+    end
+    if progress then progress("Scanning UI in small batches...") end
+    C_Timer.After(0,Next)
+    return true
 end
 function D.BuildReport(result,advanced)
     if not result then return "No scan yet. Run Health Check or Run Complete Check." end
@@ -317,7 +375,7 @@ function D.BuildReport(result,advanced)
         "Changes under test: native capture, resource counts, UI audit, baseline comparison, performance and release gate.",
         "Evidence: each row below names its check; skipped checks remain unverified.",
         "No automated repair; live records and preferences are not modified by scans.",
-        r.ms and string.format("Elapsed: %.2f ms (synchronous checks)",r.ms) or "Timing unavailable",
+        r.ms and string.format("Measured work: %.2f ms (%s)",r.ms,r.batched and "batched UI plus atomic QA; excludes wait" or "synchronous checks") or "Timing unavailable",
         "Runtime evidence only; not a source-code or multiplayer certification.",""}
     for _,row in ipairs(r.rows) do
         lines[#lines+1]=row.status.." | "..row.id..(row.ms and string.format(" (%.2f ms)",row.ms) or "")
