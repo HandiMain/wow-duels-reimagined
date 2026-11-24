@@ -16,6 +16,9 @@ local sections = {
     { key = "matchhistory", label = "Match History", icon = "Hall", pages = {
         { key = "history", label = "Match History", title = "Match History", subtitle = "Your dueling journey, one match at a time.", competitive = true },
     } },
+    { key = "achievements", label = "Achievements", icon = "Hall", pages = {
+        { key = "achievements", label = "Achievements", title = "Achievements", subtitle = "Dueling accomplishments", achievements = true },
+    } },
     { key = "wargames", label = "War Games", icon = "Hall", pages = {
         { key = "player", label = "Players", warGames = true,
           title = "War Games: Players",
@@ -69,7 +72,7 @@ end
 -- Only primary gameplay destinations live in the expandable upper strip.
 -- Secondary utility sections remain in the narrow left rail. New gameplay
 -- sections can be promoted here only when their real pages are implemented.
-local primaryKeys = { hall = true, leaderboard = true, matchhistory = true, wargames = true }
+local primaryKeys = { hall = true, leaderboard = true, matchhistory = true, achievements = true, wargames = true }
 local railButtons, primaryButtons, subButtons = {}, {}, {}
 local patchDot, patchPulse
 -- The page heading now belongs to Window.content, not the subcategory bar.
@@ -84,6 +87,7 @@ local function ScrollOwner(page)
     if not page then return nil end
     if page.key == "options" or page.key == "interface" then return ns.Options end
     if page.competitive then return ns.CompetitiveUI end
+    if page.achievements then return ns.AchievementUI end
     if page.warGames then return ns.WarGamesUI end
     if page.addonStatus then return ns.AddonStatus end
     if page.community then return ns.Community end
@@ -137,13 +141,13 @@ end
 
 local function CanReturn()
     local _,page=PageId(currentSection,currentPage)
-    return #history>0 or (page and page.competitive and page.key~="overview") or false
+    return #history>0 or (page and (page.achievements or (page.competitive and page.key~="overview"))) or false
 end
 local function UpdateBack()
     if not backButton then return end
     local _,page=PageId(currentSection,currentPage)
     local can=CanReturn()
-    backButton:SetShown(can or (page and page.competitive) or false)
+    backButton:SetShown(can or (page and (page.competitive or page.achievements)) or false)
     backButton:SetEnabled(can)
     backButton:SetAlpha(can and 1 or .48)
 end
@@ -276,6 +280,13 @@ for index, section in ipairs(sections) do
         artwork:SetAllPoints(button)
         glow:SetAllPoints(button)
         glow:SetBlendMode("ADD");glow:SetVertexColor(1,0.78,0.48);glow:SetAlpha(0)
+        button.hallGlow=glow
+        button:HookScript("OnHide",function() Motion.Stop(glow,0) end)
+    elseif section.key == "achievements" then
+        local artwork=ns.AchievementUI.Plaque(button,"ARTWORK",2)
+        local glow=ns.AchievementUI.Plaque(button,"OVERLAY",6)
+        artwork:SetAllPoints(button);glow:SetAllPoints(button)
+        glow:SetBlendMode("ADD");glow:SetVertexColor(1,.78,.48);glow:SetAlpha(0)
         button.hallGlow=glow
         button:HookScript("OnHide",function() Motion.Stop(glow,0) end)
     elseif section.key == "wargames" then
@@ -426,7 +437,7 @@ for index, section in ipairs(sections) do
     if isPrimary then item.key=section.key;primaryButtons[#primaryButtons + 1] = item end
 
     local pages = {}
-    if section.key ~= "patchnotes" and section.key ~= "addonstatus" and not section.pages[1].competitive then
+    if section.key ~= "patchnotes" and section.key ~= "addonstatus" and not section.pages[1].competitive and not section.pages[1].achievements then
     for pageIndex, page in ipairs(section.pages) do
         local sub = CreateFrame("Button", nil, Window.nav)
         sub:SetSize(174, 35)
@@ -556,7 +567,7 @@ local function FitTabs(self, width)
     local buttonWidth=math.max(112,math.min(HALL_BUTTON_WIDTH,w-28))
     local compact=h<590
     local top=compact and 20 or 31
-    local height=compact and math.max(48,math.min(76,(h-95)/4)) or 84
+    local height=math.max(1,math.min(compact and 76 or 84,(h-top-21-12-(#primaryButtons-1)*(compact and 10 or 15))/#primaryButtons))
     local gap=compact and 10 or 15
     for _,item in ipairs(primaryButtons) do
         if item.key=="wargames" then
@@ -617,7 +628,7 @@ FitTabs(Window.rail,Window.rail:GetWidth())
 ns.Navigation = {
     Back = function()
         local _,page=PageId(currentSection,currentPage)
-        if #history==0 and page and page.competitive and page.key~="overview" then Select(1,1,false,false,true);return true end
+        if #history==0 and page and (page.achievements or (page.competitive and page.key~="overview")) then Select(1,1,false,false,true);return true end
         if #history == 0 then return false end
         local previous = table.remove(history)
         Select(previous.section, previous.page, false, false, true)

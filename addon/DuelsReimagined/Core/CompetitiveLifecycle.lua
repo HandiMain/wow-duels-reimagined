@@ -66,6 +66,10 @@ local function Refresh()
         local ok=pcall(ns.CompetitiveUI.Refresh)
         if not ok then Note("Competitive view refresh failed") end
     end
+    if ns.AchievementUI and ns.AchievementUI.Refresh then
+        local ok=pcall(ns.AchievementUI.Refresh)
+        if not ok then Note("Achievement view refresh failed") end
+    end
 end
 function P.CanCommunicate()
     return initialized and Store.PeerEpoch()~=nil and

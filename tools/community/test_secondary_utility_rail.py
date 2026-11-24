@@ -9,7 +9,7 @@ class UtilityRailTests(unittest.TestCase):
     def test_distinct_primary_secondary_and_subpage_owners(self):
         w, n = read("UI/Window.lua"), read("UI/Navigation.lua")
         for token in (
-            'local primaryKeys = { hall = true, leaderboard = true, matchhistory = true, wargames = true }',
+            'local primaryKeys = { hall = true, leaderboard = true, matchhistory = true, achievements = true, wargames = true }',
             'local railButtons, primaryButtons, subButtons = {}, {}, {}',
             'local parent = isPrimary and Window.rail or Window.utility',
             'local HALL_BUTTON_WIDTH = 205',

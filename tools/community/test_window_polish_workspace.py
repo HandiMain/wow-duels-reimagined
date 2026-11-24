@@ -56,7 +56,7 @@ class WindowPolishWorkspaceTests(unittest.TestCase):
         self.assertNotIn('Style.Action(Window.rail, "Back")', nav)
         self.assertIn('close:SetSize(105, 30)', win)
         self.assertIn('Window.closeButton = close', win)
-        self.assertIn('backButton:SetShown(can or (page and page.competitive) or false)', nav)
+        self.assertIn('backButton:SetShown(can or (page and (page.competitive or page.achievements)) or false)', nav)
         self.assertIn('ns.Search.Register("navigation:back", "Back", "Navigation",', nav)
 
     def test_last_workspace_uses_only_central_account_savedvariables(self):

@@ -59,6 +59,7 @@ jobs:
           lua5.1 tools/community/check_competitive_stress.lua
           lua5.1 tools/community/check_notifications_runtime.lua
           lua5.1 tools/community/check_competitive_ui_runtime.lua
+          lua5.1 tools/community/check_achievements_runtime.lua
 
       - name: Check generator and UI contracts without network
         run: python3 -m unittest discover -s tools/community -p 'test_*.py' -v

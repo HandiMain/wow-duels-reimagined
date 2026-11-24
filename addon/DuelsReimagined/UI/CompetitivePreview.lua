@@ -98,11 +98,11 @@ local function Build(client,events)
             delta=after-before
         end
         matches[#matches+1]={id=row.id,identity=metadata[row.opponent],peer=row.opponent,
-            category=category,outcome=row.outcome,duration=row.duration,before=before,after=after,delta=delta,
-            time=r and r.time,confirmed=row.category=="matched",rankReason=row.rankReason,endReason=row.endReason}
+            category=category,kind=row.kind,outcome=row.outcome,duration=row.duration,before=before,after=after,delta=delta,
+            time=localRows[row.cycle] and localRows[row.cycle].time,confirmed=row.category=="matched",rankReason=row.rankReason,endReason=row.endReason}
     end
     return {scope="SIMULATED",rankEligible=false,client=client,me=me,view=view,identities=metadata,
-        asOf=asOf,epoch=epoch,current=view.Status().season,personal=personal.overall,matches=matches}
+        asOf=asOf,epoch=epoch,current=view.Status().season,personal=personal.overall,matches=matches,achievementReplay=replay}
 end
 P.Build=Build
 local cached,session
@@ -161,7 +161,7 @@ function P.Local()
                 else category="Unconfirmed" end
             end
             matches[#matches+1]={id=row.id,identity=identity,peer=row.opponent,
-                category=category,outcome=row.outcome,duration=row.duration,confirmed=confirmed,
+                category=category,kind=row.kind,outcome=row.outcome,duration=row.duration,confirmed=confirmed,
                 before=before,after=after,delta=delta,time=row.time,rankReason=row.rankReason,endReason=row.endReason}
         end
     end
@@ -170,7 +170,7 @@ function P.Local()
         current=peer and peer.replay.season or 0,epoch=peer and peer.epoch,asOf=asOf,
         view=view,identities=peer and peer.identities or {},personal=snapshot and snapshot.overall or {},
         matches=matches,storageReason=why,peerReason=peerReason,peerEvidence=peer~=nil,
-        capacity=capacity,recordingDisabled=not storage.LocalRecordingEnabled()}
+        capacity=capacity,recordingDisabled=not storage.LocalRecordingEnabled(),achievementReplay=peer and peer.replay}
 end
 function P.Get()
     if not P.IsActive() then return P.Local() end
@@ -178,6 +178,7 @@ function P.Get()
 end
 local function Refresh()
     if ns.CompetitiveUI then ns.CompetitiveUI.Refresh() end
+    if ns.AchievementUI then ns.AchievementUI.Refresh() end
 end
 function P.Command(command)
     if not TEST_ENABLED then return false,"Solo simulation is unavailable in this build." end

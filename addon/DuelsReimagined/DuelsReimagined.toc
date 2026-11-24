@@ -33,6 +33,7 @@ Core\SyncProtocol.lua
 Core\CompetitiveManifest.lua
 Core\CompetitiveIntegrity.lua
 Core\CompetitiveLifecycle.lua
+Core\Achievements.lua
 Core\WarGames.lua [AllowLoadGameType standard]
 UI\Fonts.lua
 UI\Style.lua
@@ -52,6 +53,7 @@ UI\WarGamesArenaPicker.lua [AllowLoadGameType standard]
 UI\WarGames.lua [AllowLoadGameType standard]
 UI\CompetitivePreview.lua
 UI\CompetitiveUI.lua
+UI\AchievementUI.lua
 UI\DuelHUD.lua
 UI\Navigation.lua
 Community\Credits.lua

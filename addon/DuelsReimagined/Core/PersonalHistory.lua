@@ -71,7 +71,7 @@ local function Build(client,me,ledger,cap,scope)
             elseif r.endType=="retreat" and (r.outcome=="fled" or r.outcome=="they_fled") then out=r.outcome end
         end
         local id=run..":"..r.id
-        local row={id=id,cycle=r.id,run=run,opponent=peer,outcome=out,duration=r.endedAt-r.acceptedAt}
+        local row={id=id,cycle=r.id,run=run,kind=r.kind,opponent=peer,outcome=out,duration=r.endedAt-r.acceptedAt}
         if r.duelMode~=nil and r.duelMode~="practice" then return false,"invalid_mode" end
         if r.duelMode=="practice" and agreement~=nil then return false,"practice_cannot_rank" end
         if r.rankReason~=nil and not rankReasons[r.rankReason] then return false,"invalid_rank_reason" end

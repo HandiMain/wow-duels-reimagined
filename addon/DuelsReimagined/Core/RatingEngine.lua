@@ -113,6 +113,11 @@ local function Replay(client,saved,chronology,rule,options,scope)
         if not w then w=NewPlayer(r.winner);players[r.winner]=w end
         if not l then l=NewPlayer(r.loser);players[r.loser]=l end
         local beforeW,beforeL=Visible(w.rating),Visible(l.rating)
+        local beforeWRank,beforeLRank
+        if seasonal then
+            beforeWRank=policy.Rank(beforeW,w.credit,w.rivalCount or 0).name
+            beforeLRank=policy.Rank(beforeL,l.credit,l.rivalCount or 0).name
+        end
         local weight,reason=4,"full"
         if pairWeight then weight,reason=pairWeight(r,item.time) end
         local gain,loss,p,wk,lk=Step(w,l,weight,protected,seasonal and policy.PLACEMENT_CREDIT/4 or nil)
@@ -123,7 +128,12 @@ local function Replay(client,saved,chronology,rule,options,scope)
         changes[#changes+1]={id=r.id,time=item.time,winner=r.winner,loser=r.loser,
             winnerBefore=beforeW,loserBefore=beforeL,winnerAfter=afterW,loserAfter=afterL,
             gain=gain,loss=loss,expectedWin=p,weight=weight,reason=reason}
-        if seasonal then local row=changes[#changes];row.season=season;row.winnerK=wk;row.loserK=lk end
+        if seasonal then
+            local row=changes[#changes];row.season=season;row.winnerK=wk;row.loserK=lk
+            row.winnerRankBefore=beforeWRank;row.loserRankBefore=beforeLRank
+            row.winnerRankAfter=policy.Rank(afterW,w.credit,w.rivalCount or 0).name
+            row.loserRankAfter=policy.Rank(afterL,l.credit,l.rivalCount or 0).name
+        end
     end
     if seasonal and season~=schedule.season then Archive();players={};season=schedule.season end
     local standings={}
