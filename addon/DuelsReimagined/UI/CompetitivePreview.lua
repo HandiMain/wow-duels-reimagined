@@ -119,6 +119,32 @@ local function Build(client)
 end
 P.Build=Build
 local cached
+-- This read-only source never opens a simulated store or invents a season,
+-- rating, participant or match. Personal observations stay character-local.
+function P.Local()
+    local client=ns.Client.Kind()
+    local storage=ns.CompetitiveStorage
+    local snapshot,why=storage.ReadLocalHistory()
+    local view={}
+    function view.ProfileSummary() return nil end
+    function view.Profile() return nil end
+    function view.Leaderboard() return {rows={},total=0} end
+    function view.Progression() return {rows={},total=0} end
+    local matches={}
+    if snapshot then
+        for i=#snapshot.history,1,-1 do
+            local row=snapshot.history[i]
+            local identity=row.name and {name=row.name,fullName=row.fullName or row.name,
+                realm=row.realm,class=row.class,faction=row.faction} or nil
+            matches[#matches+1]={id=row.id,identity=identity,peer=row.opponent,
+                category="Unranked",outcome=row.outcome,duration=row.duration,confirmed=false}
+        end
+    end
+    local me=ns.Group.ReadPlayerIdentity("player")
+    return {scope="LOCAL",client=client,rankEligible=false,me=me and me.guid,
+        current=0,view=view,identities={},personal=snapshot and snapshot.overall or {},
+        matches=matches,storageReason=why,recordingDisabled=true}
+end
 function P.Get()
     local client=ns.Client.Kind()
     if not cached or cached.client~=client then cached=Build(client) end

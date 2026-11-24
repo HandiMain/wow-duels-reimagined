@@ -18,6 +18,16 @@ function U.Plaque(parent,key,layer,sub)
     t:SetTexCoord(slot/4,(slot+1)/4,0.5,240/256)
     return t
 end
+-- Only the missing bottom strip of the approved rim, never a second
+-- complete border over the War Games art.
+function U.LowerRim(parent)
+    local t=Atlas(parent,"ARTWORK",3)
+    t:SetTexCoord(.5,.75,232/256,240/256)
+    t:SetPoint("BOTTOMLEFT",parent,"BOTTOMLEFT",0,0)
+    t:SetPoint("BOTTOMRIGHT",parent,"BOTTOMRIGHT",0,0)
+    t:SetHeight(6)
+    return t
+end
 local function Place(f,parent,x,y,w,h)
     f:ClearAllPoints();f:SetPoint("TOPLEFT",parent,"TOPLEFT",x,-y)
     f:SetSize(math.max(1,w),math.max(1,h))
@@ -70,8 +80,7 @@ end
 local function Identity(row,v,id)
     row.name:SetText(v and v.name or id or "Unknown player")
     row.realm:SetText(v and (v.realm or (v.fullName~=v.name and v.fullName or "")) or "")
-    row.class:SetTexture("Interface\\Icons\\ClassIcon_"..(v and v.class or "Unknown"))
-    if not v or not v.class then row.class:SetTexture("Interface\\Icons\\INV_Misc_QuestionMark") end
+    row.class:SetTexture(v and v.class and ("Interface\\Icons\\ClassIcon_"..v.class) or "Interface\\Icons\\INV_Misc_QuestionMark")
     local faction=v and v.faction
     row.faction:SetShown(faction=="Alliance" or faction=="Horde")
     if faction=="Alliance" or faction=="Horde" then row.faction:SetTexture("Interface\\TargetingFrame\\UI-PVP-"..faction) end
@@ -358,6 +367,7 @@ local function Page(key,title,subtitle,previewX,owner)
     local sub=T(f,subtitle,13,C.text);sub:SetPoint("TOPLEFT",f,"TOPLEFT",1,-33);sub:SetSize(460,20)
     local label=Panel(f);label:SetSize(173,24);label:SetPoint("TOPRIGHT",f,"TOPRIGHT",previewX or 0,-4)
     local caption=T(label,"Preview • Simulated data",11,C.muted,"CENTER");caption:SetAllPoints(label)
+    f.dataCaption=caption
     if ns.DiagnosticAudit then ns.DiagnosticAudit.RegisterUIRoot("Competitive / "..title,f) end
     f:Hide();if not owner then pages[key]=f end;return f
 end
@@ -375,6 +385,8 @@ local activity=Header(hall,"Recent Activity","Hall")
 local activityLink=Action(activity,"View History",function()Go("matchhistory","history")end)
 local leaders=Header(hall,"Leaderboard — Top Duelists")
 local leadersLink=Action(leaders,"View Full",function()Go("leaderboard","standings")end)
+local activityEmpty=T(activity,"No recorded duels",13,C.muted,"CENTER")
+local leadersEmpty=T(leaders,"No ranked standings",13,C.muted,"CENTER")
 local activityRows,leaderRows={},{}
 for i=1,5 do
     activityRows[i]=Row(activity,"recent",function()Go("matchhistory","history")end)
@@ -412,18 +424,34 @@ function hall.Render()
     Place(heroLine,hero,left,13,1,heroH-26)
     Place(seasonTitle,hero,left+18,12,w-left-26,25)
     Place(seasonInfo,hero,left+18,36,w-left-26,17)
-    local remain=math.max(0,d.epoch+d.current*ns.SeasonRules.DURATION-d.asOf)
-    seasonInfo:SetText("Season "..d.current.."  —  "..math.floor(remain/86400).."d remaining")
+    if d.scope=="SIMULATED" then
+        local remain=math.max(0,d.epoch+d.current*ns.SeasonRules.DURATION-d.asOf)
+        seasonInfo:SetText("Season "..d.current.."  —  "..math.floor(remain/86400).."d remaining")
+    else
+        seasonInfo:SetText(d.storageReason and "Local history unavailable" or "Ranked seasons not active")
+    end
     FitMetrics(seasonMetrics,hero,left+8,57,w-left-16,heroH-60)
     local stats=p and p.stats or {}
-    Set(seasonMetrics[1].value,stats.wins or 0,GREEN);Set(seasonMetrics[2].value,stats.losses or 0,RED)
+    if d.scope=="LOCAL" then
+        seasonTitle:SetText("Personal statistics")
+        stats=d.personal
+    else
+        seasonTitle:SetText("Season Summary")
+    end
+    Set(seasonMetrics[1].value,stats.wins,GREEN);Set(seasonMetrics[2].value,stats.losses,RED)
     Set(seasonMetrics[3].value,Rate(stats.winRate),C.text);Set(seasonMetrics[4].value,Number(p and p.peakRating),C.text)
-    Set(seasonMetrics[5].value,Streak(stats.currentStreak),stats.currentStreak and stats.currentStreak<0 and RED or GREEN)
+    local streak=stats.signedStreak or stats.currentStreak
+    Set(seasonMetrics[5].value,Streak(streak),streak and streak<0 and RED or GREEN)
     local half=(w-12)/2
     Place(activity,hall,0,middleTop,half,middleH);Place(leaders,hall,half+12,middleTop,half,middleH)
     Place(activityLink,activity,half-104,7,93,23);Place(leadersLink,leaders,half-92,7,81,23)
     local rh=math.min(36,math.max(22,(middleH-41)/5));local count=math.max(1,math.min(5,math.floor((middleH-41)/rh)))
     local top=d.view.Leaderboard(d.current,0,5,"","rating").rows
+    Place(activityEmpty,activity,10,38,half-20,math.max(20,middleH-45))
+    Place(leadersEmpty,leaders,10,38,half-20,math.max(20,middleH-45))
+    activityEmpty:SetText(d.storageReason and "Local history unavailable" or "No recorded duels")
+    activityEmpty:SetShown(#d.matches==0)
+    leadersEmpty:SetShown(#top==0)
     for i=1,5 do
         local row=activityRows[i];local item=d.matches[i];row:SetShown(i<=count and item~=nil)
         if item then
@@ -458,12 +486,13 @@ end
 local board=Page("standings","Leaderboard","Compete. Climb. Earn your rank.",-71)
 local boardSeason,boardQuery,boardSort=3,"","rating"
 local standing=Panel(board)
-local standText=T(standing,"Your Standing",12,C.pale)
+local standText=T(standing,"Your\nStanding",12,C.pale)
 local standRank=Rank(standing,44,false)
 local standName=Text(standing,17,C.pale)
 local standMetrics=Metrics(standing,{"Rating","Rank"})
 local boardChoice=Choice(board,Seasons(),3,function(v)boardSeason=v;board.Render(true)end)
 local boardSearch=Search(board,"Search player or realm...",function(v)boardQuery=v;board.Render(true)end)
+local noSeason=T(board,"No active season",12,C.muted,"CENTER")
 local boardHeader=Panel(board)
 local boardHeaders={}
 local sorts={"rating",false,"rating","rating","wins","winRate"}
@@ -484,7 +513,7 @@ function board.Render(reset)
     local d=Data();if not d then return end
     local w,h=board:GetWidth(),board:GetHeight();local strip=w*.51
     Place(standing,board,0,58,strip,63)
-    Place(standText,standing,9,20,76,20);Place(standRank,standing,85,8,42,42)
+    Place(standText,standing,9,11,76,40);Place(standRank,standing,85,8,42,42)
     local p=d.view.ProfileSummary(d.me,boardSeason)
     standRank.Paint(p and p.rank)
     Place(standName,standing,130,11,math.max(60,strip*.63-133),40);Set(standName,p and p.rank and p.rank.label or "Unranked")
@@ -492,6 +521,8 @@ function board.Render(reset)
     Set(standMetrics[1].value,Number(p and p.rating));Set(standMetrics[2].value,p and p.position and "#"..p.position or "—")
     local choiceW=math.min(142,w*.15)
     Place(boardChoice,board,strip+16,75,choiceW,30);Place(boardSearch,board,strip+24+choiceW,75,w-strip-24-choiceW,30)
+    Place(noSeason,board,strip+16,75,choiceW,30)
+    boardChoice:SetShown(d.scope=="SIMULATED");noSeason:SetShown(d.scope~="SIMULATED")
     Place(boardHeader,board,0,134,w-18,29);FitColumns(boardHeaders,boardHeader,w-18,29,boardWidths)
     Place(boardList,board,0,165,w,math.max(1,h-225))
     if reset then boardList.SetOffset(0) else boardList.Render() end
@@ -641,7 +672,7 @@ function profile.Render()
     end
 end
 OpenProfile=function(id)
-    if not preview or not id then return end
+    if not preview or preview.scope~="SIMULATED" or not id then return end
     W.CloseChoices()
     profileId=id
     profileSeason=active=="standings" and boardSeason or active=="overview" and preview.current or profileSeason
@@ -670,7 +701,7 @@ local outcomeChoice=Choice(history,Values({"All outcomes","Win","Loss","Fled","O
 local historyHeader=Panel(history)
 local historyHeaders={}
 local historySorts={"opponent","category","outcome","duration","delta"}
-for i,name in ipairs({"Opponent","Type","Outcome","Duration","Rating change"}) do
+for i,name in ipairs({"Opponent","Type","Outcome","Elapsed","Rating change"}) do
     local key=historySorts[i]
     local b=CreateFrame("Button",nil,historyHeader);local t=T(b,name,13,C.pale,"CENTER");t:SetAllPoints(b)
     b:SetScript("OnClick",function()if historySort==key then reverse=not reverse else historySort=key;reverse=false end;history.Render(true)end)
@@ -680,7 +711,7 @@ local historyList=List(history,"history",38,function(item)
     expandedId=expandedId==item.id and nil or item.id;history.Render()
 end)
 local detail=Panel(historyList)
-local detailMetrics=Metrics(detail,{"Duel","Rating","Duration","Result"})
+local detailMetrics=Metrics(detail,{"Duel","Rating","Elapsed","Result"})
 local filtered={}
 local function Refilter()
     local query=historyQuery:lower()
@@ -716,7 +747,8 @@ end,function(row,item,w,h)HistoryRow(row,item,w,h);row.Mark(item.id==expandedId)
         local result,color=Outcome(item.outcome);Set(detailMetrics[1].value,item.category.." — "..result,color)
         Set(detailMetrics[2].value,item.before and (Number(item.before).." to "..Number(item.after)) or "—",C.pale)
         Set(detailMetrics[3].value,Duration(item.duration),C.text)
-        Set(detailMetrics[4].value,item.confirmed and "Confirmed" or item.category,item.confirmed and GREEN or C.muted)
+        Set(detailMetrics[4].value,item.confirmed and "Confirmed" or
+            (Data().scope=="LOCAL" and "Local only" or item.category),item.confirmed and GREEN or C.muted)
     end
 })
 function history.Render(reset)
@@ -732,19 +764,27 @@ function history.Render(reset)
     Refilter()
     if reset then historyList.SetOffset(0) else historyList.Render() end
 end
-local failed=T(ns.Window.content,"Competitive preview is unavailable.",18,C.muted,"CENTER")
+local failed=T(ns.Window.content,"Competitive data is unavailable.",18,C.muted,"CENTER")
 failed:SetPoint("CENTER",ns.Window.content,"CENTER");failed:SetSize(440,30);failed:Hide()
 local function RenderActive()
     if not active then return end
-    if not preview then
-        local ok,result=pcall(ns.CompetitivePreview.Get)
-        if not ok then
-            ns.Diagnostics.Record("Competitive preview",tostring(result))
+    local simulated=not ns.Settings or not ns.Settings.Get or ns.Settings.Get("competitivePreview")~=false
+    local wanted=simulated and "SIMULATED" or "LOCAL"
+    if not preview or preview.scope~=wanted then
+        if card:IsShown() then card:Hide() end
+        local ok,result=pcall(simulated and ns.CompetitivePreview.Get or ns.CompetitivePreview.Local)
+        if not ok or not result then
+            preview=nil
+            ns.Diagnostics.Record("Competitive data","Data provider unavailable")
             pages[active]:Hide();failed:Show();return
         end
         preview=result
+        expandedId=nil
     end
     local f=pages[active]
+    failed:Hide()
+    f.dataCaption:SetText(preview.scope=="SIMULATED" and "Preview • Simulated data" or
+        (preview.storageReason and "Local data unavailable" or "Local • Recording disabled"))
     if f:IsVisible() and f:GetWidth()>1 and f:GetHeight()>1 then
         f.Render()
         if pendingScroll[active] then
@@ -763,8 +803,10 @@ function U.Show(key)
     for k,f in pairs(pages) do if k~=key then f:Hide() end end
     failed:Hide();active=pages[key] and key or nil
     if active then
+        local wasShown=pages[active]:IsShown()
         pages[active]:Show()
-        if pages[active]:IsVisible() then RenderActive() end
+        -- OnShow owns initial paint; only refresh an already shown page.
+        if wasShown and pages[active]:IsVisible() then RenderActive() end
     end
 end
 function U.GetPageScroll(key)
@@ -778,6 +820,11 @@ function U.SetPageScroll(key,offset)
 end
 
 function U.Refresh()
+    local simulated=not ns.Settings or not ns.Settings.Get or ns.Settings.Get("competitivePreview")~=false
+    if preview and (preview.scope=="LOCAL" or (preview.scope=="SIMULATED")~=simulated) then
+        if card:IsShown() then card:Hide() end
+        preview=nil
+    end
     if active and pages[active]:IsVisible() then RenderActive() end
     if card:IsShown() and preview then profile.Render() end
 end

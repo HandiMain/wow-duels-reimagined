@@ -120,7 +120,8 @@ local function PaintArt(image, missing, name, wide)
         image:SetColorTexture(unpack(C.nav))
         image:SetTexCoord(0,1,0,1)
     end
-    missing:SetShown(id == nil)
+    missing:SetText(id == ILLUSTRATED and "ILLUSTRATION" or "NO PREVIEW")
+    missing:SetShown(id == nil or id == ILLUSTRATED)
     return id ~= nil
 end
 

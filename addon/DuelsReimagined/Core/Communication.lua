@@ -138,6 +138,10 @@ frame:SetScript("OnEvent", function(_, event, prefix, payload, channel, sender)
     if not callbacks then return end
     for fn in pairs(callbacks) do
         -- A bad feature cannot disable the whole message transport.
-        pcall(fn, body, channel, sender)
+        local ok, err = pcall(fn, body, channel, sender)
+        if not ok and ns.Diagnostics and ns.Diagnostics.Record then
+            -- Do not retain raw packets or sender identities in diagnostics.
+            ns.Diagnostics.Record("Communication callback", "Protocol "..tag.." callback failed")
+        end
     end
 end)

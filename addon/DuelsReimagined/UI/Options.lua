@@ -322,6 +322,8 @@ local autoPeekRow = AddToggle(behaviorCard, "interface", "autoPeekMoving", "Auto
     "Fade the window during movement; restore it when you stop.", -64, false)
 local reduceMotionRow = AddToggle(behaviorCard, "interface", "reduceMotion", "Reduce motion",
     "Shorten or skip UI animation while retaining visual feedback.", -119, false)
+local previewRow = AddToggle(behaviorCard, "interface", "competitivePreview", "Development preview",
+    "Show simulated competitive screens. Disable to view local data; ranking remains disabled.", -174, false)
 local tooltipsRow = AddToggle(notificationsCard, "interface", "showTooltips", "Show addon tooltips",
     "Show helpful descriptions when hovering over Duels controls.", -64, false)
 local reminderRow = AddToggle(notificationsCard, "interface", "patchNotesReminder", "New patch reminder",
@@ -589,7 +591,7 @@ local appearanceGroups = {
 }
 local interfaceGroups = {
     { card = behaviorCard, entries = {
-        { widget = autoPeekRow }, { widget = reduceMotionRow },
+        { widget = autoPeekRow }, { widget = reduceMotionRow }, { widget = previewRow },
     }},
     { card = gameAccessCard, entries = {
         { widget = gameMenuRow }, { widget = compartmentToggle },

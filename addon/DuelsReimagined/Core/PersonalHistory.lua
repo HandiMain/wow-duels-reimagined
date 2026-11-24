@@ -48,12 +48,13 @@ local function Rate(c)
     if n>0 then c.winRate=c.wins/n end
     if c.durationCount>0 then c.averageDuration=c.totalDuration/c.durationCount end
 end
-local function Build(client,me,ledger,cap)
+local function Build(client,me,ledger,cap,scope)
+    scope=scope or "SIMULATED"
     assert((client=="forever" or client=="retail") and Guid(me))
     local D,rows,ids,linked,sources={}, {},{},{},{}
     cap=cap or LIMIT
     function D.Observe(run,r,agreement)
-        if not Run(run) or type(r)~="table" or r.scope~="SIMULATED" or r.client~=client
+        if not Run(run) or type(r)~="table" or r.scope~=scope or r.client~=client
             or r.rankEligible~=false or not Cycle(r.id) or not Time(r.acceptedAt) or not Time(r.endedAt)
             or r.endedAt<r.acceptedAt or (r.kind~="standard" and r.kind~="unclassified") then return false,"invalid_observation" end
         local peer=type(r.opponent)=="table" and r.opponent.guid or nil
@@ -67,6 +68,24 @@ local function Build(client,me,ledger,cap)
         end
         local id=run..":"..r.id
         local row={id=id,cycle=r.id,run=run,opponent=peer,outcome=out,duration=r.endedAt-r.acceptedAt}
+        -- Local history may never create or link a competitive candidate.
+        if scope=="LOCAL" and agreement~=nil then return false,"local_only" end
+        if scope=="LOCAL" then
+            local opponent=type(r.opponent)=="table" and r.opponent or {}
+            local meta=type(opponent.metadata)=="table" and opponent.metadata or {}
+            local function Text(v,limit)
+                return type(v)=="string" and #v>0 and #v<=limit and not v:find("[%c|]") and v or nil
+            end
+            row.name=Text(opponent.display,160)
+            if peer and meta.guid==peer and meta.scope=="LOCAL" then
+                row.name=Text(meta.name,160) or row.name
+                row.fullName=Text(meta.fullName,160)
+                row.realm=client=="retail" and Text(meta.realm,64) or nil
+                row.class=Text(meta.class,24)
+                if row.class and not row.class:match("^[A-Z]+$") then row.class=nil end
+                if meta.faction=="Alliance" or meta.faction=="Horde" or meta.faction=="Neutral" then row.faction=meta.faction end
+            end
+        end
         if agreement and peer then
             local body=ns.ResultConfirmation.MakeSimulatedStatement({scope="SIMULATED",client=client,
                 me=me,peer=peer,cycle=r.id,agreement=agreement},r)
@@ -80,7 +99,7 @@ local function Build(client,me,ledger,cap)
         if row.matchID and linked[row.matchID] then return false,"duplicate_session" end
         if #rows>=cap then return false,"capacity" end
         -- Retain bounded evidence, not the derived counters or ledger status.
-        local source={run=run,result={scope="SIMULATED",client=client,id=r.id,kind=r.kind,
+        local source={run=run,result={scope=scope,client=client,id=r.id,kind=r.kind,
             opponent=peer and {guid=peer} or nil,acceptedAt=r.acceptedAt,endedAt=r.endedAt,
             outcome=out,endType=out=="unknown" and nil or r.endType,
             reason=r.reason=="matching_result_and_finish" and r.reason or "not_observed",
@@ -88,6 +107,13 @@ local function Build(client,me,ledger,cap)
             resultObserved=r.resultObserved==true,conflict=r.conflict~=false,rankEligible=false}}
         -- Unknown outcome never needs an end type, including malformed input.
         if out=="unknown" then source.result.endType=nil end
+        if scope=="LOCAL" and (peer or row.name) then
+            source.result.opponent={guid=peer,display=row.name}
+            if peer and (row.fullName or row.realm or row.class or row.faction) then
+                source.result.opponent.metadata={scope="LOCAL",guid=peer,name=row.name,
+                    fullName=row.fullName,realm=row.realm,class=row.class,faction=row.faction}
+            end
+        end
         if row.matchID then source.agreement={scope="SIMULATED",state="candidate",candidate=true,
             rankEligible=false,session=agreement.session} end
         sources[#sources+1]=source
@@ -96,15 +122,17 @@ local function Build(client,me,ledger,cap)
         return true
     end
     function D.Save()
-        return {version=1,scope="SIMULATED",client=client,character=me,observations=Copy(sources)}
+        return {version=1,scope=scope,client=client,character=me,observations=Copy(sources)}
     end
     function D.Snapshot()
-        local snapshot=ledger.Snapshot()
-        assert(snapshot.scope=="SIMULATED" and snapshot.client==client and snapshot.rankEligible==false)
         local matched,disputed={},{}
-        for _,r in ipairs(snapshot.matched) do matched[r.id]=r end
-        for _,r in ipairs(snapshot.disputed) do disputed[r.id]=true end
-        local s={scope="SIMULATED",client=client,character=me,rankEligible=false,history={},overall=Counter(),
+        if scope=="SIMULATED" then
+            local snapshot=ledger.Snapshot()
+            assert(snapshot.scope=="SIMULATED" and snapshot.client==client and snapshot.rankEligible==false)
+            for _,r in ipairs(snapshot.matched) do matched[r.id]=r end
+            for _,r in ipairs(snapshot.disputed) do disputed[r.id]=true end
+        end
+        local s={scope=scope,client=client,character=me,rankEligible=false,history={},overall=Counter(),
             categories={unranked=Counter(),pending=Counter(),matched=Counter(),disputed=Counter(),ranked=Counter()},opponents={}}
         -- Append order is local observation order, not cross-client replay time.
         for _,r in ipairs(rows) do
@@ -137,13 +165,13 @@ local function EqualSaved(clean,raw)
     for k in pairs(raw) do if clean[k]==nil then return false end end
     return true
 end
-function P.OpenSimulated(client,me,ledger,stored,cap)
+local function Open(client,me,ledger,stored,cap,scope)
     if (client~="forever" and client~="retail") or not Guid(me) then return nil,"identity" end
     if cap==nil then cap=LIMIT end
     if type(cap)~="number" or cap<1 or cap>LIMIT or cap~=math.floor(cap) then return nil,"invalid_capacity" end
-    local d=Build(client,me,ledger,cap)
+    local d=Build(client,me,ledger,cap,scope)
     if stored==nil then return d end
-    if type(stored)~="table" or stored.version~=1 or stored.scope~="SIMULATED"
+    if type(stored)~="table" or stored.version~=1 or stored.scope~=scope
         or stored.client~=client or stored.character~=me or type(stored.observations)~="table" then return nil,"schema" end
     local n=0
     for k in pairs(stored.observations) do
@@ -155,6 +183,13 @@ function P.OpenSimulated(client,me,ledger,stored,cap)
     end
     if not EqualSaved(d.Save(),stored) then return nil,"noncanonical_history" end
     return d
+end
+function P.OpenSimulated(client,me,ledger,stored,cap)
+    return Open(client,me,ledger,stored,cap,"SIMULATED")
+end
+-- No ledger or candidate agreement can enter this private local-only model.
+function P.OpenLocal(client,me,stored,cap)
+    return Open(client,me,nil,stored,cap,"LOCAL")
 end
 function P.RunSelfTest(emit)
     emit=type(emit)=="function" and emit or function()end

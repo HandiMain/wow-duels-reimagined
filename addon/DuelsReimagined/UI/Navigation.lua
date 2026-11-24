@@ -285,10 +285,11 @@ for index, section in ipairs(sections) do
         local path = "Interface\\AddOns\\DuelsReimagined\\Media\\Skin\\DuelWarGamesPlate.png"
         local artwork = button:CreateTexture(nil, "ARTWORK", nil, 2)
         artwork:SetTexture(path)
-        -- Its baked border is the sole base rim, just like the other primary
-        -- plaques. Do not stack a second frame on top of the approved art.
+        -- Retain the original artwork; repair only its clipped lower edge.
+        -- Never stack a second full rim on top of the approved art.
         artwork:SetAllPoints(button)
         Chrome.Sharp(artwork)
+        ns.CompetitiveUI.LowerRim(button)
         local glow = button:CreateTexture(nil, "OVERLAY", nil, 6)
         glow:SetTexture(path)
         Chrome.Sharp(glow)

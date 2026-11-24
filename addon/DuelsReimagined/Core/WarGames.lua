@@ -111,7 +111,12 @@ local function IsArena()
     return inside == true and kind == "arena"
 end
 local function Notify()
-    for fn in pairs(listeners) do pcall(fn) end
+    for fn in pairs(listeners) do
+        local ok=pcall(fn)
+        if not ok and ns.Diagnostics and ns.Diagnostics.Record then
+            ns.Diagnostics.Record("War Games callback","A War Games refresh listener failed")
+        end
+    end
 end
 
 function WarGames.Refresh()
@@ -258,6 +263,12 @@ end
 function WarGames.GetReason(page)
     if not IsRetail() then return "War Games are available on Retail only." end
     if IsArena() then return "Match setup is unavailable inside an arena." end
+    if type(InCombatLockdown)=="function" then
+        local ok,locked=pcall(InCombatLockdown)
+        if not ok or not Readable(locked) or locked then
+            return "War Game requests are unavailable during combat."
+        end
+    end
     local s = state[page]
     if not s then return "Select a War Games page." end
     if not WarGames.GetMaps()[s.map] then return "Choose an arena." end

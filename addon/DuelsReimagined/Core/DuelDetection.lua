@@ -62,7 +62,12 @@ local function Publish(nextState,why)
     trace[#trace+1]={time=Now(),state=state,reason=why,
         cycle=active and active.id or last and last.id or nil}
     if #trace>TRACE_LIMIT then table.remove(trace,1) end
-    for fn in pairs(listeners) do pcall(fn,D.GetSnapshot()) end
+    for fn in pairs(listeners) do
+        local ok=pcall(fn,D.GetSnapshot())
+        if not ok and api.scope=="LOCAL" and ns.Diagnostics and ns.Diagnostics.Record then
+            ns.Diagnostics.Record("Duel detection callback","A duel lifecycle listener failed")
+        end
+    end
 end
 
 -- Compile only the client's own localized strings. Ordered and positional
@@ -144,7 +149,13 @@ local function Identity(unit)
     local raw=ns.Group.ReadPlayerIdentity(unit)
     if not raw then return nil end
     local n=Name(raw.fullName)
-    if n then n.guid=raw.guid end
+    if n then
+        n.guid=raw.guid
+        if api.scope=="LOCAL" and raw.guid and ns.Group.ReadCompetitiveIdentity then
+            local ok,meta=pcall(ns.Group.ReadCompetitiveIdentity,unit)
+            if ok and meta and meta.guid==raw.guid then n.metadata=meta end
+        end
+    end
     return n
 end
 local function Resolve(name)

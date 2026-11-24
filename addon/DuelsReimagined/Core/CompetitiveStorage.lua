@@ -3,6 +3,9 @@ local _,ns=...
 local P={}
 ns.CompetitiveStorage=P
 local VERSION,MAX=2,2147483647
+-- Explicit development gate. No local recording or run allocation before
+-- actual detector/persistence verification; ranking has its own disabled gate.
+local LOCAL_RECORDING_ENABLED=false
 local function Client(k) return k=="forever" or k=="retail" end
 local function Guid(v)
     return type(v)=="string" and #v<=64 and v:match("^Player%-%w[%w%-]*$")~=nil
@@ -79,7 +82,8 @@ local function Root(raw,kind,owner,scope)
         for field in pairs(v) do
             if field~="probe" and not (not legacy and kind=="character" and field=="runCounter")
                 and not (not legacy and scope=="SIMULATED" and ((kind=="account" and (field=="ledger" or field=="season" or field=="identities"))
-                    or (kind=="character" and field=="history"))) then return nil end
+                    or (kind=="character" and field=="history")))
+                and not (not legacy and scope=="LOCAL" and kind=="character" and field=="localHistory") then return nil end
         end
         -- Only private simulation roots can contain simulated records.
         if scope=="SIMULATED" and not legacy then
@@ -96,6 +100,15 @@ local function Root(raw,kind,owner,scope)
                     local n=tonumber(src.run:match("^run%-(%d+)$"))
                     if not Count(n) or n==0 or n>part.runCounter or src.run~="run-"..n then return nil end
                 end
+            end
+        end
+        if scope=="LOCAL" and not legacy and kind=="character" and v.localHistory~=nil then
+            local history=ns.PersonalHistory.OpenLocal(k,owner,v.localHistory)
+            if not history then return nil end
+            part.localHistory=history.Save()
+            for _,src in ipairs(part.localHistory.observations) do
+                local n=tonumber(src.run:match("^run%-(%d+)$"))
+                if not Count(n) or n==0 or n>part.runCounter or src.run~="run-"..n then return nil end
             end
         end
         if scope=="SIMULATED" and not legacy and kind=="account" and v.season~=nil then
@@ -157,6 +170,40 @@ local function Build(read,write,client,identity,scope)
         if not a then return false,why end
         if not prepared then write(a,c) end
         return true
+    end
+    -- Local observations use the character root only. No shared ledger,
+    -- rating, simulated record, or account competitive data is imported.
+    function D.ReadLocalHistory()
+        if scope~="LOCAL" then return nil,"wrong_scope" end
+        local a,c,k,why=Pair();if not a then return nil,why end
+        local cp=c.clients[k] or {probe=0,runCounter=0}
+        local h=ns.PersonalHistory.OpenLocal(k,c.owner,cp.localHistory)
+        if not h then return nil,"invalid_history" end
+        return h.Snapshot()
+    end
+    function D.BeginLocalRun()
+        if scope~="LOCAL" or not LOCAL_RECORDING_ENABLED then return nil,"disabled" end
+        local a,c,k,why=Pair();if not a then return nil,why end
+        local cp=c.clients[k] or {probe=0,runCounter=0}
+        if cp.runCounter>=MAX then return nil,"capacity" end
+        cp.runCounter=cp.runCounter+1;c.clients[k]=cp
+        local clean=Root(c,"character",c.owner,scope)
+        if not clean then return nil,"invalid_history" end
+        write(a,clean);return "run-"..cp.runCounter
+    end
+    function D.RecordLocalObservation(run,r)
+        if scope~="LOCAL" or not LOCAL_RECORDING_ENABLED then return false,"disabled" end
+        local a,c,k,why=Pair();if not a then return false,why end
+        local cp=c.clients[k]
+        if not cp or cp.runCounter==0 or run~="run-"..cp.runCounter then return false,"stale_run" end
+        local h=ns.PersonalHistory.OpenLocal(k,c.owner,cp.localHistory)
+        if not h then return false,"invalid_history" end
+        local ok,reason=h.Observe(run,r)
+        if not ok then return false,reason end
+        cp.localHistory=h.Save()
+        local clean=Root(c,"character",c.owner,scope)
+        if not clean then return false,"invalid_history" end
+        write(a,clean);return true
     end
     -- Private fixture transaction: reopen from validated data every time;
     -- write only canonical record sources after successful edit. No live path.
@@ -476,6 +523,9 @@ P.MarkLoaded=live.MarkLoaded
 P.GetSnapshot=live.Snapshot
 P.RunPersistenceProbe=live.Probe
 P.PrepareSchema=live.Prepare
+P.ReadLocalHistory=live.ReadLocalHistory
+P.BeginLocalRun=live.BeginLocalRun
+P.RecordLocalObservation=live.RecordLocalObservation
 function P.GetDiagnosticResources() return {pending=0,subscriptions=0,timers=0} end
 function P.RunSelfTest(emit)
     emit=type(emit)=="function" and emit or function()end

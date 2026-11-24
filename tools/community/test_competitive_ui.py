@@ -17,6 +17,7 @@ class CompetitiveUI(unittest.TestCase):
         self.assertIn('DuelWarGamesPlate.png',war)
         self.assertIn('artwork:SetAllPoints(button)',war)
         self.assertIn('glow:SetTexture(path)',war)
+        self.assertIn('ns.CompetitiveUI.LowerRim(button)',war)
         self.assertNotIn('CompetitiveUI.Plaque',war)
         self.assertNotIn('artwork:SetPoint(',war)
         self.assertIn('backButton:SetShown(can or (page and page.competitive) or false)',n)
@@ -32,6 +33,21 @@ class CompetitiveUI(unittest.TestCase):
         self.assertIn('Number(item.before).." to "..Number(item.after)',ui)
         self.assertIn('local boardSearch=Search(board,',ui)
         self.assertIn('local historySearch=Search(history,',ui)
+
+    def test_local_view_remains_isolated_from_preview(self):
+        ui=read("UI/CompetitiveUI.lua")
+        p=read("UI/CompetitivePreview.lua")
+        storage=read("Core/CompetitiveStorage.lua")
+        history=read("Core/PersonalHistory.lua")
+        self.assertIn('LOCAL_RECORDING_ENABLED=false',storage)
+        self.assertIn('function P.OpenLocal(',history)
+        self.assertIn('function D.ReadLocalHistory()',storage)
+        self.assertIn('function P.Local()',p)
+        self.assertIn('storage.ReadLocalHistory()',p)
+        self.assertIn('preview.scope~=wanted',ui)
+        self.assertIn('competitivePreview',read("Core/Settings.lua"))
+        self.assertIn('competitivePreview',read("UI/Options.lua"))
+        self.assertIn('function U.LowerRim(parent)',ui)
 
     def test_live_widgets_and_isolated_data(self):
         ui=read("UI/CompetitiveUI.lua");p=read("UI/CompetitivePreview.lua")
