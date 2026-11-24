@@ -13,11 +13,26 @@ class CompetitiveUI(unittest.TestCase):
         self.assertIn('top=top+21',n)
         self.assertIn('ns.CompetitiveUI.Plaque(button,section.key,"ARTWORK",2)',n)
         self.assertNotIn('{ key = "profile", label = "Player Profile"',n)
-        self.assertIn('ns.CompetitiveUI.Plaque(button,"rim","ARTWORK",3)',n)
+        war=n.split('elseif section.key == "wargames" then',1)[1].split('\n    else',1)[0]
+        self.assertIn('DuelWarGamesPlate.png',war)
+        self.assertIn('artwork:SetAllPoints(button)',war)
+        self.assertIn('glow:SetTexture(path)',war)
+        self.assertNotIn('CompetitiveUI.Plaque',war)
+        self.assertNotIn('artwork:SetPoint(',war)
         self.assertIn('backButton:SetShown(can or (page and page.competitive) or false)',n)
         self.assertIn('backButton:SetEnabled(can)',n)
         self.assertIn('page and page.competitive and page.key~="overview" then Select(1,1,false,false,true)',n)
         self.assertTrue((ADDON/"Media/Skin/DuelCompetitiveAtlas.png").is_file())
+    def test_competitive_symbols_do_not_depend_on_unsupported_font_glyphs(self):
+        ui=read("UI/CompetitiveUI.lua")
+        self.assertNotIn("⌕",ui)
+        self.assertNotIn("→",ui)
+        self.assertIn('Media\\\\Artwork\\\\Header\\\\Search.png',ui)
+        self.assertTrue((ADDON/"Media/Artwork/Header/Search.png").is_file())
+        self.assertIn('Number(item.before).." to "..Number(item.after)',ui)
+        self.assertIn('local boardSearch=Search(board,',ui)
+        self.assertIn('local historySearch=Search(history,',ui)
+
     def test_live_widgets_and_isolated_data(self):
         ui=read("UI/CompetitiveUI.lua");p=read("UI/CompetitivePreview.lua")
         for key in ("overview","standings","profile","history"):

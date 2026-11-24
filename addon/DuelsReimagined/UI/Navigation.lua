@@ -285,14 +285,13 @@ for index, section in ipairs(sections) do
         local path = "Interface\\AddOns\\DuelsReimagined\\Media\\Skin\\DuelWarGamesPlate.png"
         local artwork = button:CreateTexture(nil, "ARTWORK", nil, 2)
         artwork:SetTexture(path)
-        -- Keep the original approved coliseum image; inset it beneath the
-        -- shared complete plaque rim. The old lower edge was baked short.
-        artwork:SetPoint("TOPLEFT",button,"TOPLEFT",4,-4)
-        artwork:SetPoint("BOTTOMRIGHT",button,"BOTTOMRIGHT",-4,4)
+        -- Its baked border is the sole base rim, just like the other primary
+        -- plaques. Do not stack a second frame on top of the approved art.
+        artwork:SetAllPoints(button)
         Chrome.Sharp(artwork)
-        local rim=ns.CompetitiveUI.Plaque(button,"rim","ARTWORK",3)
-        rim:SetAllPoints(button)
-        local glow = ns.CompetitiveUI.Plaque(button,"rim","OVERLAY",6)
+        local glow = button:CreateTexture(nil, "OVERLAY", nil, 6)
+        glow:SetTexture(path)
+        Chrome.Sharp(glow)
         glow:SetAllPoints(button)
         glow:SetBlendMode("ADD")
         glow:SetVertexColor(1, 0.78, 0.48)
