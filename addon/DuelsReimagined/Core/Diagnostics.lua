@@ -119,7 +119,7 @@ Check("Client and API profile","health",function()
 end)
 Check("Module ownership / load order","health",function()
     for _,key in ipairs({"Client","Settings","Group","DuelDetection","DuelSelfTest",
-        "Communication","Presence","OpponentDiscovery","PeerAgreement","ResultConfirmation","MatchLedger","PersonalHistory","CompetitiveStorage","CompetitiveRules","RatingEngine","LeaderboardSync","SyncProtocol","Style","Motion","Widgets","Window","Search",
+        "Communication","Presence","OpponentDiscovery","PeerAgreement","ResultConfirmation","MatchLedger","PersonalHistory","CompetitiveStorage","CompetitiveRules","RatingEngine","LeaderboardSync","SyncProtocol","CompetitiveIntegrity","Style","Motion","Widgets","Window","Search",
         "Header","Navigation","Options","AddonStatus","AccessIcons","BlizzardLanding"}) do
         Assert(type(ns[key])=="table",key.." missing")
     end
@@ -208,6 +208,11 @@ Check("Sync protocol / live gate","health",function()
     local p=ns.SyncProtocol.GetSnapshot()
     Assert(p.scope=="LOCAL" and p.state=="disabled" and p.rankEligible==false,"sync protocol live gate unexpectedly enabled")
     return "PASS","Simulation wire v"..p.version.."; no live network or rating writes."
+end)
+Check("Competitive integrity / live gate","health",function()
+    local p=ns.CompetitiveIntegrity.GetSnapshot()
+    Assert(p.scope=="LOCAL" and p.state=="disabled" and p.rankEligible==false and p.originVerified==false and p.build,"integrity compatibility gate unavailable")
+    return "PASS","Advertised build "..p.build:sub(1,12).."; no live compatibility enforcement or file attestation."
 end)
 Check("Settings / defaults / bounds","health",function()
     local S=ns.Settings
@@ -312,6 +317,12 @@ Check("Sync protocol / isolated packet QA","deep",function()
     local log={}
     local p,f=ns.SyncProtocol.RunSelfTest(function(line) log[#log+1]=line end)
     return f==0 and p==23 and "PASS" or "FAIL",
+        string.format("%d passed / %d failed (SIMULATED)\n",p,f)..table.concat(log,"\n")
+end)
+Check("Competitive integrity / isolated compatibility QA","deep",function()
+    local log={}
+    local p,f=ns.CompetitiveIntegrity.RunSelfTest(function(line) log[#log+1]=line end)
+    return f==0 and p==13 and "PASS" or "FAIL",
         string.format("%d passed / %d failed (SIMULATED)\n",p,f)..table.concat(log,"\n")
 end)
 Check("Search registry","deep",function()

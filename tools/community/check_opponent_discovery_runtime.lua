@@ -129,3 +129,13 @@ assert(W.GetSnapshot().state=="disabled" and not W.GetSnapshot().rankEligible
     and _G.DuelsReimaginedDB==originalDB and _G.DuelsReimaginedCompetitiveDB==oldAccount
     and _G.DuelsReimaginedCharacterDB==oldChar,"protocol QA never writes live data")
 print("Sync protocol isolated packet lifecycle: PASS")
+
+assert(loadfile("addon/DuelsReimagined/Core/CompetitiveManifest.lua"))("DuelsReimagined",ns)
+assert(loadfile("addon/DuelsReimagined/Core/CompetitiveIntegrity.lua"))("DuelsReimagined",ns)
+local I=ns.CompetitiveIntegrity
+local ip,ifail=I.RunSelfTest(function(line)if line:find("FAIL",1,true) then print(line) end end)
+assert(ip==13 and ifail==0 and sent==previous and P.GetSnapshot().state=="checking","isolated compatibility")
+assert(I.GetSnapshot().state=="disabled" and not I.GetSnapshot().rankEligible and not I.GetSnapshot().originVerified
+    and _G.DuelsReimaginedDB==originalDB and _G.DuelsReimaginedCompetitiveDB==oldAccount
+    and _G.DuelsReimaginedCharacterDB==oldChar,"integrity QA never writes live data")
+print("Competitive integrity isolated compatibility: PASS")
