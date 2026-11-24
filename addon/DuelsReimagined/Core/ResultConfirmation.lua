@@ -73,6 +73,20 @@ local function Build(client,session,a,b)
     end
     return D
 end
+-- Reconstruct a simulated canonical record from its statements. The ledger
+-- never trusts derived fields or a caller-supplied status. Not proof of origin.
+function P.ValidateSimulatedRecord(r)
+    if type(r)~="table" or r.scope~="SIMULATED" or r.version~=VERSION or r.rankEligible~=false
+        or (r.client~="forever" and r.client~="retail") or not Session(r.session)
+        or not Guid(r.player1) or not Guid(r.player2) or r.player1>=r.player2 then return end
+    local d=Build(r.client,r.session,r.player1,r.player2)
+    if not d.Receive(r.statement1,r.player1) or not d.Receive(r.statement2,r.player2) then return end
+    d.Close()
+    local clean=d.Snapshot().record
+    if not clean then return end
+    for k,v in pairs(clean) do if r[k]~=v then return end end
+    return clean
+end
 function P.RunSelfTest(emit)
     emit=type(emit)=="function" and emit or function() end
     local passed,failed=0,0

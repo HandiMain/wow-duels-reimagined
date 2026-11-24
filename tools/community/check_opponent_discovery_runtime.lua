@@ -45,3 +45,12 @@ local rp,rf=R.RunSelfTest(function(line)if line:find("FAIL",1,true) then print(l
 assert(rp==21 and rf==0 and sent==previous and P.GetSnapshot().state=="checking","isolated result confirmation suite")
 assert(R.GetSnapshot().state=="disabled" and not R.GetSnapshot().rankEligible and A.GetSnapshot().state=="disabled","live competitive gates")
 print("Result confirmation isolated records: PASS")
+
+-- Ledger uses a private storage envelope; existing live state remains untouched.
+local originalDB=_G.DuelsReimaginedDB
+assert(loadfile("addon/DuelsReimagined/Core/MatchLedger.lua"))("DuelsReimagined",ns)
+local L=ns.MatchLedger
+local lp,lf=L.RunSelfTest(function(line)if line:find("FAIL",1,true) then print(line) end end)
+assert(lp==25 and lf==0 and sent==previous and P.GetSnapshot().state=="checking","isolated match ledger suite")
+assert(L.GetSnapshot().state=="disabled" and not L.GetSnapshot().rankEligible and _G.DuelsReimaginedDB==originalDB,"live storage gate")
+print("Match ledger isolated storage: PASS")
