@@ -109,3 +109,13 @@ assert(C.GetSnapshot().state=="disabled" and not C.GetSnapshot().rankEligible
     and _G.DuelsReimaginedDB==originalDB and _G.DuelsReimaginedCompetitiveDB==oldAccount
     and _G.DuelsReimaginedCharacterDB==oldChar,"rules QA never writes live data")
 print("Competitive rules isolated anti-farming: PASS")
+
+-- Logical pages never enter the actual communication transport or SavedVariables.
+assert(loadfile("addon/DuelsReimagined/Core/LeaderboardSync.lua"))("DuelsReimagined",ns)
+local Y=ns.LeaderboardSync
+local yp,yf=Y.RunSelfTest(function(line)if line:find("FAIL",1,true) then print(line) end end)
+assert(yp==25 and yf==0 and sent==previous and P.GetSnapshot().state=="checking","isolated peer convergence")
+assert(Y.GetSnapshot().state=="disabled" and not Y.GetSnapshot().rankEligible
+    and _G.DuelsReimaginedDB==originalDB and _G.DuelsReimaginedCompetitiveDB==oldAccount
+    and _G.DuelsReimaginedCharacterDB==oldChar,"sync QA never writes live data")
+print("Leaderboard sync isolated peer convergence: PASS")
