@@ -20,3 +20,14 @@ class NotificationTests(unittest.TestCase):
         self.assertIn('development build; preview only',u)
         self.assertNotIn('PatchNotesData',u)
         self.assertNotIn('Comm.Send',u)
+
+    def test_visual_atlas_and_shared_button_sampling(self):
+        import struct
+        data=(ROOT/"Media/Skin/NotificationArt.png").read_bytes()
+        self.assertEqual(struct.unpack(">II",data[16:24]),(1024,512))
+        u=read("UI/Notifications.lua")
+        self.assertIn('8,8,792,356',u)
+        self.assertIn('8,372,792,66',u)
+        self.assertIn('tx:SetTexture(HUD_ART)',u)
+        self.assertIn('local ay=gold and 64 or 100',u)
+        self.assertNotIn('218.25/256',u)

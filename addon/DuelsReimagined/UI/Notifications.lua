@@ -5,6 +5,7 @@ local N={};ns.Notifications=N
 local S,C,M,Settings=ns.Style,ns.Style.color,ns.Motion,ns.Settings
 local WIDTH,BODY,CONNECTOR=410,183,35
 local ART="Interface\\AddOns\\DuelsReimagined\\Media\\Skin\\NotificationArt.png"
+local HUD_ART="Interface\\AddOns\\DuelsReimagined\\Media\\Skin\\DuelHUDArt.png"
 local SOUND="Interface\\AddOns\\DuelsReimagined\\Media\\Sounds\\Notifications\\General.mp3"
 local card=CreateFrame("Frame","DuelsReimaginedNotificationCard",UIParent)
 card:SetSize(WIDTH,BODY+CONNECTOR);card:SetFrameStrata("HIGH")
@@ -14,18 +15,25 @@ local panel=CreateFrame("Frame",nil,card);panel:SetSize(WIDTH,BODY)
 local function Position(f,parent,x,y,w,h)
     f:ClearAllPoints();f:SetPoint("TOPLEFT",parent,"TOPLEFT",x,-y);f:SetSize(w,h)
 end
+-- Padded, 2x notification art and clean shared HUD buttons. Do not sample
+-- neighbouring atlas cells or baked-over text from the original mockup.
+local function SmoothTexture(t)
+    if t.SetSnapToPixelGrid then t:SetSnapToPixelGrid(false) end
+    if t.SetTexelSnappingBias then t:SetTexelSnappingBias(0) end
+end
 local function Region(parent,layer,x,y,w,h,ax,ay,aw,ah)
-    local t=parent:CreateTexture(nil,layer);t:SetTexture(ART)
-    t:SetTexCoord((ax+.25)/512,(ax+aw-.25)/512,(ay+.25)/256,(ay+ah-.25)/256)
+    local t=parent:CreateTexture(nil,layer);t:SetTexture(ART);SmoothTexture(t)
+    t:SetTexCoord((ax+.5)/1024,(ax+aw-.5)/1024,(ay+.5)/512,(ay+ah-.5)/512)
     Position(t,parent,x,y,w,h);return t
 end
-Region(panel,"BACKGROUND",0,0,WIDTH,BODY,0,0,396,177)
-local connector=Region(card,"ARTWORK",0,BODY,WIDTH,CONNECTOR,0,177,396,34)
-local glow=Region(panel,"OVERLAY",WIDTH/2-88,-34,176,58,410,0,96,44)
+Region(panel,"BACKGROUND",0,0,WIDTH,BODY,8,8,792,356)
+local connector=Region(card,"ARTWORK",0,BODY,WIDTH,CONNECTOR,8,372,792,66)
+local glow=Region(panel,"OVERLAY",WIDTH/2-88,-34,176,58,820,8,192,88)
 glow:SetAlpha(0)
 local emblem=panel:CreateTexture(nil,"ARTWORK")
 emblem:SetTexture("Interface\\AddOns\\DuelsReimagined\\Media\\Icons\\DuelsDRIcon.png")
-Position(emblem,panel,32,48,79,79)
+SmoothTexture(emblem)
+Position(emblem,panel,37,53,69,69)
 local function Label(text,size,color,x,y,w,h)
     local v=S.Text(panel,text,size,color);v:SetJustifyH("CENTER");Position(v,panel,x,y,w,h);return v
 end
@@ -98,8 +106,8 @@ local function Place()
     panel:ClearAllPoints()
     panel:SetPoint("TOPLEFT",card,"TOPLEFT",0,below and -CONNECTOR or 0)
     Position(connector,card,0,below and 0 or BODY,WIDTH,CONNECTOR)
-    if below then connector:SetTexCoord(.25/512,395.75/512,210.75/256,177.25/256)
-    else connector:SetTexCoord(.25/512,395.75/512,177.25/256,210.75/256) end
+    if below then connector:SetTexCoord(8.5/1024,799.5/1024,437.5/512,372.5/512)
+    else connector:SetTexCoord(8.5/1024,799.5/1024,372.5/512,437.5/512) end
 end
 function N.Reanchor() if card:IsShown() then Place() end end
 local function StopAnimation()
@@ -135,10 +143,10 @@ end
 local function Button(text,x,w,gold,fn)
     local b=CreateFrame("Button",nil,panel);Position(b,panel,x,142,w,27)
     b:RegisterForClicks("LeftButtonUp")
-    local tx=b:CreateTexture(nil,"BACKGROUND");tx:SetAllPoints(b);tx:SetTexture(ART)
+    local tx=b:CreateTexture(nil,"BACKGROUND");tx:SetAllPoints(b);tx:SetTexture(HUD_ART);SmoothTexture(tx)
     local function Paint()
-        local ax=gold and 150 or 0
-        tx:SetTexCoord((ax+.25)/512,(ax+143.75)/512,218.25/256,245.75/256)
+        local ay=gold and 64 or 100
+        tx:SetTexCoord(342.25/512,481.75/512,(ay+.25)/512,(ay+31.75)/512)
         local v=b.down and .74 or b.hover and 1 or .91;tx:SetVertexColor(v,v,v,1)
     end
     local label=S.Text(b,text,12,C.text);label:SetAllPoints(b);label:SetJustifyH("CENTER")
@@ -155,7 +163,7 @@ Button("What's new",58,151,false,function()
     if ns.Footer.ShowReleaseLink() then Dismiss(false) end
 end)
 Button("Got it",224,142,true,function() Dismiss(true) end)
-local close=CreateFrame("Button",nil,panel);Position(close,panel,WIDTH-25,7,18,18)
+local close=CreateFrame("Button",nil,panel);Position(close,panel,WIDTH-31,10,18,18)
 local closeText=S.Text(close,"×",14,C.pale);closeText:SetAllPoints(close);closeText:SetJustifyH("CENTER")
 close:SetScript("OnClick",function() Dismiss(false) end)
 local function Paint(m)
