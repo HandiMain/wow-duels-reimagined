@@ -93,6 +93,13 @@ local function Plain(fn,...)
     end
     return v
 end
+local function HUDVisible()
+    local hud=ns.DuelHUD and ns.DuelHUD.GetNotificationAnchor()
+    return hud and hud:IsShown() and (not hud.IsVisible or hud:IsVisible())
+end
+local function Enabled()
+    return Settings.Get("notificationEnabled") and HUDVisible()
+end
 local function Blocked()
     if not ns.Client.IsSupported() then return true end
     if type(InCombatLockdown)=="function" and Plain(InCombatLockdown)~=false then return true end
@@ -129,25 +136,19 @@ local function Place()
     card:SetScale(scale)
     local factor=card:GetEffectiveScale()/UIParent:GetEffectiveScale()
     local below=false
-    if hud and hud:IsShown() and hud:GetTop() and hud:GetBottom() then
-        local hf=hud:GetEffectiveScale()/UIParent:GetEffectiveScale()
-        local top=hud:GetTop()*hf
-        below=UIParent:GetHeight()-top<(BODY+CONNECTOR+8)*factor and hud:GetBottom()*hf>(BODY+CONNECTOR+8)*factor
-        card:ClearAllPoints()
-        if below then card:SetPoint("TOP",hud,"BOTTOM",0,-2+offset)
-        else card:SetPoint("BOTTOM",hud,"TOP",0,2-offset) end
-    else
-        -- HUD hidden: separate screen anchor at the last saved HUD area.
-        local x,y=Settings.GetDuelHUDPosition()
-        card:ClearAllPoints()
-        card:SetPoint("BOTTOM",UIParent,"BOTTOMLEFT",UIParent:GetWidth()*x/factor,
-            math.min(UIParent:GetHeight()*y/factor,(UIParent:GetHeight()/factor)-BODY-CONNECTOR-8)-offset)
-    end
+    if not HUDVisible() or not hud:GetTop() or not hud:GetBottom() then return false end
+    local hf=hud:GetEffectiveScale()/UIParent:GetEffectiveScale()
+    local top=hud:GetTop()*hf
+    below=UIParent:GetHeight()-top<(BODY+CONNECTOR+8)*factor and hud:GetBottom()*hf>(BODY+CONNECTOR+8)*factor
+    card:ClearAllPoints()
+    if below then card:SetPoint("TOP",hud,"BOTTOM",0,-2+offset)
+    else card:SetPoint("BOTTOM",hud,"TOP",0,2-offset) end
     panel:ClearAllPoints()
     panel:SetPoint("TOPLEFT",card,"TOPLEFT",0,below and -CONNECTOR or 0)
     Position(connector,card,0,below and 0 or BODY,WIDTH,CONNECTOR)
     if below then connector:SetTexCoord(8.5/1024,799.5/1024,437.5/512,372.5/512)
     else connector:SetTexCoord(8.5/1024,799.5/1024,372.5/512,437.5/512) end
+    return true
 end
 function N.Reanchor() if card:IsShown() then Place() end end
 local function StopAnimation()
@@ -281,7 +282,7 @@ local function Celebrate()
 end
 local function ShowCurrent()
     if not current or card:IsShown() then return end
-    Paint(current);offset=18;Place();card:SetAlpha(0);card:Show()
+    Paint(current);offset=18;if not Place() then return end;card:SetAlpha(0);card:Show()
     if not current.preview then seen[current.id]=true end
     local isPromotion=current.kind=="promotion"
     local firstAppearance=not promotionCelebrated
@@ -297,7 +298,7 @@ local function Snoozed(m)
 end
 Pump=function()
     if not ready then return end
-    if not Settings.Get("notificationEnabled") then Clear();queue={};return end
+    if not Enabled() then Clear();queue={};return end
     if Blocked() then
         if current and card:IsShown() then
             if closing then Clear()
@@ -317,7 +318,7 @@ Pump=function()
     end
 end
 local function Enqueue(m)
-    if not Settings.Get("notificationEnabled") or not ready or seen[m.id] or Snoozed(m) then return false end
+    if not Enabled() or not ready or seen[m.id] or Snoozed(m) then return false end
     if current and current.id==m.id then return false end
     for _,v in ipairs(queue) do if v.id==m.id then return false end end
     if #queue>=8 then return false end
@@ -346,6 +347,7 @@ function N.Preview()
     if not PREVIEW_ENABLED or not ready then return false,"Preview unavailable" end
     if Blocked() then return false,"Finish your duel or combat first" end
     if not Settings.Get("notificationEnabled") then return false,"Notifications are disabled" end
+    if not HUDVisible() then return false,"Show the Duel HUD to receive notifications" end
     if current or #queue>0 then return false,"Dismiss the current notification first" end
     return Enqueue({id="preview:update",preview=true,title="New update available",
         body="Example version 0.2.0.\nSimulated preview — not a real release."})
@@ -354,6 +356,7 @@ function N.PreviewPromotion()
     if not PREVIEW_ENABLED or not ready then return false,"Preview unavailable" end
     if Blocked() then return false,"Finish your duel or combat first" end
     if not Settings.Get("notificationEnabled") then return false,"Notifications are disabled" end
+    if not HUDVisible() then return false,"Show the Duel HUD to receive notifications" end
     if current or #queue>0 then return false,"Dismiss the current notification first" end
     -- Fictional values through the existing read-only rank policy. Never insert
     -- a ledger result, mutate rating, or expose a live promotion producer.
@@ -377,7 +380,7 @@ events:SetScript("OnEvent",function(_,event)
         unsubscribePresence=ns.Presence.Subscribe(function(snapshot) ns.UpdateNotices.Observe(snapshot);Update() end)
         unsubscribeDuel=ns.DuelDetection.Subscribe(function() Pump() end)
         local hud=ns.DuelHUD.GetNotificationAnchor()
-        hud:HookScript("OnShow",N.Reanchor);hud:HookScript("OnHide",N.Reanchor)
+        hud:HookScript("OnShow",N.Refresh);hud:HookScript("OnHide",N.Refresh)
         ns.UpdateNotices.Observe(ns.Presence.GetSnapshot())
         if C_Timer and C_Timer.After then
             delayCount=delayCount+1;C_Timer.After(10,function()

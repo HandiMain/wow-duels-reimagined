@@ -342,7 +342,7 @@ local reminderRow = AddToggle(notificationsCard, "interface", "patchNotesReminde
     "Show a subtle unread dot on Patch Notes when a new update is published.",
     -119, false)
 local notifyRow=AddToggle(notificationsCard,"interface","notificationEnabled","Show notifications",
-    "Show Duels notification cards above the Duel HUD. Never interrupts duels or combat.",-174,false)
+    "Show cards while the Duel HUD is visible or folded. Hiding the HUD disables notifications. Never interrupts duels or combat.",-174,false)
 local notifySoundRow=AddToggle(notificationsCard,"interface","notificationSounds","Notification sounds",
     "Play your notification sound through Blizzard's Effects channel.",-230,false)
 local notifyPreview=Style.Action(notificationsCard,"Preview update notification","footer")

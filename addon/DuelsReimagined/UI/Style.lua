@@ -43,11 +43,11 @@ local function FitLabelFont(entry)
     local fs = entry.label
     local face, size, flags = fs:GetFont()
     if not face or not size then return end
-    local room = math.max(1, fit.button:GetWidth() - fit.left - fit.right - 3)
+    local room = math.max(1, fit.width or (fit.button:GetWidth() - fit.left - fit.right - 3))
     local measure = fs.GetUnboundedStringWidth or fs.GetStringWidth
     if not measure then return end
     local current = size
-    while current > fit.minimum and measure(fs) > room do
+    while current > fit.minimum and (measure(fs) > room or (fit.height and current > fit.height)) do
         current = math.max(fit.minimum, current - 0.75)
         if not fs:SetFont(face, current, flags or "") then break end
     end
@@ -434,6 +434,28 @@ function Style.Text(parent, value, size, color, outline, role)
     label:SetText(value or "")
     RegisterFont(label, size or 14, c, outline, role)
     return label
+end
+
+-- Fixed-size HUD labels share the same theme font registration and bounded
+-- measurement as the main window. Refit changing player names and timers
+-- on text change, without an additional font provider or update loop.
+function Style.ConstrainText(label,width,height,minimum)
+    for _,entry in ipairs(fontStrings) do
+        if entry.label==label then
+            entry.fit={width=math.max(1,width-3),height=math.max(1,height-2),minimum=minimum or 8}
+            local function Refit()
+                local path,_,flags=label:GetFont()
+                local scale=ns.Settings and ns.Settings.Get("fontScale") or 1
+                if path then label:SetFont(path,entry.size*scale,flags or "") end
+                FitLabelFont(entry)
+            end
+            if type(hooksecurefunc)=="function" then
+                pcall(hooksecurefunc,label,"SetText",Refit)
+            end
+            FitLabelFont(entry)
+            return
+        end
+    end
 end
 
 -- Footer, action, and category labels share one source of truth for their

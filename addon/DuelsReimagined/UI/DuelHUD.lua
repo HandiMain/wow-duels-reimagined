@@ -2,11 +2,18 @@ local _,ns=...
 -- Read-only duel companion; never owns results, ranking, or peer transport.
 local S,C,Settings=ns.Style,ns.Style.color,ns.Settings
 local H={};ns.DuelHUD=H
-local WIDTH,HEIGHT=336,310
+local WIDTH,HEIGHT,FOLDED_HEIGHT=336,310,42
+local folded=false
 local root=CreateFrame("Frame","DuelsReimaginedDuelHUD",UIParent)
 root:SetSize(WIDTH,HEIGHT);root:SetFrameStrata("MEDIUM")
 if ns.DiagnosticAudit then ns.DiagnosticAudit.RegisterUIRoot("Duel HUD",root) end
 root:SetClampedToScreen(true);root:SetMovable(true);root:EnableMouse(true);root:Hide()
+local body=CreateFrame("Frame",nil,root)
+body:SetPoint("TOPLEFT",root,"TOPLEFT");body:SetSize(WIDTH,HEIGHT)
+local headerLayer=CreateFrame("Frame",nil,root)
+headerLayer:SetPoint("TOPLEFT",root,"TOPLEFT");headerLayer:SetSize(WIDTH,FOLDED_HEIGHT)
+headerLayer:SetFrameLevel(root:GetFrameLevel()+3)
+local surface=body
 -- One authored skin owner. In particular, do not use Style.Fill followed
 -- by a second anchor: its original opposing anchors stretch the region.
 local ATLAS="Interface\\AddOns\\DuelsReimagined\\Media\\Skin\\DuelHUDArt.png"
@@ -15,35 +22,37 @@ local art={shell={0,0,336,310},crest={342,0,60,56},selected={342,64,140,32},
     timer={0,316,190,38},stats={0,361,310,59},gear={342,205,24,24},
     close={372,205,24,24},swords={410,0,30,30},playerRing={342,238,48,48},enemyRing={396,238,48,48}}
 local function Place(f,x,y,w,h)
-    f:ClearAllPoints();f:SetPoint("TOPLEFT",root,"TOPLEFT",x,-y);f:SetSize(w,h)
+    f:ClearAllPoints();f:SetPoint("TOPLEFT",f:GetParent(),"TOPLEFT",x,-y);f:SetSize(w,h)
 end
 local function Region(t,key)
     local a=art[key];t:SetTexture(ATLAS)
     t:SetTexCoord((a[1]+.25)/512,(a[1]+a[3]-.25)/512,(a[2]+.25)/512,(a[2]+a[4]-.25)/512)
 end
 local function Artwork(key,x,y,w,h,layer)
-    local t=root:CreateTexture(nil,layer or "ARTWORK");Region(t,key);Place(t,x,y,w,h);return t
+    local t=surface:CreateTexture(nil,layer or "ARTWORK");Region(t,key);Place(t,x,y,w,h);return t
 end
 Artwork("shell",0,0,WIDTH,HEIGHT,"BACKGROUND")
 Artwork("stats",10,202,316,54)
 Artwork("timer",73,91,190,38)
 Artwork("swords",156,137,24,24)
 local function Rect(x,y,w,h,r,g,b,a)
-    local t=root:CreateTexture(nil,"BORDER")
+    local t=surface:CreateTexture(nil,"BORDER")
     t:SetColorTexture(r,g,b,a or 1);Place(t,x,y,w,h);return t
 end
 Rect(9,35,318,1,.50,.35,.16,.8)
 Rect(14,74,308,1,.19,.15,.10,.85)
 Rect(16,229,304,1,.27,.22,.15,.75)
 local function Label(value,size,color,x,y,w,h,align)
-    local f=S.Text(root,value,size,color or C.text)
-    f:SetJustifyH(align or "CENTER");f:SetWordWrap(false);Place(f,x,y,w,h);return f
+    local f=S.Text(surface,value,size,color or C.text)
+    f:SetJustifyH(align or "CENTER");f:SetWordWrap(false);Place(f,x,y,w,h)
+    S.ConstrainText(f,w,h,8);return f
 end
 local function Action(value,x,y,w,h,fn,red,icon)
-    local b=CreateFrame("Button",nil,root);Place(b,x,y,w,h)
+    local b=CreateFrame("Button",nil,surface);Place(b,x,y,w,h)
     b:RegisterForClicks("LeftButtonUp")
     local t=b:CreateTexture(nil,"BACKGROUND");t:SetAllPoints(b)
     local label=S.Text(b,value,12,C.text);label:SetAllPoints(b);label:SetJustifyH("CENTER");label:SetWordWrap(false)
+    S.ConstrainText(label,w-8,h-4,8)
     b.label=label;b.selected=false;b.usable=true
     -- No alpha animation on the whole widget: the source art stays opaque.
     b.Paint=function()
@@ -79,21 +88,44 @@ local function MatchUnit(id)
         if Plain(UnitGUID,unit)==id.guid then return unit end
     end
 end
-local header=CreateFrame("Frame",nil,root)
-Place(header,0,0,WIDTH-60,35);header:EnableMouse(true);header:RegisterForDrag("LeftButton")
+-- The expanded shell belongs to the body. The folded shell samples only
+-- the original header and lower rim, so no body artwork leaks below it.
+surface=root
+art.foldedTop={0,0,336,38};art.foldedBottom={0,305,336,5}
+local foldedTop=Artwork("foldedTop",0,0,WIDTH,38,"BACKGROUND")
+local foldedBottom=Artwork("foldedBottom",0,38,WIDTH,4,"BACKGROUND")
+foldedTop:Hide();foldedBottom:Hide()
+surface=headerLayer
+local header=CreateFrame("Frame",nil,headerLayer)
+Place(header,0,0,WIDTH-87,35);header:EnableMouse(true);header:RegisterForDrag("LeftButton")
 Artwork("crest",-4,-11,56,52,"OVERLAY")
-Label("Duels Reimagined",17,C.pale,52,4,WIDTH-118,26,"LEFT")
+Label("Duels Reimagined",17,C.pale,52,4,WIDTH-145,26,"LEFT")
 local function OpenOptions()
     if Combat() then return end
     if not ns.Window.frame:IsShown() then ns.Window.Toggle() end
     ns.Navigation.SelectKey("options","interface")
 end
-local gear=Action("",WIDTH-57,5,23,23,OpenOptions,false,"gear")
+local gear=Action("",WIDTH-84,5,23,23,OpenOptions,false,"gear")
+local foldButton=CreateFrame("Button",nil,headerLayer);Place(foldButton,WIDTH-57,5,23,23)
+S.Plate(foldButton,"dark",{corner=6})
+local foldArt=foldButton:CreateTexture(nil,"ARTWORK");foldArt:SetSize(15,15);foldArt:SetPoint("CENTER")
+local function PaintFold()
+    foldArt:SetTexture("Interface\\AddOns\\DuelsReimagined\\Media\\Artwork\\Header\\"..(folded and "FoldDown" or "FoldUp")..".png")
+end
+PaintFold()
+foldButton:SetScript("OnClick",function()H.Fold(not folded)end)
+local foldHover=S.FeedbackOverlay(foldButton,{corner=6,inset=1,fill=C.gold,edge=C.gold,shine=.4,rim=.6})
+foldHover:SetAlpha(0)
+foldButton:SetScript("OnEnter",function()ns.Motion.Fade(foldHover,.34,ns.Motion.Duration("quick"))end)
+foldButton:SetScript("OnLeave",function()ns.Motion.Fade(foldHover,0,ns.Motion.Duration("gentle"))end)
+ns.Widgets.PressFeedback(foldButton,foldHover,{corner=6})
 local close=Action("",WIDTH-30,5,23,23,function() Settings.Set("duelHUDEnabled",false) end,false,"close")
 if ns.Tooltips then
     ns.Tooltips.Bind(gear,{title="Duel HUD options",detail="Open Interface settings."})
-    ns.Tooltips.Bind(close,{title="Hide Duel HUD",detail="Show it again in Options or with /duels hud."})
+    ns.Tooltips.Bind(close,{title="Hide Duel HUD",detail="Also hides notifications. Show it again in Options or with /duels hud."})
+    ns.Tooltips.Bind(foldButton,{title="Fold / unfold Duel HUD",detail="Collapse to the header while keeping notifications available."})
 end
+surface=body
 local modeRank,modePractice
 local snap,shownResult,activeID,acceptedAt,countdownUntil,damageSession
 local ready,preview,dragging,rankDirty=false,false,false,true
@@ -116,11 +148,11 @@ local function Side(x,enemy)
     local ix=enemy and x+104 or x+2
     local tx=enemy and x or x+42
     local align=enemy and "RIGHT" or "LEFT"
-    side.icon=root:CreateTexture(nil,"ARTWORK")
+    side.icon=body:CreateTexture(nil,"ARTWORK")
     Place(side.icon,ix,126,36,36)
-    if root.CreateMaskTexture and side.icon.AddMaskTexture then
+    if body.CreateMaskTexture and side.icon.AddMaskTexture then
         pcall(function()
-            local mask=root:CreateMaskTexture()
+            local mask=body:CreateMaskTexture()
             mask:SetTexture("Interface\\AddOns\\DuelsReimagined\\Media\\Skin\\DuelHUDPortraitMask.png","CLAMPTOBLACKADDITIVE","CLAMPTOBLACKADDITIVE")
             mask:SetAllPoints(side.icon);side.icon:AddMaskTexture(mask)
             side.mask=mask
@@ -129,19 +161,19 @@ local function Side(x,enemy)
     Artwork(enemy and "enemyRing" or "playerRing",ix-4,122,44,44,"OVERLAY")
     side.name=Label("",13,C.pale,tx,127,100,20,align)
     side.rating=Label("",11,C.pale,tx,148,100,15,align)
-    side.badge=ns.CompetitiveUI.CreateRankEmblem(root,19,false)
+    side.badge=ns.CompetitiveUI.CreateRankEmblem(body,19,false)
     Place(side.badge,enemy and x+123 or x+2,163,19,19)
     side.rank=Label("Rank unknown",11,C.text,enemy and x or x+23,163,119,18,align)
     -- Exactly anchored dark track and thin bronze edge; no Fill helper.
     Rect(x,182,142,17,.38,.27,.12)
     Rect(x+1,183,140,15,.04,.045,.04)
-    side.hp=CreateFrame("StatusBar",nil,root);Place(side.hp,x+2,184,138,13)
+    side.hp=CreateFrame("StatusBar",nil,body);Place(side.hp,x+2,184,138,13)
     side.hp:SetStatusBarTexture("Interface\\TargetingFrame\\UI-StatusBar")
     side.hp:SetStatusBarColor(.19,.72,.16);side.hp:SetMinMaxValues(0,1);side.hp:SetValue(0)
-    local overlay=CreateFrame("Frame",nil,root)
+    local overlay=CreateFrame("Frame",nil,body)
     overlay:SetFrameLevel(side.hp:GetFrameLevel()+1);Place(overlay,x,181,142,19)
-    side.hpText=S.Text(overlay,"",11,C.text);side.hpText:SetAllPoints(overlay);side.hpText:SetJustifyH("CENTER")
-    local click=CreateFrame("Button",nil,root);Place(click,x,163,142,19)
+    side.hpText=S.Text(overlay,"",11,C.text);side.hpText:SetAllPoints(overlay);side.hpText:SetJustifyH("CENTER");S.ConstrainText(side.hpText,138,17,8)
+    local click=CreateFrame("Button",nil,body);Place(click,x,163,142,19)
     click:SetScript("OnClick",function()
         if Combat() or preview or not side.profile or not side.id or ns.CompetitivePreview.IsActive() then return end
         if not ns.Window.frame:IsShown() then ns.Window.Toggle() end
@@ -273,7 +305,7 @@ local function Tick()
 end
 local lastRange,lastRangeReason
 local function Paint()
-    if not root:IsShown() or not snap then return end
+    if folded or not root:IsShown() or not snap then return end
     if preview then
         modeRank.selected=true;modePractice.selected=false
         state:SetText("SOLO PREVIEW - SIMULATED");timer:SetText("00:32")
@@ -335,6 +367,7 @@ local function Paint()
     end
 end
 local function UpdateDriver()
+    if folded or not root:IsShown() then root:SetScript("OnUpdate",nil);H.elapsed=0;return end
     -- Range changes while moving without a target-change event. A lightweight
     -- probe only while visible, idle and targeting another player; no full
     -- refresh unless the range state changes.
@@ -383,13 +416,16 @@ function H.ApplyPosition()
     local x,y=Settings.GetDuelHUDPosition()
     local ratio=UIParent:GetEffectiveScale()/root:GetEffectiveScale()
     root:ClearAllPoints()
-    root:SetPoint("CENTER",UIParent,"BOTTOMLEFT",UIParent:GetWidth()*x*ratio,UIParent:GetHeight()*y*ratio)
+    -- Store the expanded centre as before, but anchor the actual top edge.
+    -- Folding therefore never moves the title or its notification anchor.
+    root:SetPoint("TOP",UIParent,"BOTTOMLEFT",UIParent:GetWidth()*x*ratio,UIParent:GetHeight()*y*ratio+HEIGHT/2)
     if ns.Notifications then ns.Notifications.Reanchor() end
 end
 local function StopDrag()
     if not dragging then return end
     dragging=false;root:StopMovingOrSizing()
     local x,y=root:GetCenter()
+    if y then y=y+(root:GetHeight()-HEIGHT)/2 end
     local ratio=root:GetEffectiveScale()/UIParent:GetEffectiveScale()
     if x and y and UIParent:GetWidth()>0 and UIParent:GetHeight()>0 then
         Settings.SetDuelHUDPosition(x*ratio/UIParent:GetWidth(),y*ratio/UIParent:GetHeight())
@@ -406,25 +442,35 @@ local probeGeneration=0
 local function ProbeSelected()
     probeGeneration=probeGeneration+1
     local generation=probeGeneration
-    if preview or not snap or snap.state~="idle" or Combat() then return end
+    if folded or preview or not snap or snap.state~="idle" or Combat() then return end
     local id=Identity("target");local own=Identity("player")
     if not id or not own or id.guid==own.guid then return end
     -- One throttled retry on rapid target changes; no repeating network poll.
     local ok,reason=ns.OpponentDiscovery.ProbeTarget(true)
     if not ok and reason=="cooldown" and C_Timer and C_Timer.After then
         C_Timer.After(8.1,function()
-            if generation~=probeGeneration or not root:IsShown() or preview or Combat() or not snap or snap.state~="idle" then return end
+            if generation~=probeGeneration or not root:IsShown() or folded or preview or Combat() or not snap or snap.state~="idle" then return end
             local current=Identity("target")
             if current and current.guid==id.guid then ns.OpponentDiscovery.ProbeTarget(true);Paint() end
         end)
     end
+end
+function H.IsFolded() return folded end
+function H.Fold(value)
+    local want=value==true
+    if want==folded then return end
+    StopDrag();folded=want;probeGeneration=probeGeneration+1
+    body:SetShown(not folded);foldedTop:SetShown(folded);foldedBottom:SetShown(folded)
+    root:SetHeight(folded and FOLDED_HEIGHT or HEIGHT);PaintFold();H.ApplyPosition()
+    if not folded and root:IsShown() then rankDirty=true;Receive(ns.DuelDetection.GetSnapshot());ProbeSelected() end
+    UpdateDriver()
 end
 local events={"PLAYER_TARGET_CHANGED","PLAYER_FOCUS_CHANGED","UPDATE_MOUSEOVER_UNIT","UNIT_HEALTH","UNIT_MAXHEALTH","UNIT_NAME_UPDATE","PLAYER_REGEN_ENABLED","PLAYER_REGEN_DISABLED","UI_SCALE_CHANGED","DISPLAY_SIZE_CHANGED"}
 root:SetScript("OnEvent",function(_,event,unit)
     if event=="PLAYER_REGEN_DISABLED" then StopDrag() end
     if event=="UI_SCALE_CHANGED" or event=="DISPLAY_SIZE_CHANGED" then H.ApplyPosition() end
     if event=="UNIT_HEALTH" or event=="UNIT_MAXHEALTH" then
-        if preview then return end
+        if folded or preview then return end
         if unit=="player" then Health(me,"player")
         elseif snap then
             local engaged=snap.active or snap.challenge
