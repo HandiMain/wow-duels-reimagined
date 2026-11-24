@@ -111,6 +111,23 @@ class WarGamesTests(unittest.TestCase):
                 toggle=max(160,min(290,width-36-action-18))
                 self.assertLessEqual(18+toggle+18,width-18-action)
 
+    def test_request_lifecycle_readiness_and_gated_captain_exchange(self):
+        core=src("Core/WarGames.lua");ui=src("UI/WarGames.lua")
+        for token in ('REQUEST_WAIT=90','pending={page=page,deadline=now+REQUEST_WAIT}',
+                      'function WarGames.GetMatchStatus()', 'One(IsWargame)',
+                      'function WarGames.GetReadiness(team)', 'C_PartyInfo.DoReadyCheck',
+                      'function WarGames.InvalidateFriends()', 'PEER_TEST_ENABLED=false',
+                      'ns.Communication.Subscribe("W1",ReceivePeer)', 'Key(sender)~=Key(c.route)'):
+            self.assertIn(token,core)
+        for token in ('Engine.GetReadiness(team)', 'Engine.ReadyCheck()', 'Engine.GetMatchStatus()',
+                      'Engine.PeerTestingEnabled()', 'Engine.GetMessage("player")'):
+            self.assertIn(token,ui)
+        self.assertIn('ns.WarGames.CanCommunicate()',src("Core/Communication.lua"))
+        self.assertIn('warGamesConsent = false',src("Core/Settings.lua"))
+        self.assertIn('warGamesConsent',src("UI/Options.lua"))
+        self.assertNotIn('local messages = {}',ui)
+        self.assertNotIn('CompetitiveStorage',core)
+
     def test_same_sized_primary_skin_reuses_existing_art(self):
         nav=src("UI/Navigation.lua")
         self.assertIn("HALL_BUTTON_WIDTH = 205",nav)

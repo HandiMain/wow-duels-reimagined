@@ -7,7 +7,20 @@ CreateFrame=function()
  function driver:SetScript(e,fn) self[e]=fn end
  return driver
 end
+local now=100
+GetTime=function() return now end
+local function Advance() now=now+91 end
 local inside=false
+local war=false
+IsWargame=function() return war end
+Enum={PvPMatchState={Inactive=0,Waiting=1,StartUp=2,Engaged=3,PostRound=4,Complete=5}}
+local matchState=1
+C_PvP={GetActiveMatchState=function() return matchState end}
+local checkTime=0
+local checked=0
+C_PartyInfo={GetReadyCheckTimeLeft=function() return checkTime end,
+ GetReadyCheckStatus=function(unit) return unit=="player" and "ready" or "waiting" end,
+ DoReadyCheck=function() checked=checked+1;checkTime=20 end}
 IsInInstance=function() return inside,"arena" end
 local leader=true
 UnitIsGroupLeader=function() return leader end
@@ -37,6 +50,8 @@ local function Load(retail)
  return ns.WarGames
 end
 local W=Load(true)
+Check(not W.PeerTestingEnabled() and not W.CanCommunicate(),"private peer gate locked")
+Check(not W.CheckCaptain(),"no gated packet")
 Check(#W.Brackets==3 and W.Brackets[3]==5,"full 5v5 bracket")
 Check(W.GetConfig("player").tournamentRules==false and
   W.GetConfig("host").tournamentRules==false,"tournament mode defaults off")
@@ -56,11 +71,21 @@ Check(#sends==0 and #spectates==0,"no automatic requests")
 local ok,msg=W.Request("player")
 Check(ok and sends[1]=="OneAccount nagrand 0","default Retail challenge")
 Check(msg:find("not confirmed",1,true)~=nil,"never claim entry")
+Check(not W.Request("player") and #sends==1,"duplicate challenge suppressed")
+Advance()
+Check(W.GetMessage("player"):find("timeout",1,true)~=nil,"expiry is not rejection or acceptance")
+Check(W.ReadyCheck() and checked==1,"explicit native ready check")
+Check(not W.ReadyCheck() and checked==1,"no duplicate ready check")
+local readiness=W.GetReadiness()
+Check(readiness.rows[1]=="Ready" and readiness.rows[2]=="Waiting" and not readiness.allReady,"native per-member response")
+checkTime=0
+Check(not W.GetReadiness().allReady,"no inferred ready after expiry")
 Check(W.SelectTournamentRules("player",true),"enable player tournament mode")
 Check(W.GetConfig("player").tournamentRules==true and
   W.GetConfig("host").tournamentRules==false,"independent player and host state")
 ok,msg=W.Request("player")
 Check(ok and sends[2]=="OneAccount nagrand 1","player tournament request payload")
+Advance()
 Check(W.SelectTournamentRules("player",false),"player toggle returns to off")
 Check(not W.SelectCaptain("host",1,999),"reject unknown ID")
 Check(W.SelectCaptain("host",1,101),"first host captain")
@@ -79,18 +104,22 @@ Check(W.GetCaptain("host",2)==nil and W.GetCaptain("host",1).id==101,
  "clearing team 2 preserves team 1")
 Check(W.SelectCaptain("host",2,202),"restore captain 2")
 Check(W.SelectBracket("host",5),"5v5 spectator setup")
+Check(W.GetReason("host"):find("offline",1,true)~=nil,"known offline captain blocks challenge")
+friends[2].isOnline=true;W.InvalidateFriends()
 Check(W.GetReason("host")==nil,"two BNet captains ready")
 ok,msg=W.Request("host")
 Check(ok and #spectates==1,"only button requests spectator")
 Check(spectates[1][1]==101 and spectates[1][2]==202 and
  spectates[1][3]==5 and spectates[1][4]=="Nagrand Arena" and
  spectates[1][5]==false,"default spectator API arguments")
+Advance()
 Check(W.SelectTournamentRules("host",true),"enable spectator tournament mode")
 Check(W.GetConfig("host").tournamentRules==true and
   W.GetConfig("player").tournamentRules==false,"host state independent of player")
 ok,msg=W.Request("host")
 Check(ok and #spectates==2 and spectates[2][5]==true,
   "spectator tournament request payload")
+Advance()
 Check(W.SelectTournamentRules("host",false),"host toggle returns to off")
 Check(not W.SelectBracket("player",4),"reject fake bracket")
 Check(not W.SelectMap("player",999),"reject unknown map")
@@ -102,6 +131,12 @@ Check(W.GetReason("player"):find("exactly 5",1,true)~=nil,"exact 5v5 group")
 W.SelectBracket("player",2)
 inside=true
 Check(W.InArena(),"arena detected")
+Check(W.GetMatchStatus()=="ordinary_arena","ordinary arena not War Game")
+war=true;matchState=2
+Check(W.GetMatchStatus()=="preparing","observed War Game preparation")
+matchState=3;Check(W.GetMatchStatus()=="engaged","observed active match")
+matchState=5;Check(W.GetMatchStatus()=="complete","observed completion only")
+war=false
 local opponents=W.GetOpponents()
 Check(opponents[1].name=="Opponent-TheirRealm" and
  opponents[1].classFile=="MAGE","real revealed opponent")

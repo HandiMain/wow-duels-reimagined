@@ -67,6 +67,11 @@ Established 2026-11-24; implementation baseline `09cc4e1` (develop). Practical v
 - [ ] G03 — Arena gallery: all supported/client-discovered maps, search, favorites, selected state, Cancel/Escape/outside click, resize, native thumbnails, labelled illustrations and unavailable art; no incorrect map association.
 - [ ] G04 — Actual native challenges, acceptance, match entry for both teams, spectator entry and roster, tournament rules ON/OFF, invalid/refused requests and reconnect. API acceptance alone is not success. Additional participants may be needed.
 - [ ] G05 — Team borders and scrollbar gutters, separate emblem, nav placement, button feedback and dropdown consistency.
+- [ ] G06 — Native ready check: leader-only, active per-member responses, offline/unknown, expiration, roster changes, combat/arena refusal, no automatic ready response; ordinary challenge still works without addon peers.
+- [ ] G07 — One pending native request across modes; duplicate suppression, timeout/entry unlock, refusal and ambiguous return, stale configuration, no automatic resend, ordinary arena vs War Game vs unavailable classification, match state transitions without invented winner/association.
+- [ ] G08 — Captain availability and client-listed vs reference arena labels; multiple/no Retail accounts, stale Battle.net cache, reconnect and event coalescing, fresh pre-request validation and exact routing.
+- [ ] G09 — Separately authorize W1 private peer build; mutual selected captains and consent, matching/mismatched setup, no reply, expiry, wrong sender/token, throttling, roster/ready changes, combat/arena restriction and no effect on native challenge or duel ranking. Host remote rosters/readiness remain unknown; no BNet IDs/names in packets.
+- [ ] G10 — New readiness button/row status and captain/map text: minimum/default/max window and font scale, both page modes, hidden gated controls, Escape/Enter, Options, tooltip and no duplicate painting; repeat existing G01–G05 on changed build.
 
 ## H. Group, presence and diagnostics
 

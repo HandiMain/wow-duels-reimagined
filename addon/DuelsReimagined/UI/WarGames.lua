@@ -13,7 +13,7 @@ root:Hide()
 local active = "player"
 local unsubscribe
 local openMenu
-local messages = {}
+-- Request status belongs to Engine, not the view.
 
 -- Reuse the same house icon atlas as Navigation and Addon Status.
 local symbol = Chrome.Icon(root, "Hall")
@@ -87,7 +87,7 @@ local function CaptainPicker(parent, slot, page)
         for _, friend in ipairs(friends) do
             entries[#entries+1]={
                 key=friend.id, label=friend.displayName,
-                online=friend.online, onlineSource=friend.onlineSource,
+                online=friend.online, onlineSource=friend.onlineSource,detail=friend.availability,
             }
         end
         if #friends==0 then
@@ -97,8 +97,10 @@ local function CaptainPicker(parent, slot, page)
             }
         end
         local cfg=Engine.GetConfig(page)
-        local id=page=="player" and cfg.captain or
-            slot==1 and cfg.captain1 or cfg.captain2
+        local id
+        if page=="player" then id=cfg.captain
+        elseif slot==1 then id=cfg.captain1
+        else id=cfg.captain2 end
         Widgets.OpenChoices(self, entries, id or 0, function(key)
             local captainID=key
             if captainID==0 then captainID=nil end
@@ -137,8 +139,19 @@ local matchHint = Text(arenaStatus,
     "Only information revealed by Blizzard is shown.",18,47,12,C.muted)
 local waiting = Text(hostStatus,
     "Spectator rosters remain unknown until verified.",18,47,12,C.muted)
-local msgPlayer = Text(playerForm,"",18,276,12,C.muted)
-msgPlayer:SetPoint("TOPRIGHT",playerForm,"TOPRIGHT",-18,-276)
+local msgPlayer = Text(playerForm,"",18,269,12,C.muted)
+msgPlayer:SetPoint("TOPRIGHT",playerForm,"TOPRIGHT",-18,-269)
+msgPlayer:SetWordWrap(true)
+local captainStatus=Text(playerForm,"",408,153,12,C.muted)
+captainStatus:SetPoint("TOPRIGHT",playerForm,"TOPRIGHT",-18,-153)
+captainStatus:SetJustifyH("LEFT");captainStatus:SetWordWrap(true)
+local hostAvailability=Text(hostForm,"",18,160,12,C.muted)
+hostAvailability:SetPoint("TOPRIGHT",hostForm,"TOPRIGHT",-18,-160)
+hostAvailability:SetJustifyH("LEFT")
+local peerCheck=Small(playerForm,"Check captain",120)
+peerCheck:SetPoint("TOPRIGHT",playerForm,"TOPRIGHT",-18,-99)
+peerCheck:SetScript("OnClick",function() Engine.CheckCaptain() end)
+peerCheck:Hide()
 local msgHost = Text(hostForm,"",18,250,12,C.muted)
 msgHost:SetPoint("TOPRIGHT",hostForm,"TOPRIGHT",-18,-250)
 msgHost:SetJustifyH("CENTER")
@@ -172,6 +185,12 @@ local function Roster(parent, slots)
             role:SetPoint("RIGHT",f,"RIGHT",-11,0)
             role:Hide()
             name:SetPoint("RIGHT",role,"LEFT",-8,0)
+        elseif parent==playerSetup then
+            local status=Style.Text(f,"",12,C.muted)
+            status:SetPoint("RIGHT",f,"RIGHT",-11,0)
+            status:SetWidth(94);status:SetJustifyH("RIGHT")
+            f.readyStatus=status
+            name:SetPoint("RIGHT",status,"LEFT",-8,0)
         else
             name:SetPoint("RIGHT",f,"RIGHT",-9,0)
         end
@@ -204,20 +223,34 @@ local function SetRow(row, info, placeholder)
         row.icon:SetTexCoord(0,1,0,1)
     end
 end
-local function FillRows(rows, members, size, placeholder)
+local function FillRows(rows, members, size, placeholder, readiness)
     for i,row in ipairs(rows) do
         row.frame:SetShown(i<=size)
         if i<=size then
             local member=members and members[i]
             SetRow(row,member,placeholder)
             if row.role then row.role:SetShown(i==1 and member~=nil) end
+            if row.frame.readyStatus then
+                local status=member and readiness and readiness.rows[i] or ""
+                row.frame.readyStatus:SetText(status)
+                local red=status=="Offline" or status=="Not ready"
+                if status=="Ready" then row.frame.readyStatus:SetTextColor(.35,.85,.45)
+                elseif red then row.frame.readyStatus:SetTextColor(.92,.36,.30)
+                else row.frame.readyStatus:SetTextColor(unpack(C.muted)) end
+            end
         end
     end
 end
 
 local playerTeamInfo = Text(playerSetup,"Blizzard party / raid roster",18,19,12,C.muted)
 playerTeamInfo:ClearAllPoints()
-playerTeamInfo:SetPoint("TOPRIGHT",playerSetup,"TOPRIGHT",-18,-19)
+playerTeamInfo:SetPoint("TOPRIGHT",playerSetup,"TOPRIGHT",-140,-19)
+local readyButton=Small(playerSetup,"Ready Check",112)
+readyButton:SetPoint("TOPRIGHT",playerSetup,"TOPRIGHT",-16,-8)
+readyButton:SetScript("OnClick",function() Engine.ReadyCheck() end)
+ns.Tooltips.Bind(readyButton,function()
+    return {title="Ready Check",detail=Engine.GetReadyCheckReason() or "Start Blizzard's native ready check."}
+end)
 playerTeamInfo:SetJustifyH("RIGHT")
 local playerBrackets={}
 local hostBrackets={}
@@ -252,7 +285,6 @@ local function TournamentToggle(parent,page)
     return Widgets.ToggleRow(parent,"Tournament Rules",
         "Use Blizzard tournament match mode; no brackets or results are tracked.",
         function(enabled)
-            messages[page]=nil
             Engine.SelectTournamentRules(page,enabled)
         end)
 end
@@ -283,14 +315,10 @@ ns.Tooltips.Bind(hostSend,function()
             "Ask Blizzard to arrange a match for two team captains. Spectator entry is not guaranteed."}
 end)
 playerSend:SetScript("OnClick",function()
-    local _, reason=Engine.Request("player")
-    messages.player=reason
-    View.Refresh()
+    Engine.Request("player")
 end)
 hostSend:SetScript("OnClick",function()
-    local _, reason=Engine.Request("host")
-    messages.host=reason
-    View.Refresh()
+    Engine.Request("host")
 end)
 
 -- Reserve a real gutter BEFORE painting panels, not after the scrollbar
@@ -444,7 +472,10 @@ function View.Refresh()
     hostMap:Refresh(selectedHostMap)
     local team=Engine.GetTeam()
     local own=team.complete and not team.stale and team.members or {}
-    FillRows(setupRows,own,math.min(5,cfgPlayer.bracket))
+    local readiness=Engine.GetReadiness(team)
+    FillRows(setupRows,own,math.min(5,cfgPlayer.bracket),nil,readiness)
+    local readyReason=Engine.GetReadyCheckReason()
+    readyButton:SetEnabled(not readyReason);readyButton:SetAlpha(readyReason and .48 or 1)
     FillRows(ownArenaRows,own,math.min(5,cfgPlayer.bracket))
     FillRows(enemyRows,Engine.GetOpponents(),math.min(5,cfgPlayer.bracket),
         "Awaiting opponent...")
@@ -461,16 +492,31 @@ function View.Refresh()
     hostSend:SetEnabled(not hostReason)
     playerSend:SetAlpha(playerReason and 0.48 or 1)
     hostSend:SetAlpha(hostReason and 0.48 or 1)
-    msgPlayer:SetText(messages.player or playerReason or
+    msgPlayer:SetText(playerReason or Engine.GetMessage("player") or
         "Challenge requests require the opposing captain to accept.")
-    msgHost:SetText(messages.host or hostReason or
+    msgHost:SetText(hostReason or Engine.GetMessage("host") or
         "Captains and full team lists are not automatically shared with spectators.")
-    playerTeamInfo:SetText(team.complete and
-        (#team.members.." group members detected") or
-        "Group information unavailable")
-    waiting:SetText(inArena and
-        "In arena. Team rosters are shown only when verified." or
-        (messages.host or "Waiting for an arena. Requests do not confirm entry."))
+    local mapLabel=selectedPlayerMap and (selectedPlayerMap.clientReported and "Client-listed arena" or "Reference arena; availability unverified") or ""
+    local availability=playerOther and playerOther.availability or "Captain not selected"
+    local peerStatus=Engine.GetPeerStatus()
+    captainStatus:SetText(peerStatus or (availability.."  |  "..mapLabel))
+    peerCheck:SetShown(Engine.PeerTestingEnabled())
+    peerCheck:SetEnabled(Engine.CanCommunicate()==true and playerOther~=nil and playerOther.route~=nil)
+    local hostMapSource=selectedHostMap and (selectedHostMap.clientReported and "Client-listed arena" or "Reference arena") or "No arena"
+    hostAvailability:SetText("Team 1: "..(hostA and hostA.availability or "Unselected")..
+        "  |  Team 2: "..(hostB and hostB.availability or "Unselected").."  |  "..hostMapSource)
+    playerTeamInfo:SetText(team.complete and (readiness.active and (readiness.ready.."/"..readiness.total.." ready")
+        or (#team.members.." group members")) or "Group unavailable")
+    local phase,phaseLabel=Engine.GetMatchStatus()
+    playerTeam.heading:SetText(phase=="ordinary_arena" and "YOUR ARENA TEAM" or "YOUR TEAM")
+    enemyTeam.heading:SetText(phase=="ordinary_arena" and "ARENA OPPONENTS" or "ENEMY TEAM")
+    matchHint:SetText(phaseLabel)
+    waiting:SetText(phaseLabel.." — spectator rosters not confirmed.")
+    -- Selected host captains are labels only, never proof of arena membership.
+    if inArena then
+        FillRows(hostRows1,{},math.min(5,cfgHost.bracket),"Roster not observed")
+        FillRows(hostRows2,{},math.min(5,cfgHost.bracket),"Roster not observed")
+    end
     playerSetup:SetShown(active=="player" and not inArena)
     playerForm:SetShown(active=="player" and not inArena)
     playerTeam:SetShown(active=="player" and inArena)
@@ -489,8 +535,9 @@ local function Visible(tab)
     if ns.WarGamesArenaPicker then ns.WarGamesArenaPicker.Close() end
     if active~=tab then Widgets.CloseChoices() end
     active=tab
+    local wasShown=root:IsShown()
     root:Show()
-    View.Refresh()
+    if wasShown then View.Refresh() end
 end
 function View.Show(tab)
     if tab~="player" and tab~="host" then
@@ -507,6 +554,7 @@ function View.SetPageScroll(_,value)
 end
 root:SetScript("OnShow",function()
     if not unsubscribe then unsubscribe=Engine.Subscribe(View.Refresh) end
+    Engine.InvalidateFriends()
     Engine.Refresh()
     -- One single next-frame reflow resolves first-show order where anchors
     -- are not yet measured. No timers loop or stay active while hidden.

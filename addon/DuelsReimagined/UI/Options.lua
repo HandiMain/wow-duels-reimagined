@@ -329,6 +329,11 @@ if ns.CompetitiveStorage and ns.CompetitiveStorage.PeerEpoch() then
     consentRow = AddToggle(behaviorCard,"interface","competitiveConsent","Allow competitive duel exchange",
         "Opt in to compatible peer agreements before the countdown. Never accepts a duel automatically.",-229,false)
 end
+local warConsentRow
+if ns.WarGames and ns.WarGames.PeerTestingEnabled() then
+    warConsentRow=AddToggle(behaviorCard,"interface","warGamesConsent","War Games captain exchange",
+        "Allow selected captains to exchange match setup and current readiness. Does not accept or send challenges.",-284,false)
+end
 local tooltipsRow = AddToggle(notificationsCard, "interface", "showTooltips", "Show addon tooltips",
     "Show helpful descriptions when hovering over Duels controls.", -64, false)
 local reminderRow = AddToggle(notificationsCard, "interface", "patchNotesReminder", "New patch reminder",
@@ -624,6 +629,7 @@ local interfaceGroups = {
     }},
 }
 if consentRow then interfaceGroups[1].entries[#interfaceGroups[1].entries+1]={widget=consentRow} end
+if warConsentRow then interfaceGroups[1].entries[#interfaceGroups[1].entries+1]={widget=warConsentRow} end
 function appearance:Relayout(width) LayoutPage(self, appearanceGroups, width) end
 function interface:Relayout(width) LayoutPage(self, interfaceGroups, width) end
 appearance:Relayout(appearance:GetWidth())

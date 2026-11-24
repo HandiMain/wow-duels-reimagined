@@ -37,6 +37,7 @@ local boolDefaults = {
     -- the local view. Switch the release default off before distribution.
     competitivePreview = true,
     competitiveConsent = false,
+    warGamesConsent = false,
     showTooltips = true,
     patchNotesReminder = true,
     showGameMenuButton = true,
@@ -512,6 +513,9 @@ function Settings.Set(key, value)
         if ns.Header and ns.Header.RefreshAutoPeek then
             ns.Header.RefreshAutoPeek()
         end
+        if ns.Options and ns.Options.Refresh then ns.Options.Refresh() end
+    elseif key == "warGamesConsent" then
+        if ns.WarGames then ns.WarGames.PreferenceChanged() end
         if ns.Options and ns.Options.Refresh then ns.Options.Refresh() end
     elseif key == "competitiveConsent" then
         if ns.CompetitiveLifecycle then ns.CompetitiveLifecycle.PreferenceChanged() end
