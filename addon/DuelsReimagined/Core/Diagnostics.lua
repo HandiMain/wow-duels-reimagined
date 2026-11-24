@@ -1,5 +1,5 @@
 local _,ns=...
--- BurstFX-inspired provider engine. Read-only, except explicit report save.
+-- Shared diagnostic provider engine. Read-only scans; exports are explicit.
 local D={}
 ns.Diagnostics=D
 local providers,ids,incidents,last={},{},{},nil
@@ -54,8 +54,8 @@ function D.Record(kind,message)
 end
 function D.GetIncidents() return Copy(incidents) end
 function D.ClearIncidents() incidents={} end
--- Observe attributable protected actions only; never replace the global
--- Lua error handler or suppress Blizzard / BugGrabber error handling.
+-- Observe attributable protected actions here; opt-in native capture is
+-- owned by DiagnosticAudit and preserves the previous error handler.
 local driver=CreateFrame("Frame")
 for _,event in ipairs({"ADDON_ACTION_BLOCKED","ADDON_ACTION_FORBIDDEN","LUA_WARNING"}) do
     pcall(driver.RegisterEvent,driver,event)
