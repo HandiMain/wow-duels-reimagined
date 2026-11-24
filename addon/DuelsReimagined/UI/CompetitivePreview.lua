@@ -19,6 +19,7 @@ local function Build(client,events)
     local asOf=epoch+#events*120+3600
     local node=assert(ns.LeaderboardSync.OpenSeasonSimulated(client,epoch))
     local metadata,localRows={},{}
+    local competitiveIdentities={}
     local me=Guid(0)
     local function Identity(n)
         local id=Guid(n)
@@ -44,6 +45,10 @@ local function Build(client,events)
             local y=table.concat({"1",client,session,b,a,b==winner and "won" or "lost",tostring(cycle)},"|")
             local record=assert(ns.ResultConfirmation.DecodeStatementsSimulated(client,x,y))
             assert(node.Observe(record,time,time))
+            -- Only identities supported by ledger evidence belong in the
+            -- competitive store. Other opponents remain private preview metadata.
+            competitiveIdentities[a]=metadata[a]
+            competitiveIdentities[b]=metadata[b]
         end
         localRows[#localRows+1]={cycle=cycle,peer=b,outcome=event.outcome,
             session=linked and session or nil,mode=mode,duration=60,time=time}
@@ -66,7 +71,7 @@ local function Build(client,events)
     end
     for _,row in ipairs(localRows) do Observe(row) end
     local roots={version=2,kind="account",scope="SIMULATED",clients={[client]={probe=0,ledger=saved.ledger,
-        identities=metadata,season={version=1,rule=ns.SeasonRules.BALANCED_ID,epoch=epoch,clocks=saved.clocks}}}}
+        identities=competitiveIdentities,season={version=1,rule=ns.SeasonRules.BALANCED_ID,epoch=epoch,clocks=saved.clocks}}}}
     local char={version=2,kind="character",scope="SIMULATED",owner=me,clients={[client]={probe=0,runCounter=1,history=history.Save()}}}
     local store=ns.CompetitiveStorage.NewSimulated(function()return roots,char end,function()error("preview is read-only")end,
         function()return client end,function()return me end)

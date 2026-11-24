@@ -28,6 +28,12 @@ for _,client in ipairs({"forever","retail"}) do
     local d=P.Build(client,repeated);local p=d.view.ProfileSummary(d.me,1)
     assert(p.rank.provisional and p.rivalCount==1 and p.credit<32)
     assert(d.matches[1].category=="Rating capped" and d.matches[1].delta==0)
+    local unranked=P.Build(client,{{outcome="won",mode="unranked",opponent=1}})
+    assert(unranked.personal.total==1 and unranked.personal.wins==1)
+    assert(unranked.matches[1].category=="Unranked" and unranked.matches[1].delta==nil)
+    assert(unranked.matches[1].identity.name=="Test Rival 1")
+    assert(not unranked.view.ProfileSummary(unranked.me,1))
+    assert(unranked.view.Leaderboard(1,0,100,"","rating").total==0)
     local mixed=P.Build(client,{{outcome="won",mode="practice",opponent=1},
         {outcome="lost",mode="unranked",opponent=2},{outcome="unknown",opponent=3},
         {outcome="fled",opponent=4},{outcome="won",mode="pending",opponent=5}})
@@ -35,6 +41,15 @@ for _,client in ipairs({"forever","retail"}) do
     assert(mixed.matches[5].category=="Unranked" and mixed.matches[5].delta==nil)
     assert(mixed.matches[1].category=="Pending" and mixed.matches[1].delta==nil)
     assert(mixed.view.Leaderboard(1,0,100,"","rating").total==0)
+    assert(mixed.matches[1].identity.name=="Test Rival 5")
+    local both=P.Build(client,{{outcome="won",mode="ranked",opponent=1},
+        {outcome="won",mode="unranked",opponent=2},{outcome="lost",mode="pending",opponent=3}})
+    assert(both.personal.total==3 and both.personal.wins==2 and both.personal.losses==1)
+    assert(both.view.ProfileSummary(both.me,1).stats.games==1)
+    assert(both.view.ProfileSummary(both.matches[3].peer,1).identity.name=="Test Rival 1")
+    assert(not both.view.ProfileSummary(both.matches[2].peer,1))
+    assert(not both.view.ProfileSummary(both.matches[1].peer,1))
+    assert(both.matches[2].identity.name=="Test Rival 2" and both.matches[1].identity.name=="Test Rival 3")
 end
 -- Minimal frame mock: tracks scripts, visibility, sizes and text; rendering
 -- is deliberately not certified here. Parent anchors get content dimensions.
