@@ -12,7 +12,6 @@ local sections = {
     } },
     { key = "leaderboard", label = "Leaderboard", icon = "Hall", pages = {
         { key = "standings", label = "Leaderboard", title = "Leaderboard", subtitle = "Compete. Climb. Earn your rank.", competitive = true },
-        { key = "profile", label = "Player Profile", title = "Player Profile", subtitle = "Competitive overview and performance.", competitive = true, internal = true },
     } },
     { key = "matchhistory", label = "Match History", icon = "Hall", pages = {
         { key = "history", label = "Match History", title = "Match History", subtitle = "Your dueling journey, one match at a time.", competitive = true },
@@ -103,7 +102,7 @@ local function CapturePage()
     if type(offset) ~= "number" or offset ~= offset then offset = 0 end
     scrollMemory[id] = offset
     if workspaceReady then
-        ns.Settings.SetWorkspace(section.key, page.internal and "standings" or page.key, page.internal and 0 or offset)
+        ns.Settings.SetWorkspace(section.key, page.key, offset)
     end
 end
 local function RestoreScroll(sectionIndex, pageIndex)
@@ -136,6 +135,18 @@ local function FadeSelection(item, active)
     Motion.Fade(item.hover, 0, 0.13)
 end
 
+local function CanReturn()
+    local _,page=PageId(currentSection,currentPage)
+    return #history>0 or (page and page.competitive and page.key~="overview") or false
+end
+local function UpdateBack()
+    if not backButton then return end
+    local _,page=PageId(currentSection,currentPage)
+    local can=CanReturn()
+    backButton:SetShown(can or (page and page.competitive) or false)
+    backButton:SetEnabled(can)
+    backButton:SetAlpha(can and 1 or .48)
+end
 local function Select(sectionIndex, pageIndex, noMotion, repaintOnly, isBack)
     local section = sections[sectionIndex]
     if not section or not section.pages[pageIndex] then return end
@@ -159,11 +170,7 @@ local function Select(sectionIndex, pageIndex, noMotion, repaintOnly, isBack)
     -- Patch Notes versions live in their own scrollable rail, never in the
     -- horizontal subcategory strip (which would overflow with new releases).
     Window.nav:SetShown(#section.pages > 1 and section.key ~= "patchnotes" and not page.competitive)
-    if backButton then
-        backButton:SetShown(page.key=="profile" or (#history > 0 and (not page.competitive or page.key=="overview")))
-        backButton.label:SetText(page.key=="profile" and "Back to Leaderboard" or "Back")
-        backButton:SetWidth(page.key=="profile" and 156 or 60)
-    end
+    UpdateBack()
 
     for i, item in ipairs(railButtons) do
         local on = i == sectionIndex
@@ -205,8 +212,8 @@ local function Select(sectionIndex, pageIndex, noMotion, repaintOnly, isBack)
     RestoreScroll(sectionIndex, pageIndex)
     if workspaceReady then
         local _, _, id = PageId(sectionIndex, pageIndex)
-        ns.Settings.SetWorkspace(section.key, page.internal and "standings" or page.key,
-            not page.internal and id and scrollMemory[id] or 0)
+        ns.Settings.SetWorkspace(section.key, page.key,
+            id and scrollMemory[id] or 0)
     end
 end
 
@@ -278,10 +285,14 @@ for index, section in ipairs(sections) do
         local path = "Interface\\AddOns\\DuelsReimagined\\Media\\Skin\\DuelWarGamesPlate.png"
         local artwork = button:CreateTexture(nil, "ARTWORK", nil, 2)
         artwork:SetTexture(path)
-        artwork:SetAllPoints(button)
+        -- Keep the original approved coliseum image; inset it beneath the
+        -- shared complete plaque rim. The old lower edge was baked short.
+        artwork:SetPoint("TOPLEFT",button,"TOPLEFT",4,-4)
+        artwork:SetPoint("BOTTOMRIGHT",button,"BOTTOMRIGHT",-4,4)
         Chrome.Sharp(artwork)
-        local glow = button:CreateTexture(nil, "OVERLAY", nil, 6)
-        glow:SetTexture(path)
+        local rim=ns.CompetitiveUI.Plaque(button,"rim","ARTWORK",3)
+        rim:SetAllPoints(button)
+        local glow = ns.CompetitiveUI.Plaque(button,"rim","OVERLAY",6)
         glow:SetAllPoints(button)
         glow:SetBlendMode("ADD")
         glow:SetVertexColor(1, 0.78, 0.48)
@@ -565,7 +576,7 @@ local function FitTabs(self, width)
         railMark:SetSize(size,size)
     end
 end
-Window.rail:SetScript("OnSizeChanged",FitTabs)
+Window.rail:SetScript("OnSizeChanged", FitTabs)
 FitTabs(Window.rail,Window.rail:GetWidth())
 
 local function FitSubTabs(self, width)
@@ -606,14 +617,14 @@ FitTabs(Window.rail,Window.rail:GetWidth())
 ns.Navigation = {
     Back = function()
         local _,page=PageId(currentSection,currentPage)
-        if #history==0 and page and page.internal then Select(currentSection,1,false,false,true);return true end
+        if #history==0 and page and page.competitive and page.key~="overview" then Select(1,1,false,false,true);return true end
         if #history == 0 then return false end
         local previous = table.remove(history)
         Select(previous.section, previous.page, false, false, true)
         if ns.Feedback then ns.Feedback.Acknowledge("navigation-back-v1") end
         return true
     end,
-    CanGoBack = function() local _,page=PageId(currentSection,currentPage);return #history>0 or (page and page.internal==true) end,
+    CanGoBack = CanReturn,
     ResumeWorkspace = function()
         -- ADDON_LOADED has already seeded SavedVariables when the player
         -- opens Duels; don't mark a hidden Patch Notes page read on login.
@@ -625,8 +636,8 @@ ns.Navigation = {
             for i, section in ipairs(sections) do
                 if section.key == sectionKey then
                     for j, page in ipairs(section.pages) do
-                        if page.key == pageKey or (pageKey=="profile" and page.key=="standings") then
-                            scrollMemory[sectionKey .. ":" .. pageKey] = offset
+                        if page.key == pageKey or (sectionKey=="leaderboard" and pageKey=="profile" and page.key=="standings") then
+                            scrollMemory[sectionKey .. ":" .. page.key] = pageKey=="profile" and 0 or offset
                             Select(i, j, true, false, true)
                             return
                         end
@@ -668,10 +679,7 @@ ns.Navigation = {
     end,
 }
 
-Window.frame:HookScript("OnShow",function()
-    local _,page=PageId(currentSection,currentPage)
-    if page and page.internal then backButton:Show() end
-end)
+Window.frame:HookScript("OnShow",UpdateBack)
 
 -- Like every other real action, Back participates in the ONE Search registry.
 -- It is unavailable until the player actually has somewhere to return.
@@ -694,11 +702,11 @@ end)
 for sectionIndex, section in ipairs(sections) do
     for pageIndex, page in ipairs(section.pages) do
         local si, pi = sectionIndex, pageIndex
-        if not page.internal then ns.Search.Register("page:" .. section.key .. ":" .. page.key,
+        ns.Search.Register("page:" .. section.key .. ":" .. page.key,
             page.label, section.label,
             (page.title or "") .. " " .. (page.subtitle or ""),
             function() Select(si, pi) end,
-            function() return section.key ~= "wargames" or ns.Client.IsRetail() end) end
+            function() return section.key ~= "wargames" or ns.Client.IsRetail() end)
     end
 end
 

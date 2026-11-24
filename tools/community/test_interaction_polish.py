@@ -131,7 +131,7 @@ class InteractionPolishTests(unittest.TestCase):
         self.assertIn('not repaintOnly and not isBack', nav)
         self.assertIn('Select(previous.section, previous.page, false, false, true)', nav)
         self.assertIn('for i = #history, 1, -1 do history[i] = nil end', nav)
-        self.assertIn('CanGoBack = function() return #history > 0 end', nav)
+        self.assertIn('CanGoBack = CanReturn,', nav)
         self.assertIn('ns.Search.Register("navigation:back", "Back", "Navigation",', nav)
         self.assertIn('return ns.Navigation.CanGoBack()', nav)
         self.assertNotIn('navigationHistory', settings)

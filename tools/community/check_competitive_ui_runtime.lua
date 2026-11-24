@@ -54,27 +54,47 @@ local function Frame(parent)
 end
 function methods:CreateTexture()return Frame(self)end
 function methods:CreateFontString()return Frame(self)end
-CreateFrame=function(_,_,parent)return Frame(parent)end
+CreateFrame=function(_,name,parent)local f=Frame(parent);if name then _G[name]=f end;return f end
 local C=setmetatable({}, {__index=function(t,k)local v={1,1,1,1};rawset(t,k,v);return v end})
 ns.Style={color=C,Text=function(parent,t)local f=Frame(parent);f:SetText(t);return f end,Fill=function(parent)return Frame(parent)end,
-    Skin=noop,Action=function(parent,t)local f=Frame(parent);f.label=Frame(f);f.label:SetText(t);return f end,BindFont=noop}
+    Skin=noop,Plate=noop,Action=function(parent,t)local f=Frame(parent);f.label=Frame(f);f.label:SetText(t);return f end,BindFont=noop}
 ns.Motion={Fade=function(f,a)f:SetAlpha(a)end,Stop=function(f,a)f:SetAlpha(a or 0)end}
 ns.Chrome={Sharp=noop,Icon=function(parent)return Frame(parent)end,Divider=function(parent)return Frame(parent)end}
 ns.Widgets={PressFeedback=noop,ChoiceControl=function(parent)local f=Frame(parent);return f,Frame(f)end,OpenChoices=noop,
     CloseChoices=noop,ScrollBar=function(parent)local f=Frame(parent);f.Refresh=noop;return f end}
-ns.Window={content=Frame(nil)}
+UIParent=Frame(nil);UIParent:SetSize(1440,900)
+local main=Frame(UIParent)
+ns.Window={frame=main,content=Frame(main)}
 ns.Window.content:SetSize(960,620)
+ns.Header={CreateCloseButton=function(parent)return Frame(parent)end}
+UISpecialFrames={"OtherBefore","DuelsReimaginedWindow","OtherAfter"}
 ns.DiagnosticAudit={RegisterUIRoot=noop}
 ns.Diagnostics={Record=function(_,detail)error(detail)end}
-ns.Navigation={SelectKey=noop}
+local navigations=0
+ns.Navigation={SelectKey=function()navigations=navigations+1 end}
 ns.Client={Kind=function()return "retail" end}
 ns.CompetitivePreview.Get=function()return cache.retail end
 assert(loadfile(base.."UI/CompetitiveUI.lua"))("DuelsReimagined",ns)
 local U=ns.CompetitiveUI
 local count=#frames
-for _,key in ipairs({"overview","standings","profile","history","standings","overview"}) do
+for _,key in ipairs({"overview","standings","history","standings","overview"}) do
     U.Show(key);U.Refresh();U.SetPageScroll(key,3)
 end
+U.Show("standings");U.SetPageScroll("standings",3)
+local before=U.GetPageScroll("standings")
+local d=cache.retail
+local row=d.view.Leaderboard(d.current,0,5,"","rating").rows[1]
+U.OpenPlayerCard(row.id)
+assert(U.IsPlayerCardOpen() and navigations==0 and U.GetPageScroll("standings")==before)
+assert(table.concat(UISpecialFrames,",")=="OtherBefore,OtherAfter,DuelsReimaginedPlayerCard")
+U.OpenPlayerCard(d.me);U.Refresh()
+assert(U.IsPlayerCardOpen() and navigations==0)
+assert(table.concat(UISpecialFrames,",")=="OtherBefore,OtherAfter,DuelsReimaginedPlayerCard")
+U.ClosePlayerCard()
+assert(not U.IsPlayerCardOpen() and U.GetPageScroll("standings")==before)
+assert(table.concat(UISpecialFrames,",")=="OtherBefore,DuelsReimaginedWindow,OtherAfter")
+U.OpenPlayerCard(d.me);main:Hide()
+assert(not U.IsPlayerCardOpen() and table.concat(UISpecialFrames,",")=="OtherBefore,DuelsReimaginedWindow,OtherAfter")
 U.Show(nil)
 assert(#frames==count,"page navigation must reuse frames")
 assert(_G.DuelsReimaginedCompetitiveDB==nil and _G.DuelsReimaginedCharacterDB==nil)

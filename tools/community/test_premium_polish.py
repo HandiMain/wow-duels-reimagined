@@ -19,7 +19,7 @@ class PremiumPolishTests(unittest.TestCase):
         self.assertIn('button:SetSize(112, 30)', n)
         self.assertIn('icon:SetSize(isPrimary and 48 or 20', n)
         self.assertIn('Window.utility = utility', w)
-        self.assertIn('local primaryKeys = { hall = true, wargames = true }', n)
+        self.assertIn('local primaryKeys = { hall = true, leaderboard = true, matchhistory = true, wargames = true }', n)
         self.assertNotIn('button:SetSize(90, 90)', n)
 
     def test_outer_frame_fills_seam_but_respects_rounded_corners(self):

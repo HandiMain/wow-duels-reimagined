@@ -14,7 +14,7 @@ local function Atlas(parent,layer,sub)
 end
 function U.Plaque(parent,key,layer,sub)
     local t=Atlas(parent,layer,sub)
-    local slot=key=="leaderboard" and 0 or 1
+    local slot=key=="leaderboard" and 0 or key=="matchhistory" and 1 or 2
     t:SetTexCoord(slot/4,(slot+1)/4,0.5,240/256)
     return t
 end
@@ -86,7 +86,7 @@ local function Outcome(x)
     return "Unknown",C.muted
 end
 local function Duration(n) return n and string.format("%dm %02ds",math.floor(n/60),math.floor(n%60)) or "—" end
-local function Choice(parent,values,selected,change)
+local function Choice(parent,values,selected,change,owner)
     local b,label=W.ChoiceControl(parent,150)
     local current=selected
     local function Paint()
@@ -94,7 +94,7 @@ local function Choice(parent,values,selected,change)
     end
     function b.SetChoice(key) current=key;Paint() end
     b:SetScript("OnClick",function()
-        W.OpenChoices(b,values,current,function(key)current=key;Paint();change(key)end)
+        W.OpenChoices(b,values,current,function(key)current=key;Paint();change(key)end,owner)
     end)
     Paint();return b
 end
@@ -322,11 +322,7 @@ local preview,profileId
 local pendingScroll={}
 local active
 local function Data() return preview end
-local function OpenProfile(id)
-    if active=="overview" then ns.Navigation.SelectKey("leaderboard","standings") end
-    profileId=id
-    ns.Navigation.SelectKey("leaderboard","profile")
-end
+local OpenProfile
 local function Go(section,key)ns.Navigation.SelectKey(section,key)end
 local function Seasons(change)
     return {{key=3,label="Season 3"},{key=2,label="Season 2"},{key=1,label="Season 1"}}
@@ -350,16 +346,17 @@ local function Points(id,season,filter)
     return out
 end
 local pages={}
-local function Page(key,title,subtitle,previewX)
-    local f=CreateFrame("Frame",nil,ns.Window.content)
-    f:SetPoint("TOPLEFT",ns.Window.content,"TOPLEFT",22,-17);f:SetPoint("BOTTOMRIGHT",ns.Window.content,"BOTTOMRIGHT",-22,14)
+local function Page(key,title,subtitle,previewX,owner)
+    local parent=owner or ns.Window.content
+    local f=CreateFrame("Frame",nil,parent)
+    f:SetPoint("TOPLEFT",parent,"TOPLEFT",22,-17);f:SetPoint("BOTTOMRIGHT",parent,"BOTTOMRIGHT",-22,14)
     if f.SetClipsChildren then f:SetClipsChildren(true) end
     local heading=T(f,title,26,C.pale);heading:SetPoint("TOPLEFT",f,"TOPLEFT",0,0);heading:SetSize(360,32)
     local sub=T(f,subtitle,13,C.text);sub:SetPoint("TOPLEFT",f,"TOPLEFT",1,-33);sub:SetSize(460,20)
     local label=Panel(f);label:SetSize(173,24);label:SetPoint("TOPRIGHT",f,"TOPRIGHT",previewX or 0,-4)
     local caption=T(label,"Preview • Simulated data",11,C.muted,"CENTER");caption:SetAllPoints(label)
     if ns.DiagnosticAudit then ns.DiagnosticAudit.RegisterUIRoot("Competitive / "..title,f) end
-    f:Hide();pages[key]=f;return f
+    f:Hide();if not owner then pages[key]=f end;return f
 end
 -- Hall: rank/season hero, activity and leaderboard previews, progression.
 local hall=Page("overview","Welcome to the Hall","Your dueling journey starts here.",-71)
@@ -455,7 +452,7 @@ function hall.Render()
     Set(currentDelta,Delta(diff),diff and diff<0 and RED or GREEN)
 end
 -- Leaderboard: native controls, bounded scroll and detail navigation.
-local board=Page("standings","Leaderboard","Compete. Climb. Earn your rank.")
+local board=Page("standings","Leaderboard","Compete. Climb. Earn your rank.",-71)
 local boardSeason,boardQuery,boardSort=3,"","rating"
 local standing=Panel(board)
 local standText=T(standing,"Your Standing",12,C.pale)
@@ -501,8 +498,59 @@ function board.Render(reset)
     else pinned:Hide() end
     Place(boardNote,board,1,h-16,w-4,16)
 end
--- Player profile is an internal leaderboard detail, not another sidebar tab.
-local profile=Page("profile","Player Profile","Competitive overview and performance.",-170)
+-- One movable sibling window, not a route or a replacement for the main page.
+-- The same profile widgets are reused for every clicked player.
+local card=CreateFrame("Frame","DuelsReimaginedPlayerCard",UIParent)
+card:SetSize(800,590)
+card:SetPoint("CENTER",UIParent,"CENTER",70,12)
+card:SetFrameStrata("FULLSCREEN_DIALOG")
+card:SetToplevel(true);card:SetClampedToScreen(true);card:SetMovable(true);card:EnableMouse(true)
+card:Hide()
+S.Skin(card,C.window,{corner=11,edge=C.goldDim,shine=.10,shade=.10})
+S.Plate(card,"shellCopper",{corner=20,layer="ARTWORK",sublevel=1})
+local profile=Page("profile","Player Profile","Competitive overview and performance.",-35,card)
+local drag=CreateFrame("Frame",nil,card)
+drag:SetPoint("TOPLEFT",card,"TOPLEFT",12,-8);drag:SetPoint("TOPRIGHT",card,"TOPRIGHT",-46,-8);drag:SetHeight(48)
+drag:SetFrameLevel(profile:GetFrameLevel()+6)
+drag:EnableMouse(true);drag:RegisterForDrag("LeftButton")
+drag:SetScript("OnDragStart",function() W.CloseChoices();card:StartMoving() end)
+drag:SetScript("OnDragStop",function() card:StopMovingOrSizing() end)
+local close=ns.Header.CreateCloseButton(card)
+close:SetPoint("TOPRIGHT",card,"TOPRIGHT",-12,-12)
+close:SetFrameLevel(profile:GetFrameLevel()+7)
+close:SetScript("OnClick",function() card:Hide() end)
+-- Blizzard closes every visible registered special frame. Temporarily replace
+-- only our own main-window entry, restoring it on card close. No global hook
+-- or keyboard capture; other addons' special-frame entries are untouched.
+local mainSpecialIndex
+local function RemoveSpecial(name)
+    if type(UISpecialFrames)~="table" then return end
+    for i=#UISpecialFrames,1,-1 do
+        if UISpecialFrames[i]==name then table.remove(UISpecialFrames,i);return i end
+    end
+end
+card:SetScript("OnShow",function()
+    if type(UISpecialFrames)=="table" then
+        mainSpecialIndex=RemoveSpecial("DuelsReimaginedWindow")
+        if not mainSpecialIndex then mainSpecialIndex=false end
+        table.insert(UISpecialFrames,"DuelsReimaginedPlayerCard")
+    end
+end)
+card:SetScript("OnHide",function()
+    card:StopMovingOrSizing();W.CloseChoices()
+    if type(UISpecialFrames)=="table" then
+        RemoveSpecial("DuelsReimaginedPlayerCard")
+        if mainSpecialIndex then
+            local exists=false
+            for _,name in ipairs(UISpecialFrames) do if name=="DuelsReimaginedWindow" then exists=true end end
+            if not exists then table.insert(UISpecialFrames,math.min(mainSpecialIndex,#UISpecialFrames+1),"DuelsReimaginedWindow") end
+        end
+    end
+    mainSpecialIndex=nil
+end)
+ns.Window.frame:HookScript("OnHide",function()card:Hide()end)
+function U.ClosePlayerCard()card:Hide()end
+function U.IsPlayerCardOpen()return card:IsShown()end
 local profileSeason=3
 local profileHero=Panel(profile)
 local profileEmblem=Rank(profileHero,106,true)
@@ -512,7 +560,7 @@ local profileRealm=Text(profileHero,12,C.muted)
 local profileRank=Text(profileHero,22,C.pale,"CENTER")
 local profileRankCaption=Text(profileHero,12,C.muted,"CENTER")
 local profileStand=Metrics(profileHero,{"Standing","Rating"})
-local profileChoice=Choice(profileHero,Seasons(),3,function(v)profileSeason=v;profile.Render()end)
+local profileChoice=Choice(profileHero,Seasons(),3,function(v)profileSeason=v;profile.Render()end,card)
 local profileStats=Panel(profile)
 local profileMetrics=Metrics(profileStats,{"Wins","Losses","Win Rate","Peak Rating","Current Streak","Best Streak"})
 local profileGraphPanel,profileGraphTitle=Header(profile,"Rating Progression")
@@ -589,8 +637,23 @@ function profile.Render()
         end
     end
 end
+OpenProfile=function(id)
+    if not preview or not id then return end
+    W.CloseChoices()
+    profileId=id
+    profileSeason=active=="standings" and boardSeason or active=="overview" and preview.current or profileSeason
+    profileChoice.SetChoice(profileSeason)
+    -- Preserve the dragged position; only scale down on small screens.
+    local width,height=UIParent:GetWidth(),UIParent:GetHeight()
+    card:SetScale(math.max(.4,math.min(1,(width-24)/800,(height-24)/590)))
+    profile:Show()
+    card:Show();card:Raise()
+    profile.Render()
+end
+U.OpenPlayerCard=OpenProfile
+profile:SetScript("OnSizeChanged",function(self)if card:IsShown() and preview then self.Render()end end)
 -- Private history: display local observations, join only confirmed replay IDs.
-local history=Page("history","Match History","Your dueling journey, one match at a time.")
+local history=Page("history","Match History","Your dueling journey, one match at a time.",-71)
 local historyQuery,historyType,historyOutcome="", "All duels","All outcomes"
 local historySort,reverse="recent",false
 local expandedId
@@ -696,7 +759,6 @@ function U.Show(key)
     if active~=key then W.CloseChoices() end
     for k,f in pairs(pages) do if k~=key then f:Hide() end end
     failed:Hide();active=pages[key] and key or nil
-    if active=="profile" then profileSeason=boardSeason;profileChoice.SetChoice(profileSeason) end
     if active then
         pages[active]:Show()
         if pages[active]:IsVisible() then RenderActive() end
@@ -712,4 +774,7 @@ function U.SetPageScroll(key,offset)
     if key=="standings" then boardList.SetOffset(offset) elseif key=="history" then historyList.SetOffset(offset) end
 end
 
-function U.Refresh() if active and pages[active]:IsVisible() then RenderActive() end end
+function U.Refresh()
+    if active and pages[active]:IsVisible() then RenderActive() end
+    if card:IsShown() and preview then profile.Render() end
+end

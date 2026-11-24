@@ -12,8 +12,11 @@ class CompetitiveUI(unittest.TestCase):
         self.assertIn('if item.key=="wargames" then',n)
         self.assertIn('top=top+21',n)
         self.assertIn('ns.CompetitiveUI.Plaque(button,section.key,"ARTWORK",2)',n)
-        self.assertIn('internal = true',n)
-        self.assertIn('not page.internal then ns.Search.Register',n)
+        self.assertNotIn('{ key = "profile", label = "Player Profile"',n)
+        self.assertIn('ns.CompetitiveUI.Plaque(button,"rim","ARTWORK",3)',n)
+        self.assertIn('backButton:SetShown(can or (page and page.competitive) or false)',n)
+        self.assertIn('backButton:SetEnabled(can)',n)
+        self.assertIn('page and page.competitive and page.key~="overview" then Select(1,1,false,false,true)',n)
         self.assertTrue((ADDON/"Media/Skin/DuelCompetitiveAtlas.png").is_file())
     def test_live_widgets_and_isolated_data(self):
         ui=read("UI/CompetitiveUI.lua");p=read("UI/CompetitivePreview.lua")
@@ -30,6 +33,21 @@ class CompetitiveUI(unittest.TestCase):
         toc=read("DuelsReimagined.toc")
         self.assertLess(toc.index("UI\\CompetitivePreview.lua"),toc.index("UI\\CompetitiveUI.lua"))
         self.assertLess(toc.index("UI\\CompetitiveUI.lua"),toc.index("UI\\Navigation.lua"))
+    def test_floating_profile_reuses_native_controls(self):
+        ui=read("UI/CompetitiveUI.lua")
+        widgets=read("UI/Widgets.lua")
+        for token in ('CreateFrame("Frame","DuelsReimaginedPlayerCard",UIParent)',
+                      'card:SetMovable(true)', 'card:SetClampedToScreen(true)',
+                      'card:StartMoving()', 'card:StopMovingOrSizing()',
+                      'ns.Header.CreateCloseButton(card)', 'U.OpenPlayerCard=OpenProfile',
+                      'RemoveSpecial("DuelsReimaginedWindow")',
+                      'ns.Window.frame:HookScript("OnHide",function()card:Hide()end)',
+                      'profileSeason=v;profile.Render()end,card)'):
+            self.assertIn(token,ui)
+        self.assertNotIn('ns.Navigation.SelectKey("leaderboard","profile")',ui)
+        self.assertIn('popup:SetParent(host)',widgets)
+        self.assertIn('ChoiceCatcher(host):Show()',widgets)
+        self.assertIn('local parent=owner or ns.Window.frame',widgets)
     def test_sidebar_compact_geometry(self):
         for h in (400,510,636,850):
             compact=h<590

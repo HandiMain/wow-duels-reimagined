@@ -96,7 +96,7 @@ function A.ErrorCoverage()
 end
 
 local roots={"DuelsReimaginedWindow","DuelsReimaginedDiagnosticsWindow",
-    "DuelsReimaginedBlizzardSettingsPanel","DuelsReimaginedMinimapButton","DuelsReimaginedAccessWidget","DuelsReimaginedArenaPicker"}
+    "DuelsReimaginedBlizzardSettingsPanel","DuelsReimaginedMinimapButton","DuelsReimaginedAccessWidget","DuelsReimaginedArenaPicker","DuelsReimaginedPlayerCard"}
 local LIMIT=20000
 local pageRoots={}
 function A.RegisterUIRoot(label,frame)

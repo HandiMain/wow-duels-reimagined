@@ -39,7 +39,7 @@ class CopperChromeTests(unittest.TestCase):
         self.assertNotIn('Line(seams, nav, "BOTTOMLEFT", "BOTTOMRIGHT", false, C.goldDim)', ch)
         self.assertNotIn('navSeam:SetShown(nav:IsShown())', ch)
         self.assertNotIn('nav:HookScript("OnHide", function() navSeam:Hide() end)', ch)
-        self.assertIn('Window.nav:SetShown(#section.pages > 1 and section.key ~= "patchnotes")', nav)
+        self.assertIn('Window.nav:SetShown(#section.pages > 1 and section.key ~= "patchnotes" and not page.competitive)', nav)
 
     def test_shared_presses_and_no_new_polling_engine(self):
         w=lua("UI/Widgets.lua")

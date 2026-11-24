@@ -72,11 +72,11 @@ class WarGamesTests(unittest.TestCase):
         self.assertNotIn('menuNext',ui)
         widgets=src("UI/Widgets.lua")
         self.assertIn("function Widgets.ChoiceControl(parent, width)",widgets)
-        self.assertIn("function Widgets.OpenChoices(anchor, choices, selected, onChoose)",widgets)
+        self.assertIn("function Widgets.OpenChoices(anchor, choices, selected, onChoose, owner)",widgets)
         self.assertIn("scrollbar=Widgets.ScrollBar(popup",widgets)
         self.assertIn('choiceCounter = choiceCounter + 1',widgets)
         self.assertIn('row.dot:SetShown(type(status) == "boolean")',widgets)
-        self.assertIn('ChoiceCatcher():Show()',widgets)
+        self.assertIn('ChoiceCatcher(host):Show()',widgets)
 
     def test_tournament_rules_remain_independent_and_match_local(self):
         core=src("Core/WarGames.lua")

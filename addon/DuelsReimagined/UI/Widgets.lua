@@ -274,15 +274,19 @@ function Widgets.CloseChoices()
     if openChoicePopup then openChoicePopup:Hide(); openChoicePopup = nil end
     if clickCatcher then clickCatcher:Hide() end
 end
-local function ChoiceCatcher()
-    if clickCatcher then return clickCatcher end
-    local parent = ns.Window.frame
-    clickCatcher = CreateFrame("Button", nil, parent)
+local function ChoiceCatcher(owner)
+    local parent=owner or ns.Window.frame
+    if not clickCatcher then
+        clickCatcher=CreateFrame("Button",nil,parent)
+        clickCatcher:EnableMouse(true)
+        clickCatcher:SetScript("OnMouseDown",Widgets.CloseChoices)
+        clickCatcher:Hide()
+    end
+    clickCatcher:SetParent(parent)
+    clickCatcher:ClearAllPoints()
     clickCatcher:SetAllPoints(parent)
-    clickCatcher:SetFrameLevel(parent:GetFrameLevel() + 54)
-    clickCatcher:EnableMouse(true)
-    clickCatcher:SetScript("OnMouseDown", Widgets.CloseChoices)
-    clickCatcher:Hide()
+    clickCatcher:SetFrameStrata(parent:GetFrameStrata())
+    clickCatcher:SetFrameLevel(parent:GetFrameLevel()+54)
     return clickCatcher
 end
 
@@ -322,7 +326,7 @@ end
 -- captain. Looks and scrolls like the Options > Interface font menu.
 -- Rows may carry an optional boolean .online; unknown shows no indicator.
 local warChoiceMenu
-function Widgets.OpenChoices(anchor, choices, selected, onChoose)
+function Widgets.OpenChoices(anchor, choices, selected, onChoose, owner)
     if not anchor or type(choices) ~= "table" or
         type(onChoose) ~= "function" then return end
     if not warChoiceMenu then
@@ -442,12 +446,16 @@ function Widgets.OpenChoices(anchor, choices, selected, onChoose)
             if clickCatcher then clickCatcher:Hide() end
             currentAnchor=nil
         end)
-        function popup:Open(target, list, key, action)
+        function popup:Open(target, list, key, action, owner)
             if currentAnchor==target and popup:IsShown() then
                 Widgets.CloseChoices()
                 return
             end
             Widgets.CloseChoices()
+            local host=owner or ns.Window.frame
+            popup:SetParent(host)
+            popup:SetFrameStrata(host:GetFrameStrata())
+            popup:SetFrameLevel(host:GetFrameLevel()+55)
             options=list
             selectedKey=key
             callback=action
@@ -457,7 +465,7 @@ function Widgets.OpenChoices(anchor, choices, selected, onChoose)
             popup:ClearAllPoints()
             local bottom=target:GetBottom()
             local right=target:GetRight()
-            local limit=ns.Window.frame:GetRight()
+            local limit=host:GetRight()
             local rightAlign=not right or not limit or right+15>limit-274
             if bottom and bottom<popup:GetHeight()+16 then
                 popup:SetPoint(rightAlign and "BOTTOMRIGHT" or "BOTTOMLEFT",
@@ -467,13 +475,13 @@ function Widgets.OpenChoices(anchor, choices, selected, onChoose)
                     target,rightAlign and "BOTTOMRIGHT" or "BOTTOMLEFT",0,-4)
             end
             openChoicePopup=popup
-            ChoiceCatcher():Show()
+            ChoiceCatcher(host):Show()
             popup:Show()
         end
         warChoiceMenu=popup
         popup:Hide()
     end
-    warChoiceMenu:Open(anchor,choices,selected,onChoose)
+    warChoiceMenu:Open(anchor,choices,selected,onChoose,owner)
 end
 
 -- Reusable compact picker for SharedMedia fonts, outlines, and later Options.
