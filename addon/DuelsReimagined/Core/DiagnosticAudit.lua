@@ -221,7 +221,7 @@ function A.Resources()
     local r=Inspect(false)
     local out={frames=r.frames,regions=r.regions}
     local complete=not r.limited and r.unreadable==0 and r.missingRoots==0
-    for _,name in ipairs({"DuelDetection","Group","Presence","Communication","OpponentDiscovery","PeerAgreement","ResultConfirmation","MatchLedger","PersonalHistory","WarGames"}) do
+    for _,name in ipairs({"DuelDetection","Group","Presence","Communication","OpponentDiscovery","PeerAgreement","ResultConfirmation","MatchLedger","PersonalHistory","CompetitiveStorage","WarGames"}) do
         local owner=ns[name]
         if owner and owner.GetDiagnosticResources then
             for k,n in pairs(owner.GetDiagnosticResources()) do out[name.."."..k]=n end

@@ -537,6 +537,8 @@ loader:RegisterEvent("ADDON_LOADED")
 loader:SetScript("OnEvent", function(self, _, loadedName)
     if loadedName ~= addonName then return end
     self:UnregisterEvent("ADDON_LOADED")
+    -- Competitive storage owns its separate roots; this only forwards lifecycle.
+    if ns.CompetitiveStorage then ns.CompetitiveStorage.MarkLoaded() end
     local db = WriteDB()
     for key, default in pairs(boolDefaults) do
         if IsMatchPreference(key) then

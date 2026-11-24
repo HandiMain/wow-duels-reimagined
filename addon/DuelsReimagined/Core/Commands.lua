@@ -25,6 +25,19 @@ SlashCmdList.DUELSREIMAGINED = function(message)
         print("DR | SIMULATED peer discovery: "..p.." passed / "..f.." failed")
         return
     end
+    if message=="storage" or message=="storage status" or message=="storage test" then
+        local S=ns.CompetitiveStorage
+        if message=="storage test" then
+            local ok,why=S.RunPersistenceProbe()
+            if not ok then print("DR | Storage probe refused: "..tostring(why));return end
+            print("DR | LOCAL storage probe incremented; development counters only.")
+        end
+        local s=S.GetSnapshot()
+        if s.state=="ready" then
+            print("DR | LOCAL storage "..s.client.." | account probe="..s.accountProbe.."; character probe="..s.characterProbe.."; matches and rating disabled")
+        else print("DR | Storage unavailable: "..tostring(s.reason)) end
+        return
+    end
     if message=="diagnostics" then
         ns.DiagnosticsUI.Open()
         return

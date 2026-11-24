@@ -119,7 +119,7 @@ Check("Client and API profile","health",function()
 end)
 Check("Module ownership / load order","health",function()
     for _,key in ipairs({"Client","Settings","Group","DuelDetection","DuelSelfTest",
-        "Communication","Presence","OpponentDiscovery","PeerAgreement","ResultConfirmation","MatchLedger","PersonalHistory","Style","Motion","Widgets","Window","Search",
+        "Communication","Presence","OpponentDiscovery","PeerAgreement","ResultConfirmation","MatchLedger","PersonalHistory","CompetitiveStorage","Style","Motion","Widgets","Window","Search",
         "Header","Navigation","Options","AddonStatus","AccessIcons","BlizzardLanding"}) do
         Assert(type(ns[key])=="table",key.." missing")
     end
@@ -180,6 +180,14 @@ Check("Personal history / live gate","health",function()
     local p=ns.PersonalHistory.GetSnapshot()
     Assert(p.scope=="LOCAL" and p.state=="disabled" and p.rankEligible==false,"history live gate unexpectedly enabled")
     return "PASS","Simulation only; no live history or statistics writes."
+end)
+Check("Competitive storage / lifecycle gate","health",function()
+    local p=ns.CompetitiveStorage.GetSnapshot()
+    Assert(p.scope=="LOCAL" and p.rankEligible==false,"storage must not enable ranking")
+    if p.state~="ready" then
+        return p.reason=="identity_unavailable" and "SKIP" or "FAIL","Storage unavailable: "..tostring(p.reason).."; data preserved."
+    end
+    return "PASS","Read-only schema v"..p.version.."; account probe="..p.accountProbe.."; character probe="..p.characterProbe.."; match writes disabled."
 end)
 Check("Settings / defaults / bounds","health",function()
     local S=ns.Settings
@@ -248,6 +256,12 @@ Check("Personal history / isolated statistics QA","deep",function()
     local log={}
     local p,f=ns.PersonalHistory.RunSelfTest(function(line) log[#log+1]=line end)
     return f==0 and p==25 and "PASS" or "FAIL",
+        string.format("%d passed / %d failed (SIMULATED)\n",p,f)..table.concat(log,"\n")
+end)
+Check("Competitive storage / isolated lifecycle QA","deep",function()
+    local log={}
+    local p,f=ns.CompetitiveStorage.RunSelfTest(function(line) log[#log+1]=line end)
+    return f==0 and p==21 and "PASS" or "FAIL",
         string.format("%d passed / %d failed (SIMULATED)\n",p,f)..table.concat(log,"\n")
 end)
 Check("Search registry","deep",function()

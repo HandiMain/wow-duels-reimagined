@@ -4,7 +4,8 @@
 ## Author: Handi
 ## Category: PvP
 ## OptionalDeps: EllesmereUI, LibSharedMedia-3.0, SharedMedia
-## SavedVariables: DuelsReimaginedDB
+## SavedVariables: DuelsReimaginedDB, DuelsReimaginedCompetitiveDB
+## SavedVariablesPerCharacter: DuelsReimaginedCharacterDB
 ## IconTexture: Interface\AddOns\DuelsReimagined\Media\Icons\DuelsDRIcon.png
 
 # Shared client detection loads before any gameplay or settings module.
@@ -22,6 +23,7 @@ Core\PeerAgreement.lua
 Core\ResultConfirmation.lua
 Core\MatchLedger.lua
 Core\PersonalHistory.lua
+Core\CompetitiveStorage.lua
 Core\WarGames.lua [AllowLoadGameType standard]
 UI\Fonts.lua
 UI\Style.lua
