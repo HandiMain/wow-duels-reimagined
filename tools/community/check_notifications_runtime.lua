@@ -122,6 +122,12 @@ assert(expiry[#expiry].seconds==8 and not N.Preview())
 local rank
 for _,f in ipairs(frames) do if f.kind=="Rank" then rank=f.rank end end
 assert(rank.label=="Duelist IV")
+local foundTransition,foundColor=false,false
+for _,f in ipairs(frames) do
+    if f.text=="Veteran I > Duelist IV" then foundTransition=true end
+    if f.text=="Duelist IV" and f.color and f.color[3]==1 and f.color[1]<.6 then foundColor=true end
+end
+assert(foundTransition and foundColor)
 now=133;combat=true;fire("PLAYER_REGEN_DISABLED")
 assert(not card:IsShown() and expiry[#expiry].cancelled)
 combat=false;fire("PLAYER_REGEN_ENABLED")

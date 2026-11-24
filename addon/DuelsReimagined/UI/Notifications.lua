@@ -8,6 +8,9 @@ local ART="Interface\\AddOns\\DuelsReimagined\\Media\\Skin\\NotificationArt.png"
 local SOUND="Interface\\AddOns\\DuelsReimagined\\Media\\Sounds\\Notifications\\General.mp3"
 local PROMOTION_SOUND="Interface\\AddOns\\DuelsReimagined\\Media\\Sounds\\Notifications\\RankPromotion.mp3"
 local PROMOTION_ART="Interface\\AddOns\\DuelsReimagined\\Media\\Skin\\RankPromotionArt.tga"
+-- Duration will be set from the original MP3 once available.
+local PROMOTION_SOUND_SECONDS=nil
+local PROMOTION_FALLBACK_SECONDS=8
 local card=CreateFrame("Frame","DuelsReimaginedNotificationCard",UIParent)
 card:SetSize(WIDTH,BODY+CONNECTOR);card:SetFrameStrata("HIGH")
 card:SetClampedToScreen(true);card:EnableMouse(true);card:Hide()
@@ -49,15 +52,19 @@ description:SetWordWrap(true)
 -- The approved rank card is a distinct content layer inside the SAME card.
 -- Text and the shared rank emblem remain live, never baked into artwork.
 local promotion=CreateFrame("Frame",nil,panel);promotion:SetAllPoints(panel);promotion:Hide()
-local function PromotionArt(x,y,w,h,u1,u2,v1,v2)
-    local t=promotion:CreateTexture(nil,"ARTWORK")
+local function PromotionArt(x,y,w,h,u1,u2,v1,v2,layer,sub)
+    local t=promotion:CreateTexture(nil,layer or "ARTWORK",nil,sub or 0)
     t:SetTexture(PROMOTION_ART);SmoothTexture(t);t:SetTexCoord(u1,u2,v1,v2)
     Position(t,promotion,x,y,w,h);return t
 end
-PromotionArt(63,-17,284,43,0,1,0,.25)
-PromotionArt(35,14,126,151,0,.5,.25,1)
-local rankArt=ns.CompetitiveUI.CreateRankEmblem(promotion,106,false)
-Position(rankArt,promotion,45,41,106,106)
+-- The promotion's glows must be visible above the parent card's artwork.
+local rankHeaderGlow=PromotionArt(64,-58,282,94,0,1,352/512,1,"BACKGROUND")
+PromotionArt(37,12,125,158,0,.5,96/512,352/512,"ARTWORK")
+local rankHalo=PromotionArt(28,25,143,143,.5,1,96/512,352/512,"ARTWORK",1)
+rankHeaderGlow:SetAlpha(0);rankHalo:SetAlpha(0)
+PromotionArt(55,-20,300,47,0,1,0,96/512,"ARTWORK",2)
+local rankArt=ns.CompetitiveUI.CreateRankEmblem(promotion,113,false)
+Position(rankArt,promotion,43,39,113,113)
 local function RankLabel(value,size,color,x,y,w,h)
     local t=S.Text(promotion,value,size,color);t:SetJustifyH("CENTER")
     Position(t,promotion,x,y,w,h);return t
@@ -65,10 +72,10 @@ end
 local rankCategory=RankLabel("",13,C.pale,76,-9,258,27)
 local congrats=RankLabel("Congratulations!",15,C.text,169,38,222,24)
 local newRank=RankLabel("",25,C.pale,166,65,228,36)
-local transition=RankLabel("",13,C.pale,164,107,232,24)
+local transition=RankLabel("",13,C.pale,155,107,243,24)
 local ratingGain=RankLabel("",16,{.49,.92,.30,1},164,137,232,25)
 local rankColors={Aspirant={.76,.53,.32,1},Contender={.77,.81,.86,1},
-    Veteran={.97,.77,.36,1},Duelist={1,.82,.40,1},
+    Veteran={.97,.77,.36,1},Duelist={.45,.79,1,1},
     Master={.58,.81,1,1},Grandmaster={1,.65,.28,1}}
 local current,closing,shownSound,handle,animationKey
 local queue,seen={},{}
@@ -151,7 +158,11 @@ local function Animate(from,to,duration,done)
     StopAnimation();local key={};animationKey=key
     local function Apply(_,v)
         if animationKey~=key then return end
-        offset=(1-v)*18;card:SetAlpha(v);glow:SetAlpha(v*.85);Place()
+        offset=(1-v)*18;card:SetAlpha(v)
+        if current and current.kind=="promotion" then
+            glow:SetAlpha(0);rankHeaderGlow:SetAlpha(v*.82);rankHalo:SetAlpha(v*.68)
+        else glow:SetAlpha(v*.85) end
+        Place()
         if v==to then animationKey=nil;if done then done() end end
     end
     Apply(key,from)
@@ -221,7 +232,8 @@ local closeText=S.Text(close,"×",14,C.pale);closeText:SetAllPoints(close);close
 close:SetScript("OnClick",function() Dismiss(false) end)
 local function Visible(region,show) if show then region:Show() else region:Hide() end end
 local rankClose=close:CreateTexture(nil,"BACKGROUND")
-rankClose:SetAllPoints(close);rankClose:SetTexture("Interface\\AddOns\\DuelsReimagined\\Media\\Artwork\\Header\\Close.png")
+rankClose:SetAllPoints(close);rankClose:SetTexture("Interface\\AddOns\\DuelsReimagined\\Media\\Skin\\DuelHUDArt.png")
+rankClose:SetTexCoord(372.25/512,395.75/512,205.25/512,228.75/512)
 SmoothTexture(rankClose);rankClose:Hide()
 local function Paint(m)
     local ranked=m.kind=="promotion"
@@ -230,13 +242,17 @@ local function Paint(m)
     end
     Visible(promotion,ranked);Visible(rankClose,ranked)
     if ranked then
+        Position(close,panel,WIDTH-29,8,23,23)
         rankCategory:SetText(m.preview and "PREVIEW: Rank promotion" or "RANK PROMOTION")
         rankArt.Paint(m.newRank)
         newRank:SetText(m.newRank.label)
-        newRank:SetTextColor(unpack(rankColors[m.newRank.name] or C.pale))
-        transition:SetText(m.oldRank.label.." → "..m.newRank.label)
+        local color=rankColors[m.newRank.name] or C.pale
+        newRank:SetTextColor(unpack(color))
+        rankHalo:SetVertexColor(color[1],color[2],color[3],1)
+        transition:SetText(m.oldRank.label.." > "..m.newRank.label)
         ratingGain:SetText("+"..m.gain.." rating")
     else
+        Position(close,panel,WIDTH-35,12,18,18)
         category:SetText(m.preview and "PREVIEW: Addon update" or "Addon update")
         heading:SetText(m.title)
         description:SetText(m.body)
@@ -244,7 +260,7 @@ local function Paint(m)
 end
 local function StartExpiry()
     if not current or current.kind~="promotion" or not C_Timer or not C_Timer.NewTimer then return end
-    local seconds=expiryRemaining or 8
+    local seconds=expiryRemaining or (PROMOTION_SOUND_SECONDS and PROMOTION_SOUND_SECONDS+2 or PROMOTION_FALLBACK_SECONDS)
     local now=Plain(GetTime)
     expiryAt=type(now)=="number" and now+seconds or nil
     local m=current
@@ -259,7 +275,8 @@ local function Celebrate()
     local key={};rankGlowKey=key
     M.Value(key,1,0,.95,function(_,v)
         if rankGlowKey~=key then return end
-        glow:SetAlpha(.55+.45*v)
+        rankHeaderGlow:SetAlpha(.72+.28*v)
+        rankHalo:SetAlpha(.58+.42*v)
         if v==0 then rankGlowKey=nil end
     end)
 end
