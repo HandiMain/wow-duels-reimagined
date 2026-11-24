@@ -41,6 +41,23 @@ local function GroupInfo(v)
     if v.count==0 and (v.a~=1 or v.b~=1) then return false end
     return true
 end
+function P.GetGroupCount() return GROUPS end
+function P.DeltaGroupSpec(group,expected)
+    if not Int(group,1,GROUPS) or not GroupInfo(expected) or expected.count==0 then return nil end
+    return table.concat({group,expected.count,expected.a,expected.b},",")
+end
+-- Check group membership and exact page size before the normal atomic merge.
+function P.ValidateDeltaPage(group,expected,page)
+    if not P.DeltaGroupSpec(group,expected) or type(page)~="table" then return false end
+    local total=math.ceil(expected.count/PAGE)
+    if page.total~=total or not Int(page.index,1,total) then return false end
+    local n=Array(page.entries,PAGE)
+    if n~=math.min(PAGE,expected.count-(page.index-1)*PAGE) then return false end
+    for _,e in ipairs(page.entries) do
+        if type(e)~="table" or type(e.id)~="string" or #e.id>220 or Group(e.id)~=group then return false end
+    end
+    return true
+end
 local function Less(a,b) return a[1]<b[1] or (a[1]==b[1] and a[2]<b[2]) end
 local function Clocks(raw)
     local n=Array(raw,2);if not n or n==0 then return nil end

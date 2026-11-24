@@ -59,24 +59,45 @@ for _,client in ipairs({"forever","retail"}) do
     assert(Equal(source.Save(),receiver.Save()) and Equal(replay,receiver.ReplaySeasonSimulated(opts)),"full capacity convergence")
     local r=Record(client,limit+1);local ok,why=receiver.Observe(r,asOf,asOf)
     assert(not ok and why=="capacity" and Equal(source.Save(),receiver.Save()),"capacity must reject without loss")
-    -- Logical catch-up with five missing records, not wire traffic measurement.
+    -- Five missing records: actual simulated summary/group packets, including
+    -- request bytes and tag allowance. No real network timing or delivery.
     local partial=source.Save()
     for i=1,5 do local id=Record(client,i).id;partial.ledger.entries[id]=nil;partial.clocks[id]=nil end
     local behind=assert(ns.LeaderboardSync.OpenSeasonSimulated(client,epoch,partial))
-    local plan=assert(behind.PlanDelta(source.DeltaSummary()))
+    local q=assert(ns.SyncProtocol.NewRequester(client,behind,"delta-stress"))
+    local r=assert(ns.SyncProtocol.NewResponder(client,source))
+    local a,b="Player-1-AAA","Player-2-BBB"
+    local t,deltaFrames,deltaBytes=0,0,0
+    local function Transfer(msg,status)
+        assert(#msg+3<=240);deltaBytes=deltaBytes+#msg+3;deltaFrames=deltaFrames+1
+        assert(r.Begin(msg,b,b,t))
+        local packets={}
+        while true do
+            local body=r.Next(t);if not body then break end
+            assert(#body+3<=240);packets[#packets+1]=body
+            deltaFrames=deltaFrames+1;deltaBytes=deltaBytes+#body+3;t=t+0.5
+        end
+        local value
+        for i=#packets,1,-1 do
+            local ok,why,v=q.Receive(packets[i],a,t);assert(ok,why)
+            if i==1 then assert(why==status);value=v end
+        end
+        t=t+2;return value
+    end
+    local plan=Transfer(assert(q.BeginSummary(a,t)),"summary_complete")
     assert(plan.different>=1 and plan.different<=5)
     local compared=0
     for _,g in ipairs(plan.pulls) do
-        for i=g.pages,1,-1 do
-            local page=assert(source.ExportDeltaPage("delta",g.group,g.expected,i))
-            compared=compared+#page.entries
-            assert(behind.Receive(page,"Player-1-AAA","Player-1-AAA","delta"))
-        end
+        compared=compared+g.expected.count
+        for i=g.pages,1,-1 do Transfer(assert(q.BeginDelta(a,g.group,g.expected,i,t)),"page_complete") end
     end
     assert(compared>=5 and compared<limit and Equal(source.Save(),behind.Save()))
-    assert(#assert(behind.PlanDelta(source.DeltaSummary())).pulls==0)
-    assert(Equal(replay,behind.ReplaySeasonSimulated(opts)))
-    print(string.format("%s: five missing matches, %d differing groups, %d logical records transferred versus %d full records; exact convergence PASS",client,plan.different,compared,limit))
+    local final=Transfer(assert(q.BeginSummary(a,t)),"summary_complete")
+    assert(final.different==0 and #final.pulls==0 and Equal(replay,behind.ReplaySeasonSimulated(opts)))
+    -- Delta includes requests and final summary; full bytes are response-only,
+    -- so this comparison is conservative.
+    assert(deltaBytes<bytes)
+    print(string.format("%s: five missing matches; %d differing groups; %d logical records; %d delta packets / %d bytes versus full response-only %d bytes; exact convergence PASS",client,plan.different,compared,deltaFrames,deltaBytes,bytes))
     -- Exercise durable private roots at the expanded capacity, not just node memory.
     local owner="Player-1-AAA"
     local roots={version=2,kind="account",scope="SIMULATED",clients={[client]={probe=0,ledger=saved.ledger,

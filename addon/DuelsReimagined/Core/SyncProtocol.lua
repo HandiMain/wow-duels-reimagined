@@ -61,24 +61,72 @@ local function Context(client,node)
     local descriptor=ns.CompetitiveIntegrity.SeasonDescriptor(client,epoch)
     if descriptor then return '2','|'..descriptor end
 end
+-- The same request/fragment lifecycle carries summary and group pages.
+-- Summary has exactly one logical page, independent of its packet count.
+local function EncodeSummary(summary)
+    local rows={}
+    for _,g in ipairs(summary.groups) do rows[#rows+1]=table.concat({g.count,g.a,g.b},',') end
+    return table.concat(rows,';')
+end
+local function DecodeSummary(payload,context)
+    local rows=Split(payload,';')
+    if #rows~=ns.LeaderboardSync.GetGroupCount() then return nil end
+    local summary={version=1,scope='SIMULATED',context=context:sub(2),groups={}}
+    for i,row in ipairs(rows) do
+        local c,a,b=row:match('^(%d+),(%d+),(%d+)$')
+        c,a,b=tonumber(c),tonumber(a),tonumber(b)
+        if not c or not a or not b then return nil end
+        summary.groups[i]={count=c,a=a,b=b}
+    end
+    if EncodeSummary(summary)~=payload then return nil end
+    return summary -- PlanDelta checks bounds and canonical shape.
+end
+local function DecodeSpec(spec)
+    local g,c,a,b=spec:match('^(%d+),(%d+),(%d+),(%d+)$')
+    g,c,a,b=tonumber(g),tonumber(c),tonumber(a),tonumber(b)
+    local expected={count=c,a=a,b=b}
+    if ns.LeaderboardSync.DeltaGroupSpec(g,expected)~=spec then return nil end
+    return g,expected
+end
 local function ParseRequest(body,client,rev,context)
     if not Safe(body) then return nil end
     if rev=='2' then
         if body:sub(-#context)~=context then return nil end
         body=body:sub(1,#body-#context)
     end
-    local k,t,p=body:match('^Q|'..rev..'|(%a+)|([%w%-]+)|(%d+)$')
+    local k,t,p,suffix=body:match('^Q|'..rev..'|(%a+)|([%w%-]+)|(%d+)(.*)$')
     if k~=client or not Token(t) then return nil end
-    p=Integer(p,MAX_PAGE);if p then return t,p end
+    p=Integer(p,MAX_PAGE);if not p then return nil end
+    if suffix=='' then return t,p,'page' end
+    if rev~='2' then return nil end
+    if suffix=='|S' and p==1 then return t,p,'summary' end
+    local spec=suffix:match('^|D|(.+)$')
+    if spec then
+        local group,expected=DecodeSpec(spec)
+        if group then return t,p,'delta',group,expected,spec end
+    end
 end
 local function Frames(node,client,body,rev,context)
-    local token,index=ParseRequest(body,client,rev,context);if not token then return nil,'request' end
-    local page=node.ExportPage(token,index);if not page then return nil,'page' end
-    local data=Encode(page);if rev=='2' then data=context..'|'..data end
+    local token,index,mode,group,expected,spec=ParseRequest(body,client,rev,context)
+    if not token then return nil,'request' end
+    local data,total
+    if mode=='summary' then
+        local summary=node.DeltaSummary();if not summary then return nil,'summary' end
+        data=context..'|S|'..EncodeSummary(summary);total=1
+    else
+        local page,why
+        if mode=='delta' then page,why=node.ExportDeltaPage(token,group,expected,index)
+        else page,why=node.ExportPage(token,index) end
+        if not page then return nil,why or 'page' end
+        total=page.total;data=Encode(page)
+        if rev=='2' then
+            data=context..'|'..(mode=='delta' and ('D|'..spec..'|') or '')..data
+        end
+    end
     local count=math.ceil(#data/CHUNK)
     if count>MAX_PARTS then return nil,'capacity' end
     local out={};for i=1,count do
-        local msg=table.concat({'R',rev,client,token,index,page.total,i,count,data:sub((i-1)*CHUNK+1,i*CHUNK)},'|')
+        local msg=table.concat({'R',rev,client,token,index,total,i,count,data:sub((i-1)*CHUNK+1,i*CHUNK)},'|')
         if not Safe(msg) then return nil,'capacity' end;out[i]=msg
     end
     return out
@@ -93,13 +141,30 @@ function P.NewRequester(client,node,prefix)
         return pending and 'waiting' or 'idle'
     end
     function D.Cancel() pending=nil end
-    function D.Begin(peer,page,now)
+    local function Begin(peer,page,now,mode,group,expected,spec)
         if not Time(now) or not Guid(peer) or type(page)~='number' or not Integer(tostring(page),MAX_PAGE) then return nil,'invalid' end
         if D.Status(now)=='waiting' then return nil,'busy' end
         if seq>=2147483647 then return nil,'capacity' end
         seq=seq+1;local token=prefix..'-'..seq
-        pending={peer=peer,page=page,token=token,deadline=now+TTL,last=now,parts={},received=0}
-        return 'Q|'..rev..'|'..client..'|'..token..'|'..page..context
+        local suffix=mode=='summary' and '|S' or mode=='delta' and ('|D|'..spec) or ''
+        local body='Q|'..rev..'|'..client..'|'..token..'|'..page..suffix..context
+        if not Safe(body) then return nil,'capacity' end
+        pending={peer=peer,page=page,token=token,deadline=now+TTL,last=now,parts={},received=0,
+            mode=mode,group=group,expected=expected,spec=spec}
+        return body
+    end
+    function D.Begin(peer,page,now) return Begin(peer,page,now,'page') end
+    function D.BeginSummary(peer,now)
+        if rev~='2' then return nil,'season_context_required' end
+        return Begin(peer,1,now,'summary')
+    end
+    function D.BeginDelta(peer,group,expected,page,now)
+        if rev~='2' then return nil,'season_context_required' end
+        local spec=ns.LeaderboardSync.DeltaGroupSpec(group,expected)
+        if not spec then return nil,'invalid_group' end
+        local g,info=DecodeSpec(spec)
+        if type(page)~='number' or page>math.ceil(info.count/16) then return nil,'page' end
+        return Begin(peer,page,now,'delta',g,info,spec)
     end
     function D.Receive(body,sender,now)
         if not Time(now) or D.Status(now)~='waiting' then return false,'no_request' end
@@ -124,8 +189,24 @@ function P.NewRequester(client,node,prefix)
             if payload:sub(1,#header)~=header then return false,'season_context' end
             payload=payload:sub(#header+1)
         end
+        if q.mode=='summary' then
+            if total~=1 or payload:sub(1,2)~='S|' then return false,'summary_context' end
+            local summary=DecodeSummary(payload:sub(3),context)
+            if not summary then return false,'summary_decode' end
+            local plan,why=node.PlanDelta(summary)
+            if not plan then return false,why end
+            return true,'summary_complete',plan
+        end
+        if q.mode=='delta' then
+            local header='D|'..q.spec..'|'
+            if payload:sub(1,#header)~=header then return false,'delta_context' end
+            payload=payload:sub(#header+1)
+        end
         local page=Decode(payload,client,q.token,q.page,total)
         if not page then return false,'decode' end
+        if q.mode=='delta' and not ns.LeaderboardSync.ValidateDeltaPage(q.group,q.expected,page) then
+            return false,'delta_page'
+        end
         local ok,why=node.Receive(page,sender,q.peer,q.token)
         if not ok then return false,why end
         return true,'page_complete',total -- NOT global completeness
@@ -338,4 +419,106 @@ function P.RunCapacitySelfTest(emit)
         end)
     end
     return passed,failed
+end
+
+function P.RunDeltaWireSelfTest(emit)
+    emit=type(emit)=='function' and emit or function()end
+    local pass,fail=0,0
+    local function Case(label,fn)
+        local ok,err=pcall(fn);if ok then pass=pass+1 else fail=fail+1 end
+        emit('DR | SIMULATED | '..(ok and 'PASS ' or 'FAIL ')..label..(ok and '' or ': '..tostring(err)))
+    end
+    local a,b='Player-1-AAA','Player-2-BBB'
+    local epoch=1000
+    for _,client in ipairs({'forever','retail'}) do
+        local function Fixture()
+            local x=assert(ns.LeaderboardSync.OpenSeasonSimulated(client,epoch))
+            local y=assert(ns.LeaderboardSync.OpenSeasonSimulated(client,epoch))
+            local s='a-1:b-1'
+            local r={scope='SIMULATED',version='1',client=client,session=s,id=client..'|'..a..'|'..b..'|'..s,
+                player1=a,player2=b,winner=a,loser=b,endType='knockout',rankEligible=false,
+                statement1=table.concat({'1',client,s,a,b,'won','1'},'|'),statement2=table.concat({'1',client,s,b,a,'lost','2'},'|')}
+            assert(x.Observe(r,epoch,epoch))
+            return x,y,assert(P.NewRequester(client,y,'delta')),assert(P.NewResponder(client,x)),r
+        end
+        local function FramesFor(res,msg,t)
+            assert(#msg+3<=240)
+            local ok,why=res.Begin(msg,b,b,t);assert(ok,why)
+            local frames={}
+            while true do
+                local body,peer=res.Next(t);if not body then break end
+                assert(peer==b and #body+3<=240)
+                frames[#frames+1]=body;t=t+GAP;assert(#frames<=MAX_PARTS)
+            end
+            return frames,t
+        end
+        local function Deliver(q,frames,t,status)
+            local value
+            for i=#frames,1,-1 do
+                local ok,why,v=q.Receive(frames[i],a,t);assert(ok,why)
+                if i==1 then assert(why==status);value=v end
+            end
+            return value
+        end
+        local function Summary(q,res,t)
+            local frames,finish=FramesFor(res,assert(q.BeginSummary(a,t)),t)
+            return Deliver(q,frames,finish,'summary_complete'),finish+2
+        end
+        Case(client..' summary and differing group wire roundtrip',function()
+            local x,y,q,res=Fixture()
+            local plan,t=Summary(q,res,0);assert(plan.different==1 and #plan.pulls==1 and next(y.Save().ledger.entries)==nil)
+            local g=plan.pulls[1]
+            local frames,finish=FramesFor(res,assert(q.BeginDelta(a,g.group,g.expected,1,t)),t)
+            assert(Deliver(q,frames,finish,'page_complete')==1)
+            assert(y.ReplaySeasonSimulated({epoch=epoch,asOf=epoch}).matched==1)
+            local nextPlan=Summary(q,res,finish+2);assert(nextPlan.different==0 and #nextPlan.pulls==0 and nextPlan.completeness=='unknown')
+        end)
+        Case(client..' interrupted summary rejects late fragments and retries',function()
+            local _,y,q,res=Fixture()
+            local frames=FramesFor(res,assert(q.BeginSummary(a,0)),0)
+            assert(#frames>1 and not q.Receive(frames[1],b,1))
+            local ok,why=q.Receive(frames[1],a,1);assert(ok and why=='partial')
+            assert(q.Status(TTL)=='expired' and not q.Receive(frames[2],a,TTL))
+            local fresh,finish=FramesFor(res,assert(q.BeginSummary(a,TTL+1)),TTL+1)
+            assert(not q.Receive(frames[1],a,finish))
+            local plan=Deliver(q,fresh,finish,'summary_complete');assert(#plan.pulls==1 and next(y.Save().ledger.entries)==nil)
+        end)
+        Case(client..' stale group and wrong response mode refuse merge',function()
+            local x,y,q,res,r=Fixture();local plan,t=Summary(q,res,0);local g=plan.pulls[1]
+            assert(x.Observe(r,epoch+1,epoch+1))
+            local stale=assert(q.BeginDelta(a,g.group,g.expected,1,t))
+            local ok,why=res.Begin(stale,b,b,t);assert(not ok and why=='stale_group')
+            q.Cancel();plan,t=Summary(q,res,t+2);g=plan.pulls[1]
+            local msg=assert(q.BeginDelta(a,g.group,g.expected,1,t))
+            local wrong=msg:gsub('|D|[%d,]+','',1)
+            assert(wrong~=msg)
+            local frames,finish=FramesFor(res,wrong,t)
+            for i=#frames,1,-1 do
+                local good,reason=q.Receive(frames[i],a,finish)
+                if i==1 then assert(not good and reason=='delta_context') else assert(good) end
+            end
+            assert(next(y.Save().ledger.entries)==nil)
+            local retry,done=FramesFor(res,assert(q.BeginDelta(a,g.group,g.expected,1,finish+2)),finish+2)
+            Deliver(q,retry,done,'page_complete')
+            assert(y.ReplaySeasonSimulated({epoch=epoch,asOf=epoch+1}).timeDisputed==1)
+        end)
+        Case(client..' delta binding and full fallback remain bounded',function()
+            local x,y,q,res=Fixture();local plan,t=Summary(q,res,0);local g=plan.pulls[1]
+            assert(not q.BeginDelta(a,0,g.expected,1,t) and not q.BeginDelta(a,g.group,g.expected,2,t))
+            local page=assert(x.ExportDeltaPage('fixture',g.group,g.expected,1))
+            assert(ns.LeaderboardSync.ValidateDeltaPage(g.group,g.expected,page))
+            assert(not ns.LeaderboardSync.ValidateDeltaPage(g.group%ns.LeaderboardSync.GetGroupCount()+1,g.expected,page))
+            page.entries={};assert(not ns.LeaderboardSync.ValidateDeltaPage(g.group,g.expected,page))
+            local frames,finish=FramesFor(res,assert(q.Begin(a,1,t)),t)
+            Deliver(q,frames,finish,'page_complete')
+            assert(y.ReplaySeasonSimulated({epoch=epoch,asOf=epoch}).matched==1)
+            local legacy=assert(ns.LeaderboardSync.OpenSimulated(client))
+            local old=assert(P.NewRequester(client,legacy,'old'))
+            assert(not old.BeginSummary(a,0) and not old.BeginDelta(a,g.group,g.expected,1,0))
+        end)
+    end
+    Case('delta wire remains simulation only',function()
+        local s=P.GetSnapshot();assert(s.scope=='LOCAL' and s.state=='disabled' and not s.rankEligible)
+    end)
+    return pass,fail
 end

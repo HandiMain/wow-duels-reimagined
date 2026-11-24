@@ -205,3 +205,9 @@ assert(dp==9 and df==0 and sent==previous and P.GetSnapshot().state=="checking",
 assert(_G.DuelsReimaginedDB==originalDB and _G.DuelsReimaginedCompetitiveDB==oldAccount
     and _G.DuelsReimaginedCharacterDB==oldChar,"delta QA never writes live data")
 print("Delta comparison: PASS")
+
+local dwp,dwf=ns.SyncProtocol.RunDeltaWireSelfTest(function(line)if line:find("FAIL",1,true)then print(line)end end)
+assert(dwp==9 and dwf==0 and sent==previous and P.GetSnapshot().state=="checking","isolated delta packet QA")
+assert(_G.DuelsReimaginedDB==originalDB and _G.DuelsReimaginedCompetitiveDB==oldAccount
+    and _G.DuelsReimaginedCharacterDB==oldChar,"delta wire QA never writes live data")
+print("Delta wire: PASS")
