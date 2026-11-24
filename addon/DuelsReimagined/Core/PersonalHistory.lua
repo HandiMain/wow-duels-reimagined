@@ -25,23 +25,28 @@ local function Same(a,b)
     for k in pairs(b) do if a[k]==nil then return false end end
     return true
 end
-local function Counter() return {total=0,wins=0,losses=0,unknown=0,fled=0,theyFled=0,currentStreak=0,bestStreak=0} end
+local function Counter() return {total=0,wins=0,losses=0,unknown=0,fled=0,theyFled=0,currentStreak=0,bestStreak=0,
+    signedStreak=0,worstStreak=0,durationCount=0,totalDuration=0} end
 local function Tally(c,r)
     c.total=c.total+1
+    c.durationCount=c.durationCount+1;c.totalDuration=c.totalDuration+r.duration
     if r.outcome=="won" or r.outcome=="they_fled" then
         c.wins=c.wins+1;c.currentStreak=c.currentStreak+1
         c.bestStreak=math.max(c.bestStreak,c.currentStreak)
+        c.signedStreak=math.max(0,c.signedStreak)+1
         if r.outcome=="they_fled" then c.theyFled=c.theyFled+1 end
     else
         c.currentStreak=0
         if r.outcome=="lost" or r.outcome=="fled" then
             c.losses=c.losses+1;if r.outcome=="fled" then c.fled=c.fled+1 end
-        else c.unknown=c.unknown+1 end
+            c.signedStreak=math.min(0,c.signedStreak)-1;c.worstStreak=math.max(c.worstStreak,-c.signedStreak)
+        else c.unknown=c.unknown+1;c.signedStreak=0 end
     end
 end
 local function Rate(c)
     local n=c.wins+c.losses
     if n>0 then c.winRate=c.wins/n end
+    if c.durationCount>0 then c.averageDuration=c.totalDuration/c.durationCount end
 end
 local function Build(client,me,ledger,cap)
     assert((client=="forever" or client=="retail") and Guid(me))

@@ -225,3 +225,9 @@ assert(recP==9 and recF==0 and sent==previous and P.GetSnapshot().state=="checki
 assert(_G.DuelsReimaginedDB==originalDB and _G.DuelsReimaginedCompetitiveDB==oldAccount
     and _G.DuelsReimaginedCharacterDB==oldChar,"recovery QA never writes live data")
 print("Cooperative preparation and recovery sessions: PASS")
+
+local vp,vf=ns.CompetitiveStorage.RunCompetitiveViewSelfTest(function(line)if line:find("FAIL",1,true)then print(line)end end)
+assert(vp==15 and vf==0 and sent==previous and P.GetSnapshot().state=="checking","isolated competitive view")
+assert(_G.DuelsReimaginedDB==originalDB and _G.DuelsReimaginedCompetitiveDB==oldAccount
+    and _G.DuelsReimaginedCharacterDB==oldChar,"competitive view QA never writes live data")
+print("Competitive data views: PASS")

@@ -68,6 +68,7 @@ local function Root(raw,kind,owner,scope)
     return clean
 end
 -- Injected storage access for isolated tests. Never cache SavedVariables tables.
+local BuildCompetitiveView
 local function Build(read,write,client,identity,scope)
     scope=scope or "LOCAL"
     local D,loaded={},false
@@ -138,8 +139,8 @@ local function Build(read,write,client,identity,scope)
         if not aa or not cc then return false,"invalid_records" end
         write(aa,cc);return true,run
     end
-    -- Private storage transaction: same account ledger, no second history/rating database.
-    function D.UpdateSeasonEvidence(epoch,record,t1,t2)
+    -- Same canonical transaction for local fixtures and received logical pages.
+    local function UpdateSeason(epoch,edit)
         if scope~="SIMULATED" then return false,"disabled" end
         local rules=ns.SeasonRules
         if not rules.Schedule(epoch,epoch) then return false,"invalid_schedule" end
@@ -149,13 +150,40 @@ local function Build(read,write,client,identity,scope)
         local ledger=ap.ledger or assert(ns.MatchLedger.OpenSimulated(k)).Save()
         local season=ap.season or {version=1,rule=rules.BALANCED_ID,epoch=epoch,clocks={}}
         local node=SeasonNode(k,ledger,season);if not node then return false,"invalid_season" end
-        local ok,status=node.Observe(record,t1,t2);if not ok then return false,status end
+        local ok,status=edit(node);if not ok then return false,status end
         if ap.season and status=="unchanged" then return true,status end
         local saved=node.Save()
         ap.ledger=saved.ledger;ap.season={version=1,rule=season.rule,epoch=epoch,clocks=saved.clocks};a.clients[k]=ap
         local aa,cc=Root(a,"account",nil,scope),Root(c,"character",c.owner,scope)
         if not aa or not cc then return false,"invalid_records" end
         write(aa,cc);return true,status
+    end
+    function D.UpdateSeasonEvidence(epoch,record,t1,t2)
+        return UpdateSeason(epoch,function(node) return node.Observe(record,t1,t2) end)
+    end
+    -- Only an explicitly compatible simulated source page. This is not a
+    -- transport receiver and cannot authenticate the injected sender.
+    function D.ImportSeasonPage(epoch,context,page,sender,expected,token)
+        if scope~="SIMULATED" then return false,"disabled" end
+        return UpdateSeason(epoch,function(node)
+            local k=client()
+            local descriptor=ns.CompetitiveIntegrity.SeasonDescriptor(k,epoch)
+            if not descriptor or context~=descriptor then return false,"season_context" end
+            return node.Receive(page,sender,expected,token)
+        end)
+    end
+    function D.ReadCapacity()
+        if scope~="SIMULATED" then return nil,"disabled" end
+        local a,c,k,why=Pair();if not a then return nil,why end
+        local ap,cp=a.clients[k] or {},c.clients[k] or {}
+        local n=0
+        for _ in pairs(ap.ledger and ap.ledger.entries or {}) do n=n+1 end
+        local h=cp.history and #cp.history.observations or 0
+        local function Capacity(used,limit)
+            return {used=used,limit=limit,remaining=limit-used,state=used>=limit and "full" or used>=limit*0.9 and "near_capacity" or "available"}
+        end
+        return {scope="SIMULATED",client=k,rankEligible=false,policy="preserve_evidence",
+            ledger=Capacity(n,ns.MatchLedger.GetCapacity()),history=Capacity(h,ns.PersonalHistory.GetCapacity())}
     end
     function D.ReadSeasonArchive(asOf)
         if scope~="SIMULATED" then return nil,"disabled" end
@@ -165,6 +193,150 @@ local function Build(read,write,client,identity,scope)
         local result,err=node.ReplaySeasonSimulated({epoch=ap.season.epoch,asOf=asOf})
         if not result then return nil,err end
         result.character=c.owner;return result
+    end
+    -- Build one private read snapshot per refresh. Derived queries reuse it;
+    -- no duplicate persisted ratings or cache across storage transactions.
+    function D.OpenCompetitiveView(asOf)
+        if scope~="SIMULATED" then return nil,"disabled" end
+        local a,c,k,why=Pair();if not a then return nil,why end
+        local l,h,ap=Records(a,c,k);if not l then return nil,"invalid_records" end
+        local replay
+        if ap.season then
+            local node=SeasonNode(k,ap.ledger,ap.season);if not node then return nil,"invalid_season" end
+            replay,why=node.ReplaySeasonSimulated({epoch=ap.season.epoch,asOf=asOf})
+            if not replay then return nil,why end
+        end
+        return BuildCompetitiveView(k,c.owner,h.Snapshot(),replay,asOf)
+    end
+    return D
+end
+-- Read model uses authoritative replay changes, not a second rating formula.
+-- Private: called only with validated snapshots from the storage owner.
+local function CopyView(v)
+    if type(v)~="table" then return v end
+    local out={};for k,x in pairs(v) do out[k]=CopyView(x) end;return out
+end
+local function Stat()
+    return {wins=0,losses=0,games=0,practiceWins=0,practiceLosses=0,
+        currentStreak=0,bestStreak=0,worstStreak=0,opponents={},progression={}}
+end
+local function TallyCompetitive(s,peer,won,row,rating)
+    local o=s.opponents[peer] or {wins=0,losses=0,practiceWins=0,practiceLosses=0}
+    s.opponents[peer]=o
+    if row.weight>0 then
+        local field=won and "wins" or "losses"
+        s[field]=s[field]+1;o[field]=o[field]+1;s.games=s.games+1
+        s.currentStreak=won and math.max(0,s.currentStreak)+1 or math.min(0,s.currentStreak)-1
+        s.bestStreak=math.max(s.bestStreak,s.currentStreak)
+        s.worstStreak=math.max(s.worstStreak,-s.currentStreak)
+        s.progression[#s.progression+1]={id=row.id,time=row.time,rating=rating,season=row.season,
+            delta=won and row.gain or -row.loss}
+    else
+        local field=won and "practiceWins" or "practiceLosses"
+        s[field]=s[field]+1;o[field]=o[field]+1
+    end
+end
+local function FinishStat(s)
+    if s.games>0 then s.winRate=s.wins/s.games end
+    for _,o in pairs(s.opponents) do
+        if o.wins+o.losses>0 then o.winRate=o.wins/(o.wins+o.losses) end
+    end
+end
+BuildCompetitiveView=function(client,me,personal,replay,asOf)
+    local D,bySeason,byPlayer,boards={},{},{},{}
+    local current=replay and replay.season
+    if not Count(asOf) or asOf==0 then
+        -- Replay permits UTC through 2100, beyond the run-counter bound.
+        if type(asOf)~="number" or asOf<1 or asOf>4102444800 or asOf~=math.floor(asOf) then return nil,"invalid_time" end
+    end
+    local function Stats(id,season)
+        local rows=bySeason[season] or {};bySeason[season]=rows
+        local s=rows[id]
+        if not s then
+            s=Stat();rows[id]=s
+            local all=byPlayer[id] or {};byPlayer[id]=all;all[season]=s
+        end
+        return s
+    end
+    if replay then
+        for _,row in ipairs(replay.changes) do
+            TallyCompetitive(Stats(row.winner,row.season),row.loser,true,row,row.winnerAfter)
+            TallyCompetitive(Stats(row.loser,row.season),row.winner,false,row,row.loserAfter)
+        end
+        for _,seasons in pairs(byPlayer) do for _,s in pairs(seasons) do FinishStat(s) end end
+    end
+    local function Players(season)
+        if not replay then return nil end
+        if season==current then return replay.players end
+        local h=replay.history[season];return h and h.players
+    end
+    local function ValidSeason(season)
+        return current and type(season)=="number" and season>=1 and season<=current and season==math.floor(season)
+    end
+    local function Board(season)
+        if boards[season] then return boards[season] end
+        local rows={}
+        for id,p in pairs(Players(season) or {}) do
+            if p.rank and not p.rank.provisional and p.credit>0 then
+                rows[#rows+1]={id=id,rating=p.rating,rank=CopyView(p.rank),games=p.games,wins=p.wins,
+                    losses=p.losses,winRate=p.games>0 and p.wins/p.games or nil,
+                    peakRating=p.peakRating,credit=p.credit}
+            end
+        end
+        table.sort(rows,function(a,b) if a.rating~=b.rating then return a.rating>b.rating end;return a.id<b.id end)
+        local positions={}
+        for i,row in ipairs(rows) do row.position=i;positions[row.id]=i end
+        boards[season]={rows=rows,positions=positions}
+        return boards[season]
+    end
+    function D.Status()
+        return {scope="SIMULATED",client=client,character=me,season=current,asOf=asOf,
+            state=replay and "ready" or "no_archive",rankEligible=false,completeness="unknown",
+            evidence=replay and {matched=replay.matched,rated=replay.rated,practice=replay.restricted,
+                disputed=replay.disputed,missingTime=replay.missingTime,timeDisputed=replay.timeDisputed} or nil}
+    end
+    function D.Personal() return CopyView(personal) end
+    -- No invented names, classes or calendar dates. GUID is the only identity
+    -- supported by the current match evidence. Private history never leaks.
+    function D.Profile(id,season)
+        if not Guid(id) then return nil,"identity" end
+        if season==nil then season=current end
+        if not ValidSeason(season) then return nil,"no_season" end
+        if not byPlayer[id] then return nil,"not_observed" end
+        local p=(Players(season) or {})[id]
+        local s=byPlayer[id][season]
+        local out={scope="SIMULATED",client=client,id=id,season=season,rankEligible=false,completeness="unknown",
+            state=p and p.credit>0 and "observed" or "inactive",stats=CopyView(s or Stat()),seasons={}}
+        if p and p.credit>0 then
+            out.rating=p.rating;out.peakRating=p.peakRating;out.rank=CopyView(p.rank);out.peakRank=CopyView(p.peakRank)
+            out.credit=p.credit;out.rivalCount=p.rivalCount
+            out.position=Board(season).positions[id]
+        end
+        for n=1,current do
+            local prior=(Players(n) or {})[id]
+            if prior and prior.credit>0 then
+                out.seasons[#out.seasons+1]={season=n,rating=prior.rating,peakRating=prior.peakRating,
+                    rank=CopyView(prior.rank),games=prior.games,wins=prior.wins,losses=prior.losses}
+            end
+        end
+        return out
+    end
+    function D.Leaderboard(season,offset,limit,query,sort)
+        season=season or current;offset=offset or 0;limit=limit or 25;query=query or "";sort=sort or "rating"
+        if not ValidSeason(season) then return nil,"no_season" end
+        if not Count(offset) or not Count(limit) or limit<1 or limit>100 or type(query)~="string" or #query>64
+            or query:find("%c") or (sort~="rating" and sort~="wins" and sort~="winRate" and sort~="games") then return nil,"invalid_query" end
+        local board=Board(season);local filtered={}
+        query=query:lower()
+        for _,row in ipairs(board.rows) do if row.id:lower():find(query,1,true) then filtered[#filtered+1]=row end end
+        if sort~="rating" then table.sort(filtered,function(a,b)
+            if a[sort]~=b[sort] then return a[sort]>b[sort] end
+            return a.position<b.position
+        end) end
+        local out={scope="SIMULATED",client=client,season=season,rankEligible=false,completeness="unknown",
+            total=#filtered,knownRanked=#board.rows,offset=offset,rows={}}
+        for i=offset+1,math.min(offset+limit,#filtered) do out.rows[#out.rows+1]=CopyView(filtered[i]) end
+        return out
     end
     return D
 end
@@ -400,4 +572,128 @@ function P.RunArchiveSelfTest(emit)
     end
     Case("archive live data remains disabled",function()assert(P.GetSnapshot().scope=="LOCAL" and not P.GetSnapshot().rankEligible)end)
     return passed,failed
+end
+
+function P.RunCompetitiveViewSelfTest(emit)
+    emit=type(emit)=="function" and emit or function()end
+    local pass,fail=0,0
+    local function Case(label,fn)
+        local ok,err=pcall(fn);if ok then pass=pass+1 else fail=fail+1 end
+        emit("DR | SIMULATED | "..(ok and "PASS " or "FAIL ")..label..(ok and "" or ": "..tostring(err)))
+    end
+    local me,b,c,d="Player-1-AAA","Player-2-BBB","Player-3-CCC","Player-4-DDD"
+    local epoch=1000;local boundary=epoch+ns.SeasonRules.DURATION
+    for _,client in ipairs({"forever","retail"}) do
+        local function Fixture(scope)
+            local f={owner=me,client=client,writes=0}
+            function f.open()
+                local x=Build(function()return f.a,f.c end,function(a,z)f.a=a;f.c=z;f.writes=f.writes+1 end,
+                    function()return f.client end,function()return f.owner end,scope or "SIMULATED")
+                x.MarkLoaded();return x
+            end
+            return f
+        end
+        local function Record(n,w,l)
+            local x,y=w,l;if y<x then x,y=y,x end;local s="a-"..n..":b-"..n
+            return {scope="SIMULATED",version="1",client=client,session=s,id=client.."|"..x.."|"..y.."|"..s,
+                player1=x,player2=y,winner=w,loser=l,endType="knockout",rankEligible=false,
+                statement1=table.concat({"1",client,s,x,y,x==w and "won" or "lost","1"},"|"),
+                statement2=table.concat({"1",client,s,y,x,y==w and "won" or "lost","2"},"|")}
+        end
+        local function Add(f,n,w,l,t) assert(f.open().UpdateSeasonEvidence(epoch,Record(n,w,l),t,t)) end
+        local function Seed(f)
+            for i=1,3 do Add(f,i,me,b,epoch+i) end
+            Add(f,4,me,c,epoch+4);Add(f,5,me,d,epoch+5)
+        end
+        local function Observe(f,n,out,peer)
+            assert(f.open().UpdateRecords(true,function(_,h,run)
+                return h.Observe(run,{scope="SIMULATED",client=client,id=n,kind="standard",
+                    opponent={guid=peer},acceptedAt=0,endedAt=10*n,outcome=out,endType="knockout",
+                    reason="matching_result_and_finish",outcomeObserved=true,finishObserved=true,
+                    resultObserved=true,conflict=false,rankEligible=false})
+            end))
+        end
+        Case(client.." empty view and separate storage capacity",function()
+            local f=Fixture();local x=f.open();local v=assert(x.OpenCompetitiveView(epoch))
+            assert(v.Status().state=="no_archive" and not v.Profile(me) and not v.Leaderboard())
+            local p=v.Personal();assert(p.overall.total==0 and p.overall.winRate==nil and p.overall.averageDuration==nil)
+            local cap=x.ReadCapacity();assert(cap.ledger.used==0 and cap.history.used==0 and cap.policy=="preserve_evidence" and f.writes==0)
+            local live=Fixture("LOCAL").open();assert(not live.OpenCompetitiveView(epoch) and not live.ReadCapacity())
+        end)
+        Case(client.." private observation statistics and no fabricated remote identity",function()
+            local f=Fixture()
+            for i,out in ipairs({"won","lost","lost","won","unknown"}) do Observe(f,i,out,b) end
+            local v=assert(f.open().OpenCompetitiveView(epoch))
+            local p=v.Personal();assert(p.overall.wins==2 and p.overall.losses==2 and p.overall.unknown==1)
+            assert(p.overall.signedStreak==0 and p.overall.worstStreak==2 and p.overall.averageDuration==30)
+            assert(p.opponents[b].winRate==0.5 and not v.Profile(b))
+            local cap=f.open().ReadCapacity();assert(cap.history.used==5 and cap.ledger.used==0)
+            p.overall.wins=99;assert(v.Personal().overall.wins==2)
+        end)
+        Case(client.." seasonal profile agrees with replay and separates practice",function()
+            local f=Fixture();Seed(f)
+            -- Three further same-pair matches consume reduced weights, then a
+            -- zero-weight match after seven positive-weight same-pair games.
+            for i=6,10 do Add(f,i,me,b,epoch+i) end
+            local v=assert(f.open().OpenCompetitiveView(epoch+10))
+            local r=assert(f.open().ReadSeasonArchive(epoch+10))
+            local p=assert(v.Profile(me));local stats=p.stats
+            assert(p.rating==r.players[me].rating and p.peakRating==r.players[me].peakRating and not p.rank.provisional)
+            assert(stats.games==r.players[me].games and stats.wins==r.players[me].wins and stats.losses==0)
+            assert(stats.practiceWins==r.restricted and r.restricted>0 and #stats.progression==stats.games)
+            assert(stats.opponents[b].wins+stats.opponents[b].practiceWins==8 and p.position==1)
+            assert(p.name==nil and p.class==nil and p.personal==nil and not p.rankEligible)
+        end)
+        Case(client.." ranked board pagination filter and provisional exclusion",function()
+            local f=Fixture();Seed(f)
+            local v=assert(f.open().OpenCompetitiveView(epoch+6))
+            local board=assert(v.Leaderboard(1,0,1,"","wins"))
+            assert(board.total==1 and board.knownRanked==1 and board.rows[1].id==me and board.rows[1].position==1)
+            assert(#v.Leaderboard(1,1,1).rows==0 and v.Leaderboard(1,0,5,"bbb").total==0)
+            assert(v.Leaderboard(1,0,5,"aaa").total==1 and not v.Leaderboard(1,-1,10) and not v.Leaderboard(1,0,101))
+            assert(v.Profile(b).rank.provisional and v.Profile(b).position==nil)
+            board.rows[1].rating=0;assert(v.Leaderboard().rows[1].rating>0)
+        end)
+        Case(client.." archive rollover and late dispute refresh without private history rewrite",function()
+            local f=Fixture();Seed(f);Observe(f,1,"won",b)
+            Add(f,6,me,b,boundary)
+            local before=assert(f.open().OpenCompetitiveView(boundary))
+            local old=assert(before.Profile(me,1));assert(old.stats.games==5 and not old.rank.provisional)
+            assert(before.Profile(me,2).rank.provisional and #before.Profile(me,2).seasons==2)
+            Add(f,1,b,me,epoch+1)
+            local after=assert(f.open().OpenCompetitiveView(boundary))
+            assert(after.Profile(me,1).stats.games==4 and after.Profile(me,1).rank.provisional)
+            assert(before.Profile(me,1).stats.games==5 and after.Status().evidence.disputed==1)
+            assert(after.Personal().overall.wins==1 and after.Leaderboard(1).total==0)
+            local writes=f.writes;after.Profile(me,1);after.Personal();assert(f.writes==writes)
+        end)
+        Case(client.." durable imported evidence is idempotent and context bound",function()
+            local f=Fixture();local src=assert(ns.LeaderboardSync.OpenSeasonSimulated(client,epoch))
+            assert(src.Observe(Record(1,me,b),epoch,epoch))
+            local page=assert(src.ExportPage("import",1))
+            local descriptor=assert(ns.CompetitiveIntegrity.SeasonDescriptor(client,epoch))
+            local x=f.open();assert(not x.ImportSeasonPage(epoch,"wrong",page,b,b,"import"))
+            assert(not x.ImportSeasonPage(epoch,descriptor,page,b,c,"import") and f.writes==0)
+            assert(x.ImportSeasonPage(epoch,descriptor,page,b,b,"import") and f.writes==1)
+            local a,z=f.a,f.c;local ok,why=f.open().ImportSeasonPage(epoch,descriptor,page,b,b,"import")
+            assert(ok and why=="unchanged" and f.a==a and f.c==z and f.writes==1)
+            assert(f.open().OpenCompetitiveView(epoch).Profile(me).stats.wins==1)
+            assert(f.open().ReadCapacity().ledger.used==1)
+            local live=Fixture("LOCAL").open();assert(not live.ImportSeasonPage(epoch,descriptor,page,b,b,"import"))
+        end)
+        Case(client.." client and character isolation with durable account records",function()
+            local f=Fixture();Seed(f);Observe(f,1,"won",b)
+            local original=f.c;f.c=nil;f.owner=c
+            local v=assert(f.open().OpenCompetitiveView(epoch+5));assert(v.Personal().overall.total==0 and v.Profile(me).stats.wins==5)
+            f.client=client=="forever" and "retail" or "forever"
+            assert(f.open().OpenCompetitiveView(epoch+5).Status().state=="no_archive")
+            f.client=client;f.owner=me;f.c=original
+            assert(f.open().OpenCompetitiveView(epoch+5).Personal().overall.wins==1)
+        end)
+    end
+    Case("competitive views remain simulation only",function()
+        assert(P.GetSnapshot().scope=="LOCAL" and not P.GetSnapshot().rankEligible)
+        assert(P.OpenCompetitiveView==nil and P.ImportSeasonPage==nil)
+    end)
+    return pass,fail
 end
