@@ -77,3 +77,18 @@ class NotificationTests(unittest.TestCase):
         u=read("UI/Notifications.lua")
         self.assertIn('achPoints=AchLabel("",20,C.pale,326,58,61,28)',u)
         self.assertIn('achPointsLabel=AchLabel("Points",11,C.pale,326,83,61,18)',u)
+
+    def test_warning_compact_art_and_preview(self):
+        import hashlib,struct
+        art=(ROOT/"Media/Skin/WarningNotificationArt.png").read_bytes()
+        self.assertEqual(struct.unpack(">II",art[16:24]),(1024,256))
+        self.assertEqual(hashlib.sha1(b"blob "+str(len(art)).encode()+b"\0"+art).hexdigest(),"d40e0f76abfdc885ea5fb71321cc625611f18003")
+        u=read("UI/Notifications.lua")
+        for token in ('WARN_WIDTH,WARN_BODY,WARN_EXTENSION=320,72,14',
+                      'pcall(PlaySoundFile,WARNING_SOUND,"SFX")',
+                      'local WARNING_SOUND_SECONDS=nil','function N.PreviewWarning()',
+                      'id="preview:warning",kind="warning",preview=true',
+                      'Visible(warning,warned);Visible(warningConnector,warned);Visible(warningClose,warned)'):
+            self.assertIn(token,u)
+        self.assertIn('message=="notify warning"',read("Core/Commands.lua"))
+        self.assertIn('Preview warning notification',read("UI/Options.lua"))

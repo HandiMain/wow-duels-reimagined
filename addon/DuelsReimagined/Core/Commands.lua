@@ -2,6 +2,11 @@ local _, ns = ...
 
 SLASH_DUELSREIMAGINED1 = "/duels"
 SlashCmdList.DUELSREIMAGINED = function(message)
+    if message=="notify warning" then
+        local ok,why=ns.Notifications.PreviewWarning()
+        if not ok then print("DR | "..tostring(why)) end
+        return
+    end
     if message=="notify achievement" then
         local ok,why=ns.Notifications.PreviewAchievement()
         if not ok then print("DR | "..tostring(why)) end

@@ -378,6 +378,17 @@ achievementPreview:SetScript("OnClick",function()
 end)
 RegisterOption("previewAchievement","Preview achievement notification",
     "Preview the achievement card and sound without awarding points.","interface",achievementPreview)
+local warningPreview=Style.Action(notificationsCard,"Preview warning notification","footer")
+warningPreview:SetHeight(30)
+MarkPosition(warningPreview,notificationsCard,-398)
+warningPreview:SetScript("OnClick",function()
+    if ns.Notifications then
+        local ok,why=ns.Notifications.PreviewWarning()
+        if not ok and ns.Feedback then ns.Feedback.Toast(why,warningPreview) end
+    end
+end)
+RegisterOption("previewWarning","Preview warning notification",
+    "Preview the compact warning card without changing duel results.","interface",warningPreview)
 local gameMenuRow = AddToggle(gameAccessCard, "interface", "showGameMenuButton", "Show Escape menu button",
     "Add Duels Reimagined to Blizzard's Escape menu. Uses Blizzard's normal look unless EllesmereUI skins that menu.",
     -64, false)
@@ -674,7 +685,7 @@ local interfaceGroups = {
     { card = notificationsCard, entries = {
         { widget = tooltipsRow }, { widget = reminderRow },
         { widget = notifyRow }, { widget = notifySoundRow }, { widget = notifyPreview, height=30 },
-        { widget = promotionPreview, height=30 }, { widget = achievementPreview, height=30 },
+        { widget = promotionPreview, height=30 }, { widget = achievementPreview, height=30 }, { widget = warningPreview, height=30 },
     }},
 }
 if consentRow then interfaceGroups[1].entries[#interfaceGroups[1].entries+1]={widget=consentRow} end

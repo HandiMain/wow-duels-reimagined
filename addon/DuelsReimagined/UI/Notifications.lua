@@ -14,6 +14,11 @@ local ACHIEVEMENT_SOUND="Interface\\AddOns\\DuelsReimagined\\Media\\Sounds\\Noti
 local ACHIEVEMENT_ART="Interface\\AddOns\\DuelsReimagined\\Media\\Skin\\AchievementNotificationArt.png"
 local ACHIEVEMENT_SOUND_SECONDS=6.426094
 local ACH_BODY,ACH_CONNECTOR,ACH_OVERLAP=140,51,19
+local WARNING_ART="Interface\\AddOns\\DuelsReimagined\\Media\\Skin\\WarningNotificationArt.png"
+local WARNING_SOUND="Interface\\AddOns\\DuelsReimagined\\Media\\Sounds\\Notifications\\Warning.mp3"
+-- Original sound bytes are not available yet. Do not play a substitute.
+local WARNING_SOUND_SECONDS=nil
+local WARN_WIDTH,WARN_BODY,WARN_EXTENSION=320,72,14
 local card=CreateFrame("Frame","DuelsReimaginedNotificationCard",UIParent)
 card:SetSize(WIDTH,BODY+CONNECTOR);card:SetFrameStrata("HIGH")
 card:SetClampedToScreen(true);card:EnableMouse(true);card:Hide()
@@ -106,6 +111,27 @@ local achDescription=AchLabel("",12,C.text,110,86,208,40);achDescription:SetWord
 -- Align the live labels to the wreath artwork optical center.
 local achPoints=AchLabel("",20,C.pale,326,58,61,28)
 local achPointsLabel=AchLabel("Points",11,C.pale,326,83,61,18)
+-- Compact warning: independent alpha plaque, sculpted medallion,
+-- connector and close art. No world pixels or sample text are used.
+local warning=CreateFrame("Frame",nil,panel);warning:SetAllPoints(panel);warning:Hide()
+local function WarnArt(parent,layer,x,y,w,h,ax,ay,aw,ah)
+    local t=parent:CreateTexture(nil,layer);t:SetTexture(WARNING_ART);SmoothTexture(t)
+    t:SetTexCoord((ax+.5)/1024,(ax+aw-.5)/1024,(ay+.5)/256,(ay+ah-.5)/256)
+    Position(t,parent,x,y,w,h);return t
+end
+WarnArt(warning,"BACKGROUND",52,5,268,64,4,4,516,128)
+WarnArt(warning,"ARTWORK",0,1,74,70,528,4,148,140)
+local warningConnector=WarnArt(card,"ARTWORK",147,64,26,22,684,4,52,43)
+warningConnector:Hide()
+local function WarnLabel(value,size,color,x,y,w,h)
+    local t=S.Text(warning,value,size,color);t:SetJustifyH("LEFT")
+    Position(t,warning,x,y,w,h)
+    if S.ConstrainText then S.ConstrainText(t,w,h,8) end
+    return t
+end
+local warningTitle=WarnLabel("",15,{1,.79,.38,1},82,13,207,23)
+local warningDescription=WarnLabel("",12,C.text,82,37,213,23)
+warningDescription:SetWordWrap(true)
 local current,closing,shownSound,handle,animationKey
 local queue,seen={},{}
 local ready,loginDone=false,false
@@ -153,11 +179,13 @@ local function Play()
     local now=Plain(GetTime)
     -- Prevent overlap even when the client does not return a sound handle.
     if type(now)~="number" or now-lastSound<4.1 or type(PlaySoundFile)~="function" then return end
-    local path=current and (current.kind=="promotion" and PROMOTION_SOUND or current.kind=="achievement" and ACHIEVEMENT_SOUND) or SOUND
+    if current and current.kind=="warning" and not WARNING_SOUND_SECONDS then return end
+    local path=current and (current.kind=="promotion" and PROMOTION_SOUND or current.kind=="achievement" and ACHIEVEMENT_SOUND or current.kind=="warning" and WARNING_SOUND) or SOUND
     local ok,played,id
     if path==SOUND then ok,played,id=pcall(PlaySoundFile,SOUND,"SFX")
     elseif path==PROMOTION_SOUND then ok,played,id=pcall(PlaySoundFile,PROMOTION_SOUND,"SFX")
-    else ok,played,id=pcall(PlaySoundFile,ACHIEVEMENT_SOUND,"SFX") end
+    elseif path==ACHIEVEMENT_SOUND then ok,played,id=pcall(PlaySoundFile,ACHIEVEMENT_SOUND,"SFX")
+    else ok,played,id=pcall(PlaySoundFile,WARNING_SOUND,"SFX") end
     if ok and played==true then lastSound=now;handle=id end
 end
 local offset=0
@@ -168,9 +196,11 @@ local function Place()
     local factor=card:GetEffectiveScale()/UIParent:GetEffectiveScale()
     local below=false
     local isAch=current and current.kind=="achievement"
-    local body=isAch and ACH_BODY or BODY
-    local extension=isAch and ACH_CONNECTOR-ACH_OVERLAP or CONNECTOR
-    card:SetSize(WIDTH,body+extension);panel:SetSize(WIDTH,body)
+    local isWarning=current and current.kind=="warning"
+    local width=isWarning and WARN_WIDTH or WIDTH
+    local body=isWarning and WARN_BODY or isAch and ACH_BODY or BODY
+    local extension=isWarning and WARN_EXTENSION or isAch and ACH_CONNECTOR-ACH_OVERLAP or CONNECTOR
+    card:SetSize(width,body+extension);panel:SetSize(width,body)
     if not HUDVisible() or not hud:GetTop() or not hud:GetBottom() then return false end
     local hf=hud:GetEffectiveScale()/UIParent:GetEffectiveScale()
     local top=hud:GetTop()*hf
@@ -183,6 +213,10 @@ local function Place()
     if isAch then
         Position(achConnector,card,122,below and 0 or body-ACH_OVERLAP,166,ACH_CONNECTOR)
         achConnector:SetTexCoord(8.5/1024,339.5/1024,(below and 402.5 or 300.5)/512,(below and 300.5 or 402.5)/512)
+    end
+    if isWarning then
+        Position(warningConnector,card,147,below and 0 or body-8,26,22)
+        warningConnector:SetTexCoord(684.5/1024,735.5/1024,(below and 46.5 or 4.5)/256,(below and 4.5 or 46.5)/256)
     end
     Position(connector,card,0,below and 0 or BODY,WIDTH,CONNECTOR)
     if below then connector:SetTexCoord(8.5/1024,799.5/1024,437.5/512,372.5/512)
@@ -202,6 +236,7 @@ local function Animate(from,to,duration,done)
             glow:SetAlpha(0);rankHeaderGlow:SetAlpha(v*.82);rankHalo:SetAlpha(v*.68)
         elseif current and current.kind=="achievement" then
             glow:SetAlpha(0);achGlow:SetAlpha(v*.85)
+        elseif current and current.kind=="warning" then glow:SetAlpha(0)
         else glow:SetAlpha(v*.85) end
         Place()
         if v==to then animationKey=nil;if done then done() end end
@@ -276,16 +311,23 @@ local rankClose=close:CreateTexture(nil,"BACKGROUND")
 rankClose:SetAllPoints(close);rankClose:SetTexture("Interface\\AddOns\\DuelsReimagined\\Media\\Skin\\DuelHUDArt.png")
 rankClose:SetTexCoord(372.25/512,395.75/512,205.25/512,228.75/512)
 SmoothTexture(rankClose);rankClose:Hide()
+local warningClose=WarnArt(close,"BACKGROUND",0,0,21,22,744,4,42,44)
+warningClose:Hide()
 local function Paint(m)
     local ranked=m.kind=="promotion"
     local achieved=m.kind=="achievement"
+    local warned=m.kind=="warning"
     for _,region in ipairs({ornamentLeft,ornamentRight,emblem,category,heading,description,updateAction,updateDismiss,closeText}) do
-        Visible(region,not ranked and not achieved)
+        Visible(region,not ranked and not achieved and not warned)
     end
-    Visible(defaultBackground,not achieved);Visible(connector,not achieved)
+    Visible(defaultBackground,not achieved and not warned);Visible(connector,not achieved and not warned)
+    Visible(warning,warned);Visible(warningConnector,warned);Visible(warningClose,warned)
     Visible(achievement,achieved);Visible(achConnector,achieved)
     Visible(promotion,ranked);Visible(rankClose,ranked or achieved)
-    if achieved then
+    if warned then
+        Position(close,panel,294,9,21,22)
+        warningTitle:SetText(m.title);warningDescription:SetText(m.body)
+    elseif achieved then
         Position(close,panel,WIDTH-27,32,19,19)
         achCategory:SetText(m.preview and "PREVIEW: Achievement unlocked" or "ACHIEVEMENT UNLOCKED")
         ns.AchievementUI.PaintAchievementIcon(achIcon,m.achievement.id,false)
@@ -312,8 +354,8 @@ local function Paint(m)
     end
 end
 local function StartExpiry()
-    if not current or (current.kind~="promotion" and current.kind~="achievement") or not C_Timer or not C_Timer.NewTimer then return end
-    local seconds=expiryRemaining or (current.kind=="achievement" and ACHIEVEMENT_SOUND_SECONDS+2 or PROMOTION_SOUND_SECONDS+2)
+    if not current or (current.kind~="promotion" and current.kind~="achievement" and current.kind~="warning") or not C_Timer or not C_Timer.NewTimer then return end
+    local seconds=expiryRemaining or (current.kind=="warning" and ((WARNING_SOUND_SECONDS or 4)+2) or current.kind=="achievement" and ACHIEVEMENT_SOUND_SECONDS+2 or PROMOTION_SOUND_SECONDS+2)
     local now=Plain(GetTime)
     expiryAt=type(now)=="number" and now+seconds or nil
     local m=current
@@ -343,7 +385,7 @@ local function ShowCurrent()
     -- The shared entrance owns the glow until complete; celebration owns
     -- it only afterwards and never replays on a combat resume.
     Animate(0,1,.32,isPromotion and firstAppearance and Celebrate or nil);Play()
-    if isPromotion then StartExpiry() end
+    if isPromotion or current.kind=="warning" then StartExpiry() end
 end
 local function Snoozed(m)
     local now=Plain(GetServerTime)
@@ -465,6 +507,17 @@ function N.PreviewAchievement()
         return Enqueue({id="preview:achievement",kind="achievement",preview=true,achievement=row})
     end end
     return false,"Preview unavailable"
+end
+-- Preview-only warning catalogue. No automatic producer until actual duel
+-- result/recording evidence is verified. Never warn for merely targeting.
+function N.PreviewWarning()
+    if not PREVIEW_ENABLED or not ready then return false,"Preview unavailable" end
+    if Blocked() then return false,"Finish your duel or combat first" end
+    if not Settings.Get("notificationEnabled") then return false,"Notifications are disabled" end
+    if not HUDVisible() then return false,"Show the Duel HUD to receive notifications" end
+    if current or #queue>0 then return false,"Dismiss the current notification first" end
+    return Enqueue({id="preview:warning",kind="warning",preview=true,
+        title="Preview: Disputed result",body="Rating was not changed."})
 end
 function N.GetDiagnosticResources()
     return {subscriptions=(unsubscribePresence and 1 or 0)+(unsubscribeDuel and 1 or 0),
