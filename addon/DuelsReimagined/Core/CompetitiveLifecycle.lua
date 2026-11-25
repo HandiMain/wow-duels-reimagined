@@ -435,6 +435,14 @@ end
 function P.Initialize()
     if initialized or not Store.LocalRecordingEnabled() then return end
     initialized=true;status="local_ready"
+    -- Initial character entry resets the boundary; /reload restores it.
+    local sessionLogin=CreateFrame("Frame")
+    sessionLogin:RegisterEvent("PLAYER_ENTERING_WORLD")
+    sessionLogin:SetScript("OnEvent",function(self,_,initial,reloading)
+        self:UnregisterAllEvents()
+        Store.StartSession(Plain(initial)==true and Plain(reloading)~=true)
+        Refresh()
+    end)
     local before=ns.DuelDetection.GetSnapshot()
     lastSeen=before.last and before.last.id or 0
     ns.DuelDetection.Subscribe(function(s)

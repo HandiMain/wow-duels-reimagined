@@ -38,6 +38,7 @@ local boolDefaults = {
     duelHUDEnabled = true,
     duelHUDLocked = false,
     duelHUDAdaptive = true,
+    duelHUDSessionStats = false,
     warGamesConsent = false,
     showTooltips = true,
     patchNotesReminder = true,
@@ -575,7 +576,7 @@ function Settings.Set(key, value)
     elseif key == "warGamesConsent" then
         if ns.WarGames then ns.WarGames.PreferenceChanged() end
         if ns.Options and ns.Options.Refresh then ns.Options.Refresh() end
-    elseif key == "duelHUDEnabled" or key == "duelHUDLocked" or key == "duelHUDAdaptive" then
+    elseif key == "duelHUDEnabled" or key == "duelHUDLocked" or key == "duelHUDAdaptive" or key == "duelHUDSessionStats" then
         if ns.DuelHUD then ns.DuelHUD.Refresh() end
         if ns.Options and ns.Options.Refresh then ns.Options.Refresh() end
     elseif key == "practiceDuels" then

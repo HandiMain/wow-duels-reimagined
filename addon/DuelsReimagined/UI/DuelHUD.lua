@@ -456,6 +456,54 @@ local function Resize(height,quietIdle)
         collapseTimer=C_Timer.NewTimer(.18,function() collapseTimer=nil;Move() end)
     else Move() end
 end
+-- One optional panel; existing HUD resize owns its entire footprint.
+local sessionPanel=CreateFrame("Frame",nil,content)
+sessionPanel:SetSize(WIDTH,104);sessionPanel:Hide()
+surface=sessionPanel
+Rect(20,0,296,1,.48,.32,.16,.8)
+local sessionHeading=Label("CURRENT SESSION",11,C.pale,20,5,296,17)
+local sessionValues={}
+for i,name in ipairs({"Duels","Wins","Losses","Rating"}) do
+    local x=20+(i-1)*74
+    sessionValues[i]=Label("—",17,C.text,x,24,74,25)
+    Label(name,10,C.muted,x,50,74,15)
+end
+local sessionTrack=Rect(22,70,292,5,.44,.17,.13,1)
+local sessionFill=Rect(22,70,1,5,.38,.64,.31,1)
+local sessionNote=Label("",10,C.muted,20,79,296,15)
+surface=content
+local sessionPreview,sessionCache=false,nil
+local function PaintSession()
+    local v
+    if sessionPreview then
+        v={scope="SIMULATED",state="ready",total=12,wins=8,losses=4,unknown=0,rating=126,winRate=8/12}
+    else
+        if not sessionCache then
+            local store=ns.CompetitiveStorage
+            sessionCache=store and store.ReadSessionStats and store.ReadSessionStats(Plain(GetServerTime))
+                or {state="unavailable"}
+        end
+        v=sessionCache
+    end
+    sessionHeading:SetText(sessionPreview and "SESSION PREVIEW - SIMULATED" or "CURRENT SESSION")
+    local available=v.state=="ready"
+    sessionValues[1]:SetText(available and tostring(v.total) or "—")
+    sessionValues[2]:SetText(available and tostring(v.wins) or "—")
+    sessionValues[3]:SetText(available and tostring(v.losses) or "—")
+    sessionValues[4]:SetText(available and v.rating~=nil and string.format("%+d",v.rating) or "—")
+    sessionValues[2]:SetTextColor(.46,.85,.44);sessionValues[3]:SetTextColor(1,.43,.38)
+    sessionValues[4]:SetTextColor(unpack(C.text))
+    if available and v.rating~=nil then
+        if v.rating>0 then sessionValues[4]:SetTextColor(.46,.85,.44)
+        elseif v.rating<0 then sessionValues[4]:SetTextColor(1,.43,.38) end
+    end
+    sessionTrack:SetShown(available and v.winRate~=nil)
+    sessionFill:SetShown(available and v.winRate~=nil and v.winRate>0)
+    if available and v.winRate then sessionFill:SetWidth(math.max(1,292*v.winRate)) end
+    sessionNote:SetText(not available and (v.state=="disabled" and "Duel recording not enabled yet" or "Session data unavailable")
+        or not v.winRate and (v.total==0 and "No duels recorded yet" or "No confirmed outcomes")
+        or string.format("%.1f%% win rate%s",v.winRate*100,v.unknown>0 and (" · "..v.unknown.." unknown") or ""))
+end
 local function Layout(kind)
     local selected=kind=="selected"
     local pending=kind=="pending" or kind=="incoming"
@@ -475,7 +523,12 @@ local function Layout(kind)
     Place(challenge,106,204,124,25)
     Place(forfeit,106,pending and 174 or 190,124,25)
     local adaptive=Settings.Get("duelHUDAdaptive")~=false
-    Resize(adaptive and HEIGHTS[kind] or HEIGHTS.selected,adaptive and kind=="idle")
+    local base=adaptive and HEIGHTS[kind] or HEIGHTS.selected
+    if kind~="idle" and kind~="selected" then sessionPreview=false end
+    local show=(kind=="idle" or kind=="selected") and (sessionPreview or Settings.Get("duelHUDSessionStats")==true)
+    sessionPanel:SetShown(show)
+    if show then Place(sessionPanel,0,base-18,WIDTH,104);PaintSession() end
+    Resize(base+(show and 104 or 0),adaptive and kind=="idle")
 end
 local function Tick()
     if preview then return end
@@ -700,6 +753,7 @@ function H.Fold(value)
     local want=value==true
     if want==folded then return end
     StopDrag();StopLayout();folded=want;probeGeneration=probeGeneration+1
+    if folded then sessionPreview=false end
     body:SetShown(not folded);foldedTrim:SetShown(folded)
     content:Hide()
     if folded then root:SetHeight(FOLDED_HEIGHT) end
@@ -740,6 +794,7 @@ root:SetScript("OnShow",function()
 end)
 root:SetScript("OnHide",function()
     StopDrag();StopLayout();hoverGeneration=hoverGeneration+1
+    sessionPreview=false;sessionCache=nil
     if unsubscribe then unsubscribe();unsubscribe=nil end
     if unsubscribeDiscovery then unsubscribeDiscovery();unsubscribeDiscovery=nil end
     probeGeneration=probeGeneration+1
@@ -749,6 +804,7 @@ root:SetScript("OnHide",function()
 end)
 function H.Refresh()
     if not ready then return end
+    sessionCache=nil
     if not Settings.Get("duelHUDEnabled") or not ns.Client.IsSupported() then root:Hide();return end
     if Settings.Get("duelHUDLocked") then StopDrag() end
     if not dragging then root:SetScale(Settings.Get("duelHUDScale"));H.ApplyPosition() end
@@ -758,8 +814,20 @@ function H.Refresh()
 end
 function H.InvalidateRank()
     -- Lazy refresh avoids replaying the ledger on repeated Hall resizes.
-    rankDirty=true
+    rankDirty=true;sessionCache=nil
     if root:IsShown() and not preview then Paint() end
+end
+function H.ToggleSessionPreview()
+    if not ready or Combat() or ns.DuelDetection.GetSnapshot().state~="idle" or preview then return false,"Finish your duel first" end
+    if not Settings.Get("duelHUDEnabled") or folded then return false,"Show and unfold the Duel Widget first" end
+    sessionPreview=not sessionPreview
+    H.Refresh();return true
+end
+function H.ResetSession()
+    if Combat() or ns.DuelDetection.GetSnapshot().state~="idle" then return false,"Finish your duel first" end
+    local ok,why=ns.CompetitiveStorage.StartSession(true)
+    if not ok then return false,why=="disabled" and "Duel recording not enabled yet" or "Session reset unavailable" end
+    sessionPreview=false;H.Refresh();return true
 end
 function H.GetDiagnosticResources()
     return {subscriptions=(unsubscribe and 1 or 0)+(unsubscribeDiscovery and 1 or 0),timers=(root:GetScript("OnUpdate") and 1 or 0)+(collapseTimer and 1 or 0)}

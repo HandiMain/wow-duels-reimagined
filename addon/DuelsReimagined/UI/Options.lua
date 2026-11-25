@@ -332,6 +332,8 @@ local hudLockRow=AddToggle(hudCard,"widget","duelHUDLocked","Lock position",
     "Prevent moving the duel companion by its header.",-119,false)
 local hudAdaptiveRow=AddToggle(hudCard,"widget","duelHUDAdaptive","Adaptive layout",
     "Automatically resize as the duel state changes. Off keeps a fixed height.",-148,false)
+local hudStatsRow=AddToggle(hudCard,"widget","duelHUDSessionStats","Show session statistics",
+    "Show recorded duels, wins, losses and confirmed rating changes. Live recording must be enabled.",-178,false)
 local consentRow
 if ns.CompetitiveStorage and ns.CompetitiveStorage.PeerEpoch() then
     consentRow = AddToggle(behaviorCard,"interface","competitiveConsent","Allow competitive duel exchange",
@@ -524,6 +526,24 @@ resetHUD:SetScript("OnClick",function()
     if ns.Feedback then ns.Feedback.ConfirmAction(resetHUD,"Position restored") end
 end)
 RegisterOption("resetDuelHUDPosition","Reset Duel Widget position","Restore the duel companion's position","widget",resetHUD)
+local sessionPreviewButton=Style.Action(hudCard,"Preview session statistics","footer")
+sessionPreviewButton:SetHeight(30)
+MarkPosition(sessionPreviewButton,hudCard,-280)
+sessionPreviewButton:SetScript("OnClick",function()
+    local ok,why=ns.DuelHUD.ToggleSessionPreview()
+    if not ok and ns.Feedback then ns.Feedback.Toast(why,sessionPreviewButton) end
+end)
+RegisterOption("previewSessionStats","Preview session statistics","Show simulated session numbers without recording a duel","widget",sessionPreviewButton)
+local resetSession=Style.Action(hudCard,"Reset session statistics","footer")
+resetSession:SetHeight(30)
+MarkPosition(resetSession,hudCard,-312)
+resetSession:SetScript("OnClick",function()
+    local ok,why=ns.DuelHUD.ResetSession()
+    if ok and ns.Feedback then ns.Feedback.ConfirmAction(resetSession,"Session reset")
+    elseif ns.Feedback then ns.Feedback.Toast(why,resetSession) end
+end)
+ns.Tooltips.Bind(resetSession,{title="Reset session statistics",detail="Start a new session without deleting match history.",disabled="Duel recording not enabled yet."})
+RegisterOption("resetSessionStats","Reset session statistics","Start a new session without deleting history","widget",resetSession,function() return ns.CompetitiveStorage.LocalRecordingEnabled() end)
 local widgetTransparency = Widgets.SliderRow(accessCard, "Floating icon transparency",
     "Fade the floating widget when you are not hovering over it.",
     0, Settings.MAX_WIDGET_TRANSPARENCY, 0.05,
@@ -709,6 +729,7 @@ local widgetGroups = {
     { card = hudCard, entries = {
         { widget = hudEnabledRow }, { widget = hudLockRow }, { widget = hudAdaptiveRow },
         { widget = hudScale }, { widget = hudOpacity }, { widget = resetHUD, height=30 },
+        { widget = hudStatsRow }, { widget = sessionPreviewButton, height=30 }, { widget = resetSession, height=30 },
     }},
     { card = hudNotificationsCard, entries = {
         { widget = notifyRow }, { widget = notifySoundRow }, { widget = notifyPreview, height=30 },
@@ -813,6 +834,7 @@ function Options.Refresh()
         "Fade the floating widget when you are not hovering over it." or
         "Choose Widget or Both in Icon mode to change transparency.")
     resetAccess:SetEnabled(true)
+    resetSession:SetEnabled(ns.CompetitiveStorage.LocalRecordingEnabled())
     -- Font scaling can change the one/two-column breakpoint without
     -- changing window dimensions. Keep the adaptive layout in sync.
     appearance:Relayout(appearance:GetWidth())

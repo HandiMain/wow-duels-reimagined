@@ -171,3 +171,15 @@ class DuelHUDTests(unittest.TestCase):
         self.assertEqual(h.count('ns.OpponentDiscovery.ProbeTarget(true)'),2)
         self.assertIn('ns.OpponentDiscovery.Subscribe(Paint)',h)
         self.assertIn('HEIGHTS={idle=84,selected=248,pending=220,incoming=188,active=232,result=136}',h)
+
+    def test_session_panel_is_gated_and_uses_shared_layout(self):
+        h,o,s=read("UI/DuelHUD.lua"),read("UI/Options.lua"),read("Core/CompetitiveStorage.lua")
+        self.assertIn('SESSION PREVIEW - SIMULATED',h)
+        self.assertIn('Duel recording not enabled yet',h)
+        self.assertIn('Resize(base+(show and 104 or 0)',h)
+        self.assertIn('sessionCache=nil',h)
+        self.assertIn('AddToggle(hudCard,"widget","duelHUDSessionStats"',o)
+        self.assertIn('local LOCAL_RECORDING_ENABLED=false',s)
+        self.assertIn('P.ReadSessionStats=live.ReadSessionStats',s)
+        self.assertIn('sessionStartIndex',s)
+        self.assertIn('replay.scope=="PEER"',s)

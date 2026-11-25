@@ -110,7 +110,7 @@ local function Root(raw,kind,owner,scope)
             if field~="probe" and not (not legacy and kind=="character" and field=="runCounter")
                 and not (not legacy and scope=="SIMULATED" and ((kind=="account" and (field=="ledger" or field=="season" or field=="identities"))
                     or (kind=="character" and field=="history")))
-                and not (not legacy and scope=="LOCAL" and kind=="character" and field=="localHistory")
+                and not (not legacy and scope=="LOCAL" and kind=="character" and (field=="localHistory" or field=="sessionStartIndex"))
                 and not (not legacy and scope=="LOCAL" and kind=="account" and field=="peerEvidence") then return nil end
         end
         -- Only private simulation roots can contain simulated records.
@@ -138,6 +138,10 @@ local function Root(raw,kind,owner,scope)
                 local n=tonumber(src.run:match("^run%-(%d+)$"))
                 if not Count(n) or n==0 or n>part.runCounter or src.run~="run-"..n then return nil end
             end
+        end
+        if scope=="LOCAL" and not legacy and kind=="character" and v.sessionStartIndex~=nil then
+            if not Count(v.sessionStartIndex) or v.sessionStartIndex>(part.localHistory and #part.localHistory.observations or 0) then return nil end
+            part.sessionStartIndex=v.sessionStartIndex
         end
         if scope=="LOCAL" and not legacy and kind=="account" and v.peerEvidence~=nil then
             local node=OpenPeerEvidence(k,v.peerEvidence)
@@ -168,6 +172,35 @@ local function Root(raw,kind,owner,scope)
 end
 -- Injected storage access for isolated tests. Never cache SavedVariables tables.
 local BuildCompetitiveView
+-- Project only the existing, append-only personal history. The session
+-- boundary is a character-local row index, never a second match database.
+local function SessionStats(history,start,replay)
+    if type(history)~="table" or history.scope~="LOCAL" or type(history.history)~="table"
+        or not Count(start) or start>#history.history then return nil end
+    local out={scope="LOCAL",state="ready",total=0,wins=0,losses=0,unknown=0}
+    local ids={}
+    for i=start+1,#history.history do
+        local row=history.history[i]
+        out.total=out.total+1
+        if row.outcome=="won" or row.outcome=="they_fled" then out.wins=out.wins+1
+        elseif row.outcome=="lost" or row.outcome=="fled" then out.losses=out.losses+1
+        else out.unknown=out.unknown+1 end
+        if row.matchID then ids[row.matchID]=true end
+    end
+    if out.wins+out.losses>0 then out.winRate=out.wins/(out.wins+out.losses) end
+    -- Only locally linked, peer-confirmed, rating-bearing replay entries.
+    -- No subtraction of snapshots across seasons or unrelated sync changes.
+    if type(replay)=="table" and replay.scope=="PEER" and replay.client==history.client then
+        local seen={}
+        for _,row in ipairs(replay.changes or {}) do
+            if ids[row.id] and not seen[row.id] and type(row.weight)=="number" and row.weight>0 then
+                local delta=row.winner==history.character and row.gain or row.loser==history.character and -row.loss
+                if type(delta)=="number" then out.rating=(out.rating or 0)+delta;seen[row.id]=true end
+            end
+        end
+    end
+    return out
+end
 local function Build(read,write,client,identity,scope)
     scope=scope or "LOCAL"
     local D,loaded={},false
@@ -214,6 +247,28 @@ local function Build(read,write,client,identity,scope)
         local h=ns.PersonalHistory.OpenLocal(k,c.owner,cp.localHistory)
         if not h then return nil,"invalid_history" end
         return h.Snapshot()
+    end
+    function D.StartSession(reset)
+        if scope~="LOCAL" or not LOCAL_RECORDING_ENABLED then return false,"disabled" end
+        local a,c,k,why=Pair();if not a then return false,why end
+        local cp=c.clients[k] or {probe=0,runCounter=0}
+        if cp.sessionStartIndex~=nil and not reset then return true end
+        cp.sessionStartIndex=cp.localHistory and #cp.localHistory.observations or 0
+        c.clients[k]=cp
+        local clean=Root(c,"character",c.owner,scope)
+        if not clean then return false,"invalid_history" end
+        write(a,clean);return true
+    end
+    function D.ReadSessionStats(asOf)
+        if scope~="LOCAL" or not LOCAL_RECORDING_ENABLED then return {scope="LOCAL",state="disabled"} end
+        local a,c,k=Pair()
+        local cp=c and c.clients[k]
+        if not cp or cp.sessionStartIndex==nil then return {scope="LOCAL",state="unavailable"} end
+        local history=ns.PersonalHistory.OpenLocal(k,c.owner,cp.localHistory)
+        if not history then return {scope="LOCAL",state="unavailable"} end
+        local peer=P.PeerEpoch() and asOf and D.ReadPeerView(asOf)
+        return SessionStats(history.Snapshot(),cp.sessionStartIndex,peer and peer.replay)
+            or {scope="LOCAL",state="unavailable"}
     end
     function D.BeginLocalRun()
         if scope~="LOCAL" or not LOCAL_RECORDING_ENABLED then return nil,"disabled" end
@@ -644,7 +699,18 @@ P.OpenPeerNode=live.OpenPeerNode
 P.CommitPeerNode=live.CommitPeerNode
 P.ReadLocalCapacity=live.ReadLocalCapacity
 P.ReadPeerView=live.ReadPeerView
+P.StartSession=live.StartSession
+P.ReadSessionStats=live.ReadSessionStats
 function P.GetDiagnosticResources() return {pending=0,subscriptions=0,timers=0} end
+function P.RunSessionSelfTest()
+    local h={scope="LOCAL",client="retail",character="Player-1-AAA",history={{outcome="won"},{outcome="lost",matchID="a"},{outcome="they_fled"},{outcome="unknown"},{outcome="won",matchID="b"}}}
+    local replay={scope="PEER",client="retail",changes={{id="a",weight=1,loser=h.character,loss=15},{id="b",weight=1,winner=h.character,gain=30},{id="b",weight=1,winner=h.character,gain=30},{id="unlinked",weight=1,winner=h.character,gain=99}}}
+    local v=assert(SessionStats(h,1,replay));assert(v.total==4 and v.wins==2 and v.losses==1 and v.unknown==1 and math.abs(v.winRate-2/3)<.001 and v.rating==15)
+    v=assert(SessionStats(h,5));assert(v.total==0 and v.winRate==nil and v.rating==nil)
+    assert(not SessionStats(h,6));replay.scope="SIMULATED";assert(SessionStats(h,1,replay).rating==nil)
+    h.scope="SIMULATED";assert(not SessionStats(h,0));assert(P.ReadSessionStats().state=="disabled" and not P.StartSession(true))
+    return true
+end
 function P.RunSelfTest(emit)
     emit=type(emit)=="function" and emit or function()end
     local passed,failed=0,0
@@ -652,6 +718,7 @@ function P.RunSelfTest(emit)
         local ok,err=pcall(fn);if ok then passed=passed+1 else failed=failed+1 end
         emit("DR | SIMULATED | "..(ok and "PASS " or "FAIL ")..label..(ok and "" or ": "..tostring(err)))
     end
+    Case("session statistics projection and disabled live gate",P.RunSessionSelfTest)
     local me,alt="Player-1-AAA","Player-2-BBB"
     for _,client in ipairs({"forever","retail"}) do
         local other=client=="forever" and "retail" or "forever"
