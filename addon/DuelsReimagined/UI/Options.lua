@@ -353,7 +353,7 @@ RegisterOption("duelCountdownStyle","Animation style","Choose a cinematic countd
 local countdownFont=Widgets.ChoiceRow(countdownCard,"Countdown font",
     "Choose a Blizzard or shared font for the countdown only. Interface font matching never overrides it.",
     function(key) Settings.Set("duelCountdownFont",key) end,
-    function() Settings.Reset("duelCountdownFont") end,false)
+    function() Settings.Reset("duelCountdownFont") end,false,true)
 MarkPosition(countdownFont,countdownCard,-196)
 RegisterOption("duelCountdownFont","Countdown font","Choose a separate Blizzard or shared font for combat visuals","combatvisuals",countdownFont)
 local countdownPreview=Style.Action(countdownCard,"Preview countdown","footer")
@@ -434,7 +434,7 @@ local gameMenuRow = AddToggle(gameAccessCard, "interface", "showGameMenuButton",
 local fontChoice = Widgets.ChoiceRow(typographyCard, "Interface font",
     "Blizzard by default; includes fonts registered with SharedMedia.",
     function(key) Settings.Set("fontChoice", key) end,
-    function() Settings.Reset("fontChoice") end, false)
+    function() Settings.Reset("fontChoice") end, false,true)
 fontChoice:SetPoint("TOPLEFT", typographyCard, "TOPLEFT", 20, -64)
 fontChoice:SetPoint("TOPRIGHT", typographyCard, "TOPRIGHT", -20, -64)
 MarkPosition(fontChoice, typographyCard, -64)

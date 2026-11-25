@@ -94,6 +94,17 @@ class IntegrationContracts(unittest.TestCase):
         self.assertIn('"showInCompartment", "Show in AddOn Compartment"', o)
         self.assertIn('Settings.NeedsReload()', read("UI/Footer.lua"))
 
+    def test_font_preview_is_opt_in_and_not_theme_registered(self):
+        widgets = read("UI/Widgets.lua")
+        options = read("UI/Options.lua")
+        self.assertIn('above, fontSamples)', widgets)
+        self.assertIn('if not fontSamples then return Style.Text(owner,"",12,C.text) end', widgets)
+        self.assertIn('local fs=owner:CreateFontString(nil,"OVERLAY")', widgets)
+        self.assertIn('ns.Fonts.PaintSample(entry.label,opt.key,opt.label,16,194)', widgets)
+        self.assertIn('ns.Fonts.PaintSample(valueText,', widgets)
+        self.assertIn('function() Settings.Reset("duelCountdownFont") end,false,true)', options)
+        self.assertIn('function() Settings.Reset("fontChoice") end, false,true)', options)
+
     def test_workflow_runs_whenever_any_addon_file_changes(self):
         text = (ROOT / ".github" / "workflows" / "community-credits.yml").read_text()
         self.assertIn("- addon/DuelsReimagined/**", text)

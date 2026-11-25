@@ -486,7 +486,7 @@ end
 
 -- Reusable compact picker for SharedMedia fonts, outlines, and later Options.
 -- Popup rows scroll rather than opening hundreds of Blizzard dropdown frames.
-function Widgets.ChoiceRow(parent, caption, detail, onChoose, onReset, above)
+function Widgets.ChoiceRow(parent, caption, detail, onChoose, onReset, above, fontSamples)
     local row = CreateFrame("Frame", nil, parent)
     row:SetHeight(66)
     row.available = true
@@ -501,7 +501,34 @@ function Widgets.ChoiceRow(parent, caption, detail, onChoose, onReset, above)
     control:SetPoint("RIGHT", row, "RIGHT", -8, -1)
     control:RegisterForClicks("LeftButtonUp")
     Style.Skin(control, C.body, { corner=9, edge=C.border, shine=0.22, shade=0.22 })
-    local valueText = Style.Text(control, "", 12, C.text)
+    local function ChoiceLabel(owner)
+        if not fontSamples then return Style.Text(owner,"",12,C.text) end
+        -- Never bind samples to Style/Theme; they have a face of their own.
+        local fs=owner:CreateFontString(nil,"OVERLAY")
+        fs:SetJustifyH("LEFT");fs:SetJustifyV("MIDDLE")
+        fs:SetWordWrap(false)
+        if fs.SetNonSpaceWrap then fs:SetNonSpaceWrap(false) end
+        if fs.SetMaxLines then fs:SetMaxLines(1) end
+        fs:SetHeight(26)
+        fs:SetTextColor(unpack(C.text))
+        ns.Fonts.PaintSample(fs,"default","",14,190)
+        return fs
+    end
+    local valueText = ChoiceLabel(control)
+    local valueWidth=192
+    local function PaintValue()
+        local label=row.displayOverride
+        if not label then
+            for _,choice in ipairs(row.choices or {}) do
+                if choice.key==row.selected then label=choice.label;break end
+            end
+        end
+        label=label or "Blizzard Default"
+        if fontSamples then
+            ns.Fonts.PaintSample(valueText,row.displayOverride and "default" or row.selected,label,14,valueWidth)
+            valueText:SetTextColor(unpack(C.text))
+        else valueText:SetText(label) end
+    end
     valueText:SetPoint("LEFT", control, "LEFT", 9, 0)
     valueText:SetPoint("RIGHT", control, "RIGHT", -25, 0)
     valueText:SetJustifyH("LEFT")
@@ -552,7 +579,8 @@ function Widgets.ChoiceRow(parent, caption, detail, onChoose, onReset, above)
             local opt = choices[offset + i]
             entry.button:SetShown(opt ~= nil)
             if opt then
-                entry.label:SetText(opt.label)
+                if fontSamples then ns.Fonts.PaintSample(entry.label,opt.key,opt.label,16,194)
+                else entry.label:SetText(opt.label) end
                 entry.label:SetTextColor(unpack(opt.key == row.selected and C.gold or C.text))
             end
         end
@@ -565,7 +593,7 @@ function Widgets.ChoiceRow(parent, caption, detail, onChoose, onReset, above)
         b:SetPoint("TOPLEFT", popup, "TOPLEFT", 6, -6 - (i - 1) * 31)
         b:SetPoint("TOPRIGHT", popup, "TOPRIGHT", -21, -6 - (i - 1) * 31)
         b:RegisterForClicks("LeftButtonUp")
-        local label = Style.Text(b, "", 12, C.text)
+        local label = ChoiceLabel(b)
         label:SetPoint("LEFT", b, "LEFT", 6, 0)
         label:SetPoint("RIGHT", b, "RIGHT", -6, 0)
         local glow = Style.Skin(b, C.hover, { corner=9,
@@ -638,13 +666,8 @@ function Widgets.ChoiceRow(parent, caption, detail, onChoose, onReset, above)
     function row:SetChoices(choices, selected, displayOverride)
         self.choices = choices or {}
         self.selected = selected
-        local label = displayOverride
-        if not label then
-            for _, choice in ipairs(self.choices) do
-                if choice.key == selected then label = choice.label; break end
-            end
-        end
-        valueText:SetText(label or "Blizzard Default")
+        self.displayOverride=displayOverride
+        PaintValue()
         if popup:IsShown() then Render() end
     end
     function row:SetAvailable(enabled, reason)
@@ -684,12 +707,13 @@ function Widgets.ChoiceRow(parent, caption, detail, onChoose, onReset, above)
         self.description:SetHeight(30)
         self.description:SetShown(not compact)
         control:ClearAllPoints()
-        if compact then
-            control:SetWidth(math.max(112, math.min(140, width - 165)))
-        else
-            control:SetWidth(226)
-        end
+        local controlWidth=compact and math.max(112,math.min(140,width-165)) or 226
+        control:SetWidth(controlWidth)
         control:SetPoint("RIGHT", self, "RIGHT", -8, -1)
+        if fontSamples then
+            valueWidth=controlWidth-34
+            PaintValue()
+        end
     end
     return row
 end

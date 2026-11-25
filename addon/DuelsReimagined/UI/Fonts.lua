@@ -69,3 +69,30 @@ function Fonts.GetChoices(selected, omitDefault)
     return list
 end
 
+-- A font sample is independent of Style's themed font registry. Resolve each
+-- visible choice afresh, including recycled rows and missing media.
+function Fonts.PaintSample(region,key,label,size,width)
+    local fallback="Fonts\\FRIZQT__.TTF"
+    local path=key=="default" and (STANDARD_TEXT_FONT or fallback) or Fonts.Resolve(key) or fallback
+    local function Apply(face,pt)
+        local ok,result=pcall(region.SetFont,region,face,pt,"")
+        return ok and result and true or false
+    end
+    if not Apply(path,size) then
+        path=fallback
+        Apply(path,size)
+    end
+    region:SetText(label or "")
+    -- Unbounded measurement avoids treating already-clipped text as fitting.
+    local measure=region.GetUnboundedStringWidth or region.GetStringWidth
+    if type(measure)=="function" then
+        local ok,v=pcall(measure,region)
+        if ok and type(issecretvalue)=="function" then
+            local safe,secret=pcall(issecretvalue,v)
+            if not safe or secret then ok=false end
+        end
+        if ok and type(v)=="number" and v>width and v<math.huge then
+            Apply(path,math.max(10,math.floor(size*width/v)))
+        end
+    end
+end

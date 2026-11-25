@@ -155,3 +155,23 @@ prefs.duelCountdownFont="builtin:Skurri"
 assert(V.Preview() and front.font=="Fonts\\SKURRI.TTF");V.Refresh()
 assert(#frames==count and not ns.Motion.GetRuntimeState().driver)
 print("Countdown font: PASS (independent selection, shared discovery, missing/rejected media fallback, no theme override)")
+
+-- Font sample rows are recycled; a missing/rejected face must never retain
+-- the preceding entry's font. A wide name fits down to the readable floor.
+local sample=Frame()
+function sample:GetUnboundedStringWidth() return #(self.text or "")*self.fontSize*.7 end
+ns.Fonts.PaintSample(sample,"lsm:Shared Face","Shared Face",16,194)
+assert(sample.font=="shared-face" and sample.fontSize==16)
+ns.Fonts.PaintSample(sample,"builtin:Skurri","Skurri",16,194)
+assert(sample.font=="Fonts\\SKURRI.TTF")
+ns.Fonts.PaintSample(sample,"lsm:Bad Font","Bad Font",16,194)
+assert(sample.font=="Fonts\\FRIZQT__.TTF")
+available=false
+ns.Fonts.PaintSample(sample,"lsm:Shared Face","Shared Face (unavailable)",16,194)
+assert(sample.font=="Fonts\\FRIZQT__.TTF")
+available=true
+ns.Fonts.PaintSample(sample,"lsm:Shared Face","A very very very long shared font name",16,106)
+assert(sample.font=="shared-face" and sample.fontSize==10)
+ns.Fonts.PaintSample(sample,"lsm:Shared Face","Shared Face",16,194)
+assert(sample.fontSize==16)
+print("Font samples: PASS (recycled faces, rejected/missing media, bounded fitting, size restored)")
