@@ -236,3 +236,6 @@ T24 also checks finalization after verified offline forfeit without an absent lo
 - [ ] T27 — Stage 8B host 72/72, bracket 24/24. Actual isolated detector instances connect/disconnect, freeze mode through hold, advance only from complete observations; peer result validation excludes tournament. Live arm intentionally disabled. Verify manifest and static checks, then Forever/Retail multiplayer before activation.
 
 T27 additionally checks wrong opponent and cancellation cleanup, immediate listener removal before querying assignment status.
+
+### Tournament finalization — F1 private registration adapter
+- [ ] T-F1 — Separately authorize an isolated test build with TOURNAMENT_TEST_ENABLED, then two consenting same-population grouped accounts; verify host publish, direct query, join/leave/check-in, exact owner receipt, refused send/retry, duplicate/stale/wrong sender, partial fragments, group change, combat, reload, cancel/terminal status. Verify disabled build never sends/writes; private test journal never enters rank/history or local simulations. Public/global discovery, roster replication, real match assignments/results and distributed recovery remain engineering blockers. Implemented/untested; matching-commit CI and live evidence required.

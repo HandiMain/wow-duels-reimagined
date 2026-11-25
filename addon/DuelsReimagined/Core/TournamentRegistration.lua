@@ -482,6 +482,7 @@ local function WireClient(scope,cache,clock,resolve,store)
         if Fresh() then return pending and pending.body end
     end
     function D.Status() return Copy(commitment) end
+    function D.PendingOwner() Expire();return pending and pending.owner end
     function D.Receive(sender,body)
         local now=Expire()
         if not Fresh() or not pending or not now or not Packet(body) then return false end
@@ -984,6 +985,25 @@ local function DurableHost(s,h,clock,resolve,store)
     end
     function D.Snapshot() local e=Open();return e and e.Save() end
     return D
+end
+-- Shared registration-session port. Transport supplies independently observed
+-- actors and an explicit journal adapter. No gameplay or UI ownership here.
+function R.OpenRegistrationSession(s,actor,clock,resolve,store,role)
+    if not Actor(s,actor) or not P.Key(s) or type(clock)~="function" or type(resolve)~="function"
+        or type(store)~="table" or type(store.ReadTournamentJournal)~="function"
+        or type(store.CommitTournamentJournal)~="function" then return nil end
+    local journal=store.ReadTournamentJournal()
+    if not journal or journal.character~=actor.guid or journal.client~=s.client then return nil end
+    if journal.commitment and journal.commitment.population~=P.Key(s) then return nil end
+    if role=="host" then
+        if journal.commitment and journal.commitment.role~="host" then return nil end
+        return DurableHost(s,actor,clock,resolve,store)
+    elseif role=="player" then
+        if journal.commitment and journal.commitment.role~="participant" then return nil end
+        local cache=Cache(s,clock)
+        local wire=WireClient(s,cache,clock,resolve,store)
+        if wire then return wire,cache end
+    end
 end
 local function Replica(s,owner,id)
     local current
@@ -2166,6 +2186,7 @@ local function MakeCatalog(s,a,n,formatter)
     return data
 end
 function R.OpenTestCatalog()
+    if ns.TournamentSession and ns.TournamentSession.IsActive() then return false,"End the private network test first." end
     if Current() then return false,"End the active local test first." end
     local s=P.GetCurrent();local n=Read(GetServerTime);local level=Read(UnitLevel,"player")
     if not P.Key(s) or not Whole(n,1,4102444800) or not Whole(level,1,255) then return false,"Character or time unavailable." end
@@ -2215,7 +2236,9 @@ end
 function R.PreviewHasBracket()
     local x=Current();return x~=nil and x.bracket~=nil
 end
-function R.CanCreatePreview() return Current()==nil end
+function R.CanCreatePreview()
+    return Current()==nil and not (ns.TournamentSession and ns.TournamentSession.IsActive())
+end
 function R.StartPreview(d)
     if not R.CanCreatePreview() then return false,"End the current test first." end
     local s=P.GetCurrent();local n=Read(GetServerTime);local level=Read(UnitLevel,"player")

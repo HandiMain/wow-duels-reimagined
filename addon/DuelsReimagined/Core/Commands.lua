@@ -122,6 +122,12 @@ SlashCmdList.DUELSREIMAGINED = function(message)
         if c then print("DR | Evidence capacity: "..c.ledger.used.."/"..c.ledger.limit.." | Personal history: "..c.history.used.."/"..c.history.limit) end
         return
     end
+    if message=="tournament net" or message:match("^tournament net%s") then
+        local command=message:match("^tournament net%s+(.+)$") or "status"
+        local ok,why=ns.TournamentSession.Command(command)
+        print("DR | "..tostring(why or (ok and "Request submitted." or "Request unavailable.")))
+        return
+    end
     if message=="diagnostics" then
         ns.DiagnosticsUI.Open()
         return

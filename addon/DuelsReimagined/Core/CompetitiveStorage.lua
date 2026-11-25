@@ -6,6 +6,8 @@ local VERSION,MAX=2,2147483647
 -- Explicit development gate. No local recording or run allocation before
 -- actual detector/persistence verification; ranking has its own disabled gate.
 local LOCAL_RECORDING_ENABLED=false
+local TOURNAMENT_TEST_ENABLED=false
+function P.TournamentTestEnabled() return TOURNAMENT_TEST_ENABLED end
 -- Test activation is a separate explicit build decision, not a preference.
 -- A nil epoch cannot start a competitive calendar.
 local PEER_TEST_ENABLED=false
@@ -116,12 +118,23 @@ local function Root(raw,kind,owner,scope)
             if field~="probe" and not (not legacy and kind=="character" and field=="runCounter")
                 and not (not legacy and scope=="SIMULATED" and ((kind=="account" and (field=="ledger" or field=="season" or field=="identities"))
                     or (kind=="character" and (field=="history" or field=="tournamentJournal"))))
-                and not (not legacy and scope=="LOCAL" and kind=="character" and (field=="localHistory" or field=="sessionStartIndex"))
+                and not (not legacy and scope=="LOCAL" and kind=="character" and (field=="localHistory" or field=="sessionStartIndex" or field=="tournamentTestJournal"))
                 and not (not legacy and scope=="LOCAL" and kind=="account" and (field=="peerEvidence" or field=="peerPopulations")) then return nil end
         end
         if scope=="SIMULATED" and not legacy and kind=="character" and v.tournamentJournal~=nil then
             part.tournamentJournal=TournamentJournal(k,owner,v.tournamentJournal)
             if not part.tournamentJournal then return nil end
+        end
+        -- Private network-test evidence is explicitly segregated. Validate
+        -- even while the gate is closed, so a later build cannot erase it.
+        if scope=="LOCAL" and not legacy and kind=="character" and v.tournamentTestJournal~=nil then
+            local envelope=v.tournamentTestJournal
+            if type(envelope)~="table" or envelope.scope~="PRIVATE_TEST" or envelope.version~=1 then return nil end
+            for field in pairs(envelope) do if field~="scope" and field~="version" and field~="journal" then return nil end end
+            if type(envelope.journal)~="table" then return nil end
+            local journal=TournamentJournal(k,owner,envelope.journal)
+            if not journal then return nil end
+            part.tournamentTestJournal={scope="PRIVATE_TEST",version=1,journal=journal}
         end
         -- Only private simulation roots can contain simulated records.
         if scope=="SIMULATED" and not legacy then
@@ -284,6 +297,28 @@ local function Build(read,write,client,identity,scope)
         if not checked then return nil,"invalid_storage" end
         write(a,checked)
         return TournamentJournal(k,c.owner,checked.clients[k].tournamentJournal)
+    end
+    function D.ReadTournamentTestJournal()
+        if scope~="LOCAL" or not TOURNAMENT_TEST_ENABLED then return nil,"disabled" end
+        local a,c,k,why=Pair();if not a then return nil,why end
+        local part=c.clients[k];local envelope=part and part.tournamentTestJournal
+        return TournamentJournal(k,c.owner,envelope and envelope.journal)
+    end
+    function D.CommitTournamentTestJournal(expected,candidate,action)
+        if scope~="LOCAL" or not TOURNAMENT_TEST_ENABLED then return nil,"disabled" end
+        local a,c,k,why=Pair();if not a then return nil,why end
+        local part=c.clients[k] or {probe=0,runCounter=0}
+        local envelope=part.tournamentTestJournal
+        local old=TournamentJournal(k,c.owner,envelope and envelope.journal)
+        if not old or old.revision~=expected then return nil,"stale_revision" end
+        local clean=TournamentJournal(k,c.owner,candidate)
+        if not clean or not ns.TournamentRecovery.Transition(old,clean,action) then return nil,"invalid_transition" end
+        part.tournamentTestJournal={scope="PRIVATE_TEST",version=1,journal=clean}
+        c.clients[k]=part
+        local checked=Root(c,"character",c.owner,scope)
+        if not checked then return nil,"invalid_storage" end
+        write(a,checked)
+        return TournamentJournal(k,c.owner,checked.clients[k].tournamentTestJournal.journal)
     end
     -- Local observations use the character root only. No shared ledger,
     -- rating, simulated record, or account competitive data is imported.
@@ -748,6 +783,8 @@ P.GetSnapshot=live.Snapshot
 P.RunPersistenceProbe=live.Probe
 P.PrepareSchema=live.Prepare
 P.ReadLocalHistory=live.ReadLocalHistory
+P.ReadTournamentTestJournal=live.ReadTournamentTestJournal
+P.CommitTournamentTestJournal=live.CommitTournamentTestJournal
 P.BeginLocalRun=live.BeginLocalRun
 P.RecordLocalObservation=live.RecordLocalObservation
 P.OpenPeerNode=live.OpenPeerNode

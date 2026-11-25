@@ -82,9 +82,13 @@ function Comm.Subscribe(tag, callback)
     return function() callbacks[callback] = nil end
 end
 
--- Direct discovery is the only permitted whisper protocol in this phase.
+-- Whisper protocols are individually gated; tournament registration is
+-- private-test only, with a current group-bound sender/recipient adapter.
 local function ChannelAllowed(tag,channel)
     if tag=="D1" then return channel=="WHISPER" end
+    if tag=="T1" then
+        return channel=="WHISPER" and ns.TournamentSession and ns.TournamentSession.CanCommunicate()
+    end
     if tag=="W1" then
         return channel=="WHISPER" and ns.WarGames and ns.WarGames.CanCommunicate()
     end
