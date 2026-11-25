@@ -320,18 +320,24 @@ for index, section in ipairs(sections) do
         button.hallGlow=glow
         button:HookScript("OnHide",function() Motion.Stop(glow,0) end)
     elseif section.key == "tournaments" then
-        -- Existing red plate and the existing achievements emblem are a
-        -- temporary, native-art foundation until the approved crop ships.
-        Style.Plate(button,"hall",{corner=12})
-        local trophy=button:CreateTexture(nil,"ARTWORK",nil,4)
-        ns.TournamentUI.PaintEmblem(trophy)
-        trophy:SetPoint("TOP",button,"TOP",0,-4)
-        local function FitEmblem(self)
-            local h=self:GetHeight()
-            trophy:SetSize(h*.66,h*.47)
-        end
-        button:HookScript("OnSizeChanged",FitEmblem)
-        FitEmblem(button)
+        -- One finished plaque, extracted from the approved tournament hub.
+        -- The texture is padded to a power-of-two; sample only the artwork.
+        local path = "Interface\\AddOns\\DuelsReimagined\\Media\\Skin\\DuelTournamentPlate.png"
+        local artwork = button:CreateTexture(nil, "ARTWORK", nil, 2)
+        artwork:SetTexture(path)
+        artwork:SetTexCoord(0,192/256,0,78/128)
+        artwork:SetAllPoints(button)
+        Chrome.Sharp(artwork)
+        local glow = button:CreateTexture(nil, "OVERLAY", nil, 6)
+        glow:SetTexture(path)
+        glow:SetTexCoord(0,192/256,0,78/128)
+        glow:SetAllPoints(button)
+        Chrome.Sharp(glow)
+        glow:SetBlendMode("ADD")
+        glow:SetVertexColor(1,0.78,0.48)
+        glow:SetAlpha(0)
+        button.hallGlow=glow
+        button:HookScript("OnHide",function() Motion.Stop(glow,0) end)
     elseif section.key == "wargames" then
         -- The approved Coliseum War Games plate keeps its own arena emblem,
         -- gold lettering with a safe lower inset, and Hall-matched framing.
@@ -388,15 +394,7 @@ for index, section in ipairs(sections) do
         -- Blizzard font strings or small icons over the fixed artwork.
         if isPrimary then
             icon:Hide()
-            if section.key == "tournaments" then
-                label:ClearAllPoints()
-                label:SetPoint("BOTTOMLEFT",button,"BOTTOMLEFT",6,6)
-                label:SetPoint("BOTTOMRIGHT",button,"BOTTOMRIGHT",-6,6)
-                label:SetWordWrap(false)
-                local function FitTitle(self) Style.ConstrainText(label,math.max(1,self:GetWidth()-12),24,9) end
-                button:HookScript("OnSizeChanged",FitTitle)
-                FitTitle(button)
-            else label:Hide() end
+            label:Hide()
         end
     else
         icon:SetPoint("LEFT", button, "LEFT", 9, 0)

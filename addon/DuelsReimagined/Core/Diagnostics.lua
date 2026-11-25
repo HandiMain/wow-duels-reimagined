@@ -304,7 +304,7 @@ end)
 Check("Competitive storage / isolated lifecycle QA","deep",function()
     local log={}
     local p,f=ns.CompetitiveStorage.RunSelfTest(function(line) log[#log+1]=line end)
-    return f==0 and p==21 and "PASS" or "FAIL",
+    return f==0 and p==22 and "PASS" or "FAIL",
         string.format("%d passed / %d failed (SIMULATED)\n",p,f)..table.concat(log,"\n")
 end)
 Check("Competitive storage / isolated record roundtrip QA","deep",function()

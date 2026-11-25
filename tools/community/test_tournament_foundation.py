@@ -22,4 +22,18 @@ class TournamentFoundation(unittest.TestCase):
                 self.assertNotIn(forbidden,s)
         self.assertIn('discovery=false,hosting=false',read("Core/TournamentState.lua"))
         self.assertIn('No tournaments discovered.',read("UI/TournamentUI.lua"))
+    def test_tournament_plaque_has_single_art_owner(self):
+        n=read("UI/Navigation.lua")
+        plaque=n.split('elseif section.key == "tournaments" then',1)[1].split('elseif section.key == "wargames" then',1)[0]
+        self.assertIn("DuelTournamentPlate.png",plaque)
+        self.assertIn('artwork:SetAllPoints(button)',plaque)
+        self.assertIn('glow:SetAllPoints(button)',plaque)
+        self.assertNotIn('Style.Plate(button',plaque)
+        self.assertNotIn('PaintEmblem',plaque)
+        self.assertTrue((A/"Media/Skin/DuelTournamentPlate.png").is_file())
+        self.assertNotIn('FitEmblem',n)
+    def test_storage_lifecycle_expected_count(self):
+        d=read("Core/Diagnostics.lua")
+        check=d.split('Check("Competitive storage / isolated lifecycle QA"',1)[1].split('Check("Competitive storage / isolated record roundtrip QA"',1)[0]
+        self.assertIn('f==0 and p==22',check)
 if __name__=="__main__": unittest.main()

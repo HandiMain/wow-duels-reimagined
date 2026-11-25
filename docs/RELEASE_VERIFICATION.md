@@ -155,5 +155,5 @@ Established 2026-11-24; implementation baseline `09cc4e1` (develop). Practical v
 
 
 ### Tournaments — Stage 1 interface foundation
-- [ ] T01 — Verify Tournament navigation and empty states on Retail and Forever, War Games position and client gating, no fictional listings, controls or peer traffic; existing page/Back/Search/workspace, resize/scroll, theme/font/keyboard behavior and Full Scan. Approved concept-specific art remains pending.
+- [ ] T01 — Verify Tournament navigation and empty states on Retail and Forever, War Games position and client gating, no fictional listings, controls or peer traffic; existing page/Back/Search/workspace, resize/scroll, theme/font/keyboard behavior and Full Scan. Approved sidebar plaque integrated; overview/banner art remains pending.
 - [ ] T02 — Check isolated adaptive policy across registration, competing, eliminated, host and complete; no bracket before actual draw, no joining/hosting during active participation. Live role and network state not implemented. Do not mark live behavior verified from self-tests.
