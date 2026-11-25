@@ -298,6 +298,7 @@ local function NewCatchup(client,node,prefix,peer,mode)
     local task=mode=='delta' and 'summary' or 'audit_start'
     local requests,restarts,rounds,pages=0,0,0,0
     local plan,groupIndex,pageIndex,audit
+    local comparedRevision
     local last,due=0,0
     local function Restart(now)
         q.Cancel();restarts=restarts+1
@@ -308,7 +309,9 @@ local function NewCatchup(client,node,prefix,peer,mode)
     end
     function D.GetStatus()
         return {scope=Scope(node),state=state,mode=mode,requests=requests,restarts=restarts,
-            rounds=rounds,pages=pages,completeness='unknown',rankEligible=false}
+            rounds=rounds,pages=pages,completeness='unknown',rankEligible=false,
+            client=client,domain='ranked',context=tostring(node.GetSeasonEpoch()),peer=peer,
+            comparedRevision=comparedRevision}
     end
     function D.Cancel() q.Cancel();state='cancelled';plan=nil;audit=nil end
     function D.Poll(now)
@@ -346,8 +349,8 @@ local function NewCatchup(client,node,prefix,peer,mode)
             return false,why
         end
         if why=='summary_complete' then
-            if value.different==0 then state='summary_agrees'
-            elseif #value.pulls==0 or rounds>=3 then state='differences_remaining'
+            if value.different==0 then state='summary_agrees';comparedRevision=node.GetEvidenceRevision()
+            elseif #value.pulls==0 or rounds>=3 then state='differences_remaining';comparedRevision=node.GetEvidenceRevision()
             else
                 rounds=rounds+1;plan=value;groupIndex=1;pageIndex=1;task='delta'
             end
@@ -735,11 +738,19 @@ function P.RunRecoverySelfTest(emit)
                 if not dropped then dropped=true;return true end
             end)
             assert(dropped and status.restarts==1 and status.state=='differences_remaining')
+            local review=assert(ns.CompetitiveIntegrity.NewReview(client,'ranked',tostring(epoch),'SIMULATED'))
+            assert(review.Observe(status,t))
+            assert(review.Snapshot(y.GetEvidenceRevision(),t).different==1)
             assert(y.ReplaySeasonSimulated({epoch=epoch,asOf=epoch+4}).matched==4)
             local reverse=assert(P.NewCatchupSimulated(client,x,'reverse',a,'delta'))
             local other=assert(P.NewResponder(client,y))
             local done=Drive(reverse,other,t);assert(done.state=='summary_agrees')
             assert(x.PlanDelta(y.DeltaSummary()).different==0)
+            local recovered=assert(ns.CompetitiveIntegrity.NewReview(client,'ranked',tostring(epoch),'SIMULATED'))
+            assert(recovered.Observe(done,t))
+            assert(recovered.Snapshot(x.GetEvidenceRevision(),t).matching==1)
+            assert(x.Observe(Record(5),epoch+5,epoch+5))
+            assert(recovered.Snapshot(x.GetEvidenceRevision(),t).state=='unconfirmed')
         end)
         Case(client..' retry budget and cancellation stop requests',function()
             local x=Node();local q=assert(P.NewCatchupSimulated(client,x,'drop',a,'delta'))

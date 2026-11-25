@@ -343,6 +343,12 @@ Check("Competitive integrity / isolated compatibility QA","deep",function()
     return f==0 and p==13 and "PASS" or "FAIL",
         string.format("%d passed / %d failed (SIMULATED)\n",p,f)..table.concat(log,"\n")
 end)
+Check("Shared integrity / isolated peer review QA","deep",function()
+    local log={}
+    local p,f=ns.CompetitiveIntegrity.RunReviewSelfTest(function(line) log[#log+1]=line end)
+    return f==0 and p==13 and "PASS" or "FAIL",
+        string.format("%d passed / %d failed (SIMULATED)\n",p,f)..table.concat(log,"\n")
+end)
 Check("Season rules / isolated season QA","deep",function()
     local log={}
     local p,f=ns.SeasonRules.RunSelfTest(function(line) log[#log+1]=line end)

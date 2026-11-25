@@ -1,5 +1,5 @@
 local _,ns=...
--- Compatibility only: a peer's advertised build is not file attestation.
+-- Shared competitive compatibility and read-only peer review. No file attestation.
 local P={}
 ns.CompetitiveIntegrity=P
 local REV,RULE="1","elo-trial-2"
@@ -56,6 +56,133 @@ function P.GetSnapshot()
     return {scope="LOCAL",state="disabled",rankEligible=false,originVerified=false,build=Build(),rule=RULE}
 end
 function P.GetDiagnosticResources() return {pending=0,subscriptions=0,timers=0} end
+
+-- A review compares receipts from the existing sender-bound sync session.
+-- It never trusts a majority, treats silence as evidence, or changes records.
+-- Receipt lifetime is one local evidence generation and at most ten minutes.
+local REVIEW_LIMIT,REVIEW_TTL=32,600
+local function Counter(v)
+    return type(v)=="number" and v>=0 and v<=9007199254740991 and v==math.floor(v)
+end
+local function Clock(v) return type(v)=="number" and v>=0 and v<math.huge end
+local function ReviewPeer(v)
+    return type(v)=="string" and #v<=64 and v:match("^Player%-%w[%w%-]*$")~=nil
+end
+function P.NewReview(client,domain,context,scope)
+    if not Client(client) or (domain~="ranked" and domain~="tournament")
+        or type(context)~="string" or #context<1 or #context>120 or context:find("[%c|]")
+        or (scope~="SIMULATED" and scope~="PEER") then return nil,"context" end
+    local receipts,count={},0
+    local D={}
+    function D.Observe(s,now)
+        -- Only call with a locally produced terminal status from an already
+        -- validated exchange; this is NOT a validator of raw peer packets.
+        if type(s)~="table" or s.client~=client or s.domain~=domain or s.context~=context
+            or s.scope~=scope or s.mode~="delta" or s.completeness~="unknown"
+            or s.rankEligible~=false or not ReviewPeer(s.peer) or not Counter(s.comparedRevision)
+            or not Clock(now) or (s.state~="summary_agrees" and s.state~="differences_remaining") then
+            return false,"invalid_receipt"
+        end
+        local old=receipts[s.peer]
+        if old and (now<old.at or s.comparedRevision<old.revision) then return false,"stale_receipt" end
+        if not old and count>=REVIEW_LIMIT then
+            local key,at
+            for id,r in pairs(receipts) do
+                if not at or r.at<at or (r.at==at and id<key) then key,at=id,r.at end
+            end
+            receipts[key]=nil;count=count-1
+        end
+        if not old then count=count+1 end
+        receipts[s.peer]={state=s.state,revision=s.comparedRevision,at=now}
+        return true
+    end
+    function D.Snapshot(revision,now)
+        local out={scope=scope,client=client,domain=domain,state="unconfirmed",
+            matching=0,different=0,stale=0,retained=count,completeness="unknown",
+            originVerified=false,rankEligible=false,cheatingProven=false}
+        if not Counter(revision) or not Clock(now) then return out end
+        for _,r in pairs(receipts) do
+            if r.revision~=revision or now<r.at or now-r.at>REVIEW_TTL then out.stale=out.stale+1
+            elseif r.state=="summary_agrees" then out.matching=out.matching+1
+            else out.different=out.different+1 end
+        end
+        if out.different>0 then out.state="differences_detected"
+        elseif out.matching>0 then out.state="summaries_agree" end
+        return out
+    end
+    return D
+end
+function P.RunReviewSelfTest(emit)
+    emit=type(emit)=="function" and emit or function() end
+    local pass,fail=0,0
+    local function Case(label,fn)
+        local ok,err=pcall(fn);if ok then pass=pass+1 else fail=fail+1 end
+        emit("DR | SIMULATED | "..(ok and "PASS " or "FAIL ")..label..(ok and "" or ": "..tostring(err)))
+    end
+    for _,client in ipairs({"forever","retail"}) do
+        local other=client=="retail" and "forever" or "retail"
+        local function Review(domain,context) return assert(P.NewReview(client,domain or "ranked",context or "1000","SIMULATED")) end
+        local function Receipt(i,state,revision)
+            return {client=client,domain="ranked",context="1000",scope="SIMULATED",mode="delta",
+                peer="Player-1-"..i,state=state,comparedRevision=revision or 4,completeness="unknown",rankEligible=false}
+        end
+        Case(client.." ten matching copies and one difference are not proof",function()
+            local d=Review()
+            for i=1,10 do assert(d.Observe(Receipt(i,"summary_agrees"),i)) end
+            assert(d.Observe(Receipt(11,"differences_remaining"),11))
+            local s=d.Snapshot(4,12)
+            assert(s.matching==10 and s.different==1 and s.state=="differences_detected")
+            assert(not s.cheatingProven and not s.originVerified and not s.rankEligible and s.completeness=="unknown")
+        end)
+        Case(client.." repeat peer is one receipt; matching after recovery replaces difference",function()
+            local d=Review();assert(d.Observe(Receipt(1,"differences_remaining"),1))
+            for i=2,10 do assert(d.Observe(Receipt(1,"summary_agrees"),i)) end
+            local s=d.Snapshot(4,10);assert(s.matching==1 and s.retained==1 and s.different==0)
+            assert(not d.Observe(Receipt(1,"differences_remaining",3),11))
+            assert(not d.Observe(Receipt(1,"differences_remaining"),9))
+        end)
+        Case(client.." stale revision and expired receipts never count",function()
+            local d=Review();assert(d.Observe(Receipt(1,"summary_agrees"),5))
+            assert(d.Snapshot(5,6).state=="unconfirmed" and d.Snapshot(5,6).stale==1)
+            assert(d.Snapshot(4,606).state=="unconfirmed" and d.Snapshot(4,605).matching==1)
+            assert(d.Snapshot(4,4).matching==0)
+        end)
+        Case(client.." malformed or interrupted exchange is not evidence",function()
+            local d=Review()
+            for _,state in ipairs({"working","cancelled","retry_exhausted","audit_received"}) do
+                assert(not d.Observe(Receipt(1,state),1))
+            end
+            local s=Receipt(1,"summary_agrees");s.peer="bad";assert(not d.Observe(s,1))
+            s=Receipt(1,"summary_agrees");s.comparedRevision=0/0;assert(not d.Observe(s,1))
+            s=Receipt(1,"summary_agrees");s.rankEligible=true;assert(not d.Observe(s,1))
+            assert(d.Snapshot(4,1).retained==0)
+        end)
+        Case(client.." client, domain, context and simulation isolation",function()
+            local d=Review();local s=Receipt(1,"summary_agrees")
+            s.client=other;assert(not d.Observe(s,1));s.client=client
+            s.domain="tournament";assert(not d.Observe(s,1))
+            local t=Review("tournament","event-1")
+            s.context="event-1";assert(t.Observe(s,1));assert(t.Snapshot(4,1).matching==1)
+            assert(not Review("tournament","event-2").Observe(s,1))
+            s.scope="PEER";assert(not t.Observe(s,1))
+            assert(d.Snapshot(4,1).retained==0)
+        end)
+        Case(client.." bounded peer receipts and detached snapshots",function()
+            local d=Review()
+            for i=1,40 do assert(d.Observe(Receipt(i,"summary_agrees"),i)) end
+            local s=d.Snapshot(4,40);assert(s.retained==32 and s.matching==32)
+            s.matching=99;assert(d.Snapshot(4,40).matching==32)
+        end)
+    end
+    Case("review is opt-in memory only and live compatibility gate unchanged",function()
+        assert(not P.NewReview("unsupported","ranked","1000","SIMULATED"))
+        assert(not P.NewReview("retail","ranked","","SIMULATED"))
+        assert(not P.NewReview("retail","unknown","1000","SIMULATED"))
+        local s=P.GetSnapshot();assert(s.state=="disabled" and not s.originVerified)
+    end)
+    return pass,fail
+end
+
 function P.RunSelfTest(emit)
     emit=type(emit)=="function" and emit or function() end
     local pass,fail=0,0

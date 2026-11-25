@@ -7,6 +7,7 @@ ns.CompetitiveLifecycle=P
 local Store=ns.CompetitiveStorage
 local initialized,run,lastSeen,seq=false,nil,0,0
 local match,known,node,catchup,responder,replyActive,syncDeadline
+local integrityReview
 local timerArmed,generation=false,0
 local subscriptions=0
 local status="disabled"
@@ -83,6 +84,7 @@ function P.GetSnapshot()
         localRecording=initialized and Store.LocalRecordingEnabled(),
         peerEnabled=P.CanCommunicate(),peerState=match and match.phase,
         syncState=catchup and catchup.GetStatus().state,completeness="unknown",
+        integrityReview=P.CanCommunicate() and integrityReview and node and integrityReview.Snapshot(node.GetEvidenceRevision(),Now()) or nil,
         preferredMode=P.GetPreferredMode(),duelMode=intent and ((intent.mode=="P" or intent.practice) and "Unranked" or
             (intent.reason=="candidate" and "Ranked candidate" or "Awaiting agreement")) or nil,
         duelReason=intent and intent.reason}
@@ -110,6 +112,7 @@ local function CancelSync()
 end
 local function ResetPeer()
     match,known,node=nil,nil,nil
+    integrityReview=nil
     CancelSync()
     generation=generation+1;timerArmed=false
 end
@@ -125,7 +128,7 @@ local function CommitNode()
     local ok,why=Store.CommitPeerNode(node)
     if not ok then
         Note("Peer evidence commit refused: "..tostring(why))
-        node=nil;CancelSync()
+        node=nil;integrityReview=nil;CancelSync()
         return false
     end
     Refresh()
@@ -135,7 +138,8 @@ local function EnsureNode()
     if node then return node end
     local why
     node,why=Store.OpenPeerNode()
-    if not node then Note("Peer store unavailable: "..tostring(why)) end
+    if not node then Note("Peer store unavailable: "..tostring(why))
+    else integrityReview=ns.CompetitiveIntegrity.NewReview(ns.Client.Kind(),"ranked",tostring(node.GetSeasonEpoch()),"PEER") end
     return node
 end
 local Tick
@@ -426,7 +430,11 @@ local function OnSync(body,_,sender)
     elseif body:sub(1,2)=="R|" and catchup then
         local revision=node.GetEvidenceRevision()
         local ok=catchup.Receive(body,known.guid,now)
-        if ok and node.GetEvidenceRevision()~=revision then CommitNode() end
+        if ok and node.GetEvidenceRevision()~=revision and not CommitNode() then return end
+        if ok and integrityReview and node and catchup then
+            local receipt=catchup.GetStatus()
+            if receipt.comparedRevision==node.GetEvidenceRevision() then integrityReview.Observe(receipt,now) end
+        end
     end
 end
 function P.PreferenceChanged()

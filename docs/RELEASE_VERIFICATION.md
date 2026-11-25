@@ -157,3 +157,7 @@ Established 2026-11-24; implementation baseline `09cc4e1` (develop). Practical v
 ### Tournaments — Stage 1 interface foundation
 - [ ] T01 — Verify Tournament navigation and empty states on Retail and Forever, War Games position and client gating, no fictional listings, controls or peer traffic; existing page/Back/Search/workspace, resize/scroll, theme/font/keyboard behavior and Full Scan. Approved sidebar plaque integrated; overview/banner art remains pending.
 - [ ] T02 — Check isolated adaptive policy across registration, competing, eliminated, host and complete; no bracket before actual draw, no joining/hosting during active participation. Live role and network state not implemented. Do not mark live behavior verified from self-tests.
+
+### Tournaments — Stage 2 shared integrity foundation
+- [ ] T03 — Run shared integrity isolated peer review and existing recovery QA on both clients: 10 agreeing copies + 1 mismatch, repeated peer, stale revision/expiry, malformed/incomplete exchange, client/domain/event isolation, bounded receipt count, actual simulated recovery receipt. All rank/record/live gates remain disabled.
+- [ ] T04 — Two-account real delivery and reconciliation, then additional independent peers and disconnects. No global discovery, file attestation, majority trust or live tournament integration certified. Tournament evidence adapter remains pending until event engine exists.
