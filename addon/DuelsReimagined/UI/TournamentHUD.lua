@@ -47,7 +47,7 @@ function B.Project(p)
     local sa,sb=m.wins[swap and 2 or 1],m.wins[swap and 1 or 2]
     local status
     if p.held or v.state=="disputed" then status="Match on hold"
-    elseif private then status=p.observedDuel and "Duel in progress" or p.assignmentStatus or (own and "Your match - snapshot" or "Organizer snapshot")
+    elseif private then status=p.graceStatus or (p.observedDuel and "Duel in progress" or p.assignmentStatus or (own and "Your match - snapshot" or "Organizer snapshot"))
     elseif p.broadcast or p.role=="spectator" then status="Featured match ready"
     elseif own then status="It's your turn!"
     elseif p.role=="host" then status="Featured match ready"
@@ -159,6 +159,23 @@ local function Layout()
     root:SetScale(scale);root:ClearAllPoints()
     root:SetPoint("CENTER",UIParent,"BOTTOMLEFT",w*x/scale,h*y/scale)
 end
+local function ObservedUnit(guid)
+    if type(guid)~="string" then return nil end
+    local g=ns.Group
+    local roster=g.GetSnapshot()
+    if not roster or not roster.complete or roster.stale then return nil end
+    local found
+    for _,row in ipairs(roster.members) do
+        if row.guid==guid and row.online==true then
+            local id=g.ReadCompetitiveIdentity(row.unit)
+            if id and id.guid==guid then
+                if found then return nil end
+                found={unit=row.unit,class=id.class}
+            end
+        end
+    end
+    return found
+end
 local function Paint(m)
     fields.title:SetText(m.title);fields.format:SetText(m.round.."  -  Best of "..m.bestOf)
     fields.left.name:SetText(m.left);fields.right.name:SetText(m.right)
@@ -169,16 +186,20 @@ local function Paint(m)
     -- Class icons are illustrative only in local simulation; private test
     -- snapshots use an unknown portrait until observed class data exists.
     local classes={"WARRIOR","MAGE","ROGUE","PRIEST","DRUID","SHAMAN","WARLOCK","HUNTER","PALADIN"}
-    local function Icon(side,name)
+    local units={}
+    if m.scope=="PRIVATE_TEST" then units[1]=ObservedUnit(m.leftGuid);units[2]=ObservedUnit(m.rightGuid) end
+    local function Icon(side,name,unit)
         local seed=0;for i=1,#name do seed=seed+name:byte(i) end
-        local path=m.scope=="PRIVATE_TEST" and "Interface\\Icons\\INV_Misc_QuestionMark" or "Interface\\Icons\\ClassIcon_"..classes[seed%#classes+1]
+        local path=m.scope=="PRIVATE_TEST" and (unit and unit.class and "Interface\\Icons\\ClassIcon_"..unit.class or "Interface\\Icons\\INV_Misc_QuestionMark") or "Interface\\Icons\\ClassIcon_"..classes[seed%#classes+1]
         if not SetPortraitToTexture or not pcall(SetPortraitToTexture,side.icon,path) then side.icon:SetTexture(path) end
     end
-    Icon(fields.left,m.left);Icon(fields.right,m.right)
+    Icon(fields.left,m.left,units[1]);Icon(fields.right,m.right,units[2])
     for i,side in ipairs({fields.left,fields.right}) do
         local hp=i==1 and m.hpA or m.hpB
-        if hp~=nil then
-            side.hp:SetValue(hp);side.hp:Show();side.health:SetText(hp.."% (test)")
+        if m.scope=="PRIVATE_TEST" and units[i] and ns.DuelHUD and ns.DuelHUD.PaintObservedHealth then
+            ns.DuelHUD.PaintObservedHealth(side.hp,side.health,units[i].unit)
+        elseif hp~=nil then
+            side.hp:SetMinMaxValues(0,100);side.hp:SetValue(hp);side.hp:Show();side.health:SetText(hp.."% (test)")
         else
             side.hp:SetValue(0);side.hp:Hide();side.health:SetText("Health unavailable")
         end
@@ -241,14 +262,26 @@ function B.RequestGame()
     if not Settings.Get("duelCountdownVisual") then return Finish() end
     return ns.DuelCountdown.PreviewTournament(Finish)
 end
+local shownModel
+function B.RefreshObservedHealth()
+    local m=shownModel
+    if not root or not root:IsShown() or not m or m.scope~="PRIVATE_TEST" or editing then return end
+    local guids={m.leftGuid,m.rightGuid}
+    for i,side in ipairs({fields.left,fields.right}) do
+        local u=ObservedUnit(guids[i])
+        ns.DuelHUD.PaintObservedHealth(side.hp,side.health,u and u.unit)
+    end
+end
 function B.Frame() return root end
 function B.Show(m)
     Build()
+    shownModel=m
     if not editing then Layout();Paint(m);RefreshFixtureTimer(m) end
     root:Show()
     return root
 end
 function B.Hide()
+    shownModel=nil
     if root and not editing then root:Hide() end
     StopFixtureTimer()
     if ns.TournamentRegistration then ns.TournamentRegistration.CancelBroadcastFixture() end

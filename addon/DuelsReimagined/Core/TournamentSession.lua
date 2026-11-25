@@ -6,11 +6,22 @@ local L={};ns.TournamentSession=L
 local Store,Group,Comm,R,P=ns.CompetitiveStorage,ns.Group,ns.Communication,ns.TournamentRegistration,ns.CompetitiveScope
 local active,unsubscribe,unroster,timer,queue,frame
 local syncTimer,fetch,seatTimer,seatLink
+local echoTimer,echo,graceTimer,graceTicking
+local RefreshGrace
+local function StopEcho()
+    if echoTimer then echoTimer:Cancel();echoTimer=nil end
+    echo=nil
+end
+local function StopGrace()
+    if graceTimer then graceTimer:Cancel();graceTimer=nil end
+    if active then active.grace=nil end
+end
 local function CloseSeatLink()
     if seatTimer then seatTimer:Cancel();seatTimer=nil end
     if seatLink then seatLink.Close();seatLink=nil end
 end
 local function Changed()
+    if RefreshGrace then RefreshGrace() end
     if ns.DuelHUD and ns.DuelHUD.Refresh then ns.DuelHUD.Refresh() end
     if ns.TournamentUI and ns.TournamentUI.RefreshActive then ns.TournamentUI.RefreshActive() end
 end
@@ -82,7 +93,7 @@ local function ClearQueue()
 end
 local function Stop()
     CloseSeatLink()
-    StopFetch()
+    StopFetch();StopEcho();StopGrace()
     if active and active.role=="host" and active.engine.CloseSession then active.engine.CloseSession() end
     ClearQueue()
     if unsubscribe then unsubscribe();unsubscribe=nil end
@@ -117,6 +128,59 @@ local function Send(guid,bodies)
     if not timer then Pump() end
     return true,"Request submitted to the transport; check status for confirmation."
 end
+local function EchoNext()
+    if not echo or not L.CanCommunicate() then StopEcho();return false,"Acknowledgement interrupted." end
+    local body,last=echo.reader.Next()
+    if not body then StopEcho();return false,"Acknowledgement page unavailable." end
+    local ok,why=Send(echo.owner,{body})
+    if not ok then StopEcho();return false,why end
+    if last then
+        echoTimer=C_Timer.NewTimer(30,function()
+            echoTimer=nil
+            if echo then StopEcho();active.receipt="Exact log acknowledgement not confirmed; retry.";Changed() end
+        end)
+    else echoTimer=C_Timer.NewTimer(.75,function()echoTimer=nil;EchoNext()end) end
+    return true,"Sending exact organizer log acknowledgement."
+end
+-- Unknown includes missing/ambiguous group units, unreadable secret values,
+-- unavailable API, and any non-boolean return. Only explicit false is offline.
+local function ConnectionStates()
+    local out={};local roster=Roster()
+    if not roster then return out end
+    for _,m in ipairs(roster.members) do
+        if Guid(m.guid) and Read(UnitGUID,m.unit)==m.guid then
+            local v=Read(UnitIsConnected,m.unit)
+            out[m.guid]=v==true and "online" or v==false and "offline" or "unknown"
+        end
+    end
+    return out
+end
+local function TickGrace()
+    graceTimer=nil
+    if not active or active.role~="host" or not L.CanCommunicate() then StopGrace();return end
+    local a=active.engine.PrivateOffer()
+    if not a then StopGrace();return end
+    graceTicking=true
+    Group.Refresh()
+    local states=ConnectionStates()
+    local observed=active.engine.ObserveMatch(a.match,{[a.player1]=states[a.player1] or "unknown",[a.player2]=states[a.player2] or "unknown"},a.term,active.actor.guid)
+    local old=active.grace
+    if observed and observed.remaining and observed.remaining>0 then
+        active.grace={match=a.match,remaining=observed.remaining,player=observed.player,sequence=old and old.sequence or Clock()}
+    else active.grace=nil end
+    graceTicking=nil
+    Changed()
+    if observed and observed.notice and ns.Notifications and ns.Notifications.OnPrivateTournamentGrace then
+        observed.scope="PRIVATE_TEST";observed.sequence=active.grace and active.grace.sequence or old and old.sequence or Clock()
+        ns.Notifications.OnPrivateTournamentGrace(observed)
+    end
+end
+RefreshGrace=function()
+    if graceTicking then return end
+    if not active or active.role~="host" or not L.CanCommunicate() or not active.engine.PrivateOffer()
+        or type(C_Timer)~="table" or type(C_Timer.NewTimer)~="function" then StopGrace();return end
+    if not graceTimer then graceTimer=C_Timer.NewTimer(5,TickGrace) end
+end
 local function RequestPage()
     if not fetch or not L.CanCommunicate() then StopFetch();return false,"Progress sync interrupted." end
     local body=fetch.reader.Request()
@@ -146,7 +210,7 @@ function L.CanArm(me,peer,session)
         and active.offer and SameSeat(seat,active.offer) and not active.offer.reported and true or false
 end
 local function SendMatch(op,match,term,serial,outcome)
-    if not L.CanCommunicate() or active.role~="player" or fetch then return false,"Finish the progress sync first." end
+    if not L.CanCommunicate() or active.role~="player" or fetch or echo then return false,"Finish the progress transfer first." end
     local n=Clock()
     if not n then return false,"Clock unavailable." end
     if active.matchRequest and n<active.matchRequest.deadline then return false,"Wait for the organizer reply." end
@@ -201,6 +265,9 @@ local function ReceiveMatch(body,a)
             CloseSeatLink();active.offer=nil;active.both=nil;active.matchRequest=nil
             active.receipt="Organizer accepted result: "..v.status;Changed()
         end
+    elseif v.kind=="receipt" and (q.op=="W" or q.op=="E") and q.term==v.term and q.serial==v.serial then
+        active.matchRequest=nil;CloseSeatLink();active.both=nil
+        active.receipt="Organizer response: "..v.status..". Refresh the bracket.";Changed()
     elseif v.kind=="offer" and (q.op=="I" or q.op=="K") then
         local progress=active.progress
         local row=OwnRow(progress,active.actor.guid,v.match)
@@ -267,11 +334,19 @@ local function Receive(body,channel,sender)
     if active.role=="host" then
         local tag=body:sub(1,2)
         local replies
-        if tag=="I|" or tag=="K|" or tag=="U|" then replies=R.ReceivePrivateMatchRequest(active.scope,active.engine,sender,body)
+        if tag=="I|" or tag=="K|" or tag=="U|" or tag=="W|" or tag=="E|" then
+            replies=R.ReceivePrivateMatchRequest(active.scope,active.engine,sender,body)
+        elseif tag=="Z|" then replies=active.engine.PrivateReceiveEcho(sender,body)
         else replies=active.engine.Receive(sender,body) end
         if replies then Send(a.guid,replies);Changed() end
     else
         if body:sub(1,2)=="J|" or body:sub(1,2)=="N|" then ReceiveMatch(body,a);return end
+        if body:sub(1,2)=="H|" and echo then
+            if a.guid==echo.owner and R.PrivateEchoReceipt(active.scope,echo.seq,echo.term,echo.revision,body) then
+                StopEcho();active.receipt="Organizer confirmed exact log acknowledgement.";Changed()
+            end
+            return
+        end
         if body:sub(1,2)=="Z|" and fetch then
             local ok,why=fetch.reader.Receive(sender,body)
             if ok and why~="partial" then
@@ -305,6 +380,7 @@ local function Open(role)
     if Store.LocalRecordingEnabled() or Store.PeerEpoch() then return false,"Use a separate private tournament build with ordinary recording and rankings disabled." end
     if R.PreviewState() or R.TestListings() then return false,"End the local simulation first." end
     if not Roster() or Read(InCombatLockdown)~=false or not Comm.IsAvailable() then return false,"Join a readable group outside combat." end
+    if type(C_Timer)~="table" or type(C_Timer.NewTimer)~="function" then return false,"Timer unavailable." end
     local s=P.GetCurrent();local key=P.Key(s)
     local actor=key and Actor("player",s)
     if not actor or not Clock() then return false,"Character or community unavailable." end
@@ -317,18 +393,26 @@ local function Open(role)
     unsubscribe=Comm.Subscribe("T1",Receive)
     unroster=Group.Subscribe(function()
         if not L.CanCommunicate() then
-            StopFetch();ClearQueue()
-            if not Roster() then CloseSeatLink();active.both=nil end
+            StopFetch();StopEcho();ClearQueue();StopGrace()
+            if not Roster() and seatLink and seatLink.IsWaiting() then CloseSeatLink();active.both=nil end
             Changed()
+        elseif active.role=="player" then
+            local lock=active.engine.Status()
+            if lock and not Resolve(active.scope,active.actor.guid,nil,lock.owner) then
+                StopFetch();StopEcho();ClearQueue()
+                if seatLink and seatLink.IsWaiting() then CloseSeatLink();active.both=nil end
+                active.receipt="Organizer unavailable. Last snapshot is not live.";Changed()
+            end
         end
     end)
     if not frame then
         frame=CreateFrame("Frame")
         frame:SetScript("OnEvent",function(_,event)
             if not active then return end
-            if event=="PLAYER_REGEN_DISABLED" then StopFetch();ClearQueue()
+            if event=="PLAYER_REGEN_DISABLED" then StopFetch();StopEcho();ClearQueue();StopGrace()
             elseif event=="PLAYER_REGEN_ENABLED" then
                 if active.role=="player" and active.engine.PrivateSeat() and active.engine.PrivateSeat().phase=="reported" then SendResult() end
+                Changed()
             else Stop() end
         end)
     end
@@ -378,6 +462,13 @@ function L.Command(command)
             local c=d.ControlSnapshot()
             local ok=c and d.Hold(active.actor.guid,c.event,c.term)
             Changed();return not not ok,ok and "Tournament paused safely." or "Hold refused."
+        elseif command=="resume" then
+            Group.Refresh()
+            local ok=d.PrivateResume(ConnectionStates());Changed()
+            return not not ok,ok and "Organizer resumed with matching participant acknowledgements." or "Matching online majority acknowledgements required."
+        elseif command=="finalize" then
+            local ok=d.PrivateFinalize();Changed()
+            return not not ok,ok and "Tournament finalized in private history." or "Final result and exact finalist acknowledgements required."
         elseif command=="history" then
             local rows=d.PrivateHistory();local lines={}
             for _,r in ipairs(rows) do lines[#lines+1]=r.title.." - "..r.champion end
@@ -401,7 +492,29 @@ function L.Command(command)
             return true,table.concat(lines,"\n")
         end
     elseif active.role=="player" then
-        if command=="offer" then
+        if command=="stop-ack" then StopEcho();ClearQueue();return true,"Acknowledgement stopped." end
+        if echo then return false,"Finish or stop the acknowledgement first." end
+        if command=="ack" then
+            if fetch or active.matchRequest and Clock() and Clock()<active.matchRequest.deadline then return false,"Finish the pending request first." end
+            local v=active.progress;local status=d.Status()
+            if not v or not status or v.control.event~=status.id or not (v.control.paused or v.bracket.state=="completed") then
+                return false,"Sync the held or completed bracket first."
+            end
+            local seq,lock=d.ReserveProgress()
+            if not seq then return false,"Resolve registration first." end
+            local reader=R.OpenPrivateProgressEcho(active.scope,active.actor,v,seq)
+            if not reader then return false,"Exact log acknowledgement unavailable." end
+            echo={owner=lock.owner,seq=seq,term=v.control.term,revision=v.bracket.revision,reader=reader}
+            return EchoNext()
+        elseif command=="withdraw-match" then
+            local row=OwnRow(active.progress,active.actor.guid)
+            if not row then return false,"Sync a ready match first." end
+            return SendMatch("W",row.id,active.progress.control.term,0)
+        elseif command=="consent-replay" then
+            local v=active.progress;local dispute=v and v.bracket.dispute
+            if not dispute or dispute.confirmed or v.control.paused then return false,"No replay-eligible disputed game." end
+            return SendMatch("E",dispute.match,v.control.term,dispute.revision,dispute.game)
+        elseif command=="offer" then
             local seat=d.PrivateSeat();local row=OwnRow(active.progress,active.actor.guid,seat and seat.match)
             if not row then return false,"Sync the current bracket first." end
             return SendMatch("I",row.id)
@@ -489,6 +602,10 @@ function L.GetProjection()
     local selected=((not p.broadcast or seat) and own) or featured or first
     p.selected=selected and selected.id
     if own then p.match={id=own.id} end
+    if active.grace and selected and active.grace.match==selected.id then
+        local n=active.grace.remaining
+        p.graceStatus=string.format("Reconnecting %02d:%02d",math.floor(n/60),n%60)
+    end
     if seat and ns.DuelDetection and L.IsAssignedDuel(ns.DuelDetection.GetSnapshot()) then p.observedDuel=true end
     if assigned and selected and assigned.match==selected.id then
         p.assignmentStatus=assigned.ready1 and assigned.ready2 and "Both players ready" or "Waiting for players"
@@ -499,8 +616,8 @@ function L.GetProjection()
 end
 function L.GetDiagnosticResources()
     return {subscriptions=(unsubscribe and 1 or 0)+(unroster and 1 or 0),
-        timers=(timer and 1 or 0)+(syncTimer and 1 or 0)+(seatTimer and 1 or 0),
-        pending=(queue and #queue or 0)+(fetch and 1 or 0)+(active and active.matchRequest and 1 or 0),
+        timers=(timer and 1 or 0)+(syncTimer and 1 or 0)+(seatTimer and 1 or 0)+(echoTimer and 1 or 0)+(graceTimer and 1 or 0),
+        pending=(queue and #queue or 0)+(fetch and 1 or 0)+(echo and 1 or 0)+(active and active.matchRequest and 1 or 0),
         detectorSubscriptions=seatLink and 1 or 0}
 end
 -- No listeners or timer while disabled/idle. Combat clears unsent packets,

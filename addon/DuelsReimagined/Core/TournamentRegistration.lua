@@ -801,6 +801,32 @@ local function ProgressPage(s,actor,saved,c,finishedAt,body)
     end
     return out
 end
+function R.OpenPrivateProgressEcho(s,actor,progress,nonce)
+    if not Actor(s,actor) or not progress or progress.scope~="PRIVATE_TEST" or progress.finishedAt
+        or not Whole(nonce,1,2147483647) or not progress.saved or not progress.control
+        or not (progress.control.paused or progress.bracket and progress.bracket.state=="completed") then return nil end
+    local saved,c=progress.saved,progress.control
+    local b=ns.TournamentBracket.OpenSimulated(s,c.owner,saved)
+    if not b or c.coordinator~=c.owner then return nil end
+    local page,index,parts=0,1,nil
+    local D={}
+    function D.Next()
+        if page>saved.checkpoint.ad.count+#saved.reports then return nil end
+        if not parts then
+            local q=table.concat({"V",P.Key(s),nonce,c.event,page==0 and 0 or #saved.reports,page==0 and 0 or c.term,page},"|")
+            parts=ProgressPage(s,actor,saved,c,nil,q)
+            if not parts then return nil end
+        end
+        local body=parts[index]
+        index=index+1
+        if index>#parts then page=page+1;index=1;parts=nil end
+        return body,page>saved.checkpoint.ad.count+#saved.reports
+    end
+    return D
+end
+function R.PrivateEchoReceipt(s,nonce,term,revision,body)
+    return Packet(body) and body==table.concat({"H",P.Key(s),nonce,term,revision},"|")
+end
 function R.OpenPrivateProgressFetch(s,owner,id,me,nonce,clock,resolve,prior)
     if not P.Key(s) or not Guid(owner) or not Guid(me) or me==owner or type(id)~="string" or #id>96
         or not Whole(nonce,1,2147483647) or type(clock)~="function" or type(resolve)~="function" then return nil end
@@ -1257,6 +1283,66 @@ local function DurableHost(s,h,clock,resolve,store)
         local b=saved and ns.TournamentBracket.OpenSimulated(s,h.guid,saved)
         if b and c then return {scope="PRIVATE_TEST",source="organizer-journal",saved=b.Save(),bracket=b.Snapshot(),control=c,finishedAt=finishedAt} end
     end
+    -- Exact owner-log acknowledgements, session-local. Reopening requires
+    -- new receipts rather than inventing peer agreement from local disk.
+    local echoes={}
+    local function EchoContext()
+        if not Fresh() or not journal.bracket or not journal.control or journal.control.coordinator~=h.guid then return nil end
+        local b=OpenBracket();local v=b and b.Snapshot()
+        if not v or not (journal.control.paused or v.state=="completed") then return nil end
+        return journal.bracket,journal.control,v.event..":"..journal.control.term..":"..v.revision
+    end
+    function D.PrivateReceiveEcho(sender,body)
+        if not Packet(body) then return nil end
+        local actor=resolve(sender)
+        local saved,c,epoch=EchoContext()
+        if not saved or not Actor(s,actor) or not Permit(actor) then return nil end
+        local eligible
+        for _,m in ipairs(saved.checkpoint.roster) do if m.guid==actor.guid and m.checkedIn then eligible=true;break end end
+        if not eligible then return nil end
+        local a=Split(body);local nonce=Number(a[3],1,2147483647);local page=Number(a[4],0,529)
+        local index=Number(a[5],1,MAX_PARTS)
+        if #a~=7 or a[1]~="Z" or a[2]~=key or not nonce or not page or not index then return nil end
+        local e=echoes[actor.guid]
+        if e and e.epoch~=epoch then e=nil;echoes[actor.guid]=nil end
+        if e and nonce<e.nonce then return nil end
+        if not e or nonce>e.nonce then
+            if page~=0 or index~=1 then return nil end
+            e={epoch=epoch,nonce=nonce,page=0,index=1};echoes[actor.guid]=e
+        end
+        local receipt=table.concat({"H",key,nonce,c.term,#saved.reports},"|")
+        if e.done then return e.last==body and {receipt} or nil end
+        if e.page~=page or e.index~=index then return nil end
+        local q=table.concat({"V",key,nonce,c.event or saved.checkpoint.ad.id,page==0 and 0 or #saved.reports,page==0 and 0 or c.term,page},"|")
+        -- Journal control has no event field; the canonical checkpoint owns it.
+        local parts=ProgressPage(s,actor,saved,c,nil,q)
+        if not parts or parts[index]~=body then return nil end
+        e.last=body;e.index=e.index+1
+        if e.index>#parts then e.index=1;e.page=e.page+1 end
+        if e.page>saved.checkpoint.ad.count+#saved.reports then e.done=true;return {receipt} end
+        return nil
+    end
+    local function EchoCopies()
+        local saved,c,epoch=EchoContext()
+        if not saved then return nil end
+        local copies={}
+        for _,m in ipairs(saved.checkpoint.roster) do
+            local e=echoes[m.guid]
+            if m.checkedIn and e and e.epoch==epoch and e.done then copies[m.guid]=Copy(saved) end
+        end
+        return copies,saved,c
+    end
+    function D.PrivateFinalize()
+        local copies,saved,c=EchoCopies()
+        if not copies or c.paused then return false end
+        return D.Finalize(h.guid,saved.checkpoint.ad.id,c.term,copies)
+    end
+    function D.PrivateResume(states)
+        local copies,saved,c=EchoCopies()
+        if not copies or not c.paused or type(states)~="table" or states[h.guid]~="online" then return false end
+        copies[h.guid]=Copy(saved)
+        return D.ReconcileControl(c.term,states,copies)
+    end
     function D.PrivateHistory()
         if not Fresh() then return {} end
         local rows={}
@@ -1310,12 +1396,17 @@ function R.PrivateMatchRequest(s,op,seq,event,match,term,serial,outcome)
     if not P.Key(s) or not Whole(seq,1,2147483647) or type(event)~="string" or #event>96
         or type(match)~="string" or #match>8 or not match:match("^R%d+M%d+$") then return nil end
     local parts={op,P.Key(s),seq,event,match}
-    if op=="K" or op=="U" then
-        if not Whole(term,1,2147483647) or not Whole(serial,1,2147483647) then return nil end
+    if op=="K" or op=="U" or op=="W" or op=="E" then
+        if not Whole(term,1,2147483647) or not Whole(serial,op=="W" and 0 or 1,2147483647)
+            or (op=="W" and serial~=0) then return nil end
         parts[#parts+1]=term;parts[#parts+1]=serial
         if op=="U" then
             if outcome~="won" and outcome~="lost" then return nil end
             parts[#parts+1]=outcome
+        elseif op=="E" then
+            local game=Number(tostring(outcome),1,5)
+            if not game then return nil end
+            parts[#parts+1]=game
         end
     elseif op~="I" then return nil end
     local body=table.concat(parts,"|")
@@ -1324,16 +1415,23 @@ end
 function R.ReceivePrivateMatchRequest(s,engine,sender,body)
     if not Packet(body) then return nil end
     local a=Split(body);local op=a[1];local seq=Number(a[3],1,2147483647)
-    local term=Number(a[6],1,2147483647);local serial=Number(a[7],1,2147483647)
+    local term=Number(a[6],1,2147483647);local serial=Number(a[7],0,2147483647)
     if a[2]~=P.Key(s) or not seq or type(a[4])~="string" or type(a[5])~="string" then return nil end
     local canonical=R.PrivateMatchRequest(s,op,seq,a[4],a[5],term,serial,a[8])
     if canonical~=body then return nil end
     local offer
     if op=="I" then offer=engine.PrivateOfferFor(sender,a[4],a[5])
     elseif op=="K" then offer=engine.PrivateReady(sender,a[4],a[5],term,serial)
-    elseif op=="U" then
-        local ok,why=engine.PrivateReport(sender,a[4],a[5],term,serial,a[8])
-        if not ok or (why~="pending" and why~="confirmed" and why~="duplicate" and why~="disputed") then return nil end
+    elseif op=="U" or op=="W" or op=="E" then
+        local ok,why
+        if op=="U" then ok,why=engine.PrivateReport(sender,a[4],a[5],term,serial,a[8])
+        else
+            local c=engine.ControlSnapshot()
+            if not c or c.event~=a[4] or c.term~=term or c.coordinator~=c.owner then return nil end
+            if op=="W" then ok,why=engine.WithdrawBracket(sender,{event=a[4],match=a[5]},term,c.owner)
+            else ok,why=engine.ConsentReplay(sender,{event=a[4],match=a[5],game=tonumber(a[8]),revision=serial},term,c.owner) end
+        end
+        if not ok or (why~="pending" and why~="confirmed" and why~="duplicate" and why~="disputed" and why~="forfeited" and why~="replay") then return nil end
         local reply=table.concat({"N",P.Key(s),seq,a[5],term,serial,why},"|")
         return Packet(reply) and {reply} or nil
     end
@@ -1355,8 +1453,9 @@ function R.DecodePrivateMatchReply(s,seq,body)
         return {kind="offer",match=a[4],game=game,attempt=attempt,term=term,serial=serial,peer=a[9],
             ready=a[10]=="1",both=a[11]=="1",reported=a[12]=="1"}
     elseif a[1]=="N" and #a==7 then
-        local term,serial=Number(a[5],1,2147483647),Number(a[6],1,2147483647)
-        if not term or not serial or (a[7]~="pending" and a[7]~="confirmed" and a[7]~="duplicate" and a[7]~="disputed") then return nil end
+        local term,serial=Number(a[5],1,2147483647),Number(a[6],0,2147483647)
+        if not term or not serial or (a[7]~="pending" and a[7]~="confirmed" and a[7]~="duplicate" and a[7]~="disputed"
+            and a[7]~="forfeited" and a[7]~="replay") then return nil end
         return {kind="receipt",match=a[4],term=term,serial=serial,status=a[7]}
     end
 end

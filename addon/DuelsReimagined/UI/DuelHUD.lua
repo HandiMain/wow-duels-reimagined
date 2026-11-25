@@ -381,6 +381,9 @@ local function Health(side,unit)
         side.hpText:SetText(string.format("%.0f%%",percent))
     end
 end
+function H.PaintObservedHealth(bar,label,unit)
+    Health({hp=bar,hpText=label},unit)
+end
 local function ReadRanks()
     if not rankDirty then return end
     rankDirty=false;rankView,rankSeason=nil,nil
@@ -864,8 +867,12 @@ function H.Refresh()
                 if s.state~="idle" or s.active or s.challenge or ns.TournamentSession and ns.TournamentSession.IsActive() then H.ScheduleTournamentRefresh() end
             end)
             for _,e in ipairs({"PLAYER_REGEN_DISABLED","PLAYER_ENTERING_WORLD","UI_SCALE_CHANGED","DISPLAY_SIZE_CHANGED"}) do f:RegisterEvent(e) end
+            if model.scope=="PRIVATE_TEST" then
+                for _,e in ipairs({"UNIT_HEALTH","UNIT_MAXHEALTH","UNIT_CONNECTION","GROUP_ROSTER_UPDATE"}) do pcall(f.RegisterEvent,f,e) end
+            end
             f:SetScript("OnEvent",function(_,e)
                 if e=="UI_SCALE_CHANGED" or e=="DISPLAY_SIZE_CHANGED" then B.Relayout();if ns.Notifications then ns.Notifications.Reanchor() end
+                elseif e=="UNIT_HEALTH" or e=="UNIT_MAXHEALTH" or e=="UNIT_CONNECTION" or e=="GROUP_ROSTER_UPDATE" then B.RefreshObservedHealth()
                 else H.Refresh() end
             end)
         end

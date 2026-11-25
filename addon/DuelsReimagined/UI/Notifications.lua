@@ -519,7 +519,7 @@ function N.ClearTournamentPreview()
     for i=#queue,1,-1 do if TournamentMessage(queue[i]) then table.remove(queue,i) end end
     if TournamentMessage(current) then Clear();Pump() end
 end
-local function Announce(event,key,title,body,warning,personal)
+local function Announce(event,key,title,body,warning,personal,private)
     if type(event)~="string" or type(key)~="string" then return false end
     if tournamentEvent~=event then
         tournamentEvent=event;tournamentAnnouncements={}
@@ -527,17 +527,25 @@ local function Announce(event,key,title,body,warning,personal)
     end
     if tournamentAnnouncements[key] then return false end
     local ok=Enqueue({id="preview:tournament:"..event..":"..key,kind=warning and "warning" or "tournament",
-        tournamentPreview=true,personalTournament=personal==true,preview=true,title=title,body=body.."\nLocal test only"})
+        tournamentPreview=true,personalTournament=personal==true,preview=true,title=title,body=body..(private and "\nPrivate test only" or "\nLocal test only")})
     if ok then tournamentAnnouncements[key]=true end
     return ok
 end
 function N.OnTournamentProgress(p,visible)
-    if not p or p.scope~="SIMULATED" or not p.bracket then
+    if not p or (p.scope~="SIMULATED" and p.scope~="PRIVATE_TEST") or not p.bracket then
         if tournamentEvent then tournamentEvent=nil;tournamentAnnouncements={};N.ClearTournamentPreview() end
         return
     end
     if not visible or not p.event then return end
     local id=p.event.id
+    if p.scope=="PRIVATE_TEST" then
+        if p.bracket.state=="completed" and p.bracket.champion then
+            Announce(id,"private-final","Final result reported",(p.names[p.bracket.champion] or "Winner").." - organizer log",false,false,true)
+        elseif p.role=="player" and not p.broadcast and p.assignmentStatus=="Both players ready" and p.match then
+            Announce(id,"private-ready:"..p.match.id..":"..p.bracket.revision,"Your match is ready","Challenge your assigned opponent.",false,true,true)
+        end
+        return
+    end
     if p.broadcast then
         for i=#queue,1,-1 do if queue[i].personalTournament then table.remove(queue,i) end end
         if current and current.personalTournament then Clear();Pump() end
@@ -566,6 +574,20 @@ function N.OnTournamentGrace(o)
         Announce(o.event,key,"Player reconnected",name.." is back.",false)
     elseif o.notice=="forfeited" then
         Announce(o.event,key,"Match forfeited",name.." did not reconnect in time.",true)
+    end
+end
+function N.OnPrivateTournamentGrace(o)
+    if type(o)~="table" or o.scope~="PRIVATE_TEST" or not o.notice then return end
+    local p=ns.TournamentSession and ns.TournamentSession.GetProjection()
+    if not p or p.event.id~=o.event then return end
+    local name=p.names[o.player] or "Player"
+    local key="private-grace:"..o.match..":"..tostring(o.sequence or 0)..":"..o.notice
+    if o.notice=="started" then
+        Announce(o.event,key,"Player disconnected",name.." has five minutes to reconnect.",true,false,true)
+    elseif o.notice=="reconnected" then
+        Announce(o.event,key,"Player reconnected",name.." is back.",false,false,true)
+    elseif o.notice=="forfeited" then
+        Announce(o.event,key,"Match forfeited",name.." did not reconnect in time.",true,false,true)
     end
 end
 function N.PreviewTournamentReady()
