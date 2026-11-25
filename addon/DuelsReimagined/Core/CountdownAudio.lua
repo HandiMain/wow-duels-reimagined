@@ -3,23 +3,29 @@ local _,ns=...
 -- Playback is driven by the existing countdown controller, not a timer.
 local A={};ns.CountdownAudio=A
 local Settings=ns.Settings
-local BASE="Interface\\AddOns\\DuelsReimagined_CountdownSounds\\Sounds\\"
 local TICK="Interface\\AddOns\\DuelsReimagined\\Media\\Sounds\\CountdownTick.mp3"
 local DEFAULT="builtin:tick"
-local PACK_ADDON="DuelsReimagined_CountdownSounds"
-local FIGHT_BASE="Interface\\AddOns\\DuelsReimagined_CountdownSounds\\Fight\\"
+local PACK_ADDON="DuelsReimagined_SoundPacks"
+local LEGACY_ADDON="DuelsReimagined_CountdownSounds"
+local ADDON_ROOT="Interface\\AddOns\\"
 local groups,available,fightPacks,fightOrder={},{},{},{}
 local resultPacks,resultOrder={victory={},defeat={}},{victory={},defeat={}}
-local previous,previousGroups,previousFight,previousResults=false
+local previous,previousGroups,previousFight,previousResults,previousAddon=false
 -- Media-only addon can finish loading after this file. Rebuild only when
 -- its manifest or section tables actually change, never on a frame tick.
 local function RefreshCatalog()
-    local manifest=DuelsReimaginedCountdownSoundPacks
+    -- Prefer the renamed pack; retain the old folder during migration.
+    local modern=type(DuelsReimaginedSoundPacks)=="table" and DuelsReimaginedSoundPacks.version==1
+    local manifest=modern and DuelsReimaginedSoundPacks or DuelsReimaginedCountdownSoundPacks
+    local source=modern and PACK_ADDON or LEGACY_ADDON
+    local root=ADDON_ROOT..source.."\\"
+    local BASE=root..(modern and "Countdown\\" or "Sounds\\")
+    local FIGHT_BASE=root.."Fight\\"
     local g=type(manifest)=="table" and manifest.groups
     local f=type(manifest)=="table" and manifest.fight
     local results=type(manifest)=="table" and manifest.results
-    if manifest==previous and g==previousGroups and f==previousFight and results==previousResults then return false end
-    previous,previousGroups,previousFight,previousResults=manifest,g,f,results
+    if manifest==previous and g==previousGroups and f==previousFight and results==previousResults and source==previousAddon then return false end
+    previous,previousGroups,previousFight,previousResults,previousAddon=manifest,g,f,results,source
     groups,available,fightPacks,fightOrder={},{},{},{}
     resultPacks,resultOrder={victory={},defeat={}},{victory={},defeat={}}
     if type(manifest)=="table" and manifest.version==1 and type(manifest.groups)=="table" then
@@ -68,7 +74,8 @@ local function RefreshCatalog()
                         p.duration>=.05 and p.duration<=5.3 then
                         local key=kind..":"..p.key
                         if not resultPacks[kind][key] then
-                            local entry={key=key,label=p.label,path="Interface\\AddOns\\DuelsReimagined_CountdownSounds\\Results\\"..kind.."\\"..p.key..".ogg"}
+                            local folder=modern and (kind=="victory" and "Victory" or "Defeat") or ("Results\\"..kind)
+                            local entry={key=key,label=p.label,path=root..folder.."\\"..p.key..".ogg"}
                             resultPacks[kind][key]=entry;resultOrder[kind][#resultOrder[kind]+1]=entry
                         end
                     end
@@ -272,7 +279,7 @@ function A.GetPackStatus()
     local countdown=0
     for _,group in ipairs(groups) do countdown=countdown+#group.packs end
     local fight=#fightOrder
-    if countdown>0 and fight>0 then return "ready",countdown,fight,"Sound pack manifest detected" end
+    if countdown>0 and fight>0 then return "ready",countdown,fight,previousAddon==PACK_ADDON and "Sound pack manifest detected" or "Legacy sound pack detected; replace with DuelsReimagined_SoundPacks" end
     if countdown>0 then return "older",countdown,fight,"Countdown pack detected; install the updated pack for FIGHT! sounds" end
     if fight>0 then return "partial",countdown,fight,"FIGHT! pack detected; countdown packs unavailable" end
     local api=C_AddOns
@@ -283,7 +290,7 @@ function A.GetPackStatus()
     if api and type(api.GetAddOnInfo)=="function" then
         local ok,name,_,_,_,reason=pcall(api.GetAddOnInfo,PACK_ADDON)
         if ok and type(reason)=="string" and reason=="DISABLED" then
-            return "disabled",0,0,"Enable Duels Reimagined - Local Sound Packs in AddOns"
+            return "disabled",0,0,"Enable Duels Reimagined - Sound Packs in AddOns"
         elseif ok and type(reason)=="string" and reason=="INTERFACE_VERSION" then
             return "not_loaded",0,0,"Sound pack interface version is outdated; check AddOns"
         elseif ok and type(name)=="string" and name==PACK_ADDON then
@@ -298,7 +305,7 @@ local events=CreateFrame("Frame")
 events:RegisterEvent("ADDON_LOADED")
 events:RegisterEvent("PLAYER_LOGIN")
 events:SetScript("OnEvent",function(self,event,name)
-    if event=="ADDON_LOADED" and name~=PACK_ADDON then return end
+    if event=="ADDON_LOADED" and name~=PACK_ADDON and name~=LEGACY_ADDON then return end
     if event=="PLAYER_LOGIN" then self:UnregisterEvent("PLAYER_LOGIN") end
     local changed=RefreshCatalog()
     if changed and ns.Options and ns.Options.Refresh then ns.Options.Refresh() end

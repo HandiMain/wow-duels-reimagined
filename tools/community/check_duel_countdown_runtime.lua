@@ -409,3 +409,27 @@ prefs.duelResultVisual=false
 n=#played;assert(not R.Preview("won") and #played==n)
 prefs.duelResultVisual=true
 print("Result audio: PASS (late packs, independent channels, scoped cleanup, SharedMedia, muted and disabled gates)")
+
+-- Renamed optional expansion depends on core, not the other way around.
+-- Both manifests may exist during migration: new media wins without
+-- changing saved pack IDs or making the core depend on optional files.
+local legacyManifest=DuelsReimaginedCountdownSoundPacks
+DuelsReimaginedSoundPacks=legacyManifest
+prefs.duelCountdownVisual=true;prefs.duelCountdownSounds=true;prefs.duelFightSounds=true
+prefs.duelCountdownSoundPack="pack:Overwatch/Ana";prefs.duelFightSoundPack="fight:mortal_kombat"
+prefs.duelResultVisual=true;prefs.duelVictorySounds=true;prefs.duelDefeatSounds=true
+prefs.duelVictorySoundPack="victory:victory1";prefs.duelDefeatSoundPack="defeat:defeat2"
+assert(A.Play(3) and played[#played][1]:find("DuelsReimagined_SoundPacks\\Countdown\\Overwatch\\Ana\\3.ogg",1,true))
+assert(A.PlayFight() and played[#played][1]:find("DuelsReimagined_SoundPacks\\Fight\\mortal_kombat.ogg",1,true))
+assert(A.PlayResult("victory") and played[#played][1]:find("DuelsReimagined_SoundPacks\\Victory\\victory1.ogg",1,true))
+assert(A.PlayResult("defeat") and played[#played][1]:find("DuelsReimagined_SoundPacks\\Defeat\\defeat2.ogg",1,true))
+DuelsReimaginedSoundPacks=nil
+assert(A.Play(1) and played[#played][1]:find("DuelsReimagined_CountdownSounds\\Sounds\\Overwatch\\Ana\\1.ogg",1,true))
+DuelsReimaginedCountdownSoundPacks=nil
+assert(A.Play(2) and played[#played][1]:find("CountdownTick.mp3",1,true))
+assert(prefs.duelCountdownSoundPack=="pack:Overwatch/Ana")
+DuelsReimaginedSoundPacks=legacyManifest
+assert(A.Play(2) and played[#played][1]:find("DuelsReimagined_SoundPacks\\Countdown\\Overwatch\\Ana\\2.ogg",1,true))
+A.Stop()
+assert(A.GetDiagnosticResources().handles==0)
+print("Sound pack rename: PASS (modern paths, legacy fallback, optional installation, preserved selection)")

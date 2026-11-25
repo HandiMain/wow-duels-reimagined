@@ -418,9 +418,11 @@ local resultVisual=AddToggle(resultCard,"combatvisuals","duelResultVisual","Show
     "Reveal the victory or defeat banner after a locally observed duel result.",-90,false)
 local resultVignette=AddToggle(resultCard,"combatvisuals","duelResultVignette","Screen-edge glow",
     "Fade gold around the edges for victory, crimson for defeat.",-125,false)
-local function ResultAudio(kind,title,prefix,top)
-    local enabled=AddToggle(resultCard,"combatvisuals",prefix.."Sounds",title.." sounds",
-        "Play a sound when the "..kind.." banner appears.",top,false)
+local victorySounds=AddToggle(resultCard,"combatvisuals","duelVictorySounds","Victory sounds",
+    "Play a sound when the victory banner appears.",-161,false)
+local defeatSounds=AddToggle(resultCard,"combatvisuals","duelDefeatSounds","Defeat sounds",
+    "Play a sound when the defeat banner appears.",-338,false)
+local function ResultAudio(kind,title,prefix,top,enabled)
     local packKey,channelKey=prefix.."SoundPack",prefix.."AudioChannel"
     local pack=Widgets.ChoiceRow(resultCard,title.." sound effect","Choose a sound pack or SharedMedia sound.",
         function(key) Settings.Set(packKey,key) end,function() Settings.Reset(packKey) end,false,false,true)
@@ -437,8 +439,8 @@ local function ResultAudio(kind,title,prefix,top)
     RegisterOption(channelKey,title.." volume channel","Choose the Blizzard volume channel","combatvisuals",channel)
     return {enabled=enabled,pack=pack,channel=channel,refresh=RefreshChoices,prefix=prefix,packKey=packKey,channelKey=channelKey}
 end
-local victoryAudio=ResultAudio("victory","Victory","duelVictory",-161)
-local defeatAudio=ResultAudio("defeat","Defeat","duelDefeat",-338)
+local victoryAudio=ResultAudio("victory","Victory","duelVictory",-161,victorySounds)
+local defeatAudio=ResultAudio("defeat","Defeat","duelDefeat",-338,defeatSounds)
 local function ResultPreview(label,outcome,y)
     local button=Style.Action(resultCard,label,"footer")
     button:SetHeight(30);MarkPosition(button,resultCard,y)

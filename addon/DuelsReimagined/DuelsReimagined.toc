@@ -3,7 +3,7 @@
 ## Notes: A dueling companion for World of Warcraft.
 ## Author: Handi
 ## Category: PvP
-## OptionalDeps: EllesmereUI, LibSharedMedia-3.0, SharedMedia, DuelsReimagined_CountdownSounds
+## OptionalDeps: EllesmereUI, LibSharedMedia-3.0, SharedMedia
 ## SavedVariables: DuelsReimaginedDB, DuelsReimaginedCompetitiveDB
 ## SavedVariablesPerCharacter: DuelsReimaginedCharacterDB
 ## IconTexture: Interface\AddOns\DuelsReimagined\Media\Icons\DuelsDRIcon.png
