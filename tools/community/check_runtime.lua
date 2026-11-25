@@ -196,6 +196,20 @@ Settings.Reset("duelCountdownFont")
 Check(Settings.Get("duelCountdownFont")=="builtin:Morpheus" and not Settings.IsModified("duelCountdownFont"),"countdown font reset")
 _G.DuelsReimaginedDB.duelCountdownFont={}
 Check(Settings.Get("duelCountdownFont")=="builtin:Morpheus","invalid saved font fallback")
+local lx,ly,ls=Settings.GetVisualLayout("countdown")
+Check(lx==.5 and ly==.5 and ls==1,"visual layout defaults")
+Check(Settings.SetVisualLayout("countdown",.2,.7,1.5),"save visual layout")
+lx,ly,ls=Settings.GetVisualLayout("countdown")
+Check(lx==.2 and ly==.7 and ls==1.5,"independent normalized visual layout")
+Check(not Settings.SetVisualLayout("unknown",.5,.5,1),"unknown visual key rejected")
+Check(not Settings.SetVisualLayout("countdown",0/0,.5,1),"invalid coordinates rejected")
+lx,ly,ls=Settings.ClampVisualLayout(0,1,2,1000,600,480,240)
+Check(math.abs(lx-.48)<.001 and math.abs(ly-.6)<.001 and ls==2,"visual bounds at large scale")
+lx,ly,ls=Settings.ClampVisualLayout(.5,.5,2,600,300,480,240)
+Check(ls==1.25,"scale fits a smaller viewport")
+_G.DuelsReimaginedDB.visualLayouts={countdown={x="bad",y=.5,scale=1}}
+lx,ly,ls=Settings.GetVisualLayout("countdown")
+Check(lx==.5 and ly==.5 and ls==1,"invalid visual layout fallback")
 _G.DuelsReimaginedDB=originalDB
 ns.AccessIcons, ns.Options, ns.Header = nil,nil,nil
 print("Independent access settings and default-on Peek: PASS")

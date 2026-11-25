@@ -42,6 +42,8 @@ previewLabel:SetText("COUNTDOWN PREVIEW");previewLabel:Hide()
 local animKey={}
 local timer,cycle,deadline,shown,preview,ready,unsubscribe
 local selectedStyle="impact"
+local layoutDraft
+local BASE_W,BASE_H=480,240
 local function Read(fn,...)
     if type(fn)~="function" then return nil end
     local ok,v=pcall(fn,...)
@@ -55,6 +57,17 @@ end
 local function Now()
     local n=Read(GetTime)
     return type(n)=="number" and n>=0 and n<math.huge and n or nil
+end
+local function ApplyLayout()
+    if not Settings.GetVisualLayout or not Settings.ClampVisualLayout then return end
+    local x,y,scale
+    if layoutDraft then x,y,scale=unpack(layoutDraft)
+    else x,y,scale=Settings.GetVisualLayout("countdown") end
+    local w,h=Read(UIParent.GetWidth,UIParent),Read(UIParent.GetHeight,UIParent)
+    x,y,scale=Settings.ClampVisualLayout(x,y,scale,w,h,BASE_W,BASE_H)
+    if not x then return end
+    root:SetScale(scale);root:ClearAllPoints()
+    root:SetPoint("CENTER",UIParent,"CENTER",(x-.5)*w/scale,(y-.5)*h/scale)
 end
 local function StopTimer()
     if timer then timer:Cancel();timer=nil end
@@ -250,7 +263,7 @@ local function RenderPreset(p,fight,value)
     MoveGlyph(x,y,scale,a)
 end
 local function ShowStage(value,seconds)
-    Hide();Font(value);ResetLayers(selectedStyle);previewLabel:SetShown(preview==true)
+    Hide();ApplyLayout();Font(value);ResetLayers(selectedStyle);previewLabel:SetShown(preview==true and not layoutDraft)
     root:Show()
     if Settings.Get("reduceMotion") then
         glyph:SetScale(1);glyph:SetAlpha(1);glow:SetAlpha(0);ring:SetAlpha(0)
@@ -284,7 +297,12 @@ Tick=function()
     if preview and Read(InCombatLockdown)==true then Clear();return end
     local remaining=deadline-now
     if remaining<=.012 then
-        if shown=="FIGHT!" then Clear();return end
+        if shown=="FIGHT!" then
+            local editing=preview and layoutDraft
+            Clear()
+            if editing and ns.EditMode and ns.EditMode.IsActive() then ns.EditMode.RestoreSample() end
+            return
+        end
         -- Don't play an old fight cue after a long frame stall or reload.
         if remaining<-.5 then Clear();return end
         shown="FIGHT!";ShowStage(shown,.90);Arm(.94)
@@ -302,6 +320,9 @@ Tick=function()
 end
 local function Receive(s)
     if s.scope~="LOCAL" then return end
+    if layoutDraft and (s.challenge or s.active or s.state~="idle") and ns.EditMode then
+        ns.EditMode.Cancel(false)
+    end
     if preview and (s.challenge or s.active or s.state~="idle") then Clear() end
     if cycle and not Live(s,cycle) then Clear() end
     if not Settings.Get("duelCountdownVisual") or not s.active or not Live(s,s.active.id)
@@ -317,9 +338,28 @@ local function Receive(s)
     elseif not deadline or candidate<deadline then deadline=candidate end
     if shown~="FIGHT!" then Tick() end
 end
+-- Layout editing uses the real renderer and a private temporary position.
+function V.LayoutSize() return BASE_W,BASE_H end
+function V.SetLayoutDraft(x,y,scale)
+    layoutDraft={x,y,scale};ApplyLayout()
+end
+function V.ShowLayoutSample()
+    if not layoutDraft then return end
+    Clear();ApplyLayout()
+    selectedStyle=Settings.Get("duelCountdownStyle") or "impact"
+    Font("3");ResetLayers(selectedStyle)
+    previewLabel:Hide()
+    for _,t in ipairs(sparks) do t:Hide() end
+    root:Show()
+end
+function V.EndLayoutDraft()
+    if not layoutDraft then return end
+    Clear();layoutDraft=nil;ApplyLayout()
+end
 function V.Refresh()
     -- Do not replay a stage mid-duel when changing a setting.
     Clear()
+    if layoutDraft then V.ShowLayoutSample() end
 end
 function V.Preview()
     if not ready or not ns.Client.IsSupported() or not C_Timer or type(C_Timer.NewTimer)~="function" then return false,"Preview unavailable" end
@@ -333,11 +373,12 @@ function V.GetDiagnosticResources()
     return {subscriptions=unsubscribe and 1 or 0,timers=timer and 1 or 0}
 end
 local events=CreateFrame("Frame")
-for _,event in ipairs({"PLAYER_LOGIN","PLAYER_ENTERING_WORLD","PLAYER_REGEN_DISABLED"}) do events:RegisterEvent(event) end
+for _,event in ipairs({"PLAYER_LOGIN","PLAYER_ENTERING_WORLD","PLAYER_REGEN_DISABLED","UI_SCALE_CHANGED","DISPLAY_SIZE_CHANGED"}) do events:RegisterEvent(event) end
 events:SetScript("OnEvent",function(_,event)
     if event=="PLAYER_LOGIN" then
         events:UnregisterEvent("PLAYER_LOGIN")
         ready=ns.Client.IsSupported()
-        if ready then unsubscribe=ns.DuelDetection.Subscribe(Receive) end
+        if ready then unsubscribe=ns.DuelDetection.Subscribe(Receive);ApplyLayout() end
+    elseif event=="UI_SCALE_CHANGED" or event=="DISPLAY_SIZE_CHANGED" then ApplyLayout()
     elseif event=="PLAYER_ENTERING_WORLD" or event=="PLAYER_REGEN_DISABLED" and preview then Clear() end
 end)

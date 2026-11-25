@@ -473,6 +473,43 @@ function Settings.SetWidgetPosition(x, y)
     WriteDB().widgetPosition = { x = x, y = y }
 end
 
+-- Shared screen-layout storage. Only explicitly registered visual keys may
+-- be saved; editor drafts never touch SavedVariables.
+local visualKeys={countdown=true}
+local function LayoutNumber(n)
+    if type(issecretvalue)=="function" then
+        local ok,secret=pcall(issecretvalue,n)
+        if not ok or secret then return false end
+    end
+    return type(n)=="number" and n==n and n~=math.huge and n~=-math.huge
+end
+local function Clamp(n,lo,hi) return math.max(lo,math.min(hi,n)) end
+function Settings.GetVisualLayout(key)
+    local db=ReadDB()
+    local p=visualKeys[key] and db and type(db.visualLayouts)=="table" and db.visualLayouts[key]
+    if type(p)=="table" and LayoutNumber(p.x) and LayoutNumber(p.y) and LayoutNumber(p.scale) then
+        return Clamp(p.x,0,1),Clamp(p.y,0,1),Clamp(p.scale,.5,2)
+    end
+    return .5,.5,1
+end
+function Settings.SetVisualLayout(key,x,y,scale)
+    if not visualKeys[key] or not LayoutNumber(x) or not LayoutNumber(y) or not LayoutNumber(scale) then return false end
+    local db=WriteDB()
+    if type(db.visualLayouts)~="table" then db.visualLayouts={} end
+    db.visualLayouts[key]={x=Clamp(x,0,1),y=Clamp(y,0,1),scale=Clamp(scale,.5,2)}
+    return true
+end
+-- UIParent units, not scaled child units. Clamp the settled visual's
+-- footprint, keeping stored relative coordinates portable across resolutions.
+function Settings.ClampVisualLayout(x,y,scale,w,h,bw,bh)
+    if not (LayoutNumber(x) and LayoutNumber(y) and LayoutNumber(scale) and
+        LayoutNumber(w) and LayoutNumber(h) and LayoutNumber(bw) and LayoutNumber(bh)) or
+        w<=0 or h<=0 or bw<=0 or bh<=0 then return nil end
+    scale=math.min(Clamp(scale,.5,2),w/bw,h/bh)
+    local hx,hy=bw*scale/(2*w),bh*scale/(2*h)
+    return Clamp(x,hx,1-hx),Clamp(y,hy,1-hy),scale
+end
+
 function Settings.GetDuelHUDPosition()
     local db=ReadDB();local p=db and db.duelHUDPosition
     if type(p)=="table" and type(p.x)=="number" and type(p.y)=="number"

@@ -2,6 +2,14 @@ local _, ns = ...
 
 SLASH_DUELSREIMAGINED1 = "/duels"
 SlashCmdList.DUELSREIMAGINED = function(message)
+    if message=="edit" or message=="countdown edit" then
+        if ns.EditMode.IsActive() then ns.EditMode.Cancel(true)
+        else
+            local ok,why=ns.EditMode.Open("countdown")
+            if not ok then print("DR | "..tostring(why)) end
+        end
+        return
+    end
     if message=="countdown preview" then
         local ok,why=ns.DuelCountdown.Preview()
         if not ok then print("DR | "..tostring(why)) end

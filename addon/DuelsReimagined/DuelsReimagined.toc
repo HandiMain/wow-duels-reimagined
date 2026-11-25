@@ -56,6 +56,7 @@ UI\CompetitiveUI.lua
 UI\AchievementUI.lua
 UI\DuelHUD.lua
 UI\DuelCountdown.lua
+UI\EditMode.lua
 UI\Navigation.lua
 Community\Credits.lua
 UI\Community.lua

@@ -364,6 +364,14 @@ countdownPreview:SetScript("OnClick",function()
     if not ok and ns.Feedback then ns.Feedback.Toast(why,countdownPreview) end
 end)
 RegisterOption("previewDuelCountdown","Preview countdown","Play the countdown animation without starting a duel","combatvisuals",countdownPreview)
+local editLayout=Style.Action(countdownCard,"Edit layout","footer")
+editLayout:SetHeight(30)
+MarkPosition(editLayout,countdownCard,-302)
+editLayout:SetScript("OnClick",function()
+    local ok,why=ns.EditMode.Open("countdown")
+    if not ok and ns.Feedback then ns.Feedback.Toast(why,editLayout) end
+end)
+RegisterOption("editCountdownLayout","Edit countdown layout","Move and resize the entire countdown effect","combatvisuals",editLayout)
 local consentRow
 if ns.CompetitiveStorage and ns.CompetitiveStorage.PeerEpoch() then
     consentRow = AddToggle(behaviorCard,"interface","competitiveConsent","Allow competitive duel exchange",
@@ -771,7 +779,7 @@ if warConsentRow then interfaceGroups[1].entries[#interfaceGroups[1].entries+1]=
 function appearance:Relayout(width) LayoutPage(self, appearanceGroups, width) end
 function interface:Relayout(width) LayoutPage(self, interfaceGroups, width) end
 function widgetPage:Relayout(width) LayoutPage(self, widgetGroups, width) end
-local combatGroups={{card=countdownCard,entries={{widget=countdownRow},{widget=countdownChoice},{widget=countdownFont},{widget=countdownPreview,height=30}}}}
+local combatGroups={{card=countdownCard,entries={{widget=countdownRow},{widget=countdownChoice},{widget=countdownFont},{widget=countdownPreview,height=30},{widget=editLayout,height=30}}}}
 function combatVisuals:Relayout(width) LayoutPage(self,combatGroups,width) end
 appearance:Relayout(appearance:GetWidth())
 interface:Relayout(interface:GetWidth())

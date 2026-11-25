@@ -175,3 +175,21 @@ assert(sample.font=="shared-face" and sample.fontSize==10)
 ns.Fonts.PaintSample(sample,"lsm:Shared Face","Shared Face",16,194)
 assert(sample.fontSize==16)
 print("Font samples: PASS (recycled faces, rejected/missing media, bounded fitting, size restored)")
+
+-- Editor uses the actual countdown frame, not a second preview renderer.
+ns.Settings.GetVisualLayout=function() return .5,.5,1 end
+ns.Settings.ClampVisualLayout=function(x,y,scale,w,h) assert(w==1000 and h==600);return x,y,scale end
+function UIParent:GetWidth()return 1000 end
+function UIParent:GetHeight()return 600 end
+V.SetLayoutDraft(.7,.3,1.5);V.ShowLayoutSample()
+assert(root:IsShown() and Text("3") and root.scale==1.5)
+assert(math.abs(root.point[4]-200/1.5)<.001 and math.abs(root.point[5]+120/1.5)<.001)
+assert(not ns.Motion.GetRuntimeState().driver and V.GetDiagnosticResources().timers==0)
+local restored=0
+ns.EditMode={IsActive=function()return true end,RestoreSample=function()restored=restored+1;V.ShowLayoutSample()end,
+    Cancel=function()V.EndLayoutDraft()end}
+local start=now;assert(V.Preview());Advance(start+4)
+assert(restored==1 and root:IsShown() and Text("3") and root.scale==1.5)
+V.EndLayoutDraft();assert(not root:IsShown() and root.scale==1 and root.point[4]==0 and root.point[5]==0)
+assert(#frames==count+1) -- only the earlier font sample test created a frame
+print("Countdown layout: PASS (actual sample, scaled anchor, preview restore, saved layout restoration)")

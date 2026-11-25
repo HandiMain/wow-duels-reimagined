@@ -60,6 +60,7 @@ jobs:
           lua5.1 tools/community/check_notifications_runtime.lua
           lua5.1 tools/community/check_duel_hud_runtime.lua
           lua5.1 tools/community/check_duel_countdown_runtime.lua
+          lua5.1 tools/community/check_edit_mode_runtime.lua
           lua5.1 tools/community/check_competitive_ui_runtime.lua
           lua5.1 tools/community/check_achievements_runtime.lua
 
