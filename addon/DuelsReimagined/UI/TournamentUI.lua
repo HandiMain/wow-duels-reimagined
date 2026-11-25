@@ -124,8 +124,7 @@ local championPage=Page("champions")
 local archive=Panel(championPage,"Hall of Champions")
 archive.detail=Label(archive,"No completed tournaments recorded.",15,C.muted,"CENTER")
 local mine=Page("my-tournament")
-local myPanel=Panel(mine,"My Tournament")
-myPanel.detail=Label(myPanel,"No active tournament.",15,C.muted,"CENTER")
+local myView
 local brackets=Page("brackets")
 local bracketPanel=Panel(brackets,"Brackets")
 bracketPanel.detail=Label(bracketPanel,"No tournament bracket available.",15,C.muted,"CENTER")
@@ -167,22 +166,11 @@ local function Run(action,key)
     if ok and action=="cancel" and ns.Notifications then ns.Notifications.ClearTournamentPreview() end
     if ok and key then Switch(key) else U.Show(active or "overview") end
 end
-local check=Action(myPanel,"Test Check-in",function()Run("checkin")end)
-local advance=Action(myPanel,"Test Check-in Time",function()Run("checkin-time")end)
-local leave=Action(myPanel,"Leave Test",function()Run("leave","browse")end)
-local myHost=Action(myPanel,"Organizer View",function()Run("host","manage")end)
-local sampleStart=Action(myPanel,"Simulate Tournament Start",function()Run("start-bracket","brackets")end)
-local sampleGame=Action(myPanel,"Simulate Next Game",function()Run("simulate-game","brackets")end)
 local bracketGame=Action(bracketPanel,"Simulate Next Game",function()Run("simulate-game")end)
 local broadcast=Action(bracketPanel,"Broadcast view",function()Run("broadcast")end)
 local testDisconnect=Action(bracketPanel,"Test disconnect",function()Run("disconnect")end)
 local testAdvance=Action(bracketPanel,"Advance test 1 min",function()Run("advance-grace")end)
 local testReconnect=Action(bracketPanel,"Test reconnect",function()Run("reconnect")end)
-local matchNotice=Action(myPanel,"Preview Match Notification",function()
-    local ok,why=ns.Notifications.PreviewTournamentReady()
-    feedback=ok and "Match notification shown." or why or "Notification unavailable."
-    U.Show("my-tournament")
-end)
 local function EndTest()
     R.EndPreview()
     if ns.DuelResult then ns.DuelResult.ClearTournamentPreview() end
@@ -272,39 +260,17 @@ local function RefreshTest()
     if hostView and not canCreate then hostView.Hide() end
     if p or listings then subtitle:SetText("LOCAL TEST - Nothing is published online") end
     local started=p and p.bracket~=nil
-    check:SetShown(not not (player and p.member and not started and not p.member.checkedIn))
-    advance:SetShown(not not (player and p.member and not started and p.now<p.event.draft.startAt-1800))
-    leave:SetShown(not not (player and p.member and not started))
-    matchNotice:SetShown(not not (player and p.match))
-    sampleStart:SetShown(not not (player and p.mode=="join" and not started and p.member and p.member.checkedIn))
-    sampleGame:SetShown(not not (player and started and p.bracket.state=="running"))
     bracketGame:SetShown(not not (started and p.bracket.state=="running"))
     broadcast:SetShown(not not (started and p.bracket.state=="running"))
     local fixtureReady=started and p.bracket.state=="running" and p.selected
     local busy=started and (p.demo or p.offline)
-    sampleGame:SetEnabled(not busy)
     broadcast:SetEnabled(not busy)
     testDisconnect:SetShown(not not (fixtureReady and not p.demo and not p.offline))
     testAdvance:SetShown(not not (fixtureReady and p.offline))
     testReconnect:SetShown(not not (fixtureReady and p.offline))
     bracketGame:SetEnabled(not not (fixtureReady and not p.demo and not p.offline))
     if started then broadcast.label:SetText(p.broadcast and "Exit broadcast" or "Broadcast view") end
-    myHost:SetShown(not not (player and not p.mode))
     if not started and bracketView and not (ns.TournamentSession and ns.TournamentSession.IsActive() and ns.TournamentSession.GetProjection()) then bracketView.Hide() end
-    if player then
-        if p.match then
-            local m=p.match
-            myPanel.detail:SetText("LOCAL TEST - No real duel or rating changes\n\n"..p.event.draft.name.."\n"..
-                (m.round==m.roundCount and "Final" or "Round "..m.round).." - Best of "..m.bestOf.."\n\n"..
-                "Your next opponent\n"..m.opponent.."\n\nSeries score: "..m.score.." - "..m.opponentScore..
-                "\n\nMatch ready - local rehearsal only.\n"..feedback)
-        elseif p.member then
-            local summary=p.bracket and (p.bracket.champion and "Simulated champion: "..(p.names[p.bracket.champion] or "Unknown") or p.state=="eliminated" and "Eliminated - follow the remaining matches." or "Waiting for the next match.") or (p.member.checkedIn and "Checked in" or "Registered")
-            myPanel.detail:SetText(Describe(p.event).."\n"..summary.."\n"..feedback)
-        end
-    else
-        myPanel.detail:SetText("No active tournament.")
-    end
     return p
 end
 local function MaxScroll() return math.max(0,canvas:GetHeight()-scroll:GetHeight()) end
@@ -381,7 +347,7 @@ local function Layout()
     if privatePanel then privatePanel:Hide() end
     if privateBack then privateBack:Hide() end
     if p or listings then communityNote:SetText("Local test only. Community settings are automatically detected.") end
-    local showCommunity=active=="my-tournament" or active=="brackets"
+    local showCommunity=active=="brackets"
     community:SetShown(showCommunity)
     local top=showCommunity and LayoutCommunity(w) or 0
     if active and pages[active] then
@@ -394,6 +360,7 @@ local function Layout()
     if active~="browse" and browseView then browseView.Hide() end
     if active~="host" and hostView then hostView.Hide() end
     if active~="manage" and organizerView then organizerView.Hide() end
+    if active~="my-tournament" and myView then myView.Hide() end
     if active=="overview" then
         height=LayoutOverview(w,p,listings,private)
     elseif active=="brackets" and privateProjection then
@@ -411,6 +378,35 @@ local function Layout()
         height=LayoutBrowse(w,p,listings)
     elseif active=="host" then
         height=LayoutHost(w)
+    elseif active=="my-tournament" then
+        if p and p.role=="player" and p.member then
+            if not myView then
+                myView=ns.TournamentPlayer.New(mine,{
+                    refresh=U.RefreshActive,
+                    action=function(command)
+                        if command=="brackets" then Switch("brackets")
+                        elseif command=="leave" then Run("leave","browse")
+                        elseif command=="host" then Run("host","manage")
+                        elseif command=="start-bracket" or command=="simulate-game" then Run(command,"brackets")
+                        elseif command=="notice" then
+                            local ok,why=ns.Notifications.PreviewTournamentReady()
+                            feedback=ok and "Match notification shown." or why or "Notification unavailable."
+                            U.RefreshActive()
+                        else Run(command) end
+                    end,
+                    profile=function()
+                        local current=R.PreviewSnapshot()
+                        if current and current.role=="player" and current.opponent then
+                            ns.CompetitiveUI.OpenTournamentPlayerCard(current.opponent,current.event.draft.name,current.scope)
+                        end
+                    end,
+                })
+            end
+            height=myView.Show(p,w,Population.GetCurrent(),feedback)
+        else
+            if myView then myView.Hide() end
+            height=1
+        end
     elseif active=="manage" then
         if p and p.role=="host" then
             if not organizerView then
@@ -443,21 +439,11 @@ local function Layout()
             height=1
         end
     else
-        local f=active=="champions" and archive or active=="my-tournament" and myPanel or bracketPanel
+        local f=active=="champions" and archive or bracketPanel
         if active and f then
             local h=math.max(200,scroll:GetHeight()-top)
             Place(f,pages[active],0,0,w,h);Header(f,w)
-            if p and active=="my-tournament" then
-                h=math.max(h,550);Place(f,pages[active],0,0,w,h)
-                TextAt(f.detail,f,12,44,w-24,h-196)
-                Place(matchNotice,f,12,h-72,w-24,28)
-                Place(sampleStart,f,12,h-108,w-24,28)
-                Place(sampleGame,f,12,h-36,w-24,28)
-                Place(advance,f,12,h-144,w-24,28)
-                Place(check,f,12,h-108,w-24,28)
-                Place(leave,f,12,h-72,w-24,28)
-                Place(myHost,f,12,h-36,w-24,28)
-            elseif active=="brackets" and p and p.bracket then
+            if active=="brackets" and p and p.bracket then
                 h=math.max(h,320);Place(f,pages[active],0,0,w,h)
                 -- Board remains above the separate fixture controls.
                 local bw=math.max(1,(w-36)/3)
@@ -492,6 +478,7 @@ function U.Show(key)
         if browseView then browseView.Hide() end
         if hostView then hostView.Hide() end
         if organizerView then organizerView.Hide() end
+        if myView then myView.Hide() end
         privateConfirm=nil
         active=nil;root:Hide();return
     end

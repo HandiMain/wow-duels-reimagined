@@ -11,6 +11,8 @@ assert(loadfile(root.."/UI/TournamentHost.lua"))("DuelsReimagined",ns)
 assert(ns.TournamentHost.RunSelfTest(),"tournament host presentation QA failed")
 assert(loadfile(root.."/UI/TournamentOrganizer.lua"))("DuelsReimagined",ns)
 assert(ns.TournamentOrganizer.RunSelfTest(),"tournament organizer presentation QA failed")
+assert(loadfile(root.."/UI/TournamentPlayer.lua"))("DuelsReimagined",ns)
+assert(ns.TournamentPlayer.RunSelfTest(),"tournament player presentation QA failed")
 ns.Style=nil
 assert(loadfile(root.."/Core/CompetitiveScope.lua"))("DuelsReimagined",ns)
 local sp,sf=ns.CompetitiveScope.RunSelfTest(print)

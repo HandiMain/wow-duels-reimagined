@@ -2584,7 +2584,7 @@ local function StartPreviewBracket(x)
     local checkTime=math.max(x.now,cp.ad.draft.startAt-1800)
     -- The local host rehearsal may be started manually at/after the
     -- scheduled start. Its fixture check-ins still occur before the draw.
-    if x.mode=="host" then checkTime=math.min(checkTime,cp.ad.draft.startAt-1) end
+    if x.mode=="host" or x.mode=="join" then checkTime=math.min(checkTime,cp.ad.draft.startAt-1) end
     local clock=function()return checkTime end
     local candidate=Host(x.scope,x.host,clock,cp)
     if not candidate then return false,"Test check-in is unavailable." end
@@ -2677,6 +2677,21 @@ function R.SyncHostPreviewClock(id)
     if not x or x.id~=id then return nil end
     return SyncHostedSchedule(x,Read(GetServerTime))
 end
+local function SyncPlayerSchedule(x,server)
+    if not x or x.mode~="join" or x.role~="player" or not x.joined or x.bracket then return nil end
+    if not Whole(server,1,4102444800) then return x.now end
+    local last=x.scheduleServer
+    if not last then x.scheduleServer=server;return x.now end
+    local elapsed=math.max(0,server-last)
+    x.scheduleServer=math.max(last,server)
+    x.now=math.max(x.now,math.min(x.now+elapsed,x.engine.Ad().draft.startAt))
+    return x.now
+end
+function R.SyncPlayerPreviewClock(id)
+    local x=Current()
+    if not x or x.id~=id then return nil end
+    return SyncPlayerSchedule(x,Read(GetServerTime))
+end
 local function MakeCatalog(s,a,n,formatter)
     local data={key=P.Key(s),entries={}}
     local titles={"Duskblade Invitational","Iron Ring Cup","Emberfall Open","Stormcrest Championship"}
@@ -2721,6 +2736,7 @@ function R.JoinTestListing(index)
     local ok,why=x.engine.Join(x.id,x.player.guid,x.player)
     if not ok then return false,why end
     x.joined=true;preview=x;catalog=nil
+    x.scheduleServer=Read(GetServerTime)
     return true,why
 end
 function R.WatchTestListing(index)
@@ -2772,7 +2788,8 @@ function R.EndPreview()
 end
 function R.PreviewSnapshot()
     local x=Current();if not x then return nil end
-    SyncHostedSchedule(x,Read(GetServerTime))
+    local server=Read(GetServerTime)
+    SyncHostedSchedule(x,server);SyncPlayerSchedule(x,server)
     local ad=x.engine.Ad();x.cache.Accept(x.host.guid,ad)
     local rows=x.engine.Roster(x.host.guid);local member
     local names={}
@@ -2783,9 +2800,19 @@ function R.PreviewSnapshot()
     local bracket=x.bracket and x.bracket.Snapshot()
     local featured,ready=FeaturedMatch(x,bracket)
     local chosen=SelectedMatch(x,bracket)
+    local match=PreviewMatch(x,bracket)
+    local opponent
+    if match and x.role=="player" then
+        for _,round in ipairs(bracket.rounds) do
+            for _,m in ipairs(round) do if m.id==match.id then
+                local peer=m.a==x.player.guid and m.b or m.a
+                for _,r in ipairs(rows) do if r.guid==peer then opponent=Copy(r);break end end
+            end end
+        end
+    end
     return {scope="SIMULATED",role=x.role,state=R.PreviewState(),event=ad,events=bracket and {} or x.cache.Browse(),
         roster=x.role=="host" and rows or nil,member=member,now=x.now,bracket=bracket,
-        match=PreviewMatch(x,bracket),names=names,mode=x.mode,broadcast=x.broadcast==true,
+        match=match,opponent=opponent,names=names,mode=x.mode,broadcast=x.broadcast==true,
         featured=featured and featured.id,selected=chosen and chosen.id,readyCount=#ready,
         demo=Copy(x.demo),offline=Copy(x.offline),upcoming=UpcomingRound(x,bracket)}
 end
@@ -2905,7 +2932,8 @@ function R.CancelBroadcastFixture()
 end
 local function PreviewAction(action)
     local x=Current();if not x then return false,"No local test tournament." end
-    SyncHostedSchedule(x,Read(GetServerTime))
+    local server=Read(GetServerTime)
+    SyncHostedSchedule(x,server);SyncPlayerSchedule(x,server)
     if action=="start-demo" then return StartDemo(x) end
     if action=="tick-demo" then return AdvanceDemo(x) end
     if action=="disconnect" then return StartOffline(x) end
