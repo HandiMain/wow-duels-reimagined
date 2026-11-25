@@ -29,6 +29,8 @@ CreateFrame,GetTime,C_Timer,hooksecurefunc=oldFrame,oldClock,oldAfter,oldHook
 ns.Group=oldGroup
 local hp,hf=ns.TournamentRegistration.RunHostRecoverySelfTest(print)
 assert(hp==72 and hf==0,"tournament host recovery QA failed")
+local np,nf=ns.TournamentRegistration.RunPrivateNetworkSelfTest(print)
+assert(np==2 and nf==0,"private tournament lifecycle QA failed")
 assert(loadfile(root.."/Core/TournamentSession.lua"))("DuelsReimagined",ns)
 assert(ns.TournamentSession.RunGateSelfTest(),"private tournament network gate QA failed")
 local pp,pf=ns.TournamentRegistration.RunPlayerPreviewSelfTest(print)

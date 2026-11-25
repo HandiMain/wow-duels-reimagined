@@ -29,6 +29,9 @@ function T.GetSnapshot()
 end
 function T.IsPageAvailable(key)
     local snapshot=T.GetSnapshot()
+    if ns.TournamentSession and ns.TournamentSession.IsActive() then
+        return ns.Client.IsSupported() and (key=="overview" or key=="brackets" and ns.TournamentSession.GetProjection()~=nil)
+    end
     local test=ns.TournamentRegistration and ns.TournamentRegistration.PreviewState()
     if key=="host" and ns.TournamentRegistration and not ns.TournamentRegistration.CanCreatePreview() then return false end
     local hasBracket=test and ns.TournamentRegistration.PreviewHasBracket() or snapshot.hasBracket

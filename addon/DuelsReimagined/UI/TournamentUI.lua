@@ -369,6 +369,50 @@ end)
 local resumeTest=Action(hero,"Resume Local Test",function()
     local p=R.PreviewSnapshot();if p then Switch(p.role=="host" and "manage" or p.role=="spectator" and "brackets" or p.member and "my-tournament" or "browse") end
 end)
+local privatePanel,privateDetail,privateButtons,privateFeedback,privateConfirm
+local privateBack
+local function LayoutPrivate(model,w,y)
+    if not privatePanel then
+        privatePanel=Panel(overview,"Private Tournament Test")
+        privateDetail=Label(privatePanel,"",14,C.text)
+        privateButtons={}
+        for i=1,12 do
+            local button=Action(privatePanel,"",function()end)
+            button:Hide();privateButtons[i]=button
+        end
+    end
+    local cols=w>=520 and 2 or 1
+    local detailH=model.active and 144 or 86
+    local rows=math.ceil(#model.actions/cols)
+    local height=48+detailH+rows*38+14
+    Place(privatePanel,overview,0,y,w,height);Header(privatePanel,w);privatePanel:Show()
+    TextAt(privateDetail,privatePanel,12,42,w-24,detailH)
+    privateDetail:SetText(model.detail..(privateFeedback and "\n"..privateFeedback or ""))
+    if privateConfirm and privateConfirm.context~=model.context then privateConfirm=nil end
+    local bw=(w-24-(cols-1)*8)/cols
+    for i,button in ipairs(privateButtons) do
+        local action=model.actions[i]
+        button:SetShown(action~=nil)
+        if action then
+            local command,label=action.command,action.label
+            local confirmed=privateConfirm and privateConfirm.command==command and privateConfirm.context==model.context
+            button.label:SetText(confirmed and "Confirm: "..label or label)
+            Place(button,privatePanel,12+(i-1)%cols*(bw+8),46+detailH+math.floor((i-1)/cols)*38,bw,30)
+            button:SetScript("OnClick",function()
+                if command=="view-bracket" then privateConfirm=nil;Switch("brackets");return end
+                if action.confirm and not (privateConfirm and privateConfirm.command==command and privateConfirm.context==model.context) then
+                    privateConfirm={command=command,context=model.context}
+                    U.Show("overview");return
+                end
+                privateConfirm=nil
+                local ok,why=ns.TournamentSession.Command(command)
+                privateFeedback=why or (ok and "Request submitted." or "Request unavailable.")
+                U.Show("overview")
+            end)
+        end
+    end
+    return height
+end
 local function Describe(ad)
     local d=ad.draft
     local times=T.GetSchedulePreview(d.startUTC,d.closeBefore)
@@ -491,6 +535,10 @@ local function Layout()
     local height
     local p=RefreshTest()
     local listings=R.TestListings()
+    local private=ns.TournamentSession and ns.TournamentSession.GetControlModel()
+    local privateProjection=private and private.active and ns.TournamentSession.GetProjection()
+    if privatePanel then privatePanel:Hide() end
+    if privateBack then privateBack:Hide() end
     if p or listings then communityNote:SetText("Local test only. Community settings are automatically detected.") end
     local showCommunity=active=="host" or active=="manage" or active=="browse" or active=="my-tournament" or active=="brackets"
     community:SetShown(showCommunity)
@@ -501,7 +549,12 @@ local function Layout()
         page:SetPoint("TOPLEFT",canvas,"TOPLEFT",0,-top)
         page:SetPoint("BOTTOMRIGHT",canvas,"BOTTOMRIGHT",0,0)
     end
-    if active=="overview" then
+    if active=="overview" and private and private.active then
+        hero:Hide();open:Hide();champions:Hide()
+        subtitle:SetText("PRIVATE NETWORK TEST - No rating changes")
+        height=LayoutPrivate(private,w,0)
+    elseif active=="overview" then
+        hero:Show();champions:Show();open:SetShown(T.IsPageAvailable("browse"))
         local heroH=(wide and 184 or 220)+(listings and 38 or 0)
         Place(hero,overview,0,0,w,heroH);Header(hero,w)
         local artW=math.min(190,w*.28)
@@ -527,6 +580,18 @@ local function Layout()
         TextAt(champions.detail,champions,12,42,w-24,42)
         Place(champions.action,champions,math.max(12,w-172),88,160,28)
         height=heroH+288
+        if private then height=height+12+LayoutPrivate(private,w,height+12) end
+    elseif active=="brackets" and privateProjection then
+        local h=math.max(320,scroll:GetHeight()-top)
+        Place(bracketPanel,brackets,0,0,w,h);Header(bracketPanel,w)
+        if not bracketView then bracketView=ns.BracketView.New(bracketPanel) end
+        bracketPanel.detail:SetShown(not bracketView.Show(privateProjection,w,h-40))
+        bracketPanel.detail:SetText("Organizer bracket snapshot unavailable.")
+        TextAt(bracketPanel.detail,bracketPanel,20,54,w-40,h-90)
+        if not privateBack then privateBack=Action(bracketPanel,"Tournament controls",function()Switch("overview")end) end
+        Place(privateBack,bracketPanel,12,h-34,w-24,28);privateBack:Show()
+        subtitle:SetText("PRIVATE NETWORK TEST - Organizer snapshot")
+        height=h
     elseif active=="browse" then
         local h=math.max((p or listings) and 490 or 250,scroll:GetHeight()-top)
         if wide then
@@ -636,6 +701,7 @@ function U.Show(key)
     if active=="host" and key~="host" then W.CloseChoices() end
     if not key then
         if bracketView then bracketView.Hide() end
+        privateConfirm=nil
         active=nil;root:Hide();return
     end
     if not T.IsPageAvailable(key) then key="overview" end

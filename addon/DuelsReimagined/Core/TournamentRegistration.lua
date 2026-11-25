@@ -490,7 +490,7 @@ local function WireClient(scope,cache,clock,resolve,store)
     end
     local function SaveSeat(seat,action)
         Expire()
-        if not journal or not store or pending or not Fresh() then return false end
+        if not journal or not store or (pending and not (action=="seat_report" and pending.op=="S")) or not Fresh() then return false end
         local next=Copy(journal);next.revision=next.revision+1;next.privateSeat=seat
         local saved=store.CommitTournamentJournal(journal.revision,next,action)
         if not saved then return false end
@@ -1213,6 +1213,10 @@ local function DurableHost(s,h,clock,resolve,store)
     end
     function D.PrivateOffer()
         local a=PrivateCurrent();return Copy(a)
+    end
+    function D.ResetPrivateObservation()
+        local a=journal.privateAssignment
+        if a then observed[a.match]=nil end
     end
     local function ForActor(actor,a,b)
         local side=actor.guid==a.player1 and 1 or actor.guid==a.player2 and 2
@@ -3016,6 +3020,120 @@ function R.RunShowcaseSelfTest(emit)
     end
     return p,f
 end
+function R.RunPrivateNetworkSelfTest(emit)
+    emit=type(emit)=="function" and emit or function()end
+    local pass,fail=0,0
+    for _,client in ipairs({"forever","retail"}) do
+        local ok,err=pcall(function()
+            local s={client=client,region="EU",ruleset=client=="forever" and "pvp" or "retail",faction="Alliance"}
+            local now=1795622400
+            local function clock()return now end
+            local function tick()now=now+1 end
+            local actors={}
+            for _,name in ipairs({"host","one","two"}) do local a=Copy(s);a.guid="Player-1-"..name:upper();a.name=name;a.level=30;actors[name]=a end
+            local function resolve(sender)return actors[sender]end
+            local roots={}
+            local function Open(name,role)
+                local r=roots[name] or {};roots[name]=r
+                local d=ns.CompetitiveStorage.NewPrivateTournamentFixture(function()return r.account,r.character end,
+                    function(a,c)r.account=a;r.character=c end,function()return client end,function()return actors[name].guid end)
+                d.MarkLoaded()
+                return R.OpenRegistrationSession(s,actors[name],clock,resolve,{
+                    ReadTournamentJournal=d.ReadTournamentTestJournal,CommitTournamentJournal=d.CommitTournamentTestJournal},role)
+            end
+            local host=assert(Open("host","host"))
+            local d=T.DraftDefaults();d.name="Private Cup";d.location="Meeting place";d.startUTC="2026-11-25 18:00";d.capacity=4;d.bestOf=1
+            local ad=assert(host.Publish(assert(T.ValidateDraft(client,d,now,s.region,s.ruleset,s.faction))))
+            local clients={}
+            local function Exchange(name,w,body)
+                tick()
+                local replies=assert(host.Receive(name,assert(body)))
+                for _,packet in ipairs(replies) do assert(w.Receive("host",packet)) end
+            end
+            for _,name in ipairs({"one","two"}) do
+                local w=assert(Open(name,"player"));clients[name]=w
+                Exchange(name,w,w.Query(actors.host.guid))
+                Exchange(name,w,w.Join(actors.host.guid,ad.id))
+            end
+            now=ad.draft.startAt-1800
+            for _,name in ipairs({"one","two"}) do Exchange(name,clients[name],clients[name].Action("C")) end
+            now=ad.draft.startAt
+            assert(host.StartBracket(actors.host.guid))
+            local match
+            for _,round in ipairs(host.BracketSnapshot().rounds) do for _,m in ipairs(round) do if m.state=="ready" then match=m end end end
+            assert(match)
+            local assignment=assert(host.PrivateAssign(match.id))
+            assert(not host.PrivateAssign(match.id))
+            local function MatchRequest(name,op,term,serial,outcome)
+                local w=clients[name]
+                local nonce=assert(w.ReserveProgress())
+                local request=assert(R.PrivateMatchRequest(s,op,nonce,ad.id,match.id,term,serial,outcome))
+                tick()
+                local reply=assert(R.ReceivePrivateMatchRequest(s,host,name,request))
+                return assert(R.DecodePrivateMatchReply(s,nonce,reply[1]))
+            end
+            for _,name in ipairs({"one","two"}) do
+                local w=clients[name];local o=MatchRequest(name,"I")
+                assert(o.serial==assignment.serial and not o.reported)
+                assert(w.ArmPrivateSeat({event=ad.id,owner=ad.owner,peer=o.peer,match=o.match,game=o.game,
+                    attempt=o.attempt,term=o.term,serial=o.serial,phase="armed"}))
+                assert(MatchRequest(name,"K",o.term,o.serial).ready)
+                if name=="one" then
+                    tick();assert(not host.PrivateReport(name,ad.id,o.match,o.term,o.serial,"won"))
+                end
+            end
+            assert(host.PrivateOffer().ready1 and host.PrivateOffer().ready2)
+            assert(not host.PrivateReport("host",ad.id,match.id,assignment.term,assignment.serial,"won"))
+            local winner=actors.one.guid
+            for _,name in ipairs({"one","two"}) do
+                local w=clients[name];assert(w.RecordPrivateSeat(winner))
+                clients[name]=assert(Open(name,"player"))
+                assert(clients[name].PrivateSeat().winner==winner)
+                local receipt=MatchRequest(name,"U",assignment.term,assignment.serial,name=="one" and "won" or "lost")
+                assert(receipt.status==(name=="one" and "pending" or "confirmed"))
+                assert(clients[name].ClearPrivateSeat())
+            end
+            assert(host.BracketSnapshot().champion==winner and not host.PrivateOffer())
+            tick();assert(host.PrivateReport("one",ad.id,match.id,assignment.term,assignment.serial,"won"))
+            assert(not host.PrivateFinalize())
+            for _,name in ipairs({"one","two"}) do
+                local w=clients[name]
+                local nonce=assert(w.ReserveProgress())
+                local f=assert(R.OpenPrivateProgressFetch(s,ad.owner,ad.id,actors[name].guid,nonce,clock,resolve))
+                while not f.Snapshot() do
+                    tick();local parts=assert(host.Receive(name,assert(f.Request())))
+                    for _,packet in ipairs(parts) do assert(f.Receive("host",packet)) end
+                end
+                local v=assert(f.Snapshot());assert(v.bracket.champion==winner)
+                local seq=assert(w.ReserveProgress())
+                local e=assert(R.OpenPrivateProgressEcho(s,actors[name],v,seq))
+                local receipt
+                while true do
+                    local packet,last=e.Next();assert(packet);tick()
+                    receipt=host.PrivateReceiveEcho(name,packet)
+                    if last then break end
+                    assert(not receipt)
+                end
+                assert(receipt and R.PrivateEchoReceipt(s,seq,v.control.term,v.bracket.revision,receipt[1]))
+                if name=="one" then assert(not host.PrivateFinalize()) end
+            end
+            assert(host.PrivateFinalize())
+            local reopened=assert(Open("host","host"));local history=reopened.PrivateHistory()
+            assert(#history==1 and history[1].champion=="one" and history[1].scope=="PRIVATE_TEST")
+            -- The shared validator accepts only the marked, complete LOCAL result.
+            local ctx={scope="PRIVATE_TEST",client=client,me=winner,peer=actors.two.guid,cycle=1,
+                agreement={scope="PRIVATE_TEST",state="candidate",candidate=true,rankEligible=false,session=ns.TournamentRecovery.PrivateSession(assignment)}}
+            local r={scope="LOCAL",client=client,id=1,opponent={guid=actors.two.guid},rankEligible=false,kind="standard",
+                duelMode="tournament",tournamentSession=ctx.agreement.session,reason="matching_result_and_finish",outcomeObserved=true,
+                finishObserved=true,resultObserved=true,conflict=false,endType="knockout",outcome="won"}
+            assert(ns.ResultConfirmation.MakePrivateTournamentStatement(ctx,r))
+            r.tournamentSession="wrong:seat";assert(not ns.ResultConfirmation.MakePrivateTournamentStatement(ctx,r))
+        end)
+        if ok then pass=pass+1 else fail=fail+1 end
+        emit("DR | ISOLATED PRIVATE TEST | "..(ok and "PASS " or "FAIL ")..client.." registration to finalized archive"..(ok and "" or ": "..tostring(err)))
+    end
+    return pass,fail
+end
 function R.RunSelfTest(emit)
     emit=type(emit)=="function" and emit or function()end
     local p,f=0,0
@@ -3105,6 +3223,10 @@ function R.RunSelfTest(emit)
     return p,f
 end
 if ns.Diagnostics then
+ns.Diagnostics.Register("Tournament private network / isolated lifecycle QA","deep",function()
+    local log={};local p,f=R.RunPrivateNetworkSelfTest(function(line)log[#log+1]=line end)
+    return f==0 and p==2 and "PASS" or "FAIL",string.format("%d passed / %d failed (ISOLATED)\n",p,f)..table.concat(log,"\n")
+end)
 ns.Diagnostics.Register("Tournament showcase / isolated entry QA","deep",function()
     local log={};local p,f=R.RunShowcaseSelfTest(function(line)log[#log+1]=line end)
     return f==0 and p==2 and "PASS" or "FAIL",string.format("%d passed / %d failed (SIMULATED)\n",p,f)..table.concat(log,"\n")

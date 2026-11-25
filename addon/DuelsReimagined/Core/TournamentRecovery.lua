@@ -277,7 +277,7 @@ function R.Transition(old,new,action,private)
         local a,b={},{}
         for k,v in pairs(old) do if k~="revision" and k~="privateAssignment" and k~="privateSeat" then a[k]=v end end
         for k,v in pairs(new) do if k~="revision" and k~="privateAssignment" and k~="privateSeat" then b[k]=v end end
-        if not Equal(a,b) or old.pending or new.pending then return false end
+        if not Equal(a,b) or ((old.pending or new.pending) and not (action=="seat_report" and old.pending and new.pending and old.pending.op=="S")) then return false end
         if action=="private_assign" then
             return not oa and na and not os and not newSeat and na.serial==new.revision and not na.ready1 and not na.ready2
         elseif action=="private_ready" then

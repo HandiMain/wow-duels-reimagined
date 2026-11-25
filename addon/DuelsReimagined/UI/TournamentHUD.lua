@@ -159,6 +159,7 @@ local function Layout()
     root:SetScale(scale);root:ClearAllPoints()
     root:SetPoint("CENTER",UIParent,"BOTTOMLEFT",w*x/scale,h*y/scale)
 end
+local observedUnits={}
 local function ObservedUnit(guid)
     if type(guid)~="string" then return nil end
     local g=ns.Group
@@ -188,6 +189,7 @@ local function Paint(m)
     local classes={"WARRIOR","MAGE","ROGUE","PRIEST","DRUID","SHAMAN","WARLOCK","HUNTER","PALADIN"}
     local units={}
     if m.scope=="PRIVATE_TEST" then units[1]=ObservedUnit(m.leftGuid);units[2]=ObservedUnit(m.rightGuid) end
+    observedUnits=units
     local function Icon(side,name,unit)
         local seed=0;for i=1,#name do seed=seed+name:byte(i) end
         local path=m.scope=="PRIVATE_TEST" and (unit and unit.class and "Interface\\Icons\\ClassIcon_"..unit.class or "Interface\\Icons\\INV_Misc_QuestionMark") or "Interface\\Icons\\ClassIcon_"..classes[seed%#classes+1]
@@ -263,13 +265,16 @@ function B.RequestGame()
     return ns.DuelCountdown.PreviewTournament(Finish)
 end
 local shownModel
-function B.RefreshObservedHealth()
+function B.RefreshObservedHealth(unit)
     local m=shownModel
     if not root or not root:IsShown() or not m or m.scope~="PRIVATE_TEST" or editing then return end
     local guids={m.leftGuid,m.rightGuid}
     for i,side in ipairs({fields.left,fields.right}) do
-        local u=ObservedUnit(guids[i])
-        ns.DuelHUD.PaintObservedHealth(side.hp,side.health,u and u.unit)
+        local previous=observedUnits[i]
+        if not unit or previous and previous.unit==unit then
+            local u=ObservedUnit(guids[i]);observedUnits[i]=u
+            ns.DuelHUD.PaintObservedHealth(side.hp,side.health,u and u.unit)
+        end
     end
 end
 function B.Frame() return root end
@@ -281,7 +286,7 @@ function B.Show(m)
     return root
 end
 function B.Hide()
-    shownModel=nil
+    shownModel=nil;observedUnits={}
     if root and not editing then root:Hide() end
     StopFixtureTimer()
     if ns.TournamentRegistration then ns.TournamentRegistration.CancelBroadcastFixture() end
@@ -305,7 +310,7 @@ function B.ShowLayoutSample()
     Build();Layout()
     Paint({title="Iron Ring Cup",round="Semifinal",bestOf=3,game=2,left="Test player",right="Ashwarden",score=1,opponentScore=0,status="Match ready"})
     -- Explicit editor-only sample values, never copied to the actual HUD.
-    for _,side in ipairs({fields.left,fields.right}) do side.hp:SetValue(100);side.hp:Show();side.health:SetText("100%") end
+    for _,side in ipairs({fields.left,fields.right}) do side.hp:SetMinMaxValues(0,100);side.hp:SetValue(100);side.hp:Show();side.health:SetText("100%") end
     root:Show();return true
 end
 function B.EndLayoutDraft()

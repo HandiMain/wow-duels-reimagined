@@ -13,8 +13,12 @@ local function StopEcho()
     echo=nil
 end
 local function StopGrace()
+    local observing=graceTimer or active and active.grace
     if graceTimer then graceTimer:Cancel();graceTimer=nil end
-    if active then active.grace=nil end
+    if active then
+        active.grace=nil
+        if observing and active.role=="host" then active.engine.ResetPrivateObservation() end
+    end
 end
 local function CloseSeatLink()
     if seatTimer then seatTimer:Cancel();seatTimer=nil end
@@ -103,18 +107,19 @@ local function Stop()
     Changed()
 end
 local function Pump()
-    if not active or not L.CanCommunicate() or not Comm.IsAvailable() then ClearQueue();return end
+    if not active or not L.CanCommunicate() or not Comm.IsAvailable() then ClearQueue();return false,"Communication unavailable." end
     local row=queue[1]
-    if not row then return end
+    if not row then return true end
     local a=Resolve(active.scope,active.actor.guid,nil,row.guid)
-    if not a then ClearQueue();return end
+    if not a then ClearQueue();return false,"Recipient unavailable." end
     local ok,why=Comm.Send("T1",row.body,"WHISPER",a.name)
     active.sendStatus=ok and "Request sent; delivery not confirmed." or "Send refused; retry explicitly ("..tostring(why)..")."
-    if not ok then ClearQueue();return end
+    if not ok then ClearQueue();return false,why end
     table.remove(queue,1)
     if #queue>0 then
         timer=C_Timer.NewTimer(.25,function()timer=nil;Pump()end)
     end
+    return true
 end
 local function Send(guid,bodies)
     if not L.CanCommunicate() or not Comm.IsAvailable() then return false,"Communication unavailable." end
@@ -125,7 +130,10 @@ local function Send(guid,bodies)
         if type(body)~="string" or #body<1 or #body>237 then return false,"Invalid message." end
     end
     for _,body in ipairs(bodies) do queue[#queue+1]={guid=guid,body=body} end
-    if not timer then Pump() end
+    if not timer then
+        local ok,why=Pump()
+        if not ok then return false,"Send refused or unavailable ("..tostring(why).."). Retry explicitly." end
+    end
     return true,"Request submitted to the transport; check status for confirmation."
 end
 local function EchoNext()
@@ -169,7 +177,7 @@ local function TickGrace()
         active.grace={match=a.match,remaining=observed.remaining,player=observed.player,sequence=old and old.sequence or Clock()}
     else active.grace=nil end
     graceTicking=nil
-    Changed()
+    if old or active.grace or observed and observed.notice then Changed() else RefreshGrace() end
     if observed and observed.notice and ns.Notifications and ns.Notifications.OnPrivateTournamentGrace then
         observed.scope="PRIVATE_TEST";observed.sequence=active.grace and active.grace.sequence or old and old.sequence or Clock()
         ns.Notifications.OnPrivateTournamentGrace(observed)
@@ -285,7 +293,8 @@ local function ReceiveMatch(body,a)
 end
 local function ReadySeat()
     local o=active.offer;local n=Clock()
-    if not o or not n or n-o.seen>30 or o.reported then return false,"Request your current assignment first." end
+    if not o or not n or n-o.seen>30 or o.reported or fetch or echo
+        or active.matchRequest and n<active.matchRequest.deadline then return false,"Request your current assignment first and finish pending requests." end
     local seat=active.engine.PrivateSeat()
     if seat then
         if not SameSeat(seat,o) or seat.phase~="armed" or not seatLink or not seatLink.IsActive() then return false,"Previous assignment requires organizer review." end
@@ -338,7 +347,11 @@ local function Receive(body,channel,sender)
             replies=R.ReceivePrivateMatchRequest(active.scope,active.engine,sender,body)
         elseif tag=="Z|" then replies=active.engine.PrivateReceiveEcho(sender,body)
         else replies=active.engine.Receive(sender,body) end
-        if replies then Send(a.guid,replies);Changed() end
+        if replies then
+            Send(a.guid,replies)
+            -- Snapshot/echo/offer queries must not rebuild all UI for every page.
+            if tag=="M|" or tag=="K|" or tag=="U|" or tag=="W|" or tag=="E|" or tag=="Z|" then Changed() end
+        end
     else
         if body:sub(1,2)=="J|" or body:sub(1,2)=="N|" then ReceiveMatch(body,a);return end
         if body:sub(1,2)=="H|" and echo then
@@ -409,7 +422,9 @@ local function Open(role)
         frame=CreateFrame("Frame")
         frame:SetScript("OnEvent",function(_,event)
             if not active then return end
-            if event=="PLAYER_REGEN_DISABLED" then StopFetch();StopEcho();ClearQueue();StopGrace()
+            if event=="PLAYER_REGEN_DISABLED" then
+                StopFetch();StopEcho();ClearQueue();StopGrace()
+                active.matchRequest=nil
             elseif event=="PLAYER_REGEN_ENABLED" then
                 if active.role=="player" and active.engine.PrivateSeat() and active.engine.PrivateSeat().phase=="reported" then SendResult() end
                 Changed()
@@ -613,6 +628,89 @@ function L.GetProjection()
         p.assignmentStatus=seat.phase=="reported" and "Awaiting result confirmation" or active.both and "Both players ready" or "Waiting for organizer"
     end
     return p
+end
+function L.GetControlModel()
+    if not Store.TournamentTestEnabled() or R.PreviewState() or R.TestListings() then return nil end
+    local actions={}
+    local function Add(label,command,confirm)
+        if #actions<12 then actions[#actions+1]={label=label,command=command,confirm=confirm==true} end
+    end
+    if not active then
+        Add("Organizer session","host");Add("Participant session","player")
+        return {active=false,context="idle",detail="PRIVATE NETWORK TEST\nSave a tournament draft first if organizing. Group with the other testers. Rankings are disabled.",actions=actions}
+    end
+    local d=active.engine
+    local p=L.GetProjection()
+    local detail,context
+    if active.role=="host" then
+        local snap=d.Snapshot()
+        context=snap and snap.ad.id or "host"
+        if snap then
+            local checked=0;for _,m in ipairs(snap.roster) do if m.checkedIn then checked=checked+1 end end
+            detail=snap.ad.draft.name.."\n"..snap.ad.count.." registered / "..checked.." checked in"
+        else detail="No tournament published." end
+        if not snap or snap.ad.state~="open" then
+            Add("Publish saved draft","publish");Add("Tournament history","history")
+        elseif not p then
+            Add("Start tournament","start");Add("Cancel tournament","cancel",true)
+        elseif p.held then
+            detail=detail.."\nTournament paused. Matching participant acknowledgements required."
+            Add("Resume tournament","resume");Add("View bracket","view-bracket");Add("Cancel tournament","cancel",true)
+        elseif p.bracket.state=="completed" then
+            detail=detail.."\nFinal winner: "..(p.names[p.bracket.champion] or "Unknown")
+            Add("Finalize tournament","finalize");Add("View bracket","view-bracket")
+        else
+            local a=d.PrivateOffer()
+            if a then detail=detail.."\n"..(p.names[a.player1] or "Player").." vs "..(p.names[a.player2] or "Player").."\n"..(p.assignmentStatus or "Waiting for readiness")
+            else Add("Assign featured match","assign") end
+            Add("Next featured match","feature");Add("View bracket","view-bracket");Add("Pause tournament","hold",true)
+            Add(p.broadcast and "Exit broadcast view" or "Broadcast view","broadcast")
+        end
+    else
+        local lock=d.Status()
+        context=lock and lock.id or "player"
+        if not lock then
+            detail="Target the organizer in your group, then check their tournament."
+            Add("Check target organizer","query")
+            active.browseRows={}
+            for i,ad in ipairs(active.cache.Browse()) do
+                if i>4 then break end
+                active.browseRows[i]={id=ad.id,owner=ad.owner}
+                Add("Join "..ad.draft.name,"join "..i)
+            end
+        else
+            detail="Registration: "..lock.status
+            if d.PendingOwner() then Add("Retry request","retry")
+            elseif lock.status=="registered" then Add("Check in","checkin");Add("Leave registration","leave",true)
+            elseif lock.status=="checked" and not p then Add("Refresh bracket","sync");Add("Refresh registration","refresh") end
+            if p then
+                detail=detail.."\n"..p.event.draft.name.." - "..p.bracket.state
+                Add("View bracket","view-bracket")
+                if fetch then Add("Stop bracket refresh","stop-sync")
+                elseif echo then Add("Stop acknowledgement","stop-ack")
+                else
+                    Add("Refresh bracket","sync")
+                    if p.held or p.bracket.state=="completed" then Add("Acknowledge organizer log","ack")
+                    elseif p.bracket.state=="disputed" and p.bracket.dispute and not p.bracket.dispute.confirmed then
+                        Add("Agree to replay","consent-replay",true)
+                    else
+                        local seat=d.PrivateSeat()
+                        if seat and seat.phase=="reported" then Add("Send observed result","report")
+                        elseif p.match then
+                            Add(seat and "Check both players ready" or "Request match assignment","offer")
+                            if active.offer and not active.offer.reported then Add("Confirm readiness","ready") end
+                            Add("Withdraw from match","withdraw-match",true)
+                        end
+                    end
+                    Add(p.broadcast and "Exit broadcast view" or "Broadcast view","broadcast")
+                end
+            end
+            if not d.PendingOwner() then Add("Refresh registration","refresh") end
+        end
+    end
+    Add("Close network session","stop",true)
+    return {active=true,context=context,detail=detail.."\n\n"..(active.receipt or active.sendStatus or "Waiting for organizer information."),
+        actions=actions,role=active.role}
 end
 function L.GetDiagnosticResources()
     return {subscriptions=(unsubscribe and 1 or 0)+(unroster and 1 or 0),

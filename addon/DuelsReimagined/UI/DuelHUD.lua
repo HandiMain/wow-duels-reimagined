@@ -870,9 +870,10 @@ function H.Refresh()
             if model.scope=="PRIVATE_TEST" then
                 for _,e in ipairs({"UNIT_HEALTH","UNIT_MAXHEALTH","UNIT_CONNECTION","GROUP_ROSTER_UPDATE"}) do pcall(f.RegisterEvent,f,e) end
             end
-            f:SetScript("OnEvent",function(_,e)
+            f:SetScript("OnEvent",function(_,e,unit)
                 if e=="UI_SCALE_CHANGED" or e=="DISPLAY_SIZE_CHANGED" then B.Relayout();if ns.Notifications then ns.Notifications.Reanchor() end
-                elseif e=="UNIT_HEALTH" or e=="UNIT_MAXHEALTH" or e=="UNIT_CONNECTION" or e=="GROUP_ROSTER_UPDATE" then B.RefreshObservedHealth()
+                elseif e=="UNIT_HEALTH" or e=="UNIT_MAXHEALTH" then B.RefreshObservedHealth(type(unit)=="string" and unit or nil)
+                elseif e=="UNIT_CONNECTION" or e=="GROUP_ROSTER_UPDATE" then B.RefreshObservedHealth()
                 else H.Refresh() end
             end)
         end
