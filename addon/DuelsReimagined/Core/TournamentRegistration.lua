@@ -120,9 +120,21 @@ local function Host(s,h,clock,saved)
 end
 -- Only complete, sender-bound, exact-community advertisements enter the cache.
 -- Caller identities are fixture inputs, not proof of actual network origin.
+local function ValidateAdvertisement(s,sender,ad,n)
+        if not n or type(ad)~="table" or not P.Matches(s,ad) or ad.scope~="SIMULATED" or ad.version~=1
+            or not Guid(sender) or ad.owner~=sender or not Name(ad.organizer) or not Whole(ad.publishedAt,1,n)
+            or not Whole(ad.serial,1,2147483647) or not Whole(ad.revision,1,2147483647)
+            or ad.id~=ID(sender,ad.publishedAt,ad.serial) or (ad.state~="open" and ad.state~="cancelled") then return false end
+        local clean=Draft(s,ad.draft,ad.publishedAt)
+        if not clean or not Whole(ad.count,0,clean.capacity) then return false end
+        local expected={scope="SIMULATED",version=1,id=ad.id,owner=sender,organizer=ad.organizer,client=s.client,region=s.region,
+            ruleset=s.ruleset,faction=s.faction,state=ad.state,publishedAt=ad.publishedAt,serial=ad.serial,revision=ad.revision,draft=clean,count=ad.count}
+        if Equal(ad,expected) then return expected end
+end
+
 local function Cache(s,clock)
     if not P.Key(s) then return nil end
-    s=Copy(s);local D,rows={},{}
+    s=Copy(s);local D,rows,hints={},{},{}
     local function Prune(n)
         for id,r in pairs(rows) do
             if not BlocksCreation(r.ad) and n>=r.ad.draft.startAt then rows[id]=nil end
@@ -130,18 +142,11 @@ local function Cache(s,clock)
     end
     function D.Accept(sender,ad)
         local n=Now(clock)
-        if not n or type(ad)~="table" or not P.Matches(s,ad) or ad.scope~="SIMULATED" or ad.version~=1
-            or not Guid(sender) or ad.owner~=sender or not Name(ad.organizer) or not Whole(ad.publishedAt,1,n)
-            or not Whole(ad.serial,1,2147483647) or not Whole(ad.revision,1,2147483647)
-            or ad.id~=ID(sender,ad.publishedAt,ad.serial) or (ad.state~="open" and ad.state~="cancelled") then return false end
-        local clean=Draft(s,ad.draft,ad.publishedAt)
-        if not clean or not Whole(ad.count,0,clean.capacity) then return false end
-        -- Never resurrect an expired advertisement. A known event may still
-        -- receive its owner-authorized cancellation after the scheduled start.
+        local expected=ValidateAdvertisement(s,sender,ad,n)
+        if not expected then return false end
+        local clean=expected.draft
+        -- A known event may receive its creator's cancellation after start.
         if n>=clean.startAt and not (ad.state=="cancelled" and rows[ad.id] and BlocksCreation(rows[ad.id].ad)) then return false end
-        local expected={scope="SIMULATED",version=1,id=ad.id,owner=sender,organizer=ad.organizer,client=s.client,region=s.region,
-            ruleset=s.ruleset,faction=s.faction,state=ad.state,publishedAt=ad.publishedAt,serial=ad.serial,revision=ad.revision,draft=clean,count=ad.count}
-        if not Equal(ad,expected) then return false end
         Prune(n)
         local old=rows[ad.id]
         if old then
@@ -156,7 +161,52 @@ local function Cache(s,clock)
             end
             if count>=64 then return false end
         end
-        rows[ad.id]={ad=expected,seen=n};return true
+        rows[ad.id]={ad=expected,seen=n};hints[ad.id]=nil
+        return true
+    end
+    -- Owner-observed data may be shared for discovery even after its fresh
+    -- browse window. It is NOT a current owner confirmation for the receiver.
+    function D.Known(id)
+        local n=Now(clock);local row=rows[id]
+        if n and row and row.ad.state=="open" and n<row.ad.draft.registrationClosesAt then return Copy(row.ad) end
+    end
+    function D.AcceptHint(actor,ad)
+        local n=Now(clock)
+        if not Actor(s,actor) or type(ad)~="table" or actor.guid==ad.owner then return false end
+        local clean=ValidateAdvertisement(s,ad.owner,ad,n)
+        if not clean or clean.state~="open" or n>=clean.draft.registrationClosesAt then return false end
+        local known=rows[clean.id]
+        if known and (known.ad.state~="open" or clean.revision<known.ad.revision
+            or not Equal(known.ad.draft,clean.draft) or known.ad.organizer~=clean.organizer
+            or (clean.revision==known.ad.revision and not Equal(known.ad,clean))) then return false end
+        for id,row in pairs(rows) do
+            if id~=clean.id and row.ad.owner==clean.owner and BlocksCreation(row.ad) then return false end
+        end
+        local previous=hints[clean.id]
+        -- A relay cannot override a conflicting hint or replace owner rules.
+        if previous and (clean.revision<previous.revision or not Equal(previous.draft,clean.draft)
+            or previous.organizer~=clean.organizer or (clean.revision==previous.revision and not Equal(previous,clean))) then return false end
+        local count=0
+        for id,hint in pairs(hints) do
+            if n>=hint.draft.registrationClosesAt then hints[id]=nil
+            else
+                if id~=clean.id and hint.owner==clean.owner then return false end
+                count=count+1
+            end
+        end
+        if not previous and count>=64 then return false end
+        hints[clean.id]=clean;return true
+    end
+    function D.Hints()
+        local n=Now(clock);local out={}
+        if not n then return out end
+        for id,hint in pairs(hints) do
+            local known=rows[id]
+            if n>=hint.draft.registrationClosesAt or (known and known.ad.state=="cancelled") then hints[id]=nil
+            else out[#out+1]={status="unconfirmed",ad=Copy(hint)} end
+        end
+        table.sort(out,function(a,b)return a.ad.id<b.ad.id end)
+        return out
     end
     function D.Browse()
         local n=Now(clock);local o={};if not n then return o end
@@ -295,6 +345,48 @@ local function WireHost(scope,host,engine,resolve,saved)
 end
 -- One outstanding request and one commitment across all known organizers.
 -- A lost mutation acknowledgement is not a rejection or permission to rejoin.
+-- A relay can carry a pending request hint, never register on behalf of
+-- the origin. The creator must observe the original sender's direct retry.
+-- This is a volatile simulated mailbox, not a new persistence owner.
+local function Relay(scope,cache,clock,resolve)
+    local D,rows={},{}
+    local key=P.Key(scope)
+    if not key then return nil end
+    local function Prune(now)
+        for guid,row in pairs(rows) do if now>=row.deadline then rows[guid]=nil end end
+    end
+    function D.Queue(sender,body)
+        local now=Now(clock)
+        if not now or not Packet(body) then return false end
+        local actor=resolve(sender)
+        if not Actor(scope,actor) then return false end
+        local a=Split(body)
+        if #a~=5 or a[1]~="M" or a[2]~=key or not Number(a[3],1,2147483647) or a[4]~="J" then return false end
+        local ad=cache.Known(a[5])
+        if not ad or ad.owner==actor.guid or not Whole(actor.level,1,255) or now>=ad.draft.registrationClosesAt
+            or (ad.draft.minLevel>0 and actor.level<ad.draft.minLevel)
+            or (ad.draft.maxLevel>0 and actor.level>ad.draft.maxLevel) then return false end
+        Prune(now)
+        local previous=rows[actor.guid]
+        if previous then return previous.body==body end
+        local count=0;for _ in pairs(rows) do count=count+1 end
+        if count>=64 then return false end
+        rows[actor.guid]={origin=actor.guid,owner=ad.owner,event=ad.id,body=body,
+            deadline=ad.draft.registrationClosesAt,status="pending-direct-confirmation"}
+        return true
+    end
+    function D.Pending(sender)
+        local now=Now(clock)
+        local actor=resolve(sender)
+        if not now or not Actor(scope,actor) then return {} end
+        Prune(now)
+        local out={}
+        for _,row in pairs(rows) do if row.owner==actor.guid then out[#out+1]=Copy(row) end end
+        table.sort(out,function(a,b)return a.origin<b.origin end)
+        return out
+    end
+    return D
+end
 local function WireClient(scope,cache,clock,resolve,store)
     local key=P.Key(scope)
     local D,pending,commitment,seq={},nil,nil,0
@@ -352,6 +444,12 @@ local function WireClient(scope,cache,clock,resolve,store)
         if not found then return nil end
         local body=Begin(owner,"J",id)
         return body
+    end
+    function D.JoinPending(owner,id)
+        if commitment then return nil end
+        for _,hint in ipairs(cache.Hints()) do
+            if hint.ad.owner==owner and hint.ad.id==id then return Begin(owner,"J",id) end
+        end
     end
     function D.Action(op)
         if not commitment or commitment.status=="pending" or (op~="L" and op~="C" and op~="S") then return nil end
@@ -803,6 +901,33 @@ local function RosterReceiver(s,owner,id,rev,nonce,clock,resolve,replica)
 end
 -- Coordinator handoff readiness is only a checkpoint agreement check.
 -- It never elects anyone, grants owner rights or advances the tournament.
+-- Detached progress replica. Only the injected current-control observation
+-- can authorize an update. This does not authenticate a remote election.
+local function ProgressReplica(s,owner,id,readControl,resolve)
+    local D,current,term={},nil,0
+    function D.Accept(sender,claimedTerm,saved)
+        local c,verified=readControl()
+        local a=resolve(sender)
+        if not Actor(s,a) or type(c)~="table" or c.owner~=owner or c.event~=id or c.paused
+            or not Whole(claimedTerm,1,2147483647) or c.term~=claimedTerm or claimedTerm<term
+            or c.coordinator~=a.guid then return false end
+        local domain=ns.TournamentBracket
+        local b=domain and domain.OpenSimulated(s,owner,saved)
+        if not b then return false end
+        local clean=b.Save()
+        -- A coordinator's plausible replay is not independent result
+        -- evidence. The fixture verifier must match the exact canonical log.
+        if clean.checkpoint.ad.id~=id or not Equal(clean,verified) then return false end
+        if current then
+            if not Equal(clean.checkpoint,current.checkpoint) or clean.startedAt~=current.startedAt
+                or #clean.reports<#current.reports then return false end
+            for i,v in ipairs(current.reports) do if not Equal(v,clean.reports[i]) then return false end end
+        end
+        current=clean;term=claimedTerm;return true
+    end
+    function D.Snapshot() return Copy(current),term end
+    return D
+end
 local function CheckpointAgreement(s,owner,snap,observations)
     if type(snap)~="table" or type(snap.ad)~="table" or snap.ad.owner~=owner
         or snap.ad.state~="open" or type(observations)~="table" then return false end
@@ -1252,6 +1377,118 @@ function R.RunHostRecoverySelfTest(emit)
             assert(reopened.Cancel(owner,x.ad.id))
             assert(not reopened.ControlSnapshot() and not reopened.BracketSnapshot())
         end)
+        Case(client.." stale owner listing relayed as unconfirmed only; direct join confirms",function()
+            local x=Fixture()
+            local carrier=assert(Cache(x.s,x.clock));assert(carrier.Accept(x.h.guid,x.ad))
+            x.Advance(121)
+            assert(#carrier.Browse()==0)
+            local hint=assert(carrier.Known(x.ad.id))
+            assert(x.cache.AcceptHint(x.other,hint))
+            assert(#x.cache.Browse()==0 and #x.cache.Hints()==1 and x.cache.Hints()[1].status=="unconfirmed")
+            local w=assert(x.Player())
+            assert(not w.Join(x.h.guid,x.ad.id))
+            local request=assert(w.JoinPending(x.h.guid,x.ad.id))
+            assert(w.Status().status=="pending" and not w.JoinPending(x.h.guid,x.ad.id))
+            local relay=assert(Relay(x.s,carrier,x.clock,x.resolve))
+            assert(relay.Queue("player",request) and relay.Queue("player",request))
+            assert(#relay.Pending("other")==0 and #relay.Pending("host")==1)
+            local p=relay.Pending("host")[1];assert(p.origin==x.a.guid and p.body==request)
+            assert(not relay.Queue("player",table.concat({"M",P.Key(x.s),99,"J",x.ad.id},"|")))
+            assert(not relay.Queue("host",request))
+            assert(x.engine.Snapshot().ad.count==0)
+            local recovered=assert(x.Player())
+            assert(recovered.Retry()==request and recovered.Status().status=="pending")
+            local ack=assert(x.engine.Receive("player",recovered.Retry()))[1]
+            assert(not recovered.Receive("other",ack))
+            assert(recovered.Receive("host",ack) and recovered.Status().status=="registered")
+            assert(x.engine.Snapshot().ad.count==1)
+        end)
+        Case(client.." relay expiry and known owner cancellation cannot resurrect listing",function()
+            local x=Fixture();local carrier=assert(Cache(x.s,x.clock))
+            assert(carrier.Accept(x.h.guid,x.ad))
+            local foreign=Copy(x.other);foreign.faction="Horde"
+            assert(not x.cache.AcceptHint(foreign,x.ad))
+            assert(x.cache.AcceptHint(x.other,x.ad))
+            local w=assert(x.Player());local request=assert(w.JoinPending(x.h.guid,x.ad.id))
+            local relay=assert(Relay(x.s,carrier,x.clock,x.resolve))
+            assert(relay.Queue("player",request))
+            assert(x.engine.Cancel(x.h.guid,x.ad.id))
+            local terminal=x.engine.Snapshot().ad
+            assert(x.cache.Accept(x.h.guid,terminal))
+            assert(not x.cache.AcceptHint(x.other,x.ad) and #x.cache.Hints()==0)
+            x.Advance(x.ad.draft.registrationClosesAt-x.clock())
+            assert(#relay.Pending("host")==0 and not relay.Queue("player",request))
+            assert(w.Status().status=="pending" and w.Retry()==request)
+            local response=assert(x.engine.Receive("player",request))[1]
+            assert(w.Receive("host",response) and not w.Status())
+        end)
+        Case(client.." frozen majority recovers with absent participant but not a minority",function()
+            local x=Fixture();local e=assert(Host(x.s,x.h,x.clock));local ad=assert(e.Publish(x.h.guid,x.draft))
+            local players={}
+            for i=1,4 do
+                local a=Copy(x.a);a.guid="Player-1-Q"..i;a.name="Q"..i;players[i]=a
+                assert(e.Join(ad.id,a.guid,a))
+            end
+            x.Advance(ad.draft.startAt-1800-x.clock())
+            for _,a in ipairs(players) do assert(e.CheckIn(ad.id,a.guid)) end
+            x.Advance(1800)
+            local engine=assert(ns.TournamentBracket.NewSimulated(x.s,x.h.guid,e.Save(),x.clock(),x.h.guid))
+            local saved=engine.Save();local R=ns.TournamentRecovery
+            local initial=R.InitialControl(saved)
+            local states={[x.h.guid]="offline",[players[1].guid]="offline"}
+            local copies={}
+            for i=2,4 do states[players[i].guid]="online";copies[players[i].guid]=saved end
+            local pause=assert(R.ReconcileControl(saved,initial,states,copies))
+            assert(pause.paused and pause.term==2)
+            local insufficient=Copy(copies);insufficient[players[4].guid]=nil
+            assert(not R.ReconcileControl(saved,pause,states,insufficient))
+            local conflicting=Copy(copies);conflicting[players[1].guid]=Copy(saved);conflicting[players[1].guid].startedAt=saved.startedAt+1
+            assert(not R.ReconcileControl(saved,pause,states,conflicting))
+            local next=assert(R.ReconcileControl(saved,pause,states,copies))
+            assert(next.coordinator==players[2].guid and next.term==3 and not next.paused)
+            states[x.h.guid]="online"
+            local handback=assert(R.ReconcileControl(saved,next,states,copies))
+            assert(handback.paused and not R.ReconcileControl(saved,handback,states,copies))
+            copies[x.h.guid]=saved
+            local owner=assert(R.ReconcileControl(saved,handback,states,copies))
+            assert(owner.coordinator==x.h.guid and owner.term==5 and not owner.paused)
+        end)
+        Case(client.." progress replica rejects stale coordinator and rewritten confirmed progress",function()
+            local x,w,Req,m=StartCompetition()
+            local store=x.Store("hostRoot")
+            local function Control()
+                local j=store.ReadTournamentJournal()
+                return x.engine.ControlSnapshot(),j and j.bracket
+            end
+            local replica=ProgressReplica(x.s,x.h.guid,x.ad.id,Control,x.resolve)
+            local initial=store.ReadTournamentJournal().bracket
+            assert(not replica.Accept("player",1,initial))
+            assert(replica.Accept("host",1,initial))
+            local report={event=x.ad.id,match=m.id,game=1,winner=x.a.guid,evidence="progress-game"}
+            x.Advance();assert(x.engine.ReportBracket("player",report,1,x.h.guid))
+            local saved=store.ReadTournamentJournal().bracket
+            assert(replica.Accept("host",1,saved) and not replica.Accept("host",1,initial))
+            local bad=Copy(saved);bad.reports[1].winner=x.other.guid
+            assert(not replica.Accept("host",1,bad))
+            local states={[x.h.guid]="offline",[x.a.guid]="online",[x.other.guid]="online"}
+            local copies={[x.a.guid]=saved,[x.other.guid]=saved}
+            assert(x.engine.ReconcileControl(1,states,copies))
+            assert(not replica.Accept("host",1,saved))
+            assert(x.engine.ReconcileControl(2,states,copies))
+            local c=Control();local sender=c.coordinator==x.a.guid and "player" or "other"
+            assert(not replica.Accept("host",3,saved) and not replica.Accept(sender,1,saved))
+            local invented=Copy(saved)
+            local forged=Copy(report);forged.sender=x.other.guid
+            invented.reports[#invented.reports+1]=forged
+            assert(ns.TournamentBracket.OpenSimulated(x.s,x.h.guid,invented))
+            assert(not replica.Accept(sender,3,invented))
+            x.Advance();assert(x.engine.ReportBracket("other",report,3,c.coordinator))
+            local final=store.ReadTournamentJournal().bracket
+            assert(replica.Accept(sender,3,final))
+            local copy,term=replica.Snapshot();assert(term==3 and Equal(copy,final))
+            copy.reports[1].winner=x.other.guid
+            assert(Equal(replica.Snapshot(),final))
+        end)
         Case(client.." rate limit and corrupt checkpoint cannot emit mutation acknowledgement",function()
             local x=Fixture();local w=assert(x.Player());local q=assert(w.Query(x.h.guid))
             assert(x.engine.Receive("player",q) and x.engine.Receive("player",q) and not x.engine.Receive("player",q))
@@ -1408,7 +1645,7 @@ end
 if ns.Diagnostics then
 ns.Diagnostics.Register("Tournament host recovery / isolated checkpoint QA","deep",function()
     local log={};local p,f=R.RunHostRecoverySelfTest(function(line)log[#log+1]=line end)
-    return f==0 and p==34 and "PASS" or "FAIL",string.format("%d passed / %d failed (SIMULATED)\n",p,f)..table.concat(log,"\n")
+    return f==0 and p==42 and "PASS" or "FAIL",string.format("%d passed / %d failed (SIMULATED)\n",p,f)..table.concat(log,"\n")
 end)
 ns.Diagnostics.Register("Tournament recovery / isolated journal QA","deep",function()
     local log={};local p,f=R.RunRecoverySelfTest(function(line)log[#log+1]=line end)

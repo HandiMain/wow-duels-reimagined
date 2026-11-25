@@ -31,7 +31,7 @@ function R.InitialControl(bracket)
     if not bracket then return nil end
     return {term=1,coordinator=bracket.checkpoint.ad.owner,paused=false}
 end
--- Conservative unanimity of the frozen checked-in electorate. No claim of
+-- Fixed majority of the frozen checked-in electorate. No claim of
 -- distributed consensus: only one injected storage root is authoritative.
 function R.ReconcileControl(bracket,control,connections,copies)
     local c=Control(bracket,control)
@@ -44,25 +44,26 @@ function R.ReconcileControl(bracket,control,connections,copies)
     local preferred=ownerState=="online" and owner or nil
     if not preferred and ownerState=="offline" then
         for _,m in ipairs(bracket.checkpoint.roster) do
-            if m.checkedIn and connections[m.guid]=="online" then preferred=m.guid;break end
+            if m.checkedIn and connections[m.guid]=="online" and (not c.paused or Equal(copies[m.guid],bracket)) then preferred=m.guid;break end
         end
         -- Avoid unnecessary migration between available participants.
-        if c.coordinator~=owner and coordinatorState=="online" then preferred=c.coordinator end
+        if c.coordinator~=owner and coordinatorState=="online" and (not c.paused or Equal(copies[c.coordinator],bracket)) then preferred=c.coordinator end
     end
     if not c.paused then
         if coordinatorState=="online" and (not preferred or preferred==c.coordinator) then return nil end
         return {term=c.term+1,coordinator=c.coordinator,paused=true}
     end
     if not preferred or connections[preferred]~="online" then return nil end
-    local voters={}
+    local voters,total,matching={},0,0
     for _,m in ipairs(bracket.checkpoint.roster) do
-        if m.checkedIn then
-            voters[m.guid]=true
-            if connections[m.guid]~="online" or not Equal(copies[m.guid],bracket) then return nil end
-        end
+        if m.checkedIn then voters[m.guid]=true;total=total+1 end
     end
-    if preferred==owner and not Equal(copies[owner],bracket) then return nil end
-    for guid in pairs(copies) do if guid~=owner and not voters[guid] then return nil end end
+    for guid,copy in pairs(copies) do
+        if guid~=owner and not voters[guid] then return nil end
+        if not Equal(copy,bracket) then return nil end
+        if voters[guid] and connections[guid]=="online" then matching=matching+1 end
+    end
+    if total<2 or matching<math.floor(total/2)+1 or not Equal(copies[preferred],bracket) then return nil end
     return {term=c.term+1,coordinator=preferred,paused=false}
 end
 function R.Validate(client,character,raw)
