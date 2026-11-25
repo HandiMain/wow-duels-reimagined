@@ -37,7 +37,11 @@ function methods:CreateTexture()return Frame(self)end
 function methods:CreateFontString()return Frame(self)end
 CreateFrame=function(_,name,parent)local f=Frame(parent);if name then _G[name]=f end;return f end
 UIParent=Frame(nil);UIParent:SetSize(1440,900)
-GetTime=function()return 100 end
+local now=100
+GetTime=function()return now end
+local pendingTimers={}
+C_Timer={NewTimer=function(delay,fn)local t={delay=delay,fn=fn};function t:Cancel()self.cancelled=true end;pendingTimers[#pendingTimers+1]=t;return t end}
+local function FlushTimers()local list=pendingTimers;pendingTimers={};for _,t in ipairs(list)do if not t.cancelled then t.fn() end end end
 InCombatLockdown=function()return false end
 local C=setmetatable({}, {__index=function(t,k)local v={1,1,1,1};rawset(t,k,v);return v end})
 local prefs={duelHUDEnabled=true,duelHUDLocked=false,duelHUDScale=1}
@@ -45,6 +49,14 @@ local px,py=.4,.5
 local fits,anchors,subscribers=0,0,0
 local fitted={}
 local snap={state="idle"}
+local target="target"
+local duelListener
+local function ID(unit)
+    local name=unit=="target" and target or unit~="target" and unit or nil
+    if not name or name=="NPC" then return nil end
+    return {guid="Player-1-"..name,name=name}
+end
+UnitGUID=function(unit)local id=ID(unit);return id and id.guid end
 local function Subscribe()subscribers=subscribers+1;return function()subscribers=subscribers-1 end end
 local ns={
     Style={color=C,Text=function(p,t)local f=Frame(p);f:SetText(t);return f end,
@@ -52,7 +64,7 @@ local ns={
         Plate=noop,FeedbackOverlay=function(p)return Frame(p)end},
     Settings={Get=function(k)return prefs[k] end,GetDuelHUDPosition=function()return px,py end,
         SetDuelHUDPosition=function(x,y)px,py=x,y end},
-    Motion={Fade=function(f,a)f.alpha=a end,Duration=function()return .1 end},Widgets={PressFeedback=noop},
+    Motion={Fade=function(f,a)f.alpha=a end,Duration=function()return .1 end,Stop=noop,Value=function(key,from,to,_,apply)apply(key,(from+to)/2);apply(key,to)end},Widgets={PressFeedback=noop},
     Chrome={Sharp=function(t)return t end},
     Header={CreateHUDButton=function(p,name,size)
         local b=Frame(p);b:SetSize(size,size);b.art=Frame(b);b.chosen=Frame(b)
@@ -62,19 +74,19 @@ local ns={
         return b
     end},
     Client={IsSupported=function()return true end},
-    Group={ReadCompetitiveIdentity=function(unit)return {guid="Player-1-"..unit,name=unit}end},
+    Group={ReadCompetitiveIdentity=ID},
     CompetitiveLifecycle={RankedAvailability=function()return false,"Unranked only",false end,GetSnapshot=function()return {}end},
     CompetitivePreview={IsActive=function()return false end},
     CompetitiveUI={CreateRankEmblem=function(p)local f=Frame(p);f.Paint=noop;return f end},
-    DuelDetection={GetSnapshot=function()return snap end,Subscribe=Subscribe,GetChallengeRange=function()return true end},
+    DuelDetection={GetSnapshot=function()return snap end,Subscribe=function(fn)duelListener=fn;return Subscribe()end,GetChallengeRange=function()return true end},
     OpponentDiscovery={Subscribe=Subscribe,ProbeTarget=function()return true end},
     Notifications={Reanchor=function()anchors=anchors+1 end}
 }
 assert(loadfile("addon/DuelsReimagined/UI/DuelHUD.lua"))("DuelsReimagined",ns)
 local H=ns.DuelHUD;local root=H.GetNotificationAnchor()
 for _,f in ipairs(frames)do if f.events.PLAYER_LOGIN then f.scripts.OnEvent(f,"PLAYER_LOGIN");break end end
-assert(root:IsShown() and root:GetHeight()==310 and not H.IsFolded() and subscribers==2)
-assert(root:GetScript("OnUpdate") and fits>=15)
+assert(root:IsShown() and root:GetHeight()==248 and not H.IsFolded() and subscribers==2)
+assert(root:GetScript("OnUpdate") and fits>=12)
 local arrow,ranked,header
 local upper,foldTrim,controls={},nil,0
 local title,foldBacking,foldFace,expandedFace
@@ -110,7 +122,7 @@ header.scripts.OnDragStart();root.point[4]=720;root.point[5]=650
 header.scripts.OnDragStop()
 assert(math.abs(px-.5)<.0001 and math.abs(py-(650-155)/900)<.0001)
 arrow.scripts.OnClick()
-assert(not H.IsFolded() and root:GetHeight()==310 and math.abs(root.point[5]-650)<.001)
+assert(not H.IsFolded() and root:GetHeight()==248 and math.abs(root.point[5]-650)<.001)
 assert(ranked:IsVisible() and root:GetScript("OnUpdate") and subscribers==2)
 assert(not foldTrim:IsShown() and arrow.chosen.alpha==0)
 assert(expandedFace:IsVisible() and title.point[5]==-4 and arrow.point[5]==-6)
@@ -122,6 +134,41 @@ assert(root:IsShown() and H.IsFolded() and root:GetHeight()==42 and subscribers=
 H.Fold(false)
 assert(#frames==frameCount and anchors>3 and ranked:IsVisible())
 print("Duel HUD fold mock: PASS (stable top, body visibility, dragging, polling, subscriptions and font registration)")
+local function VisibleText(t)
+    for _,f in ipairs(frames)do if f.text==t and f:IsVisible() then return true end end
+end
+local function Select(name)
+    target=name;root.scripts.OnEvent(root,"PLAYER_TARGET_CHANGED")
+end
+local function Publish(s)snap=s;duelListener(s)end
+local top=root.point[5]
+Select(nil);assert(not ranked:IsVisible() and VisibleText("Select a player to duel"))
+assert(root:GetHeight()==248,"idle resize is debounced")
+Select("second");FlushTimers();assert(root:GetHeight()==248 and ranked:IsVisible())
+Select("NPC");FlushTimers();assert(root:GetHeight()==84 and root.point[5]==top and not root:GetScript("OnUpdate"))
+Select("player");assert(root:GetHeight()==84)
+Select("rival");assert(root:GetHeight()==248 and ranked:IsVisible())
+local rival=ID("target")
+Publish({state="requested",challenge={direction="outgoing",opponent=rival,requestConfirmed=true}})
+assert(root:GetHeight()==220 and VisibleText("Challenge pending") and VisibleText("Cancel Request") and not ranked:IsVisible())
+Select("bystander");assert(VisibleText("rival") and not VisibleText("bystander"))
+Publish({state="idle"});assert(root:GetHeight()==248)
+Publish({state="requested",challenge={direction="incoming",opponent=rival}})
+assert(root:GetHeight()==188 and not VisibleText("Cancel Request") and VisibleText("rival"))
+now=110
+Publish({state="accepted",active={id=1,opponent=rival,acceptedAt=110,countdown=3},trace={{cycle=1,reason="countdown_observed",time=110}}})
+assert(root:GetHeight()==232 and VisibleText("3") and VisibleText("rival") and not VisibleText("Damage Done"))
+now=115;root:GetScript("OnUpdate")(root,.3);assert(VisibleText("00:02"))
+H.Fold(true);Select(nil);assert(root:GetHeight()==42 and not root:GetScript("OnUpdate"))
+now=117;H.Fold(false);assert(root:GetHeight()==232 and VisibleText("00:04") and VisibleText("rival"))
+now=120;Publish({state="idle",last={id=1,outcome="won",outcomeObserved=true,endedAt=120}})
+assert(root:GetHeight()==136 and VisibleText("Victory") and VisibleText("00:07") and VisibleText("Rating not confirmed"))
+Select("newtarget");assert(root:GetHeight()==136 and VisibleText("Victory"))
+now=127;root:GetScript("OnUpdate")(root,.3);assert(root:GetHeight()==248 and VisibleText("newtarget"))
+Select(nil);H.Fold(true);FlushTimers();assert(root:GetHeight()==42)
+H.Fold(false);assert(root:GetHeight()==84)
+Select("target");assert(root:GetHeight()==248 and root.point[5]==top and #frames==frameCount)
+print("Adaptive HUD mock: PASS (idle/invalid/selected/pending/incoming/active/result, debounce, target lock, timer, fold, anchor, no new frames)")
 local function HealthText(t)
     for _,f in ipairs(frames) do
         if f.text==t and f:IsVisible() then assert(not fitted[f],"health text must not have measurement hook");return true end

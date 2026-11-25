@@ -9,7 +9,7 @@ class DuelHUDTests(unittest.TestCase):
         h=read("UI/DuelHUD.lua")
         self.assertIn("DuelHUDArt.png",h)
         self.assertNotIn('Artwork("shell"',h)
-        for part in ("bodyFill","sideEdge","topEdge","bottomEdge","topLeft","topRight","bottomLeft","bottomRight","gem","headerFace","timerFace","timerBlade","statRow"):
+        for part in ("bodyFill","sideEdge","topEdge","bottomEdge","topLeft","topRight","bottomLeft","bottomRight","gem","headerFace","timerFace","timerBlade"):
             self.assertIn('Artwork("'+part+'"',h)
         self.assertIn("f:ClearAllPoints();f:SetPoint",h)
         self.assertNotIn("S.Fill(",h)
@@ -57,7 +57,7 @@ class DuelHUDTests(unittest.TestCase):
     def test_read_only_lifecycle_and_damage(self):
         h=read("UI/DuelHUD.lua")
         for token in ('ns.DuelDetection.Subscribe(Receive)','root:UnregisterAllEvents()',
-                      'root:SetScript("OnUpdate",nil)','ResetDamage(activeID)',
+                      'root:SetScript("OnUpdate",nil)','Layout(kind)',
                       'ns.DuelDetection.LaunchWidgetChallenge(ranked,id.guid)','Native(ForfeitDuel)',
                       'Plain(UnitGUID,unit)==id.guid','side.hp:SetMinMaxValues(0,max)',
                       'side.hp:SetValue(value)','SOLO PREVIEW - SIMULATED'):
@@ -87,15 +87,16 @@ class DuelHUDTests(unittest.TestCase):
         self.assertIn('ns.DuelDetection.DismissUnconfirmed()',h)
 
     def test_footer_ornaments_do_not_cover_controls(self):
-        import re
         h=read("UI/DuelHUD.lua")
-        gem_y,gem_h=map(int,re.search(r'Artwork\("gem",WIDTH/2-\d+,(\d+),\d+,(\d+),',h).groups())
-        for name in ("Challenge Target","Forfeit"):
-            x,y,w,height=map(int,re.search(r'Action\("'+name+r'",(\d+),(\d+),(\d+),(\d+),',h).groups())
-            self.assertLessEqual(y+height,gem_y)
-            self.assertGreaterEqual(x,38)
-            self.assertLessEqual(x+w,336-38)
-        self.assertLessEqual(gem_y+gem_h,310)
+        self.assertIn("HEIGHTS={idle=84,selected=248,pending=220,incoming=188,active=232,result=136}",h)
+        self.assertIn("Place(gem,WIDTH/2-20,height-16,40,16)",h)
+        self.assertIn("Place(challenge,106,204,124,25)",h)
+        self.assertIn("Place(forfeit,106,pending and 174 or 190,124,25)",h)
+        for height,y in ((248,204),(220,174),(232,190)):
+            self.assertLessEqual(y+25,height-16)
+        self.assertIn("ns.Motion.Value(layoutKey",h)
+        self.assertIn("CancelCollapse()",h)
+        self.assertIn("ns.Notifications.Reanchor()",h)
 
     def test_header_corner_and_control_clearance(self):
         h=read("UI/DuelHUD.lua")
@@ -110,8 +111,8 @@ class DuelHUDTests(unittest.TestCase):
         self.assertIn('Place(foldButton,258,6,22,22)',h)
         self.assertLessEqual(64+163,234)
         self.assertLessEqual(282+22,336-28)
-        self.assertIn('Artwork("statRow",18,202,300,24)',h)
-        self.assertIn('Artwork("statRow",18,227,300,24)',h)
+        self.assertNotIn('Artwork("statRow"',h)
+        self.assertNotIn('Label("Damage Done"',h)
         self.assertGreaterEqual(18,11)
         self.assertLessEqual(18+300,336-11)
         self.assertIn('Action("Ranked",38,40,124,30',h)
