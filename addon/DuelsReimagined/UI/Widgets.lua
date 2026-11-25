@@ -484,6 +484,153 @@ function Widgets.OpenChoices(anchor, choices, selected, onChoose, owner)
     warChoiceMenu:Open(anchor,choices,selected,onChoose,owner)
 end
 
+-- Calendar uses the same transient-popup owner and click catcher as choices.
+-- The caller supplies the calendar/time conversion model, not game data.
+local calendarPopup
+function Widgets.OpenCalendar(anchor,calendar,value,lead,onChoose)
+    if not anchor or type(onChoose)~="function" or type(calendar)~="table" then return false end
+    local selection=calendar.CalendarSelection(value,lead)
+    local today=calendar.CalendarToday(lead)
+    if not selection or not today then return false end
+    if calendarPopup and calendarPopup:IsShown() then Widgets.CloseChoices();return true end
+    Widgets.CloseChoices()
+    if not calendarPopup then
+        local host=ns.Window.frame
+        local p=CreateFrame("Frame","DuelsReimaginedCalendarPopup",host)
+        p:SetSize(334,376);p:SetClampedToScreen(true);p:EnableMouse(true)
+        Style.Skin(p,C.nav,{corner=10,edge=C.goldDim,shine=.18,shade=.16})
+        if type(UISpecialFrames)=="table" then table.insert(UISpecialFrames,"DuelsReimaginedCalendarPopup") end
+        local model,selected,minimum,deadline,callback,year,month,mode
+        local months={"January","February","March","April","May","June","July","August","September","October","November","December"}
+        local function At(f,x,y,w,h)
+            f:ClearAllPoints();f:SetPoint("TOPLEFT",p,"TOPLEFT",x,-y);f:SetSize(w,h)
+        end
+        local function Text(txt,size,x,y,w,h,color)
+            local t=Style.Text(p,txt,size,color or C.text)
+            At(t,x,y,w,h);t:SetJustifyH("CENTER");t:SetJustifyV("MIDDLE");t:SetWordWrap(true);return t
+        end
+        local function Button(txt,x,y,w,h,primary)
+            local b=Style.Action(p,txt,"footer",{plate=primary and "hall" or "dark",text=C.pale,edge=C.goldDim,hover=C.gold,tooltip=false})
+            At(b,x,y,w,h);return b
+        end
+        local heading=Text("",16,48,8,238,30,C.pale)
+        local prev=Button("<",10,8,32,30)
+        local nextMonth=Button(">",292,8,32,30)
+        local weekdays={}
+        for i,v in ipairs({"Mon","Tue","Wed","Thu","Fri","Sat","Sun"}) do weekdays[i]=Text(v,11,12+(i-1)*44,46,42,18,C.muted) end
+        local cells={}
+        local render
+        for i=1,42 do
+            local b=CreateFrame("Button",nil,p)
+            b:RegisterForClicks("LeftButtonUp")
+            local bg=b:CreateTexture(nil,"BACKGROUND");bg:SetAllPoints(b);bg:SetColorTexture(unpack(C.goldDim));bg:SetAlpha(0)
+            local hover=b:CreateTexture(nil,"HIGHLIGHT");hover:SetAllPoints(b);hover:SetColorTexture(.8,.65,.35,.18)
+            local label=Style.Text(b,"",13,C.text);label:SetAllPoints(b);label:SetJustifyH("CENTER");label:SetJustifyV("MIDDLE")
+            local cell={button=b,bg=bg,label=label};cells[i]=cell
+            b:SetScript("OnClick",function()
+                if cell.value==nil then return end
+                if mode=="hour" then selected.hour=cell.value;mode="day"
+                elseif mode=="minute" then selected.minute=cell.value;mode="day"
+                else selected.year,selected.month,selected.day=year,month,cell.value end
+                render()
+            end)
+        end
+        Text("Start time",12,10,250,100,28,C.muted)
+        local hour,hourText=Widgets.ChoiceControl(p,78);At(hour,120,250,78,28)
+        local minute,minuteText=Widgets.ChoiceControl(p,78);At(minute,218,250,78,28)
+        Text(":",15,200,250,16,28)
+        local note=Text("",12,10,282,314,42,C.muted)
+        local confirm=Button("Confirm date & time",10,334,222,30,true)
+        local cancel=Button("Cancel",240,334,84,30,false)
+        local candidate
+        local function MonthKey(y,m,d) return y*10000+m*100+d end
+        local function Cell(i,value,active,enabled,x,y,w,h,shown)
+            local c=cells[i];c.value=value
+            c.button:SetShown(shown)
+            if shown then
+                At(c.button,x,y,w,h)
+                c.label:SetText(value~=nil and (mode=="day" and tostring(value) or string.format("%02d",value)) or "")
+                c.label:SetTextColor(unpack(active and C.pale or enabled and C.text or C.muted))
+                c.bg:SetAlpha(active and .8 or 0)
+                c.button:SetEnabled(enabled and value~=nil)
+                c.button:SetAlpha(enabled and 1 or .42)
+            end
+        end
+        render=function()
+            if not model or not selected then return end
+            minimum=model.CalendarToday(deadline) or minimum
+            local floorKey=MonthKey(minimum.year,minimum.month,minimum.day)
+            local validMonth=model.CalendarMonth(year,month)
+            if not validMonth then return end
+            heading:SetText(mode=="day" and months[month].." "..year or mode=="hour" and "Select hour" or "Select minute")
+            prev:SetShown(mode=="day");nextMonth:SetShown(mode=="day")
+            prev:SetEnabled(year*12+month>minimum.year*12+minimum.month);prev:SetAlpha(year*12+month>minimum.year*12+minimum.month and 1 or .4)
+            nextMonth:SetEnabled(year<2099 or month<12);nextMonth:SetAlpha((year<2099 or month<12) and 1 or .4)
+            for _,w in ipairs(weekdays) do w:SetShown(mode=="day") end
+            for i=1,42 do
+                if mode=="day" then
+                    local day=i-validMonth.offset
+                    local v=day>=1 and day<=validMonth.days and day or nil
+                    local enabled=v~=nil and MonthKey(year,month,v)>=floorKey
+                    Cell(i,v,v~=nil and year==selected.year and month==selected.month and v==selected.day,enabled,
+                        12+((i-1)%7)*44,68+math.floor((i-1)/7)*29,42,27,true)
+                else
+                    local n=mode=="hour" and 24 or 12
+                    local v=i<=n and (mode=="hour" and i-1 or (i-1)*5) or nil
+                    local enabled=v~=nil
+                    if v~=nil and mode=="hour" and MonthKey(selected.year,selected.month,selected.day)==floorKey then
+                        enabled=v>=minimum.hour
+                    end
+                    if v~=nil and mode=="minute" then
+                        enabled=model.ResolveCalendar(selected.year,selected.month,selected.day,selected.hour,v,deadline)~=nil
+                    end
+                    Cell(i,v,v~=nil and v==(mode=="hour" and selected.hour or selected.minute),enabled,
+                        12+((i-1)%6)*52,60+math.floor((i-1)/6)*40,48,34,v~=nil)
+                end
+            end
+            hourText:SetText(string.format("%02d",selected.hour));minuteText:SetText(string.format("%02d",selected.minute))
+            local why
+            candidate,why=model.ResolveCalendar(selected.year,selected.month,selected.day,selected.hour,selected.minute,deadline)
+            local times=candidate and model.GetSchedulePreview(candidate,deadline)
+            note:SetText(times and ("Local time: "..times.starts.."\nRegistration closes: "..times.closes) or why or "Choose a valid local time.")
+            confirm:SetEnabled(candidate~=nil and times~=nil);confirm:SetAlpha(candidate and times and 1 or .45)
+        end
+        local function Shift(n)
+            local y,m=year,month+n
+            if m<1 then y,m=y-1,12 elseif m>12 then y,m=y+1,1 end
+            if model.CalendarMonth(y,m) and y*12+m>=minimum.year*12+minimum.month then year,month=y,m;render() end
+        end
+        prev:SetScript("OnClick",function()Shift(-1)end)
+        nextMonth:SetScript("OnClick",function()Shift(1)end)
+        hour:SetScript("OnClick",function()mode=mode=="hour" and "day" or "hour";render()end)
+        minute:SetScript("OnClick",function()mode=mode=="minute" and "day" or "minute";render()end)
+        confirm:SetScript("OnClick",function()
+            local utc=model.ResolveCalendar(selected.year,selected.month,selected.day,selected.hour,selected.minute,deadline)
+            if not utc then render();return end
+            local action=callback;Widgets.CloseChoices();if action then action(utc) end
+        end)
+        cancel:SetScript("OnClick",Widgets.CloseChoices)
+        p:SetScript("OnHide",function()
+            if openChoicePopup==p then openChoicePopup=nil end
+            if clickCatcher then clickCatcher:Hide() end
+            callback=nil;model=nil;selected=nil;candidate=nil
+            if p:IsShown() then p:Hide() end
+        end)
+        function p:Open(target,api,parts,lower,leadTime,action)
+            model,selected,minimum,deadline,callback=api,parts,lower,leadTime,action
+            year,month,mode=parts.year,parts.month,"day"
+            self:SetFrameStrata(host:GetFrameStrata());self:SetFrameLevel(host:GetFrameLevel()+55)
+            self:ClearAllPoints()
+            -- Clamp independently of the scroll child; shared dismissal owns its lifetime.
+            self:SetPoint("CENTER",host,"CENTER",0,0)
+            openChoicePopup=self;ChoiceCatcher(host):Show();self:Show();render()
+        end
+        p:Hide();calendarPopup=p
+    end
+    calendarPopup:Open(anchor,calendar,selection,today,lead,onChoose)
+    return true
+end
+
 -- Reusable compact picker for SharedMedia fonts, outlines, and later Options.
 -- Popup rows scroll rather than opening hundreds of Blizzard dropdown frames.
 function Widgets.ChoiceRow(parent, caption, detail, onChoose, onReset, above, fontSamples, grouped)

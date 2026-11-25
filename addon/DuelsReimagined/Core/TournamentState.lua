@@ -123,7 +123,7 @@ function T.ValidateDraft(client,input,now,region,ruleset,faction)
     local location=Text(input.location,100,true)
     if not location then return nil,"Enter the world duel location (up to 100 bytes)." end
     local start,startUTC=ParseUTC(input.startUTC)
-    if not start then return nil,"Use a valid UTC date and time: YYYY-MM-DD HH:MM (2020–2099)." end
+    if not start then return nil,"Choose a valid tournament start date and time." end
     local size,best,lead=Plain(input.capacity),Plain(input.bestOf),Plain(input.closeBefore)
     if not Whole(size,4,32) or not capacities[size] then return nil,"Choose 4, 8, 16 or 32 players." end
     if not Whole(best,1,5) or not series[best] then return nil,"Choose best of 1, 3 or 5." end
@@ -154,6 +154,125 @@ local function ServerNow()
     local ok,v=pcall(GetServerTime)
     if ok then return Plain(v) end
 end
+-- Calendar math uses the existing canonical UTC parser and the local formatter.
+-- Resolve a wall-clock minute by round-tripping candidate UTC offsets around
+-- the selected date, including offset changes at daylight-saving transitions.
+local function LocalParts(s)
+    local stamp=ParseUTC(s)
+    if not stamp then return nil end
+    local y,m,d,h,n=s:match("^(%d%d%d%d)%-(%d%d)%-(%d%d) (%d%d):(%d%d)$")
+    return {year=tonumber(y),month=tonumber(m),day=tonumber(d),hour=tonumber(h),minute=tonumber(n)}
+end
+local function UTCText(epoch)
+    if not Whole(epoch,1577836800,4102444799) or epoch%60~=0 then return nil end
+    local days=math.floor(epoch/86400)
+    local y,m=1970,1
+    while days>=(Leap(y) and 366 or 365) do days=days-(Leap(y) and 366 or 365);y=y+1 end
+    while days>=Days(y,m) do days=days-Days(y,m);m=m+1 end
+    return string.format("%04d-%02d-%02d %02d:%02d",y,m,days+1,math.floor(epoch%86400/3600),math.floor(epoch%3600/60))
+end
+local function MonthInfo(y,m)
+    if not Whole(y,2020,2099) or not Whole(m,1,12) then return nil end
+    local first=ParseUTC(string.format("%04d-%02d-01 00:00",y,m))
+    return {days=Days(y,m),offset=(math.floor(first/86400)+3)%7}
+end
+local function ResolveLocal(y,m,d,h,n,lead,now,formatter)
+    local month=MonthInfo(y,m)
+    if not month or not Whole(d,1,month.days) or not Whole(h,0,23) or not Whole(n,0,59)
+        or not Whole(lead,0,60) or not deadlines[lead] or not Whole(now,1,4102444800) then
+        return nil,"Choose a valid date and time."
+    end
+    local wall=string.format("%04d-%02d-%02d %02d:%02d",y,m,d,h,n)
+    local naive=ParseUTC(wall)
+    local offsets,matches={},{}
+    for hours=-36,36,12 do
+        local probe=naive+hours*3600
+        local localText=FormatLocal(probe,formatter)
+        local localEpoch=ParseUTC(localText)
+        if localEpoch then
+            local offset=localEpoch-probe
+            if math.abs(offset)<=86400 then offsets[offset]=true end
+        end
+    end
+    local count,epoch=0,nil
+    for offset in pairs(offsets) do
+        local candidate=naive-offset
+        if FormatLocal(candidate,formatter)==wall and not matches[candidate] then
+            matches[candidate]=true;count=count+1;epoch=candidate
+        end
+    end
+    if count==0 then return nil,"This local time is unavailable. Choose another time." end
+    if count>1 then return nil,"This time occurs twice due to a clock change. Choose another time." end
+    local canonical=UTCText(epoch)
+    if not canonical or epoch<=now or epoch-lead*60<=now then return nil,"Start and registration close must be in the future." end
+    return canonical,nil,epoch
+end
+function T.CalendarMonth(y,m) return MonthInfo(y,m) end
+function T.CalendarToday(lead)
+    local now=ServerNow()
+    if not Whole(now,1,4102444800) or not Whole(lead,0,60) or not deadlines[lead] then return nil end
+    return LocalParts(FormatLocal(now+lead*60,date))
+end
+function T.CalendarSelection(value,lead)
+    local now=ServerNow()
+    if not Whole(now,1,4102444800) or not Whole(lead,0,60) or not deadlines[lead] then return nil end
+    local chosen=ParseUTC(value)
+    if not chosen or chosen<=now+lead*60 then chosen=math.floor((now+lead*60)/300+1)*300 end
+    return LocalParts(FormatLocal(chosen,date))
+end
+function T.ResolveCalendar(y,m,d,h,n,lead)
+    return ResolveLocal(y,m,d,h,n,lead,ServerNow(),date)
+end
+function T.RunCalendarSelfTest(emit)
+    emit=type(emit)=="function" and emit or function()end
+    local p,f=0,0
+    local function Case(label,fn)
+        local ok,err=pcall(fn);if ok then p=p+1 else f=f+1 end
+        emit("DR | SIMULATED | "..(ok and "PASS " or "FAIL ")..label..(ok and "" or ": "..tostring(err)))
+    end
+    local now=1795622400
+    local function Fixed(offset) return function(_,epoch) return UTCText(epoch+offset) end end
+    Case("Gregorian month grid and leap years",function()
+        assert(MonthInfo(2026,12).offset==1 and MonthInfo(2026,12).days==31)
+        assert(MonthInfo(2028,2).days==29 and MonthInfo(2027,2).days==28)
+        assert(not MonthInfo(2026,13) and not MonthInfo(2100,1))
+    end)
+    Case("UTC conversion east and west, including day boundaries",function()
+        assert(ResolveLocal(2026,12,15,20,0,15,now,Fixed(7200))=="2026-12-15 18:00")
+        assert(ResolveLocal(2026,12,15,20,0,15,now,Fixed(-18000))=="2026-12-16 01:00")
+        assert(ResolveLocal(2026,12,15,0,0,15,now,Fixed(19800))=="2026-12-14 18:30")
+    end)
+    Case("past start, closed registration and invalid clock refused",function()
+        assert(not ResolveLocal(2026,11,25,16,15,15,now,Fixed(0)))
+        assert(ResolveLocal(2026,11,25,16,20,15,now,Fixed(0))=="2026-11-25 16:20")
+        assert(not ResolveLocal(2026,11,25,16,0,0,now,Fixed(0)))
+        assert(not ResolveLocal(2026,12,15,20,0,15,nil,Fixed(0)))
+        assert(not ResolveLocal(2026,12,15,20,0,15,now,nil))
+    end)
+    Case("spring-forward skipped hour and autumn repeated hour refused",function()
+        local spring=ParseUTC("2027-03-28 01:00")
+        local fall=ParseUTC("2027-10-31 01:00")
+        local function zone(_,epoch)
+            return UTCText(epoch+((epoch>=spring and epoch<fall) and 7200 or 3600))
+        end
+        assert(not ResolveLocal(2027,3,28,2,30,15,now,zone))
+        assert(ResolveLocal(2027,3,28,3,30,15,now,zone)=="2027-03-28 01:30")
+        assert(not ResolveLocal(2027,10,31,2,30,15,now,zone))
+        assert(ResolveLocal(2027,10,31,3,30,15,now,zone)=="2027-10-31 02:30")
+    end)
+    Case("calendar confirmation stays compatible with draft and registration preview",function()
+        local utc=assert(ResolveLocal(2026,12,15,20,5,15,now,Fixed(7200)))
+        local times=assert(SchedulePreview(utc,15,Fixed(7200)))
+        assert(times.starts=="2026-12-15 20:05" and times.closes=="2026-12-15 19:50")
+        local a=T.DraftDefaults();a.name="Test Cup";a.location="Meeting place";a.startUTC=utc
+        for _,c in ipairs({"forever","retail"}) do
+            local d=assert(T.ValidateDraft(c,a,now,"EU",c=="forever" and "pvp" or "retail","Alliance"))
+            assert(d.startAt==ParseUTC(utc) and d.registrationClosesAt==d.startAt-900)
+        end
+    end)
+    return p,f
+end
+
 local draft,draftKey
 function T.SaveDraft(input,displayedKey)
     if ns.TournamentRegistration and ns.TournamentRegistration.PreviewState() then return nil,"End the local test before editing the draft." end
@@ -298,6 +417,12 @@ if ns.Diagnostics then
         local log={}
         local p,f=Population.RunSelfTest(function(line) log[#log+1]=line end)
         return f==0 and p==7 and "PASS" or "FAIL",
+            string.format("%d passed / %d failed (SIMULATED)\n",p,f)..table.concat(log,"\n")
+    end)
+    ns.Diagnostics.Register("Tournament calendar / isolated scheduling QA","deep",function()
+        local log={}
+        local p,f=T.RunCalendarSelfTest(function(line) log[#log+1]=line end)
+        return f==0 and p==5 and "PASS" or "FAIL",
             string.format("%d passed / %d failed (SIMULATED)\n",p,f)..table.concat(log,"\n")
     end)
     ns.Diagnostics.Register("Tournament creation / isolated draft QA","deep",function()

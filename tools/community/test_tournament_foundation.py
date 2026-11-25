@@ -54,6 +54,16 @@ class TournamentFoundation(unittest.TestCase):
         self.assertIn("W.OpenChoices",u)
         self.assertIn("SetAutoFocus(false)",u)
         self.assertIn("Draft saved for this session. Not published.",u)
+    def test_calendar_uses_shared_popup_and_canonical_date(self):
+        c=read("Core/TournamentState.lua")
+        u=read("UI/TournamentUI.lua")
+        w=read("UI/Widgets.lua")
+        self.assertIn("function T.ResolveCalendar",c)
+        self.assertIn("function Widgets.OpenCalendar",w)
+        self.assertIn("openChoicePopup=self;ChoiceCatcher(host):Show()",w)
+        self.assertIn("W.OpenCalendar(startButton,T,selectedUTC",u)
+        self.assertIn("form[key]=selectedUTC",u)
+        self.assertNotIn('Field(manage,"startUTC"',u)
     def test_registration_rehearsal_is_isolated(self):
         c=read("Core/TournamentRegistration.lua")
         u=read("UI/TournamentUI.lua")

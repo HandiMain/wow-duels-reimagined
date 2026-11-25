@@ -12,6 +12,8 @@ assert(pp==9 and pf==0,"scoped ranked storage and wire QA")
 ns.Client={Kind=function()return "forever" end,IsSupported=function()return true end}
 assert(loadfile(root.."TournamentState.lua"))("DuelsReimagined",ns)
 assert(loadfile(root.."TournamentRegistration.lua"))("DuelsReimagined",ns)
+local cp,cf=ns.TournamentState.RunCalendarSelfTest(print)
+assert(cp==5 and cf==0,"calendar scheduling QA")
 local tp,tf=ns.TournamentRegistration.RunSelfTest(print)
 assert(tp==13 and tf==0,"tournament registration QA")
 local function Equal(a,b)

@@ -163,16 +163,30 @@ local function Choice(parent,key,caption,options)
 end
 Field(manage,"name","Tournament name",60,"Name shown to participants. Plain text only; no links.")
 Field(manage,"location","World duel location",100,"Describe the meeting place. No automatic teleport or arena.")
-Field(manage,"startUTC","Start (UTC) — YYYY-MM-DD HH:MM",16,"Enter the planned start in UTC, not your local time.")
+local startLabel=Label(manage,"Start date & time (local)",13,C.pale)
+local startButton,startText=W.ChoiceControl(manage,226)
+local selectedUTC=""
+startText:SetText("Select date & time")
+controls.startUTC={label=startLabel,box=startButton,parent=manage,calendar=true}
+startButton:SetScript("OnClick",function()
+    for _,control in pairs(controls) do
+        if not control.choice and not control.calendar then control.box:ClearFocus() end
+    end
+    if not W.OpenCalendar(startButton,T,selectedUTC,choices.closeBefore,function(utc)
+        selectedUTC=utc;Dirty()
+    end) then status:SetText("Your local calendar is unavailable. Try again later.") end
+end)
+ns.Tooltips.Bind(startButton,{title="Start date & time",detail="Choose the start in your local time. Registration deadline updates automatically."})
 Choice(manage,"closeBefore","Registration closes",{
     {key=0,label="At start"},{key=15,label="15 min before"},{key=30,label="30 min before"},{key=60,label="60 min before"}})
-local localSchedule=Label(manage,"Enter a UTC start to preview your local time.",12,C.muted)
+local localSchedule=Label(manage,"Select the tournament start date and time.",12,C.muted)
 refreshSchedule=function()
-    local result=T.GetSchedulePreview(controls.startUTC.box:GetText(),choices.closeBefore)
+    local result=T.GetSchedulePreview(selectedUTC,choices.closeBefore)
+    startText:SetText(result and result.starts or "Select date & time")
     if result then
-        localSchedule:SetText("Your local time: "..result.starts.."\nRegistration closes: "..result.closes)
+        localSchedule:SetText("Start: "..result.starts.." (local)\nRegistration closes: "..result.closes.." (local)")
     else
-        localSchedule:SetText("Enter a valid UTC start for a local-time preview.")
+        localSchedule:SetText("Select a date and time to see the registration deadline.")
     end
 end
 local format=Label(eventRules,"Single elimination · 1v1 world duels",14,C.text)
@@ -189,7 +203,8 @@ local save=S.Action(draftFooter,"Save Draft","footer",{plate="hall",text=C.pale,
 ns.Tooltips.Bind(save,{title="Save Draft",detail="Validate and keep this draft in your current session. It will not be published."})
 local function SaveForm()
     for key,control in pairs(controls) do
-        if control.choice then form[key]=choices[key]
+        if control.calendar then form[key]=selectedUTC
+        elseif control.choice then form[key]=choices[key]
         else form[key]=control.box:GetText();control.box:ClearFocus() end
     end
     W.CloseChoices()
@@ -209,7 +224,7 @@ testStart:SetScript("OnClick",function()
 end)
 host:HookScript("OnHide",function()
     W.CloseChoices()
-    for _,control in pairs(controls) do if not control.choice then control.box:ClearFocus() end end
+    for _,control in pairs(controls) do if not control.choice and not control.calendar then control.box:ClearFocus() end end
 end)
 local function FieldAt(key,x,y,width)
     local v=controls[key]
@@ -451,6 +466,7 @@ local function Layout()
     bar:Refresh()
 end
 function U.Show(key)
+    if active=="host" and key~="host" then W.CloseChoices() end
     if not key then active=nil;root:Hide();return end
     if not T.IsPageAvailable(key) then key="overview" end
     active=key
@@ -477,5 +493,8 @@ scroll:SetScript("OnMouseWheel",function(_,d)
     if active=="host" then W.CloseChoices() end
     SetOffset(scroll:GetVerticalScroll()-d*42);bar:Refresh()
 end)
-scroll:HookScript("OnSizeChanged",function() if active then Layout() end end)
+scroll:HookScript("OnSizeChanged",function()
+    if active=="host" then W.CloseChoices() end
+    if active then Layout() end
+end)
 root:HookScript("OnShow",function() if active then RefreshCommunity();Layout() end end)

@@ -9,6 +9,8 @@ assert(loadfile(root.."/Core/TournamentRegistration.lua"))("DuelsReimagined",ns)
 local rp,rf=ns.TournamentRegistration.RunSelfTest(print)
 assert(rp==13 and rf==0,"registration QA failed")
 local T=ns.TournamentState
+local cp,cf=T.RunCalendarSelfTest(print)
+assert(cp==5 and cf==0,"calendar QA failed")
 assert(T.RunSelfTest()==10)
 local p,f=T.RunCreationSelfTest(print)
 assert(p==15 and f==0,"creation QA failed")
