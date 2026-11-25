@@ -5,7 +5,7 @@ local R={};ns.DuelResult=R
 local S,Style,M=ns.Settings,ns.Style,ns.Motion
 local C=Style.color
 local MEDIA="Interface\\AddOns\\DuelsReimagined\\Media\\Skin\\"
-local W,H=800,330
+local W,H=800,345
 local root,edge,card,crest,heading,subtitle,meta,rank,detail,strip,statValues
 local timer,unsubscribe,pending,current,tracked,deadline
 local lastSeen,visibleProgress=0,0
@@ -44,32 +44,34 @@ local function Build()
     root:SetSize(W,H);root:SetFrameStrata("FULLSCREEN_DIALOG");root:EnableMouse(false);root:Hide()
     card=CreateFrame("Frame",nil,root);card:SetAllPoints(root);card:EnableMouse(false)
     local background=card:CreateTexture(nil,"BACKGROUND")
-    background:SetSize(W,216);background:SetPoint("TOP",card,"TOP",0,-45)
+    background:SetSize(W,230);background:SetPoint("TOP",card,"TOP",0,-45)
     background:SetTexture(MEDIA.."DuelResultBanner.tga")
     if ns.Chrome.Sharp then ns.Chrome.Sharp(background) end
     crest=ns.Chrome.Icon(card,"Hall");crest:SetSize(64,64);crest:SetPoint("TOP",card,"TOP",0,-1)
-    heading=Label(card,"VICTORY",52,590,64,-55,C.pale,"display")
-    subtitle=Label(card,"",21,600,36,-120,C.text)
+    heading=Label(card,"VICTORY",48,590,58,-74,C.pale,"display")
+    subtitle=Label(card,"",21,600,36,-133,C.text)
     local metaRow=CreateFrame("Frame",nil,card)
-    metaRow:SetSize(490,38);metaRow:SetPoint("TOP",card,"TOP",0,-159)
+    metaRow:SetSize(490,38);metaRow:SetPoint("TOP",card,"TOP",0,-172)
     meta=Style.Text(metaRow,"",15,C.pale);meta:SetSize(238,30);meta:SetPoint("LEFT")
     meta:SetJustifyH("CENTER");meta:SetWordWrap(false)
     rank=CreateFrame("Frame",nil,metaRow);rank:SetSize(236,29);rank:SetPoint("RIGHT")
     Style.Skin(rank,C.nav,{corner=10,edge=C.goldDim,shine=.26,shade=.24,rim=.9})
     rank.label=Label(rank,"Rating not confirmed",14,224,26,-1,C.pale)
-    detail=Label(card,"",14,610,28,-201,C.muted)
-    strip=CreateFrame("Frame",nil,card);strip:SetSize(540,60);strip:SetPoint("TOP",card,"TOP",0,-264)
+    detail=Label(card,"",14,610,28,-214,C.muted)
+    strip=CreateFrame("Frame",nil,card);strip:SetSize(540,60);strip:SetPoint("TOP",card,"TOP",0,-279)
     strip:EnableMouse(false)
     Style.Skin(strip,C.nav,{corner=13,edge=C.goldDim,shine=.32,shade=.26,rim=.95})
     Style.Plate(strip,"shellCopper",{corner=13,layer="BORDER",sublevel=4})
-    local icons={"Interface\\Icons\\INV_Sword_04","Interface\\Icons\\INV_Shield_04","Interface\\Icons\\Spell_Holy_Heal"}
+    -- Transparent gold artwork: crossed swords, shield, healing pulse.
+    local icons={{0,.5,0,.5},{.5,1,0,.5},{0,.5,.5,1}}
     local labels={"Damage done","Damage taken","Healing done"}
     statValues={}
     for i=1,3 do
         local cell=CreateFrame("Frame",nil,strip)
         cell:SetSize(176,52);cell:SetPoint("LEFT",strip,"LEFT",6+(i-1)*176,0)
-        local icon=cell:CreateTexture(nil,"ARTWORK");icon:SetSize(26,26);icon:SetPoint("LEFT",cell,"LEFT",11,0)
-        icon:SetTexture(icons[i]);icon:SetTexCoord(.08,.92,.08,.92)
+        local icon=cell:CreateTexture(nil,"ARTWORK");icon:SetSize(34,34);icon:SetPoint("LEFT",cell,"LEFT",7,0)
+        icon:SetTexture(MEDIA.."DuelResultStatIcons.tga");icon:SetTexCoord(unpack(icons[i]))
+        if ns.Chrome.Sharp then ns.Chrome.Sharp(icon) end
         local name=Style.Text(cell,labels[i],11,C.muted);name:SetSize(128,18);name:SetPoint("TOPLEFT",cell,"TOPLEFT",45,-7)
         local value=Style.Text(cell,"Not observed",15,C.text);value:SetSize(128,23);value:SetPoint("TOPLEFT",cell,"TOPLEFT",45,-25)
         statValues[i]=value
