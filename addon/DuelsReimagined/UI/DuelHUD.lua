@@ -848,6 +848,7 @@ function H.Refresh()
     local model=B.Project(p)
     local want=model and d.state=="idle" and not d.active and not d.challenge and not Combat()
     tournamentSuspended=not not (model and not want)
+    local regularWasShown=root:IsShown()
     switchingAnchor=true
     local changed=false;local newMatch=false
     if want then
@@ -881,9 +882,11 @@ function H.Refresh()
     end
     switchingAnchor=false
     if ns.Notifications then
-        if changed then ns.Notifications.Reanchor();ns.Notifications.Refresh() end
-        if newMatch then ns.Notifications.OnTournamentMatchReady(model.key)
-        elseif changed and not tournamentActive then ns.Notifications.ClearTournamentPreview() end
+        if changed and not tournamentActive then ns.Notifications.ClearTournamentPreview() end
+        if changed or regularWasShown~=root:IsShown() then
+            ns.Notifications.Reanchor();ns.Notifications.Refresh()
+        end
+        if newMatch then ns.Notifications.OnTournamentMatchReady(model.key) end
     end
 end
 function H.InvalidateRank()

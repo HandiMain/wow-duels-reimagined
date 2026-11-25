@@ -190,7 +190,7 @@ end
 local offset=0
 local function Place()
     local hud=ns.DuelHUD and ns.DuelHUD.GetNotificationAnchor()
-    local scale=ns.DuelHUD and ns.DuelHUD.GetNotificationScale() or 1
+    local scale=ns.DuelHUD and ns.DuelHUD.GetNotificationScale() or (hud and hud:GetScale() or 1)
     card:SetScale(scale)
     local factor=card:GetEffectiveScale()/UIParent:GetEffectiveScale()
     local below=false

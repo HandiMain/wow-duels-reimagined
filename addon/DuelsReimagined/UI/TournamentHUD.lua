@@ -12,14 +12,14 @@ local function Round(m)
     return remaining==0 and "Final" or remaining==1 and "Semifinal" or remaining==2 and "Quarterfinal" or "Round of "..2^(remaining+1)
 end
 function B.Project(p)
-    if type(p)~="table" or p.scope~="SIMULATED" or p.role~="player" or not p.match or not p.bracket or p.bracket.state~="running" then return nil end
+    if type(p)~="table" or p.scope~="SIMULATED" or p.role~="player" or type(p.match)~="table" or type(p.bracket)~="table" or p.bracket.state~="running" then return nil end
     local m=p.match
     local function Whole(n,lo,hi) return type(n)=="number" and n>=lo and n<=hi and n==math.floor(n) end
     if not Whole(m.roundCount,1,6) or not Whole(m.round,1,m.roundCount) or
         not (m.bestOf==1 or m.bestOf==3 or m.bestOf==5) then return nil end
     local needed=math.floor(m.bestOf/2)+1
     if not Whole(m.score,0,needed-1) or not Whole(m.opponentScore,0,needed-1) or
-        type(m.opponent)~="string" or type(p.event)~="table" or type(p.event.draft)~="table" or type(p.event.draft.name)~="string" then return nil end
+        type(m.id)~="string" or type(m.opponent)~="string" or type(p.event)~="table" or type(p.event.id)~="string" or type(p.event.draft)~="table" or type(p.event.draft.name)~="string" then return nil end
     return {title=p.event.draft.name,round=Round(m),bestOf=m.bestOf,
         game=m.score+m.opponentScore+1,left=p.member and p.member.name or "You (local test)",
         right=m.opponent,score=m.score,opponentScore=m.opponentScore,status="Match ready",
@@ -60,8 +60,8 @@ local function Side(p,x,enemy)
     side.icon=ring:CreateTexture(nil,"ARTWORK")
     At(side.icon,ring,5,5,38,38)
     side.icon:SetTexture("Interface\\Icons\\INV_Misc_QuestionMark")
-    side.name=Text(p,x+tx,49,184,26,17,C.pale,enemy and "RIGHT" or "LEFT")
-    local track=Plate(p,x+tx,78,184,23,"dark",9)
+    side.name=Text(p,x+tx,59,184,23,17,C.pale,enemy and "RIGHT" or "LEFT")
+    local track=Plate(p,x+tx,83,184,23,"dark",9)
     side.hp=CreateFrame("StatusBar",nil,track)
     At(side.hp,track,4,5,176,13)
     side.hp:SetStatusBarTexture("Interface\\AddOns\\DuelsReimagined\\Media\\Skin\\DuelHUDHealthFill.png")
@@ -78,33 +78,39 @@ local function Build()
     if ns.DiagnosticAudit then ns.DiagnosticAudit.RegisterUIRoot("Tournament HUD",root) end
     local body=Plate(root,44,34,812,79,"cardBody",18)
     S.Plate(body,"shellCopper",{corner=18})
-    local lower=Plate(root,152,104,596,43,"dark",17)
+    local lower=Plate(root,152,108,596,39,"dark",17)
     S.Plate(lower,"shellCopper",{corner=17})
-    Wing(root,10);Wing(root,828)
-    local crest=Plate(root,276,16,348,47,"hall",14)
+    -- Draw data above the background frames; parent fontstrings alone
+    -- would be occluded by the body plate's child frame level.
+    local front=CreateFrame("Frame",nil,root);front:SetAllPoints(root)
+    front:SetFrameLevel(root:GetFrameLevel()+5);front:EnableMouse(false)
+    Wing(front,10);Wing(front,828)
+    local crest=Plate(front,276,16,348,47,"hall",14)
     S.Plate(crest,"shellCopper",{corner=14})
-    Emblem(root,428,0,44,31)
-    local left=Side(root,79,false)
-    local right=Side(root,583,true)
-    local leftScore=Plate(root,345,65,43,40,"hall",10)
-    local rightScore=Plate(root,512,65,43,40,"hall",10)
-    local vs=Text(root,390,65,120,37,25,C.gold)
+    local emblemLayer=CreateFrame("Frame",nil,front);emblemLayer:SetAllPoints(front)
+    emblemLayer:SetFrameLevel(crest:GetFrameLevel()+1)
+    Emblem(emblemLayer,428,0,44,31)
+    local left=Side(front,79,false)
+    local right=Side(front,583,true)
+    local leftScore=Plate(front,345,65,43,40,"hall",10)
+    local rightScore=Plate(front,512,65,43,40,"hall",10)
+    local vs=Text(front,390,65,120,37,25,C.gold)
     vs:SetText("VS")
     local title=Text(crest,12,4,324,23,20,C.pale)
     local format=Text(crest,12,26,324,17,12,C.pale)
     local score=Text(leftScore,0,0,43,40,25,C.text)
     local opponentScore=Text(rightScore,0,0,43,40,25,C.text)
-    local game=Text(lower,11,6,168,30,13,C.pale)
-    local status=Text(lower,181,4,234,34,19,C.gold)
+    local game=Text(lower,11,4,168,30,13,C.pale)
+    local status=Text(lower,181,2,234,34,19,C.gold)
     local sim=S.Action(lower,"Simulate game","footer",{plate="dark",text=C.pale,edge=C.goldDim,hover=C.gold,tooltip=false})
-    At(sim,lower,426,7,157,27)
+    At(sim,lower,426,5,157,27)
     sim:SetScript("OnClick",function()
         if editing or not ns.DuelHUD or not ns.DuelHUD.IsTournamentHUDActive() then return end
         local ok,why=ns.TournamentRegistration.PreviewAction("simulate-game")
         if ns.TournamentUI.RefreshActive then ns.TournamentUI.RefreshActive() end
         if not ok and ns.Feedback then ns.Feedback.Toast(why or "Test game unavailable",sim) end
     end)
-    local test=Text(root,8,117,134,22,11,C.muted);test:SetText("LOCAL TEST")
+    local test=Text(front,8,117,134,22,11,C.muted);test:SetText("LOCAL TEST")
     fields={left=left,right=right,title=title,format=format,score=score,opponentScore=opponentScore,game=game,status=status,sim=sim}
 end
 local function Layout()
