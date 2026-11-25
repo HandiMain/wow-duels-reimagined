@@ -57,9 +57,67 @@ local function RefreshCatalog()
     end
     return true
 end
+-- SharedMedia registers individual sound names, not three-number packs.
+-- Resolve exact names from its registry without substituting a library default.
+-- Do not copy third-party assets, or require a particular sound-pack addon.
+local function SharedLibrary()
+    if type(LibStub)~="function" and type(LibStub)~="table" then return nil end
+    local ok,lib=pcall(function()return LibStub("LibSharedMedia-3.0",true)end)
+    if ok and type(lib)=="table" then return lib end
+end
+local function SharedName(key)
+    if type(key)=="string" and #key>4 and #key<=128 and key:sub(1,4)=="lsm:" and not key:find("%c") then
+        return key:sub(5)
+    end
+end
+local function SharedPath(key,lib)
+    local name=SharedName(key)
+    if not name then return nil end
+    lib=lib or SharedLibrary()
+    if not lib then return nil end
+    local ok,path
+    if type(lib.HashTable)=="function" then
+        local registered
+        ok,registered=pcall(lib.HashTable,lib,"sound")
+        if ok and type(registered)=="table" then path=registered[name] end
+    elseif type(lib.Fetch)=="function" then
+        ok,path=pcall(lib.Fetch,lib,"sound",name,true)
+    end
+    if ok and type(path)=="string" and path~="" then return path end
+end
+local function SharedChoices()
+    local lib=SharedLibrary()
+    local out,seen={},{}
+    if not lib or type(lib.List)~="function" then return out end
+    local ok,names=pcall(lib.List,lib,"sound")
+    if not ok or type(names)~="table" then return out end
+    for _,name in ipairs(names) do
+        if type(name)=="string" then
+            local key="lsm:"..name
+            if not seen[key] and SharedPath(key,lib) then
+                seen[key]=true
+                out[#out+1]={key=key,label=name,displayLabel=name,group="sharedmedia:sounds"}
+            end
+        end
+    end
+    table.sort(out,function(a,b)
+        local x,y=a.label:lower(),b.label:lower()
+        if x==y then return a.label<b.label end
+        return x<y
+    end)
+    return out
+end
+local function AppendShared(out)
+    local choices=SharedChoices()
+    if #choices>0 then
+        out[#out+1]={key="sharedmedia:sounds",label="SharedMedia ("..#choices..")",heading=true}
+        for _,choice in ipairs(choices) do out[#out+1]=choice end
+    end
+end
+function A.GetSharedSoundCount() return #SharedChoices() end
 function A.IsAvailable(key)
     RefreshCatalog()
-    return key==DEFAULT or available[key]~=nil
+    return key==DEFAULT or available[key]~=nil or SharedPath(key)~=nil
 end
 function A.GetChoices(selected)
     RefreshCatalog()
@@ -70,14 +128,15 @@ function A.GetChoices(selected)
             out[#out+1]={key=p.key,label=p.label,displayLabel=p.displayLabel,group=p.group}
         end
     end
+    AppendShared(out)
     if selected and not A.IsAvailable(selected) then
-        out[#out+1]={key=selected,label=selected:gsub("^pack:","").." (unavailable)"}
+        out[#out+1]={key=selected,label=(SharedName(selected) or selected:gsub("^pack:","")).." (unavailable)"}
     end
     return out
 end
 function A.IsFightAvailable(key)
     RefreshCatalog()
-    return key==DEFAULT or fightPacks[key]~=nil
+    return key==DEFAULT or fightPacks[key]~=nil or SharedPath(key)~=nil
 end
 function A.GetFightChoices(selected)
     RefreshCatalog()
@@ -94,8 +153,10 @@ function A.GetFightChoices(selected)
             out[#out+1]={key=p.key,label=p.label,group=group,displayLabel=p.label}
         end
     end
+    AppendShared(out)
     if selected and not A.IsFightAvailable(selected) then
-        out[#out+1]={key=selected,label=(selected=="fight:mortal_kombat" and "Mortal Kombat" or selected:gsub("^fight:","")).." (pack unavailable)"}
+        local name=SharedName(selected)
+        out[#out+1]={key=selected,label=name and (name.." (unavailable)") or (selected=="fight:mortal_kombat" and "Mortal Kombat" or selected:gsub("^fight:","")).." (pack unavailable)"}
     end
     return out
 end
@@ -126,16 +187,22 @@ function A.Play(stage)
     if stage~=1 and stage~=2 and stage~=3 then return false end
     if not Settings.Get("duelCountdownVisual") or not Settings.Get("duelCountdownSounds") then return false end
     RefreshCatalog()
-    local choice=available[Settings.Get("duelCountdownSoundPack")]
-    return PlayPath(choice and choice.folder..stage..".ogg" or TICK,Settings.Get("duelCountdownAudioChannel") or "SFX","countdown")
+    local key=Settings.Get("duelCountdownSoundPack")
+    local choice=available[key]
+    local path=SharedPath(key) or (choice and choice.folder..stage..".ogg") or TICK
+    return PlayPath(path,Settings.Get("duelCountdownAudioChannel") or "SFX","countdown")
 end
 function A.PlayFight()
     A.Stop()
     if not Settings.Get("duelCountdownVisual") or not Settings.Get("duelFightSounds") then return nil end
     RefreshCatalog()
-    local choice=fightPacks[Settings.Get("duelFightSoundPack")]
-    if PlayPath(choice and choice.path or TICK,Settings.Get("duelFightAudioChannel") or "SFX","fight") then
-        return choice and choice.duration or .5
+    local key=Settings.Get("duelFightSoundPack")
+    local choice=fightPacks[key]
+    local shared=SharedPath(key)
+    if PlayPath(shared or (choice and choice.path) or TICK,Settings.Get("duelFightAudioChannel") or "SFX","fight") then
+        -- SharedMedia supplies no duration metadata. Keep the existing bounded
+        -- stage timer and allow up to five seconds for an arbitrary clip.
+        return shared and 4.95 or choice and choice.duration or .5
     end
 end
 function A.GetDiagnosticResources()

@@ -281,6 +281,48 @@ C_AddOns=nil;DuelsReimaginedCountdownSoundPacks=originalManifest
 ns.Options=nil
 print("Optional media discovery: PASS (absent, old, late registration, disabled, invalid, no polling)")
 
+-- SharedMedia is optional, late-discovered, exact-name and shared by both
+-- selectors. A single cue repeats for 3/2/1; FIGHT uses its own channel.
+local savedLibStub=LibStub
+local registry={["Bell & Gong"]="Interface\\AddOns\\TestMedia\\bell.ogg",["Sword - Heavy"]="Interface\\AddOns\\TestMedia\\sword.ogg"}
+local sharedLib={List=function(_,kind)assert(kind=="sound");return {"Sword - Heavy","Bell & Gong","Bell & Gong","Unregistered"}end,
+    HashTable=function(_,kind)assert(kind=="sound");return registry end,
+    Fetch=function()error("exact registry lookup should not use library global override")end}
+LibStub=function(name,silent)assert(name=="LibSharedMedia-3.0" and silent);return sharedLib end
+local function HasShared(choices,key)
+    for _,v in ipairs(choices) do
+        if v.key==key and v.group=="sharedmedia:sounds" then return true end
+    end
+end
+assert(A.GetSharedSoundCount()==2)
+assert(A.IsAvailable("lsm:Bell & Gong") and A.IsFightAvailable("lsm:Bell & Gong"))
+assert(not A.IsAvailable("lsm:Unregistered"))
+assert(HasShared(A.GetChoices("lsm:Bell & Gong"),"lsm:Bell & Gong"))
+assert(HasShared(A.GetFightChoices("lsm:Sword - Heavy"),"lsm:Sword - Heavy"))
+prefs.duelCountdownVisual=true;prefs.duelCountdownSounds=true;prefs.duelFightSounds=true
+prefs.duelCountdownSoundPack="lsm:Bell & Gong";prefs.duelFightSoundPack="lsm:Sword - Heavy"
+prefs.duelCountdownAudioChannel="Dialog";prefs.duelFightAudioChannel="Master"
+local n=#played
+local start=now
+assert(V.Preview());Advance(start+3.01)
+assert(#played==n+4)
+for i=n+1,n+3 do assert(played[i][1]==registry["Bell & Gong"] and played[i][2]=="Dialog") end
+assert(played[n+4][1]==registry["Sword - Heavy"] and played[n+4][2]=="Master")
+Advance(start+8.01);assert(A.GetDiagnosticResources().handles==0)
+-- Unregistering or disabling the provider leaves saved preferences intact.
+registry["Bell & Gong"]=nil
+assert(not A.IsAvailable("lsm:Bell & Gong") and A.GetSharedSoundCount()==1)
+assert(A.GetChoices("lsm:Bell & Gong")[#A.GetChoices("lsm:Bell & Gong")].label=="Bell & Gong (unavailable)")
+assert(A.Play(3) and played[#played][1]:find("CountdownTick.mp3",1,true))
+assert(prefs.duelCountdownSoundPack=="lsm:Bell & Gong")
+LibStub=nil
+assert(A.GetSharedSoundCount()==0 and not A.IsFightAvailable("lsm:Sword - Heavy"))
+assert(A.PlayFight()==.5 and played[#played][1]:find("CountdownTick.mp3",1,true))
+A.Stop()
+LibStub=savedLibStub
+prefs.duelCountdownSoundPack="builtin:tick";prefs.duelFightSoundPack="fight:mortal_kombat"
+print("SharedMedia sound: PASS (late discovery, grouped choices, exact keys, independent channels, repeat cue, bounded tail, missing fallback)")
+
 -- Duel end presentation is a local evidence consumer and never writes records.
 ns.EditMode=nil -- previous editor mock remains active by design
 ns.Style={color={text={1,1,1},pale={1,.8,.3},muted={.7,.7,.7},nav={.1,.1,.1},goldDim={.5,.3,.1}},

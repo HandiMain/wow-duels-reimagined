@@ -43,13 +43,17 @@ function Settings.GetCountdownChannels()
     for i,v in ipairs(countdownChannels) do out[i]={key=v.key,label=v.label} end
     return out
 end
+local function ValidSharedSound(value)
+    return type(value)=="string" and #value>4 and #value<=128 and
+        value:sub(1,4)=="lsm:" and not value:find("%c")
+end
 local function ValidCountdownPack(value)
     return type(value)=="string" and #value<=128 and
-        (value=="builtin:tick" or value:match("^pack:[%w _%-%/]+$")~=nil)
+        (value=="builtin:tick" or value:match("^pack:[%w _%-%/]+$")~=nil or ValidSharedSound(value))
 end
 local function ValidFightPack(value)
     return type(value)=="string" and #value<=128 and
-        (value=="builtin:tick" or value:match("^fight:[%w_%-]+$")~=nil)
+        (value=="builtin:tick" or value:match("^fight:[%w_%-]+$")~=nil or ValidSharedSound(value))
 end
 local allowedCountdownStyles={}
 for _,choice in ipairs(countdownStyles) do allowedCountdownStyles[choice.key]=true end

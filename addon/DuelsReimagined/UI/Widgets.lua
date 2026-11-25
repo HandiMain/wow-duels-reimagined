@@ -665,6 +665,7 @@ function Widgets.ChoiceRow(parent, caption, detail, onChoose, onReset, above, fo
         if not row.available then return end
         if popup:IsShown() then Widgets.CloseChoices(); return end
         Widgets.CloseChoices()
+        if row.BeforeOpen then row.BeforeOpen() end
         offset = 0
         Render()
         -- Re-anchor for current window size/scroll position. At smaller

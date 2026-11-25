@@ -237,6 +237,19 @@ Settings.Reset("duelFightSounds");Settings.Reset("duelFightAudioChannel")
 Settings.Set("duelFightSoundPack","builtin:tick")
 Settings.Reset("duelFightSoundPack")
 Check(Settings.Get("duelFightSoundPack")=="fight:mortal_kombat","FIGHT default reset even without local pack")
+local oldAudio=ns.CountdownAudio
+ns.CountdownAudio={IsAvailable=function(key)return key=="lsm:Bell & Gong"end,
+    IsFightAvailable=function(key)return key=="lsm:Sword - Heavy"end,Stop=function()end}
+Settings.Set("duelCountdownSoundPack","lsm:Bell & Gong")
+Settings.Set("duelFightSoundPack","lsm:Sword - Heavy")
+Check(Settings.Get("duelCountdownSoundPack")=="lsm:Bell & Gong","SharedMedia countdown saved")
+Check(Settings.Get("duelFightSoundPack")=="lsm:Sword - Heavy","SharedMedia fight saved")
+ns.CountdownAudio=nil
+Check(Settings.Get("duelCountdownSoundPack")=="lsm:Bell & Gong" and Settings.Get("duelFightSoundPack")=="lsm:Sword - Heavy","missing provider does not erase selection")
+Settings.Set("duelCountdownSoundPack","lsm:missing")
+Check(Settings.Get("duelCountdownSoundPack")=="lsm:Bell & Gong","unregistered shared sound rejected")
+Settings.Reset("duelCountdownSoundPack");Settings.Reset("duelFightSoundPack")
+ns.CountdownAudio=oldAudio
 _G.DuelsReimaginedDB=originalDB
 ns.AccessIcons, ns.Options, ns.Header = nil,nil,nil
 print("Independent access settings and default-on Peek: PASS")

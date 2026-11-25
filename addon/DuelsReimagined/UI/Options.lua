@@ -365,9 +365,13 @@ RegisterOption("duelCountdownFont","Countdown font","Choose a separate Blizzard 
 local countdownSounds=AddToggle(countdownCard,"combatvisuals","duelCountdownSounds","Countdown sounds",
     "Play a sound for each of the three numbers. FIGHT! has separate settings.",-267,false)
 local soundPack=Widgets.ChoiceRow(countdownCard,"Countdown sound",
-    "Choose a sound pack by game, or use the built-in Duels sound.",
+    "Choose a game voice pack, a built-in cue or a SharedMedia sound repeated for 3, 2 and 1.",
     function(key) Settings.Set("duelCountdownSoundPack",key) end,
     function() Settings.Reset("duelCountdownSoundPack") end,false,false,true)
+soundPack.BeforeOpen=function()
+    local key=Settings.Get("duelCountdownSoundPack")
+    soundPack:SetChoices(ns.CountdownAudio.GetChoices(key),key)
+end
 MarkPosition(soundPack,countdownCard,-303)
 RegisterOption("duelCountdownSoundPack","Countdown sound","Choose a grouped countdown voice or sound pack","combatvisuals",soundPack)
 local audioChannel=Widgets.ChoiceRow(countdownCard,"Sound volume channel",
@@ -379,9 +383,13 @@ RegisterOption("duelCountdownAudioChannel","Sound volume channel","Choose Effect
 local fightSounds=AddToggle(countdownCard,"combatvisuals","duelFightSounds","FIGHT! sound",
     "Play a separate sound when the FIGHT! effect appears.",-445,false)
 local fightPack=Widgets.ChoiceRow(countdownCard,"FIGHT! sound effect",
-    "Choose an announcer voice or sword effect, independently of countdown sounds.",
+    "Choose an announcer voice, sword effect or SharedMedia sound, independently of countdown sounds.",
     function(key) Settings.Set("duelFightSoundPack",key) end,
     function() Settings.Reset("duelFightSoundPack") end,false,false,true)
+fightPack.BeforeOpen=function()
+    local key=Settings.Get("duelFightSoundPack")
+    fightPack:SetChoices(ns.CountdownAudio.GetFightChoices(key),key)
+end
 MarkPosition(fightPack,countdownCard,-480)
 RegisterOption("duelFightSoundPack","FIGHT! sound effect","Choose the duel start sound","combatvisuals",fightPack)
 local fightChannel=Widgets.ChoiceRow(countdownCard,"FIGHT! volume channel",
