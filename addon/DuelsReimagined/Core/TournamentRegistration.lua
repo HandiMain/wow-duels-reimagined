@@ -887,6 +887,19 @@ local function DurableHost(s,h,clock,resolve,store)
         if not SaveBracket(b,"bracket_report") then return false end
         return true,why
     end
+    function D.ConsentReplay(sender,request,term,coordinator)
+        local c=journal.control
+        if not Fresh() or not c or c.paused or c.term~=term or c.coordinator~=coordinator then return false end
+        local actor=resolve(sender)
+        if not Actor(s,actor) or not Permit(actor) then return false end
+        local b=OpenBracket();if not b then return false end
+        local ok,why=b.ConsentReplay(actor.guid,request)
+        if not ok then return false end
+        if why=="duplicate" then return true,why end
+        if not SaveBracket(b,"bracket_report") then return false end
+        observed[request.match]=nil
+        return true,why
+    end
     function D.ControlSnapshot()
         if not Fresh() or not journal.bracket or not journal.control then return nil end
         local c=Copy(journal.control);c.owner=h.guid;c.event=journal.checkpoint.host.ad.id;return c
@@ -1746,6 +1759,49 @@ function R.RunHostRecoverySelfTest(emit)
             assert(reopened.BracketSnapshot().champion==x.a.guid)
             assert(not x.engine.BracketSnapshot())
         end)
+        Case(client.." replay consent survives reopen and stale controller cannot resume",function()
+            local x,w,Req,m=StartCompetition()
+            local owner=x.h.guid
+            local p={event=x.ad.id,match=m.id,game=1,winner=x.a.guid,evidence="disputed-game"}
+            x.Advance();assert(x.engine.ReportBracket("player",p,1,owner))
+            p.winner=x.other.guid;assert(x.engine.ReportBracket("other",p,1,owner))
+            local v=x.engine.BracketSnapshot()
+            local q={event=x.ad.id,match=m.id,game=1,revision=v.dispute.revision}
+            assert(not x.engine.ConsentReplay("host",q,1,owner))
+            assert(not x.engine.ConsentReplay("player",q,2,owner))
+            assert(x.engine.ConsentReplay("player",q,1,owner))
+            local reopened=assert(x.Open())
+            assert(reopened.BracketSnapshot().state=="disputed")
+            assert(reopened.ConsentReplay("other",q,1,owner))
+            assert(not x.engine.BracketSnapshot())
+            p.attempt=1;p.evidence="new-game"
+            x.Advance();assert(reopened.ReportBracket("player",p,1,owner))
+            assert(reopened.ReportBracket("other",p,1,owner))
+            assert(reopened.BracketSnapshot().champion==x.other.guid)
+        end)
+        Case(client.." finalization does not require eliminated semifinalists to remain online",function()
+            local x=Fixture();local e=assert(Host(x.s,x.h,x.clock));local ad=assert(e.Publish(x.h.guid,x.draft))
+            local players={}
+            for i=1,4 do local a=Copy(x.a);a.guid="Player-1-F"..i;a.name="F"..i;players[i]=a;assert(e.Join(ad.id,a.guid,a)) end
+            x.Advance(ad.draft.startAt-1800-x.clock())
+            for _,a in ipairs(players) do assert(e.CheckIn(ad.id,a.guid)) end
+            x.Advance(1800)
+            local d=assert(ns.TournamentBracket.NewSimulated(x.s,x.h.guid,e.Save(),x.clock(),x.h.guid))
+            for round=1,2 do
+                for _,m in ipairs(d.Snapshot().rounds[round]) do
+                    local p={event=ad.id,match=m.id,game=1,winner=m.a,evidence=m.id..":final"}
+                    assert(d.Report(m.a,p));assert(d.Report(m.b,p))
+                end
+            end
+            local v=d.Snapshot();local saved=d.Save();local final=v.rounds[2][1]
+            local rec=ns.TournamentRecovery;local control=rec.InitialControl(saved)
+            assert(not rec.FinalRecord(client,x.h.guid,saved,control,x.clock(),{[final.a]=saved}))
+            assert(rec.FinalRecord(client,x.h.guid,saved,control,x.clock(),{[final.a]=saved,[final.b]=saved}).champion==final.a)
+            local bad=Copy(saved);bad.startedAt=bad.startedAt+1
+            local copies={[final.a]=saved,[final.b]=saved}
+            for _,a in ipairs(players) do if not copies[a.guid] then copies[a.guid]=bad;break end end
+            assert(not rec.FinalRecord(client,x.h.guid,saved,control,x.clock(),copies))
+        end)
         Case(client.." rate limit and corrupt checkpoint cannot emit mutation acknowledgement",function()
             local x=Fixture();local w=assert(x.Player());local q=assert(w.Query(x.h.guid))
             assert(x.engine.Receive("player",q) and x.engine.Receive("player",q) and not x.engine.Receive("player",q))
@@ -1902,7 +1958,7 @@ end
 if ns.Diagnostics then
 ns.Diagnostics.Register("Tournament host recovery / isolated checkpoint QA","deep",function()
     local log={};local p,f=R.RunHostRecoverySelfTest(function(line)log[#log+1]=line end)
-    return f==0 and p==54 and "PASS" or "FAIL",string.format("%d passed / %d failed (SIMULATED)\n",p,f)..table.concat(log,"\n")
+    return f==0 and p==58 and "PASS" or "FAIL",string.format("%d passed / %d failed (SIMULATED)\n",p,f)..table.concat(log,"\n")
 end)
 ns.Diagnostics.Register("Tournament recovery / isolated journal QA","deep",function()
     local log={};local p,f=R.RunRecoverySelfTest(function(line)log[#log+1]=line end)

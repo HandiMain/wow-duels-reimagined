@@ -94,20 +94,14 @@ function R.FinalRecord(client,owner,bracket,control,now,copies)
     if not engine then return nil end
     local v=engine.Snapshot()
     if v.state~="completed" then return nil end
-    -- An offline loser cannot veto completion solely by remaining absent.
-    -- Derive exemptions only from the canonical replay, never raw claims.
-    local exempt,eligible={},{}
-    for _,round in ipairs(v.rounds) do
-        for _,m in ipairs(round) do
-            if m.forfeit and m.forfeit.reason=="offline" then exempt[m.forfeit.loser]=true end
-        end
-    end
-    for _,m in ipairs(bracket.checkpoint.roster) do
-        if m.checkedIn then
-            eligible[m.guid]=true
-            if (not exempt[m.guid] or m.guid==v.champion) and not Equal(copies[m.guid],bracket) then return nil end
-        end
-    end
+    -- Earlier rounds already require bilateral evidence or a canonical
+    -- forfeit. Eliminated players need not remain online for the final.
+    local eligible={}
+    for _,m in ipairs(bracket.checkpoint.roster) do if m.checkedIn then eligible[m.guid]=true end end
+    local final=v.rounds[#v.rounds][1]
+    if not Equal(copies[v.champion],bracket) then return nil end
+    local other=final.a==v.champion and final.b or final.a
+    if other and not final.forfeit and not Equal(copies[other],bracket) then return nil end
     for guid,copy in pairs(copies) do if not eligible[guid] or not Equal(copy,bracket) then return nil end end
     return FinalRecord(client,owner,{bracket=engine.Save(),champion=v.champion,term=c.term,finishedAt=now,
         population=P.Key(a),revision=a.revision+1})

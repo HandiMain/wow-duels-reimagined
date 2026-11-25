@@ -65,7 +65,7 @@ local function Engine(scope,owner,snapshot,now)
         end
         count=count/2
     end
-    local journal,used,paused={}, {},false
+    local journal,used,paused,dispute={}, {},false,nil
     local needed=math.floor(ad.draft.bestOf/2)+1
     local function Refresh()
         for r,round in ipairs(rounds) do
@@ -95,7 +95,7 @@ local function Engine(scope,owner,snapshot,now)
             capacity=ad.draft.capacity,bestOf=ad.draft.bestOf,slots=Copy(slots),rounds=Copy(rounds),
             state=paused and "disputed" or final.state=="done" and "completed" or "running",
             champion=not paused and final.state=="done" and final.winner or nil,
-            revision=#journal}
+            revision=#journal,dispute=Copy(dispute)}
     end
     function D.Save()
         return {version=1,scope="SIMULATED",checkpoint=Copy(cp),startedAt=now,reports=Copy(journal)}
@@ -106,30 +106,52 @@ local function Engine(scope,owner,snapshot,now)
         local m=byID[report.match]
         if not m or not m.a or not m.b or (sender~=m.a and sender~=m.b)
             or (report.winner~=m.a and report.winner~=m.b) then return false end
-        local record={sender=sender,event=ad.id,match=m.id,game=report.game,winner=report.winner,evidence=report.evidence}
-        local input={event=ad.id,match=m.id,game=report.game,winner=report.winner,evidence=report.evidence}
+        local attempt=m.replayedGame==report.game and 1 or nil
+        if report.attempt~=attempt then return false end
+        local record={sender=sender,event=ad.id,match=m.id,game=report.game,winner=report.winner,evidence=report.evidence,attempt=attempt}
+        local input={event=ad.id,match=m.id,game=report.game,winner=report.winner,evidence=report.evidence,attempt=attempt}
         if not Equal(input,report) then return false end
         local game=m.games[report.game]
         local prior=game and game.reports[sender]
         if prior and Equal(prior,record) then return true,"duplicate" end
         if paused then return false end
-        local gameKey=m.id..":"..report.game
+        local gameKey=m.id..":"..report.game..":"..(attempt or 0)
         if used[report.evidence] and used[report.evidence]~=gameKey then return false end
         -- A contradictory report about an already accepted game freezes
         -- advancement; never silently rewrites a champion or awards.
         if prior then
-            journal[#journal+1]=record;paused=true;return true,"disputed"
+            journal[#journal+1]=record;used[report.evidence]=gameKey
+            paused=true;dispute={match=m.id,game=report.game,confirmed=game.winner~=nil,revision=#journal,consents={}}
+            return true,"disputed"
         end
         if m.state~="ready" or report.game~=m.wins[1]+m.wins[2]+1 then return false end
         if not game then game={reports={}};m.games[report.game]=game end
         game.reports[sender]=record;used[report.evidence]=gameKey;journal[#journal+1]=record
         local a,b=game.reports[m.a],game.reports[m.b]
         if not a or not b then return true,"pending" end
-        if a.winner~=b.winner or a.evidence~=b.evidence then paused=true;return true,"disputed" end
+        if a.winner~=b.winner or a.evidence~=b.evidence then
+            paused=true;dispute={match=m.id,game=report.game,confirmed=false,revision=#journal,consents={}}
+            return true,"disputed"
+        end
         local side=a.winner==m.a and 1 or 2
         game.winner=a.winner;m.wins[side]=m.wins[side]+1
         if m.wins[side]==needed then m.state="done";m.winner=a.winner;Refresh() end
         return true,"confirmed"
+    end
+    -- One mutually agreed replay per series, only for an unconfirmed game.
+    -- Evidence and consent from the old attempt cannot be reused.
+    function D.ConsentReplay(sender,request)
+        if not paused or not dispute or dispute.confirmed or type(request)~="table" then return false end
+        local m=byID[dispute.match]
+        if not m or m.state~="ready" or m.replayedGame or (sender~=m.a and sender~=m.b)
+            or not Equal(request,{event=ad.id,match=m.id,game=dispute.game,revision=dispute.revision}) then return false end
+        if dispute.consents[sender] then return true,"duplicate" end
+        dispute.consents[sender]=true
+        journal[#journal+1]={kind="replay",sender=sender,event=ad.id,match=m.id,game=dispute.game,revision=dispute.revision}
+        if not dispute.consents[m.a] or not dispute.consents[m.b] then return true,"pending" end
+        m.replayedGame=dispute.game;m.games[dispute.game]=nil
+        paused=false;dispute=nil
+        return true,"replay"
     end
     -- Series forfeits are not played duel results.
     local function Forfeit(m,loser,reason,record)
@@ -167,7 +189,7 @@ function B.OpenSimulated(scope,owner,saved)
     if type(saved)~="table" or saved.version~=1 or saved.scope~="SIMULATED" or type(saved.reports)~="table" then return nil end
     local n=0
     for k in pairs(saved.reports) do
-        n=n+1;if n>342 or not Whole(k,1,342) then return nil end
+        n=n+1;if n>497 or not Whole(k,1,497) then return nil end
     end
     local d=Engine(scope,owner,saved.checkpoint,saved.startedAt)
     if not d then return nil end
@@ -177,7 +199,8 @@ function B.OpenSimulated(scope,owner,saved)
         local ok,why
         if r.kind=="offline" then ok,why=d.ForfeitOffline(r)
         elseif r.kind=="withdraw" then ok,why=d.Withdraw(r.sender,{event=r.event,match=r.match})
-        else ok,why=d.Report(r.sender,{event=r.event,match=r.match,game=r.game,winner=r.winner,evidence=r.evidence}) end
+        elseif r.kind=="replay" then ok,why=d.ConsentReplay(r.sender,{event=r.event,match=r.match,game=r.game,revision=r.revision})
+        else ok,why=d.Report(r.sender,{event=r.event,match=r.match,game=r.game,winner=r.winner,evidence=r.evidence,attempt=r.attempt}) end
         if not ok or why=="duplicate" then return nil end
     end
     if Equal(d.Save(),saved) then return d end
@@ -333,6 +356,43 @@ function B.RunSelfTest(emit)
             assert(not Report(d,m,1,m.a,"late",m.a))
             assert(Equal(d.Snapshot(),assert(B.OpenSimulated(s,h,d.Save())).Snapshot()))
         end)
+        Case(client.." replay requires both duelists and preserves earlier confirmed games",function()
+            local s,h,cp,now=Fixture(4,4,3)
+            local d=assert(B.NewSimulated(s,h,cp,now,h));local m=Ready(d)
+            assert(Report(d,m,1,m.a,"first",m.a));assert(Report(d,m,1,m.a,"first",m.b))
+            assert(Report(d,m,2,m.a,"old",m.a));assert(Report(d,m,2,m.b,"old",m.b))
+            local v=d.Snapshot();assert(v.state=="disputed" and not v.dispute.confirmed)
+            local q={event=cp.ad.id,match=m.id,game=2,revision=v.dispute.revision}
+            assert(not d.ConsentReplay(h,q))
+            assert(d.ConsentReplay(m.a,q));assert(d.Snapshot().state=="disputed")
+            local ok,why=d.ConsentReplay(m.a,q);assert(ok and why=="duplicate")
+            d=assert(B.OpenSimulated(s,h,d.Save()))
+            assert(d.ConsentReplay(m.b,q))
+            v=d.Snapshot();assert(v.state=="running" and v.rounds[1][1].wins[1]==1)
+            assert(not Report(d,m,2,m.a,"fresh",m.a))
+            local report={event=cp.ad.id,match=m.id,game=2,winner=m.a,evidence="old",attempt=1}
+            assert(not d.Report(m.a,report));report.evidence="fresh"
+            assert(d.Report(m.a,report));assert(d.Report(m.b,report))
+            assert(d.Snapshot().rounds[1][1].winner==m.a)
+            assert(Equal(d.Snapshot(),assert(B.OpenSimulated(s,h,d.Save())).Snapshot()))
+        end)
+        Case(client.." confirmed result or repeated disputed replay cannot be erased",function()
+            local s,h,cp,now=Fixture(4,4,3)
+            local d=assert(B.NewSimulated(s,h,cp,now,h));local m=Ready(d)
+            assert(Report(d,m,1,m.a,"same",m.a));assert(Report(d,m,1,m.a,"same",m.b))
+            assert(Report(d,m,1,m.b,"same",m.a))
+            local v=d.Snapshot();assert(v.dispute.confirmed)
+            assert(not d.ConsentReplay(m.a,{event=cp.ad.id,match=m.id,game=1,revision=v.dispute.revision}))
+            d=assert(B.NewSimulated(s,h,cp,now,h))
+            assert(Report(d,m,1,m.a,"old",m.a));assert(Report(d,m,1,m.b,"old",m.b))
+            local q={event=cp.ad.id,match=m.id,game=1,revision=d.Snapshot().dispute.revision}
+            assert(d.ConsentReplay(m.a,q));assert(d.ConsentReplay(m.b,q))
+            local p={event=cp.ad.id,match=m.id,game=1,winner=m.a,evidence="new",attempt=1}
+            assert(d.Report(m.a,p));p.winner=m.b;assert(d.Report(m.b,p))
+            q.revision=d.Snapshot().dispute.revision
+            assert(not d.ConsentReplay(m.a,q))
+            assert(Equal(d.Snapshot(),assert(B.OpenSimulated(s,h,d.Save())).Snapshot()))
+        end)
         Case(client.." replay restores pending series and rejects corrupted records",function()
             local s,h,cp,now=Fixture(8,6,5)
             local d=assert(B.NewSimulated(s,h,cp,now,h));local m=Ready(d)
@@ -352,6 +412,6 @@ end
 if ns.Diagnostics then
     ns.Diagnostics.Register("Tournament brackets / isolated competition QA","deep",function()
         local log={};local p,f=B.RunSelfTest(function(line)log[#log+1]=line end)
-        return p==20 and f==0 and "PASS" or "FAIL",string.format("%d passed / %d failed (SIMULATED)\n",p,f)..table.concat(log,"\n")
+        return p==24 and f==0 and "PASS" or "FAIL",string.format("%d passed / %d failed (SIMULATED)\n",p,f)..table.concat(log,"\n")
     end)
 end

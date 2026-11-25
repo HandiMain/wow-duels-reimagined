@@ -228,3 +228,5 @@ Stage 7B integrity refinement: the progress-replica fixture verifier must supply
 - [ ] T24 — Stage 7C2 host recovery 54/54; brackets 20/20. Check 299/300 boundary, reconnect reset, unknown/both offline, continuity gap, stale term/controller, withdrawal and replay. No real presence, timers, visible countdown or notification firing tested; absent-player completion and dispute correction pending.
 
 T24 also checks finalization after verified offline forfeit without an absent loser's acknowledgement; missing champion or conflicting supplied copy rejected.
+
+- [ ] T25 — Stage 7C3 host recovery 58/58 and bracket 24/24; consent exact dispute revision, both duelists, no confirmed-result reset, old evidence/attempt refused, repeated disputes held, reopen, stale controller, final receipts without semifinalists. Runtime pending; live authority and late corrections unverified.
