@@ -5,7 +5,7 @@ local B={};ns.TournamentBrowse=B
 local S,C,W=ns.Style,ns.Style.color,ns.Widgets
 local ART="Interface\\AddOns\\DuelsReimagined\\Media\\Skin\\TournamentBrowseArt.png"
 local green={.58,1,.24,1};local amber={1,.75,.20,1};local grey={.70,.68,.65,1}
-local rect={logo={0,0,96,82},community={100,0,65,55},flag={170,0,36,44},location={212,34,25,29},players={244,34,29,25},swords={278,34,28,25},laurelL={312,34,28,33},laurelR={344,34,32,33},landscape={0,120,240,124}}
+local rect={logo={0,0,96,82},community={100,0,65,55},flag={170,0,36,44},location={212,34,25,29},players={244,34,29,25},swords={278,34,28,25},laurelL={312,34,28,33},laurelR={344,34,32,33},landscape={0,120,240,124},statusLight={400,60,32,32}}
 for i=1,7 do rect[i]={212+(i-1)*32,0,28,28} end
 local filters={{key="all",label="All Tournaments"},{key="open",label="Open registration"},{key="filling",label="Filling"},{key="full",label="Full"},{key="closed",label="Closed"}}
 function B.Status(ad,now)
@@ -47,13 +47,12 @@ local function Panel(p,bright)
     S.Skin(f,C.body,{corner=10,edge=bright and C.gold or C.goldDim,light=C.goldDim,dark=C.window,shine=.22,shade=.18,rim=1})
     return f
 end
-local function Action(p,primary,size)
+local function Action(p,primary,size,reserveArrow)
     local palette={text=C.pale,edge=primary and C.gold or C.goldDim,hover=C.gold,tooltip=false,
         fontSize=size or 20,minimumFont=13,refitOnText=true,
         feedback={hoverAlpha=.55,downAlpha=.82,downHover=.88,clickAlpha=.86,corner=9}}
-    if primary then
-        palette.fill=C.button;palette.light=C.red;palette.dark=C.header;palette.corner=9;palette.shine=.60;palette.shade=.25;palette.rim=1
-    else palette.plate="dark" end
+    palette.plate=primary and "browsePrimary" or "browseCard"
+    if reserveArrow then palette.labelRight=30 end
     return S.Action(p,"","footer",palette)
 end
 local function Bind(b,caption,enabled,reason,fn,help)
@@ -73,15 +72,14 @@ local function Bind(b,caption,enabled,reason,fn,help)
 end
 local function Row(p)
     local b=Action(p,false,18);b.label:Hide()
-    local selected=S.FeedbackOverlay(b,{corner=9,inset=1,fill=C.gold,edge=C.gold,shine=.75,rim=1})
-    local wash=S.SkinMask(b,C.selected,"face","ARTWORK",-2,9,3);wash:SetAlpha(0)
-    local r={button=b,selected=selected,wash=wash,logo=Art(b,"logo"),title=Label(b,25,C.pale),
+    local selected=S.FeedbackOverlay(b,{corner=9,inset=1,fill=C.gold,edge=C.gold,shine=.36,rim=1})
+    local r={button=b,selected=selected,logo=Art(b,"logo"),title=Label(b,25,C.pale),
         people=Art(b,"players"),swords=Art(b,"swords"),count=Label(b,17,C.text),format=Label(b,17,C.text)}
     local badge=CreateFrame("Frame",nil,b)
     r.badge=badge
-    r.badgeSkin=S.Skin(badge,{.10,.10,.08,1},{corner=8,edge=C.goldDim,shine=.12,shade=.15,rim=.75})
-    r.badgeText=Label(badge,16,C.text,"CENTER")
-    r.dot=S.Fill(badge,green,"ARTWORK")
+    -- Status is lightweight text and a tintable circular light, never a button.
+    r.badgeText=Label(badge,16,C.text,"LEFT")
+    r.dot=Art(badge,"statusLight","ARTWORK")
     return r
 end
 local function PaintRow(r,entry,w,y,selected,cb)
@@ -90,7 +88,7 @@ local function PaintRow(r,entry,w,y,selected,cb)
     local ad=entry.ad;local badgeW=128
     At(b,b:GetParent(),10,y,w-20,88)
     local bw=w-20
-    r.selected:SetAlpha(selected and 1 or 0);r.wash:SetAlpha(selected and .55 or 0)
+    r.selected:SetAlpha(selected and 1 or 0)
     At(r.logo,b,13,5,91,78)
     Text(r.title,b,116,8,bw-116-badgeW-20,36,ad.draft.name,C.pale,17)
     At(r.people,b,117,53,23,20)
@@ -99,8 +97,8 @@ local function PaintRow(r,entry,w,y,selected,cb)
     Text(r.format,b,306,46,bw-306-badgeW-13,31,"Best of "..ad.draft.bestOf,C.text,13)
     At(r.badge,b,bw-badgeW-10,27,badgeW,34)
     local color=entry.status=="registering" and green or entry.status=="filling" and amber or grey
-    r.dot:SetColorTexture(unpack(color));At(r.dot,r.badge,10,12,9,9)
-    Text(r.badgeText,r.badge,22,0,badgeW-26,34,entry.statusText,color,12)
+    r.dot:SetVertexColor(unpack(color));At(r.dot,r.badge,1,5,24,24)
+    Text(r.badgeText,r.badge,25,0,badgeW-28,34,entry.statusText,color,12)
     b:SetScript("OnClick",function()cb(entry.id)end)
 end
 local function Community(parent)
@@ -196,7 +194,7 @@ function B.New(parent,action,refresh)
     local community=Community(f)
     local list=Panel(f,false)
     local listIcon=Art(list,"flag");local listTitle=Label(list,24,C.pale)
-    local filter=Action(list,false,18)
+    local filter=Action(list,false,18,true)
     local filterArrow=filter:CreateTexture(nil,"ARTWORK");filterArrow:SetTexture("Interface\\AddOns\\DuelsReimagined\\Media\\Artwork\\Header\\FoldDown.png");ns.Chrome.Sharp(filterArrow)
     local rule=S.Fill(list,C.goldDim,"BORDER")
     local cards={};for i=1,4 do cards[i]=Row(list) end
@@ -236,7 +234,7 @@ function B.New(parent,action,refresh)
         PaintCommunity(community,model.scope or {},base,wide)
         At(list,f,0,top,left,listH);At(detail.frame,f,wide and left+12 or 0,wide and top or top+listH+12,right,h)
         At(listIcon,list,14,9,30,37);Text(listTitle,list,57,6,left-245,43,"Browse Tournaments",C.pale,18)
-        At(filter,list,left-192,13,176,34);At(filterArrow,filter,155,10,15,15)
+        At(filter,list,left-192,13,176,34);At(filterArrow,filter,151,10,15,15)
         local caption="All Tournaments"
         for _,opt in ipairs(filters) do if opt.key==filterKey then caption=opt.label end end
         Bind(filter,caption,true,nil,function()

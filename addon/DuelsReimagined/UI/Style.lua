@@ -320,6 +320,11 @@ local PLATES = {
         atlasX=256, atlasY=0, atlasW=512, atlasH=256 },
     dark = { path=PLATE_ATLAS, w=256, h=64, cutX=24, cutY=16,
         atlasX=256, atlasY=64, atlasW=512, atlasH=256 },
+    -- Browse-only metallic relief, transparent corners and no baked labels.
+    browsePrimary = { path=PLATE_ROOT .. "TournamentBrowseArt.png",
+        w=256, h=64, cutX=20, cutY=16, atlasX=256, atlasY=120, atlasW=512, atlasH=256 },
+    browseCard = { path=PLATE_ROOT .. "TournamentBrowseArt.png",
+        w=256, h=64, cutX=20, cutY=16, atlasX=256, atlasY=190, atlasW=512, atlasH=256 },
     cardBody = { path=PLATE_ATLAS, w=256, h=128, cutX=20, cutY=18,
         atlasX=0, atlasY=128, atlasW=512, atlasH=256 },
     cardHeading = { path=PLATE_ATLAS, w=256, h=64, cutX=22, cutY=12,
@@ -562,7 +567,8 @@ function Style.Action(parent, caption, variant, palette)
     local feedback=palette and palette.feedback
     local label = Style.Text(button, caption, palette and palette.fontSize or 15,
         palette and palette.text or C.buttonText)
-    local placeLabel = Style.ConstrainButtonLabel(button, label, 9, 9,
+    local placeLabel = Style.ConstrainButtonLabel(button, label,
+        palette and palette.labelLeft or 9,palette and palette.labelRight or 9,
         palette and palette.minimumFont or 9,palette and palette.refitOnText)
     label:SetJustifyH("CENTER")
     if not landingArt then
