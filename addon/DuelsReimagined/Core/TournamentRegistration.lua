@@ -1994,15 +1994,40 @@ function R.RunHostRecoverySelfTest(emit)
     return pass,fail
 end
 
-local preview
+local preview,catalog
+local TEST_NAMES={"Ashwarden","Duskblade","Ironwill","Frostvale","Emberguard","Stormveil","Mooncrest","Thornheart",
+    "Silveroak","Redspire","Shadowfen","Brightforge","Ravenward","Nightbloom","Dawnsteel","Stonewake",
+    "Mistfall","Flamecrest","Oakshield","Wintermark","Goldthorn","Duskmantle","Skyrune","Sablewind",
+    "Runehaven","Ashenwolf","Copperleaf","Wildspark","Starforge","Grimvale","Snowspire","Windborne"}
+local function FillPreview(x,target)
+    local d=x.engine.Ad().draft
+    local count=x.engine.Ad().count
+    local seed=x.seed or 0
+    for i=count+1,math.min(target,d.capacity) do
+        local a=Copy(x.scope)
+        a.guid=string.format("Player-0-TESTBOT%02d",i)
+        a.name=TEST_NAMES[(i+seed-1)%#TEST_NAMES+1]
+        a.level=math.max(d.minLevel>0 and d.minLevel or 1,math.min(x.player.level,d.maxLevel>0 and d.maxLevel or 255))
+        local ok=x.engine.Join(x.id,a.guid,a)
+        if not ok then return false,"Test registration is closed or full." end
+    end
+    return true,"Test participants registered."
+end
 -- Explicit session-only rehearsal. The same bracket engine owns the draw
 -- and score. No live transport, persistence, rating or detector arm here.
-local function PreparePreview(s,h,a,d,n)
-    local x={key=P.Key(s),scope=Copy(s),now=n,role="host",host=h,player=a}
+local function PreparePreview(s,h,a,d,n,mode,count)
+    local x={key=P.Key(s),scope=Copy(s),now=n,role=mode=="join" and "player" or "host",host=h,player=a,
+        mode=mode,seed=n%#TEST_NAMES}
     local clock=function()return x.now end
     x.engine=Host(s,h,clock);x.cache=Cache(s,clock)
     local ad,why=x.engine.Publish(h.guid,d)
     if not ad then return nil,why end
+    x.id=ad.id
+    if mode then
+        local ok,why=FillPreview(x,count)
+        if not ok then return nil,why end
+        return x
+    end
     local rival=Copy(s)
     rival.guid,rival.name="Player-0-TESTOPPONENT","Test opponent (local)"
     rival.level=math.max(d.minLevel>0 and d.minLevel or 1,math.min(a.level,d.maxLevel>0 and d.maxLevel or 255))
@@ -2011,15 +2036,22 @@ local function PreparePreview(s,h,a,d,n)
     return x
 end
 local function StartPreviewBracket(x)
-    if x.bracket or not x.joined then return false,"Join and check in as the test player first." end
+    if x.bracket then return false,"The test bracket has already started." end
+    if x.mode~="host" and not x.joined then return false,"Join and check in as the test player first." end
     local cp=x.engine.Save()
     local checked=false
     for _,r in ipairs(cp.roster) do if r.guid==x.player.guid and r.checkedIn then checked=true end end
-    if not checked then return false,"Check in as the test player first." end
-    local clock=function()return x.now end
+    if x.mode~="host" and not checked then return false,"Check in as the test player first." end
+    local checkTime=math.max(x.now,cp.ad.draft.startAt-1800)
+    local clock=function()return checkTime end
     local candidate=Host(x.scope,x.host,clock,cp)
-    if not candidate or not candidate.CheckIn(x.id,x.rival.guid) then return false,"Test check-in is unavailable." end
+    if not candidate then return false,"Test check-in is unavailable." end
+    for _,r in ipairs(cp.roster) do
+        if r.guid~=x.player.guid and not candidate.CheckIn(x.id,r.guid) then return false,"Test check-in is unavailable." end
+    end
     local start=math.max(x.now,cp.ad.draft.startAt)
+    -- Candidate keeps the session clock after successful start.
+    checkTime=start
     local bracket=ns.TournamentBracket and ns.TournamentBracket.NewSimulated(x.scope,x.host.guid,candidate.Save(),start,x.host.guid)
     if not bracket then return false,"The test bracket could not start." end
     x.engine=candidate;x.now=start;x.bracket=bracket
@@ -2031,7 +2063,10 @@ local function PreviewMatch(x,view)
         for _,m in ipairs(round) do
             if m.state=="ready" and (m.a==x.player.guid or m.b==x.player.guid) then
                 local first=m.a==x.player.guid
-                return {id=m.id,round=m.round,roundCount=#view.rounds,opponent=x.rival.name,
+                local opponent=first and m.b or m.a
+                local name="Unknown player"
+                for _,r in ipairs(x.engine.Roster(x.host.guid)) do if r.guid==opponent then name=r.name;break end end
+                return {id=m.id,round=m.round,roundCount=#view.rounds,opponent=name,
                     score=m.wins[first and 1 or 2],opponentScore=m.wins[first and 2 or 1],bestOf=view.bestOf}
             end
         end
@@ -2044,13 +2079,59 @@ local function Read(fn,...)
     return v
 end
 local function Current()
-    if preview and P.Key(P.GetCurrent())~=preview.key then preview=nil end
+    local key=P.Key(P.GetCurrent())
+    if preview and key~=preview.key then preview=nil end
+    if catalog and key~=catalog.key then catalog=nil end
     return preview
+end
+local function MakeCatalog(s,a,n)
+    local data={key=P.Key(s),entries={}}
+    local titles={"Duskblade Invitational","Iron Ring Cup","Emberfall Open","Stormcrest Championship"}
+    local locations={"Elwynn Forest","Durotar","Dun Morogh","Tirisfal Glades"}
+    for i,size in ipairs({4,8,16,32}) do
+        local d=T.DraftDefaults();d.name=titles[i];d.location=locations[i]
+        -- UTC fixture scheduling relative to the actual session, not a fixed old date.
+        d.startUTC=Read(date,"!%Y-%m-%d %H:%M",math.floor(n/60)*60+(i+2)*3600)
+        d.capacity=size;d.bestOf=i%2==0 and 3 or 1
+        d=T.ValidateDraft(s.client,d,n,s.region,s.ruleset,s.faction)
+        if not d then return nil end
+        local h=Copy(s);h.guid="Player-0-TESTORG"..i;h.name=TEST_NAMES[(i+11)%#TEST_NAMES+1]
+        local x=PreparePreview(s,h,a,d,n,"join",math.max(2,size-1-(i%3)))
+        if not x then return nil end
+        data.entries[i]=x
+    end
+    return data
+end
+function R.OpenTestCatalog()
+    if Current() then return false,"End the active local test first." end
+    local s=P.GetCurrent();local n=Read(GetServerTime);local level=Read(UnitLevel,"player")
+    if not P.Key(s) or not Whole(n,1,4102444800) or not Whole(level,1,255) then return false,"Character or time unavailable." end
+    local a=Copy(s);a.guid,a.name,a.level="Player-0-TESTPLAYER","You (local test)",level
+    catalog=MakeCatalog(s,a,n)
+    return catalog~=nil,catalog and "Choose a local test tournament." or "Could not prepare test tournaments."
+end
+function R.TestListings()
+    if Current() or not catalog then return nil end
+    local rows={}
+    for i,x in ipairs(catalog.entries) do rows[i]=x.engine.Ad() end
+    return rows
+end
+function R.JoinTestListing(index)
+    if Current() or not catalog or not Whole(index,1,#catalog.entries) then return false,"Choose a test tournament." end
+    local x=catalog.entries[index]
+    local ok,why=x.engine.Join(x.id,x.player.guid,x.player)
+    if not ok then return false,why end
+    x.joined=true;preview=x;catalog=nil
+    return true,why
 end
 function R.PreviewState()
     local x=Current();if not x then return nil end
     if x.role=="host" then return "hosting" end
-    if x.bracket then return "competing" end
+    if x.bracket then
+        local v=x.bracket.Snapshot()
+        if v.state=="completed" then return "eliminated" end
+        return "competing"
+    end
     return x.joined and "registered" or "preview-browse"
 end
 function R.PreviewHasBracket()
@@ -2064,31 +2145,69 @@ function R.StartPreview(d)
     local h,a=Copy(s),Copy(s)
     h.guid,h.name="Player-0-TESTHOST","Local test organizer"
     a.guid,a.name,a.level="Player-0-TESTPLAYER","You (local test)",level
-    local x,why=PreparePreview(s,h,a,d,n)
+    local count=math.max(2,d.capacity-1-n%math.min(4,d.capacity-1))
+    local x,why=PreparePreview(s,h,a,d,n,"host",count)
     if not x then return false,why end
-    preview=x;return true,"Local test created with one simulated opponent. Nothing sent to other players."
+    preview=x;catalog=nil
+    return true,"Local test created with "..count.." simulated participants. Nothing sent to other players."
 end
-function R.EndPreview() preview=nil end
+function R.EndPreview() preview=nil;catalog=nil end
 function R.PreviewSnapshot()
     local x=Current();if not x then return nil end
     local ad=x.engine.Ad();x.cache.Accept(x.host.guid,ad)
     local rows=x.engine.Roster(x.host.guid);local member
-    for _,r in ipairs(rows) do if r.guid==x.player.guid then member=r end end
+    local names={}
+    for _,r in ipairs(rows) do
+        names[r.guid]=r.name
+        if r.guid==x.player.guid then member=r end
+    end
     local bracket=x.bracket and x.bracket.Snapshot()
     return {scope="SIMULATED",role=x.role,state=R.PreviewState(),event=ad,events=bracket and {} or x.cache.Browse(),
         roster=x.role=="host" and rows or nil,member=member,now=x.now,bracket=bracket,
-        match=PreviewMatch(x,bracket),names={[x.player.guid]=x.player.name,[x.rival.guid]=x.rival.name}}
+        match=PreviewMatch(x,bracket),names=names,mode=x.mode}
 end
 function R.PreviewAction(action)
     local x=Current();if not x then return false,"No local test tournament." end
-    if action=="host" or action=="player" then x.role=action;return true end
+    if action=="host" or action=="player" then
+        if x.mode then return false,"This local test keeps your tournament role." end
+        x.role=action;return true
+    end
+    if action=="fill" and x.mode=="host" and not x.bracket then return FillPreview(x,x.engine.Ad().draft.capacity) end
+    if action=="start-bracket" and x.mode=="join" and x.role=="player" then return StartPreviewBracket(x) end
+    if action=="simulate-game" and x.bracket then
+        local v=x.bracket.Snapshot()
+        if v.state~="running" then return false,"The test bracket is not running." end
+        local match
+        local own=PreviewMatch(x,v)
+        for _,round in ipairs(v.rounds) do
+            for _,m in ipairs(round) do
+                if m.state=="ready" and (not match or own and m.id==own.id) then match=m end
+            end
+        end
+        if not match then return false,"No test match is ready." end
+        local game=match.wins[1]+match.wins[2]+1
+        local winner=(v.revision+game+x.seed)%3==0 and match.b or match.a
+        local candidate=ns.TournamentBracket.OpenSimulated(x.scope,x.host.guid,x.bracket.Save())
+        if not candidate then return false,"Test bracket unavailable." end
+        local report={event=v.event,match=match.id,game=game,winner=winner,evidence="TEST:"..match.id..":"..game}
+        local ok,why=candidate.Report(match.a,report)
+        if not ok or why~="pending" then return false,"Test report unavailable." end
+        ok,why=candidate.Report(match.b,report)
+        if not ok or why~="confirmed" then return false,"Test result unavailable." end
+        x.bracket=candidate
+        return true,"Simulated game confirmed. No rating changes."
+    end
     if action=="cancel" and x.role=="host" then local ok,why=x.engine.Cancel(x.id,x.host.guid);if ok then R.EndPreview() end;return ok,why end
     if action=="start-bracket" and x.role=="host" then return StartPreviewBracket(x) end
     if x.bracket then return false,"The local test has already started." end
     if x.role~="player" then return false,"Switch to player preview first." end
     if action=="checkin-time" and x.joined then x.now=math.max(x.now,x.engine.Ad().draft.startAt-1800);return true,"Local test clock advanced." end
     if action=="join" then local ok,why=x.engine.Join(x.id,x.player.guid,x.player);if ok then x.joined=true end;return ok,why end
-    if action=="leave" then local ok,why=x.engine.Leave(x.id,x.player.guid);if ok then x.joined=false end;return ok,why end
+    if action=="leave" then
+        local ok,why=x.engine.Leave(x.id,x.player.guid)
+        if ok then x.joined=false;if x.mode=="join" then R.EndPreview() end end
+        return ok,why
+    end
     if action=="checkin" then return x.engine.CheckIn(x.id,x.player.guid) end
     return false,"Action unavailable."
 end
@@ -2117,6 +2236,36 @@ function R.RunPlayerPreviewSelfTest(emit)
         end)
         if ok then p=p+1 else f=f+1 end
         emit("DR | SIMULATED | "..(ok and "PASS " or "FAIL ")..client.." player rehearsal / bracket / ready match"..(ok and "" or ": "..tostring(err)))
+    end
+    return p,f
+end
+function R.RunShowcaseSelfTest(emit)
+    emit=type(emit)=="function" and emit or function()end
+    local p,f=0,0
+    for _,client in ipairs({"forever","retail"}) do
+        local ok,err=pcall(function()
+            local s={client=client,region="EU",ruleset=client=="forever" and "pvp" or "retail",faction="Alliance"}
+            local n=1795622400;local h,a=Copy(s),Copy(s)
+            h.guid,h.name="Player-0-TESTHOST","Organizer"
+            a.guid,a.name,a.level="Player-0-TESTPLAYER","You (local test)",30
+            local d=T.DraftDefaults();d.name="Test Cup";d.location="Meeting place";d.startUTC="2026-11-25 18:00";d.capacity=8
+            d=assert(T.ValidateDraft(client,d,n,s.region,s.ruleset,s.faction))
+            local x=assert(PreparePreview(s,h,a,d,n,"host",5))
+            assert(x.engine.Ad().count==5 and not x.joined)
+            assert(FillPreview(x,8) and x.engine.Ad().count==8)
+            assert(StartPreviewBracket(x))
+            assert(#x.bracket.Snapshot().slots==8 and not PreviewMatch(x,x.bracket.Snapshot()))
+            local y=assert(PreparePreview(s,h,a,d,n,"join",6))
+            assert(y.engine.Join(y.id,a.guid,a));y.joined=true
+            assert(not StartPreviewBracket(y));y.now=d.startAt-1800
+            assert(y.engine.CheckIn(y.id,a.guid) and StartPreviewBracket(y))
+            local v=y.bracket.Snapshot()
+            local found=0
+            for _,g in ipairs(v.slots) do if g then found=found+1 end end
+            assert(found==7 and y.role=="player")
+        end)
+        if ok then p=p+1 else f=f+1 end
+        emit("DR | SIMULATED | "..(ok and "PASS " or "FAIL ")..client.." hosted and joined showcase draw"..(ok and "" or ": "..tostring(err)))
     end
     return p,f
 end
@@ -2209,6 +2358,10 @@ function R.RunSelfTest(emit)
     return p,f
 end
 if ns.Diagnostics then
+ns.Diagnostics.Register("Tournament showcase / isolated entry QA","deep",function()
+    local log={};local p,f=R.RunShowcaseSelfTest(function(line)log[#log+1]=line end)
+    return f==0 and p==2 and "PASS" or "FAIL",string.format("%d passed / %d failed (SIMULATED)\n",p,f)..table.concat(log,"\n")
+end)
 ns.Diagnostics.Register("Tournament player rehearsal / isolated match QA","deep",function()
     local log={};local p,f=R.RunPlayerPreviewSelfTest(function(line)log[#log+1]=line end)
     return f==0 and p==2 and "PASS" or "FAIL",string.format("%d passed / %d failed (SIMULATED)\n",p,f)..table.concat(log,"\n")
