@@ -18,6 +18,7 @@ function methods:Hide()local old=self.shown;self.shown=false;if old and self.scr
 function methods:IsShown()return self.shown end
 function methods:IsVisible()return self.shown and (not self.parent or self.parent:IsVisible())end
 function methods:SetText(t)self.text=t end
+function methods:SetTextColor(...)self.textColor={...}end
 function methods:SetStatusBarTexture(t)self.barTexture=t end
 function methods:SetMinMaxValues(lo,hi)self.low,self.high=lo,hi end
 function methods:SetValue(v)self.value=v end
@@ -50,7 +51,10 @@ local fits,anchors,subscribers=0,0,0
 local fitted={}
 local snap={state="idle"}
 local target="target"
-local duelListener
+local duelListener,discoveryListener
+local discovery={state="idle"}
+local rankAvailable,rankReason,rankSelectable=false,"Ranked testing disabled",false
+local probes=0
 local function ID(unit)
     local name=unit=="target" and target or unit~="target" and unit or nil
     if not name or name=="NPC" then return nil end
@@ -75,11 +79,11 @@ local ns={
     end},
     Client={IsSupported=function()return true end},
     Group={ReadCompetitiveIdentity=ID},
-    CompetitiveLifecycle={RankedAvailability=function()return false,"Unranked only",false end,GetSnapshot=function()return {}end},
+    CompetitiveLifecycle={RankedAvailability=function()return rankAvailable,rankReason,rankSelectable end,GetSnapshot=function()return {}end},
     CompetitivePreview={IsActive=function()return false end},
     CompetitiveUI={CreateRankEmblem=function(p)local f=Frame(p);f.Paint=noop;return f end},
     DuelDetection={GetSnapshot=function()return snap end,Subscribe=function(fn)duelListener=fn;return Subscribe()end,GetChallengeRange=function()return true end},
-    OpponentDiscovery={Subscribe=Subscribe,ProbeTarget=function()return true end},
+    OpponentDiscovery={Subscribe=function(fn)discoveryListener=fn;return Subscribe()end,GetSnapshot=function()return discovery end,ProbeTarget=function()probes=probes+1;return true end},
     Notifications={Reanchor=function()anchors=anchors+1 end}
 }
 assert(loadfile("addon/DuelsReimagined/UI/DuelHUD.lua"))("DuelsReimagined",ns)
@@ -169,6 +173,51 @@ Select(nil);H.Fold(true);FlushTimers();assert(root:GetHeight()==42)
 H.Fold(false);assert(root:GetHeight()==84)
 Select("target");assert(root:GetHeight()==248 and root.point[5]==top and #frames==frameCount)
 print("Adaptive HUD mock: PASS (idle/invalid/selected/pending/incoming/active/result, debounce, target lock, timer, fold, anchor, no new frames)")
+local function Recognition(t,color)
+    for _,f in ipairs(frames) do
+        if f.text==t and f:IsVisible() then
+            assert(f.textColor and math.abs(f.textColor[1]-color[1])<.001 and math.abs(f.textColor[2]-color[2])<.001 and math.abs(f.textColor[3]-color[3])<.001,t)
+            return true
+        end
+    end
+    error("Missing recognition label: "..t)
+end
+local green,amber,grey,red={.46,.85,.44},{.96,.71,.25},{.62,.64,.68},{1,.43,.38}
+local function Reply(status,reason,who,offer)
+    discovery={state=status,reason=reason,opponent=who,rankOffer=offer};discoveryListener()
+end
+local peer=ID("target")
+local before=probes
+assert(Recognition("Opponent not checked",grey))
+Reply("checking","request_sent",peer);assert(Recognition("Checking opponent...",amber))
+Reply("unknown","no_reply",peer);assert(Recognition("Addon not detected (no reply)",grey))
+Reply("unknown","confirmation_expired",peer);assert(Recognition("Addon confirmation expired",grey))
+Reply("unknown","restricted",peer);assert(Recognition("Addon check unavailable",grey))
+Reply("incompatible","protocol_or_client_mismatch",peer);assert(Recognition("Incompatible addon version",red))
+Reply("compatible","matching_reply",peer);assert(Recognition("Addon detected - Ranked testing disabled",amber))
+rankReason="Ranked compatibility not confirmed"
+Reply("compatible","matching_reply",peer);assert(Recognition("Addon detected - Ranked unconfirmed",amber))
+Reply("compatible","matching_reply",peer,"R|1000|"..string.rep("a",64));assert(Recognition("Incompatible ranked rules",red))
+rankReason="Opponent prefers Unranked";rankSelectable=true
+Reply("compatible","preference_updated",peer,"U|1000|"..string.rep("a",64))
+assert(Recognition("Addon detected - Opponent prefers Unranked",amber))
+rankAvailable=true;rankReason="Ranked available"
+Reply("compatible","preference_updated",peer,"R|1000|"..string.rep("a",64))
+assert(Recognition("Ranked available",green))
+prefs.practiceDuels=true;H.Refresh();assert(Recognition("Ranked available - Unranked selected",green))
+prefs.practiceDuels=false
+assert(probes==before and root:GetHeight()==248 and #frames==frameCount,"status paint must not probe, resize or create frames")
+rankAvailable=false;rankReason="Checking opponent";rankSelectable=false
+Select("different");assert(Recognition("Opponent not checked",grey))
+Reply("compatible","matching_reply",peer);assert(Recognition("Opponent not checked",grey))
+Select(nil);FlushTimers();assert(not VisibleText("Opponent not checked") and root:GetHeight()==84)
+rankReason="Ranked testing disabled";Select("target");assert(Recognition("Addon detected - Ranked testing disabled",amber))
+Reply("compatible","matching_reply",peer)
+Publish({state="challenge",challenge={direction="incoming",opponent=peer}})
+assert(not VisibleText("Addon detected - Ranked testing disabled") and VisibleText("Waiting for Blizzard countdown"))
+Publish({state="idle"})
+assert(root:GetHeight()==248 and #frames==frameCount)
+print("Opponent recognition mock: PASS (exact peer, no reply, expiry, local gates, incompatibility, mutual preference, no extra probes or frames)")
 local function HealthText(t)
     for _,f in ipairs(frames) do
         if f.text==t and f:IsVisible() then assert(not fitted[f],"health text must not have measurement hook");return true end

@@ -157,3 +157,17 @@ class DuelHUDTests(unittest.TestCase):
             self.assertEqual(a[1:],b[1:])
             self.assertEqual(a[0],336-b[0]-b[2])
             self.assertEqual(b[0]-a[0]-a[2],12)
+
+    def test_opponent_recognition_is_read_only_and_exact_target(self):
+        h=read("UI/DuelHUD.lua")
+        for token in ('local function OpponentStatus(guid,canRank,why,unranked)',
+                      'ns.OpponentDiscovery.GetSnapshot()', 'd.opponent.guid~=guid',
+                      'Addon not detected (no reply)', 'Addon confirmation expired',
+                      'Incompatible addon version', 'Incompatible ranked rules',
+                      'Addon detected - Ranked unconfirmed', 'Ranked available - Unranked selected',
+                      'OpponentStatus(selectedTargetGuid,canRank,why,intent)',
+                      'note:SetTextColor(unpack(C.muted))'):
+            self.assertIn(token,h)
+        self.assertEqual(h.count('ns.OpponentDiscovery.ProbeTarget(true)'),2)
+        self.assertIn('ns.OpponentDiscovery.Subscribe(Paint)',h)
+        self.assertIn('HEIGHTS={idle=84,selected=248,pending=220,incoming=188,active=232,result=136}',h)

@@ -268,9 +268,48 @@ local me,other=Side(12,false),Side(182,true)
 surface=content
 -- Damage is not available per duel on the supported clients. No empty rows.
 local note=Label("",10,C.muted,16,251,WIDTH-32,15)
+-- Match the existing Addon Status panel's confirmed/checking/unknown tones.
+-- This is presentation only: eligibility remains CompetitiveLifecycle's.
+local recognitionColors={confirmed={.46,.85,.44},checking={.96,.71,.25},
+    unknown={.62,.64,.68},incompatible={1,.43,.38}}
+local function OpponentStatus(guid,canRank,why,unranked)
+    local d=ns.OpponentDiscovery.GetSnapshot()
+    if not guid or not d or not d.opponent or d.opponent.guid~=guid then
+        return "Opponent not checked",recognitionColors.unknown
+    end
+    if d.state=="checking" then return "Checking opponent...",recognitionColors.checking end
+    if d.state=="incompatible" then return "Incompatible addon version",recognitionColors.incompatible end
+    if d.state=="unknown" then
+        if d.reason=="no_reply" then return "Addon not detected (no reply)",recognitionColors.unknown end
+        if d.reason=="confirmation_expired" then return "Addon confirmation expired",recognitionColors.unknown end
+        return "Addon check unavailable",recognitionColors.unknown
+    end
+    if d.state~="compatible" then return "Opponent not checked",recognitionColors.unknown end
+    if canRank then
+        return unranked and "Ranked available - Unranked selected" or "Ranked available",recognitionColors.confirmed
+    end
+    if why=="Opponent prefers Unranked" then
+        return "Addon detected - Opponent prefers Unranked",recognitionColors.checking
+    end
+    if why=="Ranked compatibility not confirmed" then
+        if type(d.rankOffer)=="string" then
+            return "Incompatible ranked rules",recognitionColors.incompatible
+        end
+        return "Addon detected - Ranked unconfirmed",recognitionColors.checking
+    end
+    -- A successful discovery does not override consent, storage, season,
+    -- communication, or other local ranked gates.
+    return "Addon detected - "..(why or "Ranked unavailable"),recognitionColors.checking
+end
+local rankHelp="Select another player to check ranked availability."
+if ns.Tooltips then
+    ns.Tooltips.Bind(modeRank,{title="Ranked duels",outsideWindow=true,
+        detail=function() return rankHelp end})
+end
 local challenge,forfeit
 local lastRequest
 local function Native(fn,unit)
+    note:SetTextColor(unpack(C.muted))
     if type(fn)~="function" then note:SetText("Native action unavailable.");return false end
     local ok,result
     if unit then ok,result=pcall(fn,unit) else ok,result=pcall(fn) end
@@ -293,6 +332,7 @@ challenge=Action("Challenge Target",38,268,124,25,function()
     lastRequest=now
     local ok,why=ns.DuelDetection.LaunchWidgetChallenge(ranked,id.guid)
     if not ok then
+        note:SetTextColor(unpack(C.muted))
         if why=="range" then note:SetText("Move closer or range unavailable")
         else note:SetText("Request not confirmed; try again") end
     end
@@ -456,7 +496,9 @@ end
 local lastRange,lastRangeReason
 local function Paint()
     if folded or not root:IsShown() or not snap then return end
+    note:SetTextColor(unpack(C.muted))
     if preview then
+        rankHelp="Visual preview only."
         selectedTargetGuid=nil;Layout("active")
         modeRank.selected=true;modePractice.selected=false
         state:SetText("SOLO PREVIEW - SIMULATED");timer:SetText("00:32")
@@ -486,6 +528,7 @@ local function Paint()
     local intent=Settings.Get("practiceDuels")==true
     local idle=snap.state=="idle"
     local canRank,why,selectable=ns.CompetitiveLifecycle.RankedAvailability(opponent and opponent.guid)
+    rankHelp=canRank and "Both clients currently advertise ranked availability. The duel still requires agreement and confirmed results." or (why or "Ranked unavailable")..". A missing reply does not prove the addon is absent."
     local liveMode=ns.CompetitiveLifecycle.GetSnapshot().duelMode
     local effectiveRank=idle and canRank and not intent or not idle and liveMode=="Ranked candidate"
     -- The gold mode is the effective duel type, not an unconfirmed preference.
@@ -517,10 +560,12 @@ local function Paint()
     else
         local refusal=snap.reason=="request_not_confirmed" or snap.reason=="request_refused" or snap.reason=="request_dismissed"
         state:SetText(snap.state=="unavailable" and "Duel detection unavailable" or
-            kind=="selected" and (lastRange==true and "Ready to challenge" or lastRangeReason or "Range unavailable") or "Select a player to duel")
+            kind=="selected" and (lastRange==true and (refusal and "Previous request not confirmed" or "Ready to challenge") or lastRangeReason or "Range unavailable") or "Select a player to duel")
         timer:SetText("00:00")
-        note:SetText(refusal and "Previous request not confirmed" or
-            canRank and (intent and "Unranked selected" or "Ranked available") or why or "Unranked only")
+        if kind=="selected" then
+            local text,color=OpponentStatus(selectedTargetGuid,canRank,why,intent)
+            note:SetTextColor(unpack(color));note:SetText(text)
+        else note:SetText("") end
     end
 end
 local function UpdateDriver()
