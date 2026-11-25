@@ -900,6 +900,23 @@ local function DurableHost(s,h,clock,resolve,store)
         observed[request.match]=nil
         return true,why
     end
+    -- No permanent detector connection: one fixture adapter for each
+    -- assigned ready match. The existing host is the only writer.
+    local assignments={}
+    function D.AssignMatch(sender,match,token,term)
+        if not Fresh() or not journal.control or journal.control.paused or journal.control.term~=term
+            or type(match)~="string" then return nil end
+        local actor=resolve(sender)
+        if not Actor(s,actor) or actor.guid~=journal.control.coordinator then return nil end
+        local existing=assignments[match]
+        if existing and existing.IsActive() then return nil end
+        local domain=ns.TournamentGameplay
+        if not domain then return nil end
+        local adapter=domain.NewSimulated(s,match,token,function()return D.BracketSnapshot(),D.ControlSnapshot()end,
+            resolve,D.ReportBracket)
+        if adapter then assignments[match]=adapter end
+        return adapter
+    end
     function D.ControlSnapshot()
         if not Fresh() or not journal.bracket or not journal.control then return nil end
         local c=Copy(journal.control);c.owner=h.guid;c.event=journal.checkpoint.host.ad.id;return c
@@ -1802,6 +1819,93 @@ function R.RunHostRecoverySelfTest(emit)
             for _,a in ipairs(players) do if not copies[a.guid] then copies[a.guid]=bad;break end end
             assert(not rec.FinalRecord(client,x.h.guid,saved,control,x.clock(),copies))
         end)
+        local function MatchFixture(x,m)
+            local owner=x.h.guid
+            local g=assert(x.engine.AssignMatch("host",m.id,"game-alpha",1))
+            local function Idle(rev,last)
+                return {scope="SIMULATED",client=client,state="idle",revision=rev,last=last}
+            end
+            local function Challenge(who,peer,rev,ranked)
+                return {scope="SIMULATED",client=client,state="challenge",revision=rev,
+                    challenge={opponent={guid=peer},time=10,direction=who==x.a.guid and "outgoing" or "incoming",kind="standard",rankedWidget=ranked}}
+            end
+            local function Accepted(who,peer,rev,cycle)
+                return {scope="SIMULATED",client=client,state="accepted",revision=rev,
+                    active={opponent={guid=peer},player={guid=who},acceptedAt=11,id=cycle,
+                        direction=who==x.a.guid and "outgoing" or "incoming",kind="standard",rankedWidget=false}}
+            end
+            local function Result(peer,rev,cycle,outcome)
+                return Idle(rev,{scope="SIMULATED",client=client,id=cycle,opponent={guid=peer},acceptedAt=11,endedAt=20,
+                    kind="standard",outcome=outcome,endType="knockout",reason="matching_result_and_finish",
+                    outcomeObserved=true,finishObserved=true,resultObserved=true,conflict=false,rankEligible=false})
+            end
+            local function ReadyBoth()
+                assert(g.Consent("player",Idle(1,{id=6})))
+                assert(g.Consent("other",Idle(1,{id=20})))
+                assert(g.Observe("player",Challenge(x.a.guid,x.other.guid,2)))
+                assert(g.Observe("other",Challenge(x.other.guid,x.a.guid,2)))
+                assert(g.Observe("player",Accepted(x.a.guid,x.other.guid,3,7)))
+                assert(g.Observe("other",Accepted(x.other.guid,x.a.guid,3,21)))
+            end
+            return g,Idle,Challenge,Accepted,Result,ReadyBoth
+        end
+        Case(client.." assigned tournament duel uses shared observations and separate scoring",function()
+            local x,w,Req,m=StartCompetition()
+            assert(not x.engine.AssignMatch("player",m.id,"spoof",1))
+            assert(not x.engine.AssignMatch("host",m.id,"stale",2))
+            local g,Idle,Challenge,Accepted,Result,ReadyBoth=MatchFixture(x,m)
+            assert(not x.engine.AssignMatch("host",m.id,"duplicate",1))
+            assert(g.Snapshot().rankEligible==false and g.Snapshot().mode=="tournament")
+            assert(not g.Observe("host",Idle(1)))
+            ReadyBoth();x.Advance()
+            assert(g.Observe("player",Result(x.other.guid,4,7,"won")))
+            assert(x.engine.BracketSnapshot().state=="running")
+            assert(not g.Observe("player",Result(x.other.guid,5,7,"won")))
+            assert(g.Observe("other",Result(x.a.guid,4,21,"lost")))
+            assert(x.engine.BracketSnapshot().champion==x.a.guid)
+            assert(not g.IsActive() and not x.engine.AssignMatch("host",m.id,"again",1))
+            assert(not g.Observe("other",Result(x.a.guid,5,21,"lost")))
+        end)
+        Case(client.." unrelated ranked or unagreed duel cannot enter tournament bracket",function()
+            local x,w,Req,m=StartCompetition()
+            local g,Idle,Challenge,Accepted,Result=MatchFixture(x,m)
+            assert(g.Consent("player",Idle(1,{id=6})))
+            assert(not g.Observe("player",Challenge(x.a.guid,x.other.guid,2)))
+            assert(not g.IsActive() and x.engine.BracketSnapshot().revision==0)
+            g,Idle,Challenge,Accepted,Result=MatchFixture(x,m)
+            assert(g.Consent("player",Idle(1,{id=6})));assert(g.Consent("other",Idle(1,{id=20})))
+            assert(not g.Observe("player",Challenge(x.a.guid,x.other.guid,2,true)))
+            assert(not g.IsActive())
+            g,Idle,Challenge,Accepted,Result=MatchFixture(x,m)
+            assert(g.Consent("player",Idle(1,{id=6})));assert(g.Consent("other",Idle(1,{id=20})))
+            assert(not g.Observe("player",Challenge(x.a.guid,x.h.guid,2)))
+            assert(not g.IsActive() and x.engine.BracketSnapshot().revision==0)
+        end)
+        Case(client.." stale duel cycle incomplete evidence and control change invalidate assignment",function()
+            local x,w,Req,m=StartCompetition()
+            local g,Idle,Challenge,Accepted,Result,ReadyBoth=MatchFixture(x,m)
+            assert(g.Consent("player",Idle(1,{id=6})));assert(g.Consent("other",Idle(1,{id=20})))
+            assert(g.Observe("player",Challenge(x.a.guid,x.other.guid,2)))
+            assert(not g.Observe("player",Accepted(x.a.guid,x.other.guid,3,6)))
+            assert(not g.IsActive())
+            g,Idle,Challenge,Accepted,Result,ReadyBoth=MatchFixture(x,m);ReadyBoth()
+            local incomplete=Result(x.other.guid,4,7,"won");incomplete.last.finishObserved=false
+            assert(not g.Observe("player",incomplete) and not g.IsActive())
+            assert(x.engine.BracketSnapshot().revision==0)
+            g,Idle,Challenge,Accepted,Result,ReadyBoth=MatchFixture(x,m);ReadyBoth()
+            assert(x.engine.Hold(x.h.guid,x.ad.id,1))
+            assert(not g.Observe("player",Result(x.other.guid,4,7,"won")) and not g.IsActive())
+            assert(x.engine.BracketSnapshot().revision==0)
+        end)
+        Case(client.." conflicting observed tournament outcomes remain disputed",function()
+            local x,w,Req,m=StartCompetition()
+            local g,Idle,Challenge,Accepted,Result,ReadyBoth=MatchFixture(x,m)
+            ReadyBoth();x.Advance()
+            assert(g.Observe("player",Result(x.other.guid,4,7,"won")))
+            assert(g.Observe("other",Result(x.a.guid,4,21,"won")))
+            assert(x.engine.BracketSnapshot().state=="disputed" and not x.engine.BracketSnapshot().champion)
+            assert(not g.IsActive())
+        end)
         Case(client.." rate limit and corrupt checkpoint cannot emit mutation acknowledgement",function()
             local x=Fixture();local w=assert(x.Player());local q=assert(w.Query(x.h.guid))
             assert(x.engine.Receive("player",q) and x.engine.Receive("player",q) and not x.engine.Receive("player",q))
@@ -1958,7 +2062,7 @@ end
 if ns.Diagnostics then
 ns.Diagnostics.Register("Tournament host recovery / isolated checkpoint QA","deep",function()
     local log={};local p,f=R.RunHostRecoverySelfTest(function(line)log[#log+1]=line end)
-    return f==0 and p==58 and "PASS" or "FAIL",string.format("%d passed / %d failed (SIMULATED)\n",p,f)..table.concat(log,"\n")
+    return f==0 and p==66 and "PASS" or "FAIL",string.format("%d passed / %d failed (SIMULATED)\n",p,f)..table.concat(log,"\n")
 end)
 ns.Diagnostics.Register("Tournament recovery / isolated journal QA","deep",function()
     local log={};local p,f=R.RunRecoverySelfTest(function(line)log[#log+1]=line end)

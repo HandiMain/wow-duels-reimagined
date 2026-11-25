@@ -40,6 +40,7 @@ Core\TournamentState.lua
 Core\TournamentRecovery.lua
 Core\TournamentRegistration.lua
 Core\TournamentBracket.lua
+Core\TournamentGameplay.lua
 Core\WarGames.lua [AllowLoadGameType standard]
 UI\Fonts.lua
 UI\Style.lua
