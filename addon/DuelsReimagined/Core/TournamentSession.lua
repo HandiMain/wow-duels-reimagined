@@ -5,6 +5,15 @@ local _,ns=...
 local L={};ns.TournamentSession=L
 local Store,Group,Comm,R,P=ns.CompetitiveStorage,ns.Group,ns.Communication,ns.TournamentRegistration,ns.CompetitiveScope
 local active,unsubscribe,unroster,timer,queue,frame
+local syncTimer,fetch
+local function Changed()
+    if ns.DuelHUD and ns.DuelHUD.Refresh then ns.DuelHUD.Refresh() end
+    if ns.TournamentUI and ns.TournamentUI.RefreshActive then ns.TournamentUI.RefreshActive() end
+end
+local function StopFetch()
+    if syncTimer then syncTimer:Cancel();syncTimer=nil end
+    fetch=nil
+end
 local function Read(fn,...)
     if type(fn)~="function" then return nil end
     local ok,v=pcall(fn,...)
@@ -68,11 +77,14 @@ local function ClearQueue()
     queue={}
 end
 local function Stop()
+    StopFetch()
+    if active and active.role=="host" and active.engine.CloseSession then active.engine.CloseSession() end
     ClearQueue()
     if unsubscribe then unsubscribe();unsubscribe=nil end
     if unroster then unroster();unroster=nil end
     if frame then frame:UnregisterAllEvents() end
     active=nil
+    Changed()
 end
 local function Pump()
     if not active or not L.CanCommunicate() or not Comm.IsAvailable() then ClearQueue();return end
@@ -100,16 +112,48 @@ local function Send(guid,bodies)
     if not timer then Pump() end
     return true,"Request submitted to the transport; check status for confirmation."
 end
+local function RequestPage()
+    if not fetch or not L.CanCommunicate() then StopFetch();return false,"Progress sync interrupted." end
+    local body=fetch.reader.Request()
+    if not body then StopFetch();return false,"Progress page unavailable." end
+    local ok,why=Send(fetch.owner,{body})
+    if not ok then StopFetch();return false,why end
+    syncTimer=C_Timer.NewTimer(30,function()
+        syncTimer=nil
+        if fetch then StopFetch();active.receipt="Progress request expired; refresh explicitly.";Changed() end
+    end)
+    return true,"Requesting organizer progress."
+end
 local function Receive(body,channel,sender)
     if not L.CanCommunicate() or channel~="WHISPER" then return end
     local a=Resolve(active.scope,active.actor.guid,sender)
     if not a then return end
     if active.role=="host" then
         local replies=active.engine.Receive(sender,body)
-        if replies then Send(a.guid,replies) end
+        if replies then Send(a.guid,replies);Changed() end
     else
+        if body:sub(1,2)=="Z|" and fetch then
+            local ok,why=fetch.reader.Receive(sender,body)
+            if ok and why~="partial" then
+                if syncTimer then syncTimer:Cancel();syncTimer=nil end
+                if why=="complete" then
+                    active.progress=fetch.reader.Snapshot()
+                    active.receipt="Organizer snapshot received; not independent match verification."
+                    StopFetch();Changed()
+                else
+                    syncTimer=C_Timer.NewTimer(.75,function()syncTimer=nil;RequestPage()end)
+                end
+            elseif fetch.reader.IsFailed() then
+                StopFetch();active.receipt="Inconsistent progress rejected; refresh again.";Changed()
+            end
+            return
+        end
         local ok,why=active.engine.Receive(sender,body)
-        if ok and why~="partial" then active.receipt=why end
+        if ok and why~="partial" then
+            active.receipt=why
+            if why=="cancelled" then active.progress=nil end
+            Changed()
+        end
     end
 end
 local function Open(role)
@@ -128,19 +172,20 @@ local function Open(role)
     queue={}
     unsubscribe=Comm.Subscribe("T1",Receive)
     unroster=Group.Subscribe(function()
-        if not L.CanCommunicate() then ClearQueue() end
+        if not L.CanCommunicate() then StopFetch();ClearQueue();Changed() end
     end)
     if not frame then
         frame=CreateFrame("Frame")
         frame:SetScript("OnEvent",function(_,event)
             if not active then return end
-            if event=="PLAYER_REGEN_DISABLED" then ClearQueue() else Stop() end
+            if event=="PLAYER_REGEN_DISABLED" then StopFetch();ClearQueue() else Stop() end
         end)
     end
     frame:RegisterEvent("PLAYER_ENTERING_WORLD")
     frame:RegisterEvent("PLAYER_REGEN_DISABLED")
     frame:RegisterEvent("PLAYER_LOGOUT")
-    return true,"Private "..role.." session opened. Registration only; no rating."
+    Changed()
+    return true,"Private "..role.." session opened. No rating."
 end
 local function SelectedTarget()
     local id=Group.ReadPlayerIdentity("target")
@@ -159,15 +204,39 @@ function L.Command(command)
     if command=="host" or command=="player" then return Open(command) end
     if not L.CanCommunicate() then return false,"Open a private network session outside combat first." end
     local d=active.engine
+    if command=="progress" then
+        local v=active.role=="host" and d.PrivateProgress() or active.progress
+        if not v then return false,"No bracket snapshot. Participant: use sync." end
+        return true,v.saved.checkpoint.ad.draft.name.." | "..v.bracket.state.." | revision "..v.bracket.revision.." | "..v.source
+    end
+    if command=="broadcast" then active.broadcast=not active.broadcast;Changed();return true,"Broadcast view toggled." end
     if active.role=="host" then
         if command=="publish" then
             local draft=ns.TournamentState.GetDraft()
             if not draft then return false,"Save a tournament draft first." end
             local ad=d.Publish(draft)
             return ad~=nil,ad and "Private group tournament published; players may query you." or "Publication refused."
+        elseif command=="start" then
+            local ok=d.StartBracket(active.actor.guid);Changed()
+            return not not ok,ok and "Private bracket started." or "Wait for the scheduled start and at least two checked-in entrants."
+        elseif command=="hold" then
+            local c=d.ControlSnapshot()
+            local ok=c and d.Hold(active.actor.guid,c.event,c.term)
+            Changed();return not not ok,ok and "Tournament paused safely." or "Hold refused."
+        elseif command=="history" then
+            local rows=d.PrivateHistory();local lines={}
+            for _,r in ipairs(rows) do lines[#lines+1]=r.title.." - "..r.champion end
+            return true,#lines>0 and table.concat(lines,"\n") or "No finalized private test tournaments."
+        elseif command=="feature" then
+            local v=d.PrivateProgress();local list={}
+            if v then for _,round in ipairs(v.bracket.rounds) do for _,m in ipairs(round) do if m.state=="ready" then list[#list+1]=m.id end end end end
+            if #list<1 then return false,"No ready match." end
+            local i=0;for j,id in ipairs(list) do if id==active.featured then i=j;break end end
+            active.featured=list[i%#list+1];Changed();return true,"Featured match changed."
         elseif command=="cancel" then
             local snap=d.Snapshot()
             local ok=snap and d.Cancel(active.actor.guid,snap.ad.id)
+            Changed()
             return not not ok,ok and "Tournament cancelled. Participants must request status." or "Cancellation refused."
         elseif command=="roster" then
             local snap=d.Snapshot()
@@ -177,6 +246,22 @@ function L.Command(command)
             return true,table.concat(lines,"\n")
         end
     elseif active.role=="player" then
+        if command=="sync" then
+            if fetch then return false,"A progress request is already running." end
+            local status=d.Status()
+            if not status or not Resolve(active.scope,active.actor.guid,nil,status.owner) then return false,"Organizer unavailable." end
+            if type(C_Timer)~="table" or type(C_Timer.NewTimer)~="function" then return false,"Timer unavailable." end
+            local seq,lock=d.ReserveProgress()
+            if not seq then return false,"Resolve the pending registration request first." end
+            local prior=active.progress
+            if prior and prior.control.event~=lock.id then prior=nil end
+            local function resolve(sender)return Resolve(active.scope,active.actor.guid,sender)end
+            local reader=R.OpenPrivateProgressFetch(active.scope,lock.owner,lock.id,active.actor.guid,seq,Clock,resolve,prior)
+            if not reader then return false,"Progress reader unavailable." end
+            fetch={owner=lock.owner,reader=reader}
+            return RequestPage()
+        elseif command=="stop-sync" then StopFetch();ClearQueue();return true,"Progress sync stopped." end
+        if fetch then return false,"Finish or stop the progress sync first." end
         if command=="browse" then
             local rows=active.cache.Browse();local lines={}
             active.browseRows={}
@@ -205,8 +290,40 @@ function L.Command(command)
     end
     return false,"Action unavailable or a request is still pending. Use status or retry."
 end
+-- Read model uses the same bracket rows as the solo renderer. No local
+-- fixture health, class guesses, simulated controls or live combat claims.
+function L.GetProjection()
+    if not active or not Store.TournamentTestEnabled() then return nil end
+    local v=active.role=="host" and active.engine.PrivateProgress() or active.progress
+    if not v then return nil end
+    local cp=v.saved.checkpoint
+    local p={scope="PRIVATE_TEST",role=active.role,event=cp.ad,bracket=v.bracket,names={},broadcast=active.broadcast==true,
+        source=v.source,held=v.control.paused,readyCount=0,state=active.role=="host" and "hosting" or "competing"}
+    local first,featured,own
+    for _,m in ipairs(cp.roster) do
+        p.names[m.guid]=m.name
+        if m.guid==active.actor.guid then p.member=m end
+    end
+    if active.role=="player" and not p.member then return nil end
+    for _,round in ipairs(v.bracket.rounds) do
+        for _,m in ipairs(round) do
+            local mine=m.a==active.actor.guid or m.b==active.actor.guid
+            if mine and m.state=="done" and not m.bye and m.winner~=active.actor.guid then p.state="eliminated" end
+            if m.state=="ready" then
+                p.readyCount=p.readyCount+1;first=first or m
+                if m.id==active.featured then featured=m end
+                if mine then own=m end
+            end
+        end
+    end
+    local selected=(not p.broadcast and own) or featured or first
+    p.selected=selected and selected.id
+    if own then p.match={id=own.id} end
+    return p
+end
 function L.GetDiagnosticResources()
-    return {subscriptions=(unsubscribe and 1 or 0)+(unroster and 1 or 0),timers=timer and 1 or 0,pending=queue and #queue or 0}
+    return {subscriptions=(unsubscribe and 1 or 0)+(unroster and 1 or 0),
+        timers=(timer and 1 or 0)+(syncTimer and 1 or 0),pending=(queue and #queue or 0)+(fetch and 1 or 0)}
 end
 -- No listeners or timer while disabled/idle. Combat clears unsent packets,
 -- world/logout closes the session; durable pending requests survive.

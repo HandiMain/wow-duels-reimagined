@@ -845,6 +845,7 @@ function H.Refresh()
     local enabled=Settings.Get("duelHUDEnabled") and ns.Client.IsSupported()
     local d=ns.DuelDetection.GetSnapshot()
     local p=ns.TournamentRegistration.PreviewHasBracket() and ns.TournamentRegistration.PreviewSnapshot() or nil
+    if not p and ns.TournamentSession then p=ns.TournamentSession.GetProjection() end
     local model=enabled and B.Project(p)
     local want=model and d.state=="idle" and not d.active and not d.challenge and not Combat()
     tournamentSuspended=not not (model and not want)

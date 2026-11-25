@@ -13,10 +13,11 @@ local function Round(m)
     return remaining==0 and "Final" or remaining==1 and "Semifinal" or remaining==2 and "Quarterfinal" or "Round of "..2^(remaining+1)
 end
 function B.Project(p)
-    if type(p)~="table" or p.scope~="SIMULATED" or (p.role~="player" and p.role~="host" and p.role~="spectator")
+    if type(p)~="table" or (p.scope~="SIMULATED" and p.scope~="PRIVATE_TEST") or (p.role~="player" and p.role~="host" and p.role~="spectator")
         or type(p.bracket)~="table" or type(p.event)~="table" or type(p.event.id)~="string"
         or type(p.event.draft)~="table" or type(p.event.draft.name)~="string" then return nil end
     local v=p.bracket
+    local private=p.scope=="PRIVATE_TEST"
     if v.state~="running" and v.state~="disputed" then return nil end
     local rows=v.rounds
     if type(rows)~="table" or #rows<1 or #rows>6 then return nil end
@@ -32,7 +33,7 @@ function B.Project(p)
     if not m then
         return {title=p.event.draft.name,round="Tournament",left="Awaiting match",right="Awaiting match",
             bestOf=v.bestOf,score=0,opponentScore=0,game=1,status="Waiting for next match",key=p.event.id..":waiting",
-            scope="SIMULATED",broadcast=p.broadcast,canPlay=false,viewer=p.role}
+            scope=p.scope,broadcast=p.broadcast,canPlay=false,viewer=p.role}
     end
     local function Whole(n,lo,hi) return type(n)=="number" and n>=lo and n<=hi and n==math.floor(n) end
     local best=v.bestOf
@@ -45,15 +46,16 @@ function B.Project(p)
     local left,right=swap and m.b or m.a,swap and m.a or m.b
     local sa,sb=m.wins[swap and 2 or 1],m.wins[swap and 1 or 2]
     local status
-    if v.state=="disputed" then status="Match on hold"
+    if p.held or v.state=="disputed" then status="Match on hold"
+    elseif private then status=own and "Your match - snapshot" or "Organizer snapshot"
     elseif p.broadcast or p.role=="spectator" then status="Featured match ready"
     elseif own then status="It's your turn!"
     elseif p.role=="host" then status="Featured match ready"
     elseif p.state=="eliminated" then status="Eliminated - watching"
     elseif p.upcoming then status="Get ready for next round"
     else status="Waiting for your turn" end
-    local demo=p.demo and p.demo.match==m.id and p.demo
-    local offline=p.offline and p.offline.match==m.id and p.offline
+    local demo=not private and p.demo and p.demo.match==m.id and p.demo
+    local offline=not private and p.offline and p.offline.match==m.id and p.offline
     local hpA,hpB,elapsed
     if demo then
         elapsed=demo.elapsed
@@ -68,8 +70,8 @@ function B.Project(p)
     end
     return {title=p.event.draft.name,round=Round({round=m.round,roundCount=#rows}),bestOf=best,
         game=sa+sb+1,left=names[left] or "Awaiting player",right=names[right] or "Awaiting player",
-        score=sa,opponentScore=sb,status=status,key=p.event.id..":"..m.id,scope="SIMULATED",
-        own=not not own,matchID=m.id,canPlay=v.state=="running",broadcast=p.broadcast,viewer=p.role,
+        score=sa,opponentScore=sb,status=status,key=p.event.id..":"..m.id,scope=p.scope,
+        own=not not own,matchID=m.id,canPlay=not private and v.state=="running",broadcast=p.broadcast,viewer=p.role,
         readyCount=p.readyCount or 0,leftGuid=left,rightGuid=right,
         demo=not not demo,offline=not not offline,hpA=hpA,hpB=hpB,elapsed=elapsed}
 end
@@ -145,7 +147,7 @@ local function Build()
         if not ok and ns.Feedback then ns.Feedback.Toast(why or "Test game unavailable",sim) end
     end)
     local test=Text(front,10,129,134,20,10,C.muted);test:SetText("LOCAL TEST")
-    fields={left=left,right=right,title=title,format=format,score=score,opponentScore=opponentScore,game=game,status=status,sim=sim}
+    fields={left=left,right=right,title=title,format=format,score=score,opponentScore=opponentScore,game=game,status=status,sim=sim,test=test}
 end
 local function Layout()
     Build()
@@ -163,11 +165,13 @@ local function Paint(m)
     fields.score:SetText(tostring(m.score));fields.opponentScore:SetText(tostring(m.opponentScore))
     fields.game:SetText(m.elapsed and string.format("%02d:%02d",math.floor(m.elapsed/60),m.elapsed%60) or m.bestOf==1 and "" or "Game "..m.game)
     fields.status:SetText(m.status)
-    -- Class icons are illustrative, never a real player/class lookup.
+    fields.test:SetText(m.scope=="PRIVATE_TEST" and "PRIVATE TEST" or "LOCAL TEST")
+    -- Class icons are illustrative only in local simulation; private test
+    -- snapshots use an unknown portrait until observed class data exists.
     local classes={"WARRIOR","MAGE","ROGUE","PRIEST","DRUID","SHAMAN","WARLOCK","HUNTER","PALADIN"}
     local function Icon(side,name)
         local seed=0;for i=1,#name do seed=seed+name:byte(i) end
-        local path="Interface\\Icons\\ClassIcon_"..classes[seed%#classes+1]
+        local path=m.scope=="PRIVATE_TEST" and "Interface\\Icons\\INV_Misc_QuestionMark" or "Interface\\Icons\\ClassIcon_"..classes[seed%#classes+1]
         if not SetPortraitToTexture or not pcall(SetPortraitToTexture,side.icon,path) then side.icon:SetTexture(path) end
     end
     Icon(fields.left,m.left);Icon(fields.right,m.right)

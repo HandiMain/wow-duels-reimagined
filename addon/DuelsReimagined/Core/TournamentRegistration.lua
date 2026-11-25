@@ -483,6 +483,12 @@ local function WireClient(scope,cache,clock,resolve,store)
     end
     function D.Status() return Copy(commitment) end
     function D.PendingOwner() Expire();return pending and pending.owner end
+    function D.ReserveProgress()
+        Expire()
+        if not Fresh() or pending or not commitment or commitment.status=="pending" or seq>=2147483647 then return nil end
+        if not Persist(seq+1,commitment,nil,"query") then return nil end
+        seq=seq+1;return seq,Copy(commitment)
+    end
     function D.Receive(sender,body)
         local now=Expire()
         if not Fresh() or not pending or not now or not Packet(body) then return false end
@@ -704,6 +710,140 @@ local function RosterReply(s,actor,snap,body)
     end
     return result
 end
+-- Private owner-reported progress. This is not an independently certified
+-- replica or authority-transfer protocol. Each page is pinned to one log
+-- revision and controller term; the client only commits a complete replay.
+local function EncodeProgressReport(r)
+    if r.kind=="offline" then
+        return table.concat({"O",r.match,r.revision,r.loser,r.since,r.at},"|")
+    elseif r.kind=="withdraw" then
+        return table.concat({"W",r.match,r.sender},"|")
+    elseif r.kind=="replay" then
+        return table.concat({"E",r.match,r.sender,r.game,r.revision},"|")
+    end
+    return table.concat({"R",r.match,r.sender,r.game,r.winner,r.evidence,r.attempt or 0},"|")
+end
+local function DecodeProgressReport(id,body)
+    local a=Split(body);local r={event=id,match=a[2]}
+    if type(r.match)~="string" or not r.match:match("^R%d+M%d+$") or #r.match>8 then return nil end
+    if a[1]=="O" and #a==6 then
+        r.kind="offline";r.revision=Number(a[3],0,497);r.loser=a[4]
+        r.since=Number(a[5],1,4102444500);r.at=Number(a[6],1,4102444800)
+        if not r.revision or not Guid(r.loser) or not r.since or not r.at then return nil end
+    elseif a[1]=="W" and #a==3 then
+        r.kind="withdraw";r.sender=a[3];if not Guid(r.sender) then return nil end
+    elseif a[1]=="E" and #a==5 then
+        r.kind="replay";r.sender=a[3];r.game=Number(a[4],1,5);r.revision=Number(a[5],1,497)
+        if not Guid(r.sender) or not r.game or not r.revision then return nil end
+    elseif a[1]=="R" and #a==7 then
+        r.sender=a[3];r.game=Number(a[4],1,5);r.winner=a[5];r.evidence=a[6]
+        local attempt=Number(a[7],0,1);r.attempt=attempt==1 and 1 or nil
+        if not Guid(r.sender) or not r.game or not Guid(r.winner) or not attempt
+            or #r.evidence<1 or #r.evidence>96 or not r.evidence:match("^[%w%-_:]+$") then return nil end
+    else return nil end
+    if EncodeProgressReport(r)==body then return r end
+end
+local function ProgressPage(s,actor,saved,c,finishedAt,body)
+    local a=Split(body);local ad=saved.checkpoint.ad
+    local nonce=Number(a[3],1,2147483647);local revision=Number(a[5],0,497)
+    local term=Number(a[6],0,2147483647);local page=Number(a[7],0,529)
+    if #a~=7 or a[1]~="V" or a[2]~=P.Key(s) or not nonce or a[4]~=ad.id
+        or not revision or not term or not page or c.coordinator~=ad.owner then return nil end
+    local member
+    for _,m in ipairs(saved.checkpoint.roster) do if m.guid==actor.guid then member=true;break end end
+    if not member then return nil end
+    local count=#saved.reports
+    local payload
+    if page==0 then
+        if revision~=0 or term~=0 then return nil end
+        payload=table.concat({ad.id,saved.startedAt,count,c.term,c.coordinator,c.paused and 1 or 0,finishedAt or 0,EncodeAd(ad)},"|")
+    else
+        if revision~=count or term~=c.term or page>ad.count+count then return nil end
+        if page<=ad.count then
+            local row=saved.checkpoint.roster[page]
+            payload=table.concat({row.guid,row.name,row.level,row.checkedIn and 1 or 0},"|")
+        else payload=EncodeProgressReport(saved.reports[page-ad.count]) end
+    end
+    local encoded=Hex(payload);local total=math.ceil(#encoded/CHUNK)
+    if total<1 or total>MAX_PARTS then return nil end
+    local out={}
+    for i=1,total do
+        out[i]=table.concat({"Z",P.Key(s),nonce,page,i,total,encoded:sub((i-1)*CHUNK+1,i*CHUNK)},"|")
+        if not Packet(out[i]) then return nil end
+    end
+    return out
+end
+function R.OpenPrivateProgressFetch(s,owner,id,me,nonce,clock,resolve,prior)
+    if not P.Key(s) or not Guid(owner) or not Guid(me) or me==owner or type(id)~="string" or #id>96
+        or not Whole(nonce,1,2147483647) or type(clock)~="function" or type(resolve)~="function" then return nil end
+    local D,page,pending,header,rows,reports,complete,dead={},0,nil,nil,{},{},nil,false
+    function D.Request()
+        local n=Now(clock)
+        if dead or complete or not n or (pending and n<pending.deadline) then return nil end
+        pending={deadline=n+30,parts={},count=0}
+        local packet=table.concat({"V",P.Key(s),nonce,id,header and header.count or 0,header and header.term or 0,page},"|")
+        return Packet(packet) and packet or nil
+    end
+    function D.Receive(sender,body)
+        local n=Now(clock)
+        if dead or complete or not pending or not n or n>=pending.deadline or not Packet(body) then return false end
+        local actor=resolve(sender)
+        if not Actor(s,actor) or actor.guid~=owner then return false end
+        local a=Split(body);local i,total=Number(a[5],1,MAX_PARTS),Number(a[6],1,MAX_PARTS)
+        if #a~=7 or a[1]~="Z" or a[2]~=P.Key(s) or Number(a[3],1,2147483647)~=nonce
+            or Number(a[4],0,529)~=page or not i or not total or i>total or #a[7]<2 or #a[7]>CHUNK
+            or (i<total and #a[7]~=CHUNK) or not Unhex(a[7]) then return false end
+        if (pending.total and pending.total~=total) or (pending.parts[i] and pending.parts[i]~=a[7]) then dead=true;return false end
+        pending.total=total
+        if not pending.parts[i] then pending.parts[i]=a[7];pending.count=pending.count+1 end
+        if pending.count<total then return true,"partial" end
+        local payload=Unhex(table.concat(pending.parts));pending=nil
+        local fields=Split(payload)
+        if page==0 then
+            local started=Number(fields[2],1,4102444800);local count=Number(fields[3],0,497)
+            local term=Number(fields[4],1,2147483647);local finished=Number(fields[7],0,4102444800)
+            local ad=DecodeAd(s,owner,table.concat(fields,"|",8))
+            if #fields~=22 or fields[1]~=id or not started or started>n or not count or not term
+                or fields[5]~=owner or (fields[6]~="0" and fields[6]~="1") or not finished
+                or (finished~=0 and (finished<started or finished>n or fields[6]=="1"))
+                or not ad or ad.id~=id or ad.state~="open" or ad.count<2
+                or (prior and (term<prior.control.term or count<#prior.saved.reports
+                    or not Equal(ad,prior.saved.checkpoint.ad) or started~=prior.saved.startedAt
+                    or (prior.finishedAt and finished~=prior.finishedAt))) then dead=true;return false end
+            header={ad=ad,started=started,count=count,term=term,paused=fields[6]=="1",finished=finished}
+        elseif page<=header.ad.count then
+            local level=Number(fields[3],1,255)
+            if #fields~=4 or not Guid(fields[1]) or not Name(fields[2]) or not level
+                or (fields[4]~="0" and fields[4]~="1") then dead=true;return false end
+            rows[page]={guid=fields[1],name=fields[2],level=level,checkedIn=fields[4]=="1"}
+        else
+            local r=DecodeProgressReport(id,payload)
+            if not r then dead=true;return false end
+            reports[page-header.ad.count]=r
+        end
+        if page==header.ad.count+header.count then
+            local saved={scope="SIMULATED",version=1,checkpoint={ad=header.ad,roster=rows},startedAt=header.started,reports=reports}
+            local b=ns.TournamentBracket.OpenSimulated(s,owner,saved)
+            local member
+            for _,m in ipairs(rows) do if m.guid==me then member=true;break end end
+            if not b or not member or (header.finished~=0 and b.Snapshot().state~="completed") then dead=true;return false end
+            if prior then
+                if not Equal(prior.saved.checkpoint,saved.checkpoint) then dead=true;return false end
+                for j,r in ipairs(prior.saved.reports) do if not Equal(r,reports[j]) then dead=true;return false end end
+                if prior.control.term==header.term and prior.control.paused~=header.paused then dead=true;return false end
+            end
+            complete={scope="PRIVATE_TEST",source="organizer-reported",saved=b.Save(),bracket=b.Snapshot(),
+                control={owner=owner,event=id,coordinator=owner,term=header.term,paused=header.paused},
+                finishedAt=header.finished~=0 and header.finished or nil}
+            return true,"complete"
+        end
+        page=page+1
+        return true,"page"
+    end
+    function D.Snapshot() return Copy(complete) end
+    function D.IsFailed() return dead end
+    return D
+end
 -- Shared observation policy. The caller supplies verified observations in
 -- its own scope and owns atomic result persistence. Unknown never means offline.
 local function ObserveGrace(observed,view,match,states,term,now,commit)
@@ -823,6 +963,17 @@ local function DurableHost(s,h,clock,resolve,store)
             if finished and finished.population==key then
                 return {table.concat({"Y",key,seq,a[5],finished.revision},"|")}
             end
+        end
+        if a[1]=="V" then
+            local current=journal.bracket
+            if current and current.checkpoint.ad.id==a[4] then
+                return ProgressPage(s,actor,current,journal.control,nil,body)
+            end
+            local record=journal.completed and journal.completed[a[4]]
+            if record then
+                return ProgressPage(s,actor,record.bracket,{term=record.term,coordinator=h.guid,paused=false},record.finishedAt,body)
+            end
+            return nil
         end
         local e=Open();if not e then return nil end
         if a[1]=="G" then return RosterReply(s,actor,e.Save(),body) end
@@ -972,6 +1123,34 @@ local function DurableHost(s,h,clock,resolve,store)
     function D.Completed(id)
         if Fresh() and journal.completed then return Copy(journal.completed[id]) end
     end
+    function D.PrivateProgress()
+        if not Fresh() then return nil end
+        local saved,c,finishedAt=journal.bracket,D.ControlSnapshot(),nil
+        if not saved then
+            local ad=journal.checkpoint and journal.checkpoint.host.ad
+            local final=ad and journal.completed and journal.completed[ad.id]
+            if final then
+                saved=final.bracket;finishedAt=final.finishedAt
+                c={owner=h.guid,event=ad.id,coordinator=h.guid,term=final.term,paused=false}
+            end
+        end
+        local b=saved and ns.TournamentBracket.OpenSimulated(s,h.guid,saved)
+        if b and c then return {scope="PRIVATE_TEST",source="organizer-journal",saved=b.Save(),bracket=b.Snapshot(),control=c,finishedAt=finishedAt} end
+    end
+    function D.PrivateHistory()
+        if not Fresh() then return {} end
+        local rows={}
+        for id,record in pairs(journal.completed or {}) do
+            if record.population==key then
+                local names={};for _,row in ipairs(record.bracket.checkpoint.roster) do names[row.guid]=row.name end
+                rows[#rows+1]={id=id,title=record.bracket.checkpoint.ad.draft.name,champion=names[record.champion] or "Unknown",
+                    finishedAt=record.finishedAt,scope="PRIVATE_TEST"}
+            end
+        end
+        table.sort(rows,function(a,b)if a.finishedAt==b.finishedAt then return a.id<b.id end;return a.finishedAt>b.finishedAt end)
+        return rows
+    end
+    function D.CloseSession() CloseAssignments() end
     -- Explicit owner hold; no fabricated result, no roster removal.
     function D.Hold(sender,id,term)
         local c=journal.control
@@ -1650,11 +1829,28 @@ function R.RunHostRecoverySelfTest(emit)
             end
             local replica=ProgressReplica(x.s,x.h.guid,x.ad.id,Control,x.resolve)
             local initial=store.ReadTournamentJournal().bracket
+            local function Pull(prior,nonce)
+                local f=assert(R.OpenPrivateProgressFetch(x.s,x.h.guid,x.ad.id,x.a.guid,nonce,x.clock,x.resolve,prior))
+                local limit=0
+                while not f.Snapshot() do
+                    limit=limit+1;assert(limit<=530)
+                    x.Advance()
+                    local q=assert(f.Request())
+                    local parts=assert(x.engine.Receive("player",q))
+                    assert(not f.Receive("other",parts[1]))
+                    for i=#parts,1,-1 do assert(f.Receive("host",parts[i])) end
+                end
+                return assert(f.Snapshot())
+            end
+            local received=Pull(nil,101)
+            assert(received.source=="organizer-reported" and Equal(received.saved,initial))
             assert(not replica.Accept("player",1,initial))
             assert(replica.Accept("host",1,initial))
             local report={event=x.ad.id,match=m.id,game=1,winner=x.a.guid,evidence="progress-game"}
             x.Advance();assert(x.engine.ReportBracket("player",report,1,x.h.guid))
             local saved=store.ReadTournamentJournal().bracket
+            local nextReceived=Pull(received,102)
+            assert(Equal(nextReceived.saved,saved) and nextReceived.control.term==1)
             assert(replica.Accept("host",1,saved) and not replica.Accept("host",1,initial))
             local bad=Copy(saved);bad.reports[1].winner=x.other.guid
             assert(not replica.Accept("host",1,bad))
