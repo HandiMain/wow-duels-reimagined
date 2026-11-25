@@ -23,6 +23,9 @@ local jp,jf=ns.TournamentRegistration.RunRecoverySelfTest(print)
 assert(jp==10 and jf==0,"tournament recovery QA failed")
 local hp,hf=ns.TournamentRegistration.RunHostRecoverySelfTest(print)
 assert(hp==20 and hf==0,"tournament host recovery QA failed")
+assert(loadfile(root.."TournamentBracket.lua"))("DuelsReimagined",ns)
+local bp,bf=ns.TournamentBracket.RunSelfTest(print)
+assert(bp==16 and bf==0,"tournament bracket QA failed")
 local function Equal(a,b)
     if type(a)~=type(b) then return false end
     if type(a)~="table" then return a==b end
