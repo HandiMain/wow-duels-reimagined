@@ -589,7 +589,14 @@ local function DurableHost(s,h,clock,resolve,store)
     local function Fresh() return Equal(journal,store.ReadTournamentJournal()) end
     local function Open()
         if not Fresh() or not journal.checkpoint then return nil end
-        return Host(s,h,clock,journal.checkpoint.host)
+        -- Once started, a clock rollback cannot reopen registration.
+        local function FrozenClock()
+            local now=Now(clock)
+            if not now then return nil end
+            if journal.bracket then return math.max(now,journal.bracket.startedAt) end
+            return now
+        end
+        return Host(s,h,FrozenClock,journal.checkpoint.host)
     end
     local function Save(engine,wire,action)
         if not Fresh() then return false end
@@ -600,6 +607,7 @@ local function DurableHost(s,h,clock,resolve,store)
         candidate.checkpoint={host=snap,receipts=wire and wire.SaveReceipts() or {}}
         local a=snap.ad
         if action=="host_cancel" then
+            candidate.bracket=nil
             candidate.cancelled=candidate.cancelled or {}
             candidate.cancelled[a.id]={population=key,revision=a.revision}
         elseif action=="host_open" and journal.checkpoint then
@@ -661,6 +669,40 @@ local function DurableHost(s,h,clock,resolve,store)
         local e=Open();if not e or not journal.commitment or not e.Cancel(id,sender) then return false end
         local w=WireHost(s,h,e,resolve,journal.checkpoint.receipts)
         return Save(e,w,"host_cancel")
+    end
+    -- Bracket changes use the same character-owned journal and CAS. No
+    -- separate database, no live result intake, no actual tournament release.
+    local function SaveBracket(engine,action)
+        if not Fresh() then return false end
+        local candidate=Copy(journal)
+        candidate.revision=candidate.revision+1
+        candidate.bracket=engine.Save()
+        local saved=store.CommitTournamentJournal(journal.revision,candidate,action)
+        if not saved then return false end
+        journal=saved;return true
+    end
+    local function OpenBracket()
+        if not Fresh() or not journal.bracket or not ns.TournamentBracket then return nil end
+        return ns.TournamentBracket.OpenSimulated(s,h.guid,journal.bracket)
+    end
+    function D.StartBracket(sender)
+        local e=Open();local now=Now(clock)
+        if not e or not now or not journal.commitment or journal.bracket or sender~=h.guid or not ns.TournamentBracket then return false end
+        local b=ns.TournamentBracket.NewSimulated(s,h.guid,e.Save(),now,sender)
+        return b~=nil and SaveBracket(b,"bracket_start")
+    end
+    function D.BracketSnapshot()
+        local b=OpenBracket();return b and b.Snapshot()
+    end
+    function D.ReportBracket(sender,report)
+        local actor=resolve(sender)
+        if not Actor(s,actor) or not Permit(actor) then return false end
+        local b=OpenBracket();if not b then return false end
+        local ok,why=b.Report(actor.guid,report)
+        if not ok then return false end
+        if why=="duplicate" then return true,why end
+        if not SaveBracket(b,"bracket_report") then return false end
+        return true,why
     end
     function D.Snapshot() local e=Open();return e and e.Save() end
     return D
@@ -1030,6 +1072,84 @@ function R.RunHostRecoverySelfTest(emit)
             assert(not CheckpointAgreement(x.s,x.h.guid,cp,{[actors[1].guid]=cp,[actors[2].guid]=conflict}))
             assert(not CheckpointAgreement(x.s,x.h.guid,cp,{[actors[1].guid]=cp,[actors[2].guid]=cp,[actors[3].guid]=cp}))
         end)
+        local function StartCompetition()
+            local x=Fixture()
+            local w,j,ack=Join(x);assert(w.Receive("host",ack))
+            x.Advance()
+            local function Req(seq,op) return table.concat({"M",P.Key(x.s),seq,op,x.ad.id},"|") end
+            assert(x.engine.Receive("other",Req(1,"J")))
+            assert(not x.engine.StartBracket(x.h.guid))
+            x.Advance(x.ad.draft.startAt-1800-x.clock())
+            local check=assert(w.Action("C"))
+            assert(w.Receive("host",assert(x.engine.Receive("player",check))[1]))
+            assert(x.engine.Receive("other",Req(2,"C")))
+            x.Advance(1800)
+            assert(not x.engine.StartBracket(x.a.guid))
+            local stale=assert(x.Open())
+            assert(x.engine.StartBracket(x.h.guid) and not x.engine.StartBracket(x.h.guid))
+            assert(not stale.StartBracket(x.h.guid))
+            local view=assert(x.engine.BracketSnapshot())
+            local match
+            for _,round in ipairs(view.rounds) do for _,m in ipairs(round) do if m.state=="ready" then match=m end end end
+            assert(match and view.state=="running")
+            return x,w,Req,match,stale
+        end
+        Case(client.." bracket start freezes roster through clock rollback and reopen",function()
+            local x,w,Req,m,stale=StartCompetition()
+            local before=x.engine.Snapshot()
+            local frozen=x.engine.BracketSnapshot()
+            x.Advance(-3600)
+            -- Reopen resets transient pacing; test the actual frozen clock,
+            -- not merely a refusal from a stale rate limiter.
+            local recovered=assert(x.Open())
+            assert(recovered.Receive("other",Req(3,"L")))
+            assert(Equal(recovered.Snapshot(),before))
+            assert(Equal(recovered.BracketSnapshot(),frozen))
+            assert(not recovered.Publish(x.draft) and not recovered.StartBracket(x.h.guid))
+            assert(not stale.BracketSnapshot())
+        end)
+        Case(client.." bracket reports persist atomically and cannot be forged by organizer",function()
+            local x,w,Req,m=StartCompetition()
+            local report={event=x.ad.id,match=m.id,game=1,winner=x.a.guid,evidence="fixture-1"}
+            assert(not x.engine.ReportBracket("host",report))
+            x.Advance()
+            assert(x.engine.ReportBracket("player",report))
+            local old=assert(x.Open())
+            assert(old.BracketSnapshot().state=="running")
+            local first=old.BracketSnapshot()
+            assert(Equal(first,x.engine.BracketSnapshot()))
+            assert(old.ReportBracket("player",report))
+            assert(Equal(first,old.BracketSnapshot()))
+            assert(old.ReportBracket("other",report))
+            assert(old.BracketSnapshot().champion==x.a.guid)
+            assert(not x.engine.BracketSnapshot())
+            local current=assert(x.Open());assert(current.BracketSnapshot().state=="completed")
+            assert(not current.Publish(x.draft))
+            x.Advance()
+            local wrong=Copy(report);wrong.winner=x.other.guid
+            assert(current.ReportBracket("player",wrong))
+            local disputed=assert(x.Open())
+            assert(disputed.BracketSnapshot().state=="disputed" and not disputed.BracketSnapshot().champion)
+            assert(disputed.Cancel(x.h.guid,x.ad.id))
+            assert(not disputed.BracketSnapshot() and not x.Store("hostRoot").ReadTournamentJournal().commitment)
+        end)
+        Case(client.." corrupt or rewritten bracket journal cannot release ownership",function()
+            local x,w,Req,m=StartCompetition()
+            local store=x.Store("hostRoot");local old=assert(store.ReadTournamentJournal())
+            local changed=Copy(old);changed.revision=changed.revision+1;changed.bracket=nil
+            assert(not store.CommitTournamentJournal(old.revision,changed,"host_checkpoint"))
+            assert(Equal(store.ReadTournamentJournal(),old))
+            x.Advance()
+            local report={event=x.ad.id,match=m.id,game=1,winner=x.a.guid,evidence="fixture-1"}
+            assert(x.engine.ReportBracket("player",report))
+            old=assert(store.ReadTournamentJournal())
+            changed=Copy(old);changed.revision=changed.revision+1
+            changed.bracket.reports[1].sender=x.h.guid
+            assert(not store.CommitTournamentJournal(old.revision,changed,"bracket_report"))
+            assert(Equal(store.ReadTournamentJournal(),old))
+            x.hostRoot.clients[client].tournamentJournal.bracket.reports[1].sender=x.h.guid
+            assert(not x.Open() and not x.engine.Publish(x.draft))
+        end)
         Case(client.." rate limit and corrupt checkpoint cannot emit mutation acknowledgement",function()
             local x=Fixture();local w=assert(x.Player());local q=assert(w.Query(x.h.guid))
             assert(x.engine.Receive("player",q) and x.engine.Receive("player",q) and not x.engine.Receive("player",q))
@@ -1186,7 +1306,7 @@ end
 if ns.Diagnostics then
 ns.Diagnostics.Register("Tournament host recovery / isolated checkpoint QA","deep",function()
     local log={};local p,f=R.RunHostRecoverySelfTest(function(line)log[#log+1]=line end)
-    return f==0 and p==20 and "PASS" or "FAIL",string.format("%d passed / %d failed (SIMULATED)\n",p,f)..table.concat(log,"\n")
+    return f==0 and p==26 and "PASS" or "FAIL",string.format("%d passed / %d failed (SIMULATED)\n",p,f)..table.concat(log,"\n")
 end)
 ns.Diagnostics.Register("Tournament recovery / isolated journal QA","deep",function()
     local log={};local p,f=R.RunRecoverySelfTest(function(line)log[#log+1]=line end)

@@ -5,6 +5,13 @@ local R={};ns.TournamentRecovery=R
 local P=ns.CompetitiveScope
 local function Whole(v,lo,hi)return type(v)=="number" and v>=lo and v<=hi and v==math.floor(v) end
 local function Guid(v)return type(v)=="string" and #v<=64 and v:match("^Player%-%w[%w%-]*$")~=nil end
+local function Equal(a,b)
+    if type(a)~=type(b) then return false end
+    if type(a)~="table" then return a==b end
+    for k,v in pairs(a) do if not Equal(v,b[k]) then return false end end
+    for k in pairs(b) do if a[k]==nil then return false end end
+    return true
+end
 function R.Validate(client,character,raw)
     if not Guid(character) or (client~="retail" and client~="forever") then return nil end
     if raw==nil then return {version=1,scope="SIMULATED",client=client,character=character,revision=0,sequence=0} end
@@ -45,6 +52,17 @@ function R.Validate(client,character,raw)
         elseif l and l.role=="host" then return nil end
         out.checkpoint=cp
     end
+    if raw.bracket~=nil then
+        local cp=out.checkpoint
+        if not cp or not l or l.role~="host" or cp.host.ad.state~="open" or type(raw.bracket)~="table"
+            or not Equal(raw.bracket.checkpoint,cp.host) then return nil end
+        local b=ns.TournamentBracket
+        local a=cp.host.ad
+        local scope={client=client,region=a.region,ruleset=a.ruleset,faction=a.faction}
+        local engine=b and b.OpenSimulated(scope,character,raw.bracket)
+        if not engine then return nil end
+        out.bracket=engine.Save()
+    end
     -- Compact terminal evidence is never evicted to make room for a new cup.
     if raw.cancelled~=nil then
         if type(raw.cancelled)~="table" then return nil end
@@ -76,13 +94,6 @@ local function Same(a,b)
 end
 -- Called only after trusted local fixture adapter has verified the receipt.
 -- Storage checks transitions but cannot establish sender authenticity.
-local function Equal(a,b)
-    if type(a)~=type(b) then return false end
-    if type(a)~="table" then return a==b end
-    for k,v in pairs(a) do if not Equal(v,b[k]) then return false end end
-    for k in pairs(b) do if a[k]==nil then return false end end
-    return true
-end
 function R.Transition(old,new,action)
     if new.revision~=old.revision+1 then return false end
     local x,y=old.checkpoint,new.checkpoint
@@ -96,6 +107,19 @@ function R.Transition(old,new,action)
         expected[a.id]={population=P.Key(a),revision=a.revision}
     end
     if not Equal(expected,new.cancelled or {}) then return false end
+    local before,after=old.bracket,new.bracket
+    if action=="bracket_start" or action=="bracket_report" then
+        if not x or not y or not old.commitment or old.commitment.role~="host"
+            or not Same(old.commitment,new.commitment) or old.pending or new.pending
+            or new.sequence~=old.sequence or not Equal(x,y) or not after then return false end
+        if action=="bracket_start" then return not before and #after.reports==0 end
+        if not before or before.startedAt~=after.startedAt or not Equal(before.checkpoint,after.checkpoint)
+            or #after.reports~=#before.reports+1 then return false end
+        for i,v in ipairs(before.reports) do if not Equal(v,after.reports[i]) then return false end end
+        return true
+    elseif action=="host_cancel" then
+        if after then return false end
+    elseif not Equal(before,after) then return false end
     if action=="host_open" then
         local n=0;for _ in pairs(expected) do n=n+1 end
         if n>=128 then return false end
@@ -114,6 +138,7 @@ function R.Transition(old,new,action)
                 and Equal(x.host.roster,y.host.roster) and Equal(x.receipts,y.receipts)
         end
         if b.state~="open" or not Same(old.commitment,new.commitment) then return false end
+        if before and not Equal(x.host,y.host) then return false end
         for guid,row in pairs(x.receipts) do
             local other=y.receipts[guid]
             if not other or other.seq<row.seq or (other.seq==row.seq and not Equal(row,other)) then return false end
