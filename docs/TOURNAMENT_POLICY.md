@@ -36,3 +36,8 @@ Proposed simulation defaults: one mutually agreed replay per series, only for an
 
 ## Version 6 — tournament gameplay separation (approved intent)
 Tournament duels never change normal ranked rating. Reuse the shared detector, result validation, countdown, HUD, sounds and notifications only for their relevant lifecycle; no duplicate detector or permanent tournament polling. Tournament identity must be explicitly agreed before challenge/countdown, tied to event, assigned opponents, current series game, replay attempt and coordinator term. Ordinary duels must never advance the bracket. Stage 8A simulated adapter only; actual live ranked exclusion and lifecycle hookup are mandatory before any live tournament activation. No fake duel records or ranked credit from test fixtures.
+
+## Version 7 — gameplay lifecycle connection
+Temporary per-player detector subscriptions only during an assigned tournament game; remove immediately on report, cancellation, hold, coordinator change, or invalid assignment. Tournament classification is frozen through the native duel cycle even if its subscription is removed; tournament results are excluded from ordinary ranked settlement and ordinary history pending dedicated history policy. Current arm is sandbox-only, no live tournament session can be launched yet. Live bilateral assignment and transport remain a release prerequisite.
+
+Stage 8B cleanup refinement: direct confirmed game, withdrawal, offline forfeit and dispute also detach affected assignments immediately. Wrong opponent and cancellation tested. Live classification remains unavailable until verified bilateral intent is wired; no automatic rating for tournament markers.

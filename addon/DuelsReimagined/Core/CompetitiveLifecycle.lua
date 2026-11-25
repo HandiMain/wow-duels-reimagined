@@ -215,6 +215,7 @@ function P.EvaluateRankOffer(d,guid,epoch,fp,code)
 end
 local function StartChallenge(s)
     local c=s.challenge
+    if c and c.duelMode=="tournament" then return end
     if not c or not c.opponent or not Guid(c.opponent.guid) then return end
     if match and match.challengeAt==c.time and match.peer.guid==c.opponent.guid then return end
     ResetPeer()
@@ -262,6 +263,7 @@ local function Freeze(s)
     local x=match
     if not x or x.phase~="challenge" or not s.active or x.cycle then return end
     local a=s.active
+    if a.duelMode=="tournament" then match=nil;status="tournament";return end
     x.cycle=a.id
     if (x.direction=="outgoing" and not a.rankedWidget and x.mode=="R")
         or not x.agreement or not a.opponent or a.opponent.guid~=x.peer.guid then
@@ -310,6 +312,11 @@ local function FinalizeObservation(r)
     if not r or r.id<=lastSeen then return end
     lastSeen=r.id
     local choice=intent;intent=nil
+    -- A frozen tournament cycle never enters ordinary history or rank settlement.
+    if r.duelMode=="tournament" then
+        if not (match and match.phase=="settling" and match.cycle~=r.id) then match=nil;status="tournament" end
+        Refresh();return
+    end
     if r.kind~="standard" and r.kind~="unclassified" or r.reason=="death_duel_excluded" then return end
     local stamp=EpochNow()
     r.observedAt=stamp
@@ -466,6 +473,12 @@ function P.Initialize()
     lastSeen=before.last and before.last.id or 0
     ns.DuelDetection.Subscribe(function(s)
         if s.scope~="LOCAL" then return end
+        local marked=s.challenge or s.active
+        if marked and marked.duelMode=="tournament" then
+            intent=nil
+            if not (match and match.phase=="settling") then match=nil;status="tournament" end
+            return
+        end
         if s.state=="challenge" and s.challenge then
             local c=s.challenge
             if not intent or intent.time~=c.time or intent.direction~=c.direction

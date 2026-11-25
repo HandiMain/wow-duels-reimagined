@@ -32,15 +32,23 @@ function G.NewSimulated(scope,match,token,read,resolve,submit)
     if m.games[game] then return nil end
     local session="t"..term.."-"..match.."-"..game.."-"..(attempt or 0)..":"..token
     local evidence="T:"..session
-    local slots={};local closed=false
+    local slots,links={},{};local closed=false
     local D={}
+    local function Detach(who)
+        local link=links[who];links[who]=nil
+        if link then link.remove();link.release() end
+    end
+    local function Close()
+        closed=true;slots={};Detach(a);Detach(b)
+    end
+    function D.Close() Close() end
     local function Current()
         if closed then return nil end
         local view,control=read();local row=Find(view,match)
         if not row or not control or control.paused or control.event~=event or view.event~=event
             or control.term~=term or control.coordinator~=controller or row.a~=a or row.b~=b
             or row.wins[1]+row.wins[2]+1~=game or (row.replayedGame==game and 1 or nil)~=attempt then
-            closed=true;slots={};return nil
+            Close();return nil
         end
         return row
     end
@@ -67,17 +75,17 @@ function G.NewSimulated(scope,match,token,read,resolve,submit)
         local who=Actor(sender);if not who or slots[who] then return false end
         local last=s.last and s.last.id or 0
         if not Whole(last,0,2147483647) then return false end
-        slots[who]={phase="consented",rev=s.revision,last=last}
+        slots[who]={phase="consented",rev=s.revision,last=last,who=who}
         return true
     end
     local function Stop()
-        closed=true;slots={};return false,"assignment_closed"
+        Close();return false,"assignment_closed"
     end
     local function Deliver(sender,slot)
         if not Current() or not slot or not slot.pending then return false end
         local ok,why=submit(sender,slot.pending,term,controller)
         if not ok then return false,"retry" end
-        slot.pending=nil;slot.phase="reported"
+        slot.pending=nil;slot.phase="reported";Detach(slot.who)
         -- Refresh authority after each accepted report. A confirmed game,
         -- dispute, pause, cancellation or migration invalidates this adapter.
         Current()
@@ -97,6 +105,8 @@ function G.NewSimulated(scope,match,token,read,resolve,submit)
             return false
         end
         slot.rev=s.revision
+        local marked=s.challenge or s.active or (s.state=="idle" and slot.phase=="playing" and s.last)
+        if links[who] and marked and (marked.duelMode~="tournament" or marked.tournamentSession~=session) then return Stop() end
         if slot.phase=="consented" then
             if s.state=="idle" then
                 if s.last and s.last.id~=slot.last then return Stop() end
@@ -142,6 +152,18 @@ function G.NewSimulated(scope,match,token,read,resolve,submit)
         slot.pending={event=event,match=match,game=game,attempt=attempt,
             winner=result.outcome=="won" and who or peer,evidence=evidence}
         return Deliver(sender,slot)
+    end
+    -- Bind a real detector sandbox only for this assignment. No live arm.
+    function D.ConnectSimulated(sender,detector)
+        local who,peer=Actor(sender)
+        if not who or type(detector)~="table" or type(detector.ArmSimulatedTournament)~="function" then return false end
+        local snap=detector.GetSnapshot()
+        if not D.Consent(sender,snap) then return false end
+        local release=detector.ArmSimulatedTournament(who,peer,session)
+        if not release then slots[who]=nil;return false end
+        local remove=detector.Subscribe(function(s) D.Observe(sender,s) end)
+        links[who]={release=release,remove=remove}
+        return true
     end
     return D
 end

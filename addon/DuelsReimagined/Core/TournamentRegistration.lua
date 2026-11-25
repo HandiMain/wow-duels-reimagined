@@ -705,6 +705,14 @@ local function RosterReply(s,actor,snap,body)
 end
 local function DurableHost(s,h,clock,resolve,store)
     local D={}
+    local assignments={}
+    local function CloseMatch(id)
+        local a=assignments[id]
+        if a then assignments[id]=nil;a.Close() end
+    end
+    local function CloseAssignments()
+        for id in pairs(assignments) do CloseMatch(id) end
+    end
     local journal=store.ReadTournamentJournal()
     if not journal or journal.character~=h.guid or journal.client~=s.client then return nil end
     local key=P.Key(s)
@@ -796,7 +804,7 @@ local function DurableHost(s,h,clock,resolve,store)
     function D.Cancel(sender,id)
         local e=Open();if not e or not journal.commitment or not e.Cancel(id,sender) then return false end
         local w=WireHost(s,h,e,resolve,journal.checkpoint.receipts)
-        return Save(e,w,"host_cancel")
+        local ok=Save(e,w,"host_cancel");if ok then CloseAssignments() end;return ok
     end
     -- Bracket changes use the same character-owned journal and CAS. No
     -- separate database, no live result intake, no actual tournament release.
@@ -835,6 +843,8 @@ local function DurableHost(s,h,clock,resolve,store)
         if why=="duplicate" then return true,why end
         if not SaveBracket(b,"bracket_report") then return false end
         observed[report.match]=nil
+        if why=="disputed" then CloseAssignments()
+        elseif why=="confirmed" then CloseMatch(report.match) end
         return true,why
     end
     -- One transient observer per ready match; at most 31 match IDs.
@@ -871,7 +881,7 @@ local function DurableHost(s,h,clock,resolve,store)
         if out.remaining==0 then
             local ok=b.ForfeitOffline({kind="offline",event=view.event,match=match,revision=view.revision,loser=loser,since=old.since,at=now})
             if not ok or not SaveBracket(b,"bracket_report") then return nil end
-            observed[match]=nil;out.notice="forfeited"
+            observed[match]=nil;CloseMatch(match);out.notice="forfeited"
         end
         return out
     end
@@ -885,6 +895,7 @@ local function DurableHost(s,h,clock,resolve,store)
         if not ok then return false end
         if why=="duplicate" then return true,why end
         if not SaveBracket(b,"bracket_report") then return false end
+        CloseMatch(request.match)
         return true,why
     end
     function D.ConsentReplay(sender,request,term,coordinator)
@@ -902,7 +913,6 @@ local function DurableHost(s,h,clock,resolve,store)
     end
     -- No permanent detector connection: one fixture adapter for each
     -- assigned ready match. The existing host is the only writer.
-    local assignments={}
     function D.AssignMatch(sender,match,token,term)
         if not Fresh() or not journal.control or journal.control.paused or journal.control.term~=term
             or type(match)~="string" then return nil end
@@ -930,7 +940,7 @@ local function DurableHost(s,h,clock,resolve,store)
         local candidate=Copy(journal);candidate.revision=candidate.revision+1;candidate.control=c
         local saved=store.CommitTournamentJournal(journal.revision,candidate,"control_change")
         if not saved then return false end
-        journal=saved;return true
+        journal=saved;CloseAssignments();return true
     end
     function D.Finalize(sender,id,term,copies)
         if not Fresh() or sender~=h.guid or not journal.commitment or journal.commitment.id~=id
@@ -947,7 +957,7 @@ local function DurableHost(s,h,clock,resolve,store)
         candidate.bracket=nil;candidate.control=nil;candidate.commitment=nil
         local saved=store.CommitTournamentJournal(journal.revision,candidate,"host_complete")
         if not saved then return false end
-        journal=saved;return true
+        journal=saved;CloseAssignments();return true
     end
     function D.Completed(id)
         if Fresh() and journal.completed then return Copy(journal.completed[id]) end
@@ -961,7 +971,7 @@ local function DurableHost(s,h,clock,resolve,store)
         candidate.control={term=term+1,coordinator=sender,paused=true}
         local saved=store.CommitTournamentJournal(journal.revision,candidate,"control_change")
         if not saved then return false end
-        journal=saved;return true
+        journal=saved;CloseAssignments();return true
     end
     function D.Snapshot() local e=Open();return e and e.Save() end
     return D
@@ -1906,6 +1916,69 @@ function R.RunHostRecoverySelfTest(emit)
             assert(x.engine.BracketSnapshot().state=="disputed" and not x.engine.BracketSnapshot().champion)
             assert(not g.IsActive())
         end)
+        local function Connected(x,m)
+            local g=assert(x.engine.AssignMatch("host",m.id,"connected",1))
+            local a=assert(ns.DuelDetection.NewSandbox(client,false))
+            local b=assert(ns.DuelDetection.NewSandbox(client,false))
+            local sep=client=="forever" and " " or "-"
+            a.people.player={fullName="Alpha"..sep.."Home",guid=x.a.guid}
+            a.people.target={fullName="Beta"..sep.."Other",guid=x.other.guid}
+            b.people.player=a.people.target;b.people.target=a.people.player
+            assert(g.ConnectSimulated("player",a.detector));assert(g.ConnectSimulated("other",b.detector))
+            assert(a.detector.GetDiagnosticResources().subscriptions==1 and b.detector.GetDiagnosticResources().subscriptions==1)
+            return g,a,b
+        end
+        Case(client.." connected detector sandboxes advance tournament and release listeners",function()
+            local x,w,Req,m=StartCompetition()
+            local g,a,b=Connected(x,m)
+            a.Outgoing("target");b.Fire("DUEL_REQUESTED",a.people.player.fullName)
+            a.Fire("CHAT_MSG_SYSTEM","Duel starting: 3");b.Fire("CHAT_MSG_SYSTEM","Duel starting: 3")
+            assert(a.detector.GetSnapshot().active.duelMode=="tournament")
+            assert(b.detector.GetSnapshot().active.duelMode=="tournament")
+            local msg=a.people.player.fullName.." has defeated "..a.people.target.fullName.." in a duel"
+            x.Advance()
+            a.Fire("CHAT_MSG_SYSTEM",msg);a.Fire("DUEL_FINISHED")
+            assert(a.detector.GetSnapshot().last.duelMode=="tournament")
+            assert(a.detector.GetDiagnosticResources().subscriptions==0)
+            b.Fire("DUEL_FINISHED");b.Fire("CHAT_MSG_SYSTEM",msg)
+            assert(b.detector.GetDiagnosticResources().subscriptions==0 and not g.IsActive())
+            assert(x.engine.BracketSnapshot().champion==x.a.guid)
+            a.Outgoing("target");a.Fire("CHAT_MSG_SYSTEM","Duel starting: 3")
+            assert(not a.detector.GetSnapshot().active.duelMode)
+        end)
+        Case(client.." hold detaches immediately and frozen duel remains tournament",function()
+            local x,w,Req,m=StartCompetition();local g,a,b=Connected(x,m)
+            a.Outgoing("target");b.Fire("DUEL_REQUESTED",a.people.player.fullName)
+            a.Fire("CHAT_MSG_SYSTEM","Duel starting: 3");b.Fire("CHAT_MSG_SYSTEM","Duel starting: 3")
+            assert(x.engine.Hold(x.h.guid,x.ad.id,1))
+            assert(a.detector.GetDiagnosticResources().subscriptions==0 and b.detector.GetDiagnosticResources().subscriptions==0 and not g.IsActive())
+            a.Fire("CHAT_MSG_SYSTEM",a.people.player.fullName.." has defeated "..a.people.target.fullName.." in a duel")
+            a.Fire("DUEL_FINISHED")
+            local last=a.detector.GetSnapshot().last
+            assert(last.duelMode=="tournament" and last.rankEligible==false)
+            assert(x.engine.BracketSnapshot().revision==0)
+            local ctx={scope="PEER",client=client,me=x.a.guid,peer=x.other.guid,cycle=last.id,
+                agreement={scope="PEER",state="candidate",candidate=true,rankEligible=false,session="a:b"}}
+            last.scope="LOCAL";last.observedAt=1795622400
+            assert(not ns.ResultConfirmation.MakePeerStatement(ctx,last))
+            last.duelMode=nil
+            assert(ns.ResultConfirmation.MakePeerStatement(ctx,last))
+        end)
+        Case(client.." wrong opponent and cancellation remove detector connections without rating leakage",function()
+            local x,w,Req,m=StartCompetition();local g,a,b=Connected(x,m)
+            local sep=client=="forever" and " " or "-"
+            a.people.target={fullName="Gamma"..sep.."Other",guid="Player-1-GAMMA"}
+            a.Outgoing("target")
+            assert(not a.detector.GetSnapshot().challenge.duelMode)
+            assert(a.detector.GetDiagnosticResources().subscriptions==0 and b.detector.GetDiagnosticResources().subscriptions==0)
+            assert(not g.IsActive() and x.engine.BracketSnapshot().revision==0)
+            g,a,b=Connected(x,m)
+            assert(x.engine.Cancel(x.h.guid,x.ad.id))
+            assert(a.detector.GetDiagnosticResources().subscriptions==0 and b.detector.GetDiagnosticResources().subscriptions==0)
+            assert(not g.IsActive())
+            a.Outgoing("target");a.Fire("CHAT_MSG_SYSTEM","Duel starting: 3")
+            assert(not a.detector.GetSnapshot().active.duelMode)
+        end)
         Case(client.." rate limit and corrupt checkpoint cannot emit mutation acknowledgement",function()
             local x=Fixture();local w=assert(x.Player());local q=assert(w.Query(x.h.guid))
             assert(x.engine.Receive("player",q) and x.engine.Receive("player",q) and not x.engine.Receive("player",q))
@@ -2062,7 +2135,7 @@ end
 if ns.Diagnostics then
 ns.Diagnostics.Register("Tournament host recovery / isolated checkpoint QA","deep",function()
     local log={};local p,f=R.RunHostRecoverySelfTest(function(line)log[#log+1]=line end)
-    return f==0 and p==66 and "PASS" or "FAIL",string.format("%d passed / %d failed (SIMULATED)\n",p,f)..table.concat(log,"\n")
+    return f==0 and p==72 and "PASS" or "FAIL",string.format("%d passed / %d failed (SIMULATED)\n",p,f)..table.concat(log,"\n")
 end)
 ns.Diagnostics.Register("Tournament recovery / isolated journal QA","deep",function()
     local log={};local p,f=R.RunRecoverySelfTest(function(line)log[#log+1]=line end)

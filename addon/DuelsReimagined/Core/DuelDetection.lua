@@ -20,6 +20,7 @@ local ACK_WAIT=5
 local suppressDeath = false
 -- Scoped to one synchronous, explicitly clicked native launch. Never persisted.
 local widgetLaunch
+local tournamentLease
 local function Plain(v)
     if type(issecretvalue)=="function" then
         local ok, secret=pcall(issecretvalue,v)
@@ -58,6 +59,18 @@ function D.Subscribe(fn)
     if type(fn)~="function" then return function() end end
     listeners[fn]=true
     return function() listeners[fn]=nil end
+end
+-- Sandbox-only arm. A future live bridge must establish the same intent
+-- from verified bilateral assignment before enabling this on the real detector.
+function D.ArmSimulatedTournament(me,peer,session)
+    if api.scope~="SIMULATED" or state~="idle" or tournamentLease or type(session)~="string"
+        or #session>65 or not session:match("^[%w%-]+:[%w%-]+$") or me==peer
+        or type(me)~="string" or type(peer)~="string" then return nil end
+    local p=ns.Group.ReadPlayerIdentity("player")
+    if not p or p.guid~=me then return nil end
+    local lease={peer=peer,session=session}
+    tournamentLease=lease
+    return function() if tournamentLease==lease then tournamentLease=nil end end
 end
 local function Publish(nextState,why)
     state,reason=nextState,why
@@ -194,7 +207,7 @@ local function Finalize(why,allowResult)
         and d.result or nil
     active,challenge=nil,nil
     last={id=d.id,client=ns.Client.Kind(),scope=api.scope,
-        kind=d.kind,direction=d.direction,opponent=Copy(d.opponent),
+        kind=d.kind,direction=d.direction,opponent=Copy(d.opponent),duelMode=d.duelMode,tournamentSession=d.tournamentSession,
         acceptedAt=d.acceptedAt,endedAt=Now(),
         outcome=result and result.outcome or "unknown",
         endType=result and result.endType or nil,
@@ -244,6 +257,10 @@ local function Challenge(name,direction,kind,rankedWidget,widgetChallenge)
         return -- repeated delivery of the same request
     end
     local c={opponent=Resolve(name),direction=direction,kind=kind,time=Now(),rankedWidget=rankedWidget==true,widgetChallenge=widgetChallenge==true}
+    local lease=tournamentLease;tournamentLease=nil
+    if lease and c.opponent and c.opponent.guid==lease.peer and not c.rankedWidget and kind~="death_duel" then
+        c.duelMode="tournament";c.tournamentSession=lease.session
+    end
     challenge=c
     suppressDeath=kind=="death_duel"
     Publish("challenge",direction=="outgoing" and "outgoing_attempt" or "incoming_request")
@@ -269,12 +286,14 @@ local function StartCountdown(n)
     local now=Now()
     if not challenge and last and now and last.endedAt and
         now-last.endedAt<WAIT then return end
+    tournamentLease=nil
     cycle=cycle+1
     active={id=cycle,kind=challenge and challenge.kind or "unclassified",
         direction=challenge and challenge.direction or "unknown",
         rankedWidget=challenge and challenge.rankedWidget==true or false,
         widgetChallenge=challenge and challenge.widgetChallenge==true or false,
         opponent=challenge and challenge.opponent,
+        duelMode=challenge and challenge.duelMode,tournamentSession=challenge and challenge.tournamentSession,
         player=Identity("player"),acceptedAt=now,countdown=n}
     challenge=nil
     Publish("accepted","countdown_observed")
@@ -366,7 +385,7 @@ local function System(message)
     if retreat then Result(retreat,"retreat") end
 end
 local function ResetWorld()
-    challenge=nil; suppressDeath=false
+    tournamentLease=nil;challenge=nil; suppressDeath=false
     if active then Finalize("world_transition",false)
     elseif state~="idle" then Publish("idle","world_transition") end
 end

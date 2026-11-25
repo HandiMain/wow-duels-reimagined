@@ -23,8 +23,17 @@ local jp,jf=ns.TournamentRegistration.RunRecoverySelfTest(print)
 assert(jp==10 and jf==0,"tournament recovery QA failed")
 assert(loadfile(root.."TournamentBracket.lua"))("DuelsReimagined",ns)
 assert(loadfile(root.."TournamentGameplay.lua"))("DuelsReimagined",ns)
+-- Minimal inert host for loading the detector; every gameplay case uses its own sandbox.
+local oldFrame,oldClock=CreateFrame,GetTime
+local oldAfter,oldHook=C_Timer,hooksecurefunc
+local oldGroup=ns.Group;ns.Group={ReadPlayerIdentity=function()end}
+CreateFrame=function()return {RegisterEvent=function()end,UnregisterAllEvents=function()end,SetScript=function()end}end
+GetTime=function()return 0 end;C_Timer={After=function()end};hooksecurefunc=function()end
+assert(loadfile(root.."DuelDetection.lua"))("DuelsReimagined",ns)
+CreateFrame,GetTime,C_Timer,hooksecurefunc=oldFrame,oldClock,oldAfter,oldHook
+ns.Group=oldGroup
 local hp,hf=ns.TournamentRegistration.RunHostRecoverySelfTest(print)
-assert(hp==66 and hf==0,"tournament host recovery QA failed")
+assert(hp==72 and hf==0,"tournament host recovery QA failed")
 local bp,bf=ns.TournamentBracket.RunSelfTest(print)
 assert(bp==24 and bf==0,"tournament bracket QA failed")
 local function Equal(a,b)
