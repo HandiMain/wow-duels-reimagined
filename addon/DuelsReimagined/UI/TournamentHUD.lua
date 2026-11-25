@@ -2,7 +2,7 @@ local _,ns=...
 -- A distinct presentation, not a new duel engine. DuelHUD alone selects
 -- which HUD is active. This view consumes a detached tournament snapshot.
 local B={};ns.TournamentHUD=B
-local W,H=900,148
+local W,H=900,156
 local S=ns.Style
 local C=S and S.color
 local Settings=ns.Settings
@@ -39,36 +39,32 @@ local function Emblem(p,x,y,w,h)
     ns.TournamentUI.PaintEmblem(t);At(t,p,x,y,w,h)
     return t
 end
-local function Plate(p,x,y,w,h,kind,corner)
-    local f=CreateFrame("Frame",nil,p);At(f,p,x,y,w,h)
-    S.Plate(f,kind,{corner=corner or 12,layer="BACKGROUND",sublevel=1})
-    return f
-end
-local function Wing(p,x)
-    local f=CreateFrame("Frame",nil,p);At(f,p,x,34,62,86)
-    S.Skin(f,C.button,{corner=12,edge=C.goldDim,light=C.gold,dark=C.window,shine=.34,shade=.35,rim=.92})
-    S.Plate(f,"shellCopper",{corner=12})
-    Emblem(f,9,22,44,36)
-    local top=Plate(f,-8,-5,78,12,"gold",5)
-    return f
-end
-local function Side(p,x,enemy)
+local function Side(p,enemy)
     local side={}
-    local ix=enemy and 190 or 0
-    local tx=enemy and 0 or 54
-    local ring=Plate(p,x+ix,46,48,48,"gold",15)
+    local cx=enemy and 776 or 124
+    local tx=enemy and 566 or 156
+    local ring=CreateFrame("Frame",nil,p);At(ring,p,cx-24,54,48,48)
     side.icon=ring:CreateTexture(nil,"ARTWORK")
-    At(side.icon,ring,5,5,38,38)
-    side.icon:SetTexture("Interface\\Icons\\INV_Misc_QuestionMark")
-    side.name=Text(p,x+tx,59,184,23,17,C.pale,enemy and "RIGHT" or "LEFT")
-    local track=Plate(p,x+tx,83,184,23,"dark",9)
-    side.hp=CreateFrame("StatusBar",nil,track)
-    At(side.hp,track,4,5,176,13)
+    At(side.icon,ring,1,1,46,46)
+    if ring.CreateMaskTexture and side.icon.AddMaskTexture then
+        pcall(function()
+            local mask=ring:CreateMaskTexture()
+            mask:SetTexture("Interface\\AddOns\\DuelsReimagined\\Media\\Skin\\DuelHUDPortraitMask.png","CLAMPTOBLACKADDITIVE","CLAMPTOBLACKADDITIVE")
+            mask:SetAllPoints(side.icon);side.icon:AddMaskTexture(mask);side.mask=mask
+        end)
+    end
+    side.name=Text(p,tx,61,178,21,16,C.pale,enemy and "RIGHT" or "LEFT")
+    if S.ConstrainText then S.ConstrainText(side.name,178,21,10) end
+    local track=CreateFrame("Frame",nil,p);At(track,p,tx,85,178,17)
+    local skin=track:CreateTexture(nil,"BACKGROUND")
+    skin:SetTexture("Interface\\AddOns\\DuelsReimagined\\Media\\Skin\\DuelHUDPremiumParts.png")
+    skin:SetTexCoord(26.5/1024,309.5/1024,292.5/512,329.5/512);skin:SetAllPoints(track)
+    side.hp=CreateFrame("StatusBar",nil,track);At(side.hp,track,4,3,170,11)
     side.hp:SetStatusBarTexture("Interface\\AddOns\\DuelsReimagined\\Media\\Skin\\DuelHUDHealthFill.png")
     side.hp:SetMinMaxValues(0,100);side.hp:SetStatusBarColor(1,1,1)
     local overlay=CreateFrame("Frame",nil,track)
     overlay:SetFrameLevel(side.hp:GetFrameLevel()+1);overlay:SetAllPoints(track)
-    side.health=Text(overlay,0,0,184,23,11,C.text)
+    side.health=Text(overlay,0,0,178,17,10,C.text)
     return side
 end
 local function Build()
@@ -76,41 +72,32 @@ local function Build()
     root=CreateFrame("Frame","DuelsReimaginedTournamentHUD",UIParent)
     root:SetSize(W,H);root:SetFrameStrata("MEDIUM");root:SetClampedToScreen(true);root:EnableMouse(false);root:Hide()
     if ns.DiagnosticAudit then ns.DiagnosticAudit.RegisterUIRoot("Tournament HUD",root) end
-    local body=Plate(root,44,34,812,79,"cardBody",18)
-    S.Plate(body,"shellCopper",{corner=18})
-    local lower=Plate(root,152,108,596,39,"dark",17)
-    S.Plate(lower,"shellCopper",{corner=17})
-    -- Draw data above the background frames; parent fontstrings alone
-    -- would be occluded by the body plate's child frame level.
+    local art=root:CreateTexture(nil,"BACKGROUND")
+    art:SetTexture("Interface\\AddOns\\DuelsReimagined\\Media\\Skin\\DuelTournamentScoreboard.tga")
+    art:SetTexCoord(0,900/1024,0,156/256);art:SetAllPoints(root)
+    ns.Chrome.Sharp(art)
     local front=CreateFrame("Frame",nil,root);front:SetAllPoints(root)
-    front:SetFrameLevel(root:GetFrameLevel()+5);front:EnableMouse(false)
-    Wing(front,10);Wing(front,828)
-    local crest=Plate(front,276,16,348,47,"hall",14)
-    S.Plate(crest,"shellCopper",{corner=14})
-    local emblemLayer=CreateFrame("Frame",nil,front);emblemLayer:SetAllPoints(front)
-    emblemLayer:SetFrameLevel(crest:GetFrameLevel()+1)
-    Emblem(emblemLayer,428,0,44,31)
-    local left=Side(front,79,false)
-    local right=Side(front,583,true)
-    local leftScore=Plate(front,345,65,43,40,"hall",10)
-    local rightScore=Plate(front,512,65,43,40,"hall",10)
-    local vs=Text(front,390,65,120,37,25,C.gold)
-    vs:SetText("VS")
-    local title=Text(crest,12,4,324,23,20,C.pale)
-    local format=Text(crest,12,26,324,17,12,C.pale)
-    local score=Text(leftScore,0,0,43,40,25,C.text)
-    local opponentScore=Text(rightScore,0,0,43,40,25,C.text)
-    local game=Text(lower,11,4,168,30,13,C.pale)
-    local status=Text(lower,181,2,234,34,19,C.gold)
-    local sim=S.Action(lower,"Simulate game","footer",{plate="dark",text=C.pale,edge=C.goldDim,hover=C.gold,tooltip=false})
-    At(sim,lower,426,5,157,27)
+    front:SetFrameLevel(root:GetFrameLevel()+2);front:EnableMouse(false)
+    Emblem(front,48,66,40,32);Emblem(front,812,66,40,32)
+    Emblem(front,428,0,44,31)
+    local left=Side(front,false);local right=Side(front,true)
+    local vs=Text(front,402,67,96,38,24,C.gold);vs:SetText("VS")
+    local title=Text(front,310,23,280,22,19,C.pale)
+    if S.ConstrainText then S.ConstrainText(title,280,22,11) end
+    local format=Text(front,310,43,280,15,11,C.pale)
+    local score=Text(front,350,67,44,34,24,C.text)
+    local opponentScore=Text(front,506,67,44,34,24,C.text)
+    local game=Text(front,173,113,166,23,12,C.pale)
+    local status=Text(front,340,110,220,29,17,C.gold)
+    local sim=S.Action(front,"Simulate game","footer",{plate="dark",text=C.pale,edge=C.goldDim,hover=C.gold,tooltip=false})
+    At(sim,front,574,113,149,23)
     sim:SetScript("OnClick",function()
         if editing or not ns.DuelHUD or not ns.DuelHUD.IsTournamentHUDActive() then return end
         local ok,why=ns.TournamentRegistration.PreviewAction("simulate-game")
         if ns.TournamentUI.RefreshActive then ns.TournamentUI.RefreshActive() end
         if not ok and ns.Feedback then ns.Feedback.Toast(why or "Test game unavailable",sim) end
     end)
-    local test=Text(front,8,117,134,22,11,C.muted);test:SetText("LOCAL TEST")
+    local test=Text(front,10,129,134,20,10,C.muted);test:SetText("LOCAL TEST")
     fields={left=left,right=right,title=title,format=format,score=score,opponentScore=opponentScore,game=game,status=status,sim=sim}
 end
 local function Layout()
@@ -127,8 +114,16 @@ local function Paint(m)
     fields.title:SetText(m.title);fields.format:SetText(m.round.."  -  Best of "..m.bestOf)
     fields.left.name:SetText(m.left);fields.right.name:SetText(m.right)
     fields.score:SetText(tostring(m.score));fields.opponentScore:SetText(tostring(m.opponentScore))
-    fields.game:SetText(m.bestOf==1 and m.round or "Game "..m.game.."  /  Best of "..m.bestOf)
+    fields.game:SetText(m.bestOf==1 and "" or "Game "..m.game)
     fields.status:SetText(m.status)
+    -- Class icons are illustrative, never a real player/class lookup.
+    local classes={"WARRIOR","MAGE","ROGUE","PRIEST","DRUID","SHAMAN","WARLOCK","HUNTER","PALADIN"}
+    local function Icon(side,name)
+        local seed=0;for i=1,#name do seed=seed+name:byte(i) end
+        local path="Interface\\Icons\\ClassIcon_"..classes[seed%#classes+1]
+        if not SetPortraitToTexture or not pcall(SetPortraitToTexture,side.icon,path) then side.icon:SetTexture(path) end
+    end
+    Icon(fields.left,m.left);Icon(fields.right,m.right)
     for _,side in ipairs({fields.left,fields.right}) do
         -- No opponent unit is observed in a local test. Do not show a
         -- fabricated live health percentage, even when a real target exists.
