@@ -192,25 +192,7 @@ function P.New(parent,callbacks)
     end)
     local D={}
     function D.Hide() Stop();f:Hide();current=nil end
-    function D.Show(p,width,scope,feedback)
-        if eventId~=p.event.id then eventId=p.event.id;confirm=nil end
-        current=p;model=P.Project(p)
-        if not model then D.Hide();return 1 end
-        local m=model;local wide=width>=760;local base=wide and 1170 or 680;local scale=width/base
-        local top=wide and 77 or 132
-        local isMatch=m.state=="match";local isProgress=m.state=="progress"
-        local heroH=isMatch and 126 or 146
-        local stageY=top+heroH+10
-        local contentY=stageY+(isMatch and 0 or 116)
-        local infoY,infoH,footerY
-        local rulesExtra=math.min(160,math.max(0,math.ceil(#m.rules/(wide and 55 or 38))-1)*22)
-        local left=math.floor((base-12)*.51)
-        if isMatch then infoY=contentY+222;infoH=wide and 174+rulesExtra or 258+rulesExtra;footerY=infoY+infoH+12
-        elseif isProgress then infoY=contentY;infoH=wide and 270+rulesExtra or 258+rulesExtra;footerY=contentY+(wide and infoH or infoH+350)+12
-        else infoY=contentY+(wide and 148 or 262);infoH=wide and 174+rulesExtra or 258+rulesExtra;footerY=infoY+infoH+12 end
-        local footerH=wide and 60 or 50+math.ceil(#m.actions/2)*45
-        local total=footerY+footerH+(feedback~="" and 42 or 8)
-        f:SetScale(scale);At(f,parent,0,0,base,total);f:Show()
+    local function PaintHero(p,m,scope,base,wide,top,heroH,stageY,isMatch)
         chrome.PaintCommunity(community,scope or {},base,wide)
         At(hero,f,0,top,base,heroH);At(logo,hero,18,13,130,112)
         scene:SetShown(m.location=="Dun Morogh" and scope and scope.faction=="Alliance")
@@ -247,6 +229,8 @@ function P.New(parent,callbacks)
                 end
             end
         end
+    end
+    local function PaintBody(p,m,base,wide,isMatch,isProgress,contentY,infoH,left)
         timerCard:SetShown(not isMatch and not isProgress);nextCard:SetShown(not isMatch);progress:SetShown(isProgress)
         match:SetShown(isMatch);ready:SetShown(isMatch)
         if isMatch then
@@ -290,6 +274,28 @@ function P.New(parent,callbacks)
             Text(nextText,nextCard,14,44,nw-28,35,m.next,GOLD,16)
             Text(hint,nextCard,14,79,nw-28,wide and 49 or 25,m.hint,C.text,13)
         end
+    end
+    function D.Show(p,width,scope,feedback)
+        if eventId~=p.event.id then eventId=p.event.id;confirm=nil end
+        current=p;model=P.Project(p)
+        if not model then D.Hide();return 1 end
+        local m=model;local wide=width>=760;local base=wide and 1170 or 680;local scale=width/base
+        local top=wide and 77 or 132
+        local isMatch=m.state=="match";local isProgress=m.state=="progress"
+        local heroH=isMatch and 126 or 146
+        local stageY=top+heroH+10
+        local contentY=stageY+(isMatch and 0 or 116)
+        local infoY,infoH,footerY
+        local rulesExtra=math.min(160,math.max(0,math.ceil(#m.rules/(wide and 55 or 38))-1)*22)
+        local left=math.floor((base-12)*.51)
+        if isMatch then infoY=contentY+222;infoH=wide and 174+rulesExtra or 258+rulesExtra;footerY=infoY+infoH+12
+        elseif isProgress then infoY=contentY;infoH=wide and 270+rulesExtra or 258+rulesExtra;footerY=contentY+(wide and infoH or infoH+350)+12
+        else infoY=contentY+(wide and 148 or 262);infoH=wide and 174+rulesExtra or 258+rulesExtra;footerY=infoY+infoH+12 end
+        local footerH=wide and 60 or 50+math.ceil(#m.actions/2)*45
+        local total=footerY+footerH+(feedback~="" and 42 or 8)
+        f:SetScale(scale);At(f,parent,0,0,base,total);f:Show()
+        PaintHero(p,m,scope,base,wide,top,heroH,stageY,isMatch)
+        PaintBody(p,m,base,wide,isMatch,isProgress,contentY,infoH,left)
         local iw=isProgress and wide and base*.36 or base
         At(info,f,0,infoY,iw,infoH);Header(info,iw)
         local times=ns.TournamentState.GetSchedulePreview(p.event.draft.startUTC,p.event.draft.closeBefore)
