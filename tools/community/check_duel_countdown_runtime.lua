@@ -280,3 +280,56 @@ assert(A.GetPackStatus()=="invalid")
 C_AddOns=nil;DuelsReimaginedCountdownSoundPacks=originalManifest
 ns.Options=nil
 print("Optional media discovery: PASS (absent, old, late registration, disabled, invalid, no polling)")
+
+-- Duel end presentation is a local evidence consumer and never writes records.
+ns.EditMode=nil -- previous editor mock remains active by design
+ns.Style={color={text={1,1,1},pale={1,.8,.3},muted={.7,.7,.7},nav={.1,.1,.1},goldDim={.5,.3,.1}},
+    Text=function(parent,value)local f=Frame(parent);f:SetText(value);return f end,
+    Skin=noop,Plate=noop,ConstrainText=noop}
+ns.Chrome={Icon=function(parent)return Frame(parent)end,Sharp=noop}
+-- Tests use the shared Motion mock driver, not a new animation loop.
+prefs.duelResultVisual=true;prefs.duelResultVignette=true
+prefs.reduceMotion=true
+snap={scope="LOCAL",state="idle"}
+assert(loadfile("addon/DuelsReimagined/UI/DuelResult.lua"))("DuelsReimagined",ns)
+local R=ns.DuelResult
+local resultEvents=frames[#frames]
+resultEvents.scripts.OnEvent(resultEvents,"PLAYER_LOGIN")
+local resultRoot
+assert(R.Preview("won"))
+resultRoot=DuelsReimaginedResult
+assert(resultRoot:IsShown() and DuelsReimaginedResultVignette:IsShown())
+assert(Text("VICTORY") and Text("PREVIEW  •  SAMPLE DATA"))
+assert(R.GetDiagnosticResources().timers==1)
+Advance(now+6);assert(not resultRoot:IsShown() and R.GetDiagnosticResources().timers==0)
+prefs.duelResultVignette=false
+assert(R.Preview("lost") and Text("DEFEAT") and not DuelsReimaginedResultVignette:IsShown())
+prefs.duelResultVisual=false;R.Refresh();assert(not resultRoot:IsShown())
+prefs.duelResultVisual=true
+local id=999
+snap={scope="LOCAL",state="accepted",reason="countdown_observed",active={id=id,countdown=3},trace={{cycle=id,reason="countdown_observed",time=now}}}
+callback(snap);assert(not resultRoot:IsShown())
+Advance(now+31)
+snap={scope="LOCAL",state="idle",last={id=id,kind="standard",outcome="won",opponent={display="Test Opponent"},
+    endedAt=now,reason="matching_result_and_finish",outcomeObserved=true,finishObserved=true,resultObserved=true,conflict=false}}
+callback(snap);assert(resultRoot:IsShown() and Text("You defeated Test Opponent") and Text("Rating not confirmed") and Text("Not observed"))
+assert(Text("Duel duration: 00:28"))
+Advance(now+6);callback(snap);assert(not resultRoot:IsShown())
+snap.last.id=id+1;snap.last.endedAt=now;snap.last.conflict=true;callback(snap);assert(not resultRoot:IsShown())
+snap.last.id=id+2;snap.last.conflict=false;combat=true;callback(snap);assert(not resultRoot:IsShown() and R.GetDiagnosticResources().timers==1)
+combat=false;resultEvents.scripts.OnEvent(resultEvents,"PLAYER_REGEN_ENABLED")
+assert(resultRoot:IsShown())
+resultEvents.scripts.OnEvent(resultEvents,"PLAYER_REGEN_DISABLED")
+assert(not resultRoot:IsShown() and R.GetDiagnosticResources().timers==0)
+snap={scope="LOCAL",state="idle"}
+prefs.reduceMotion=false;prefs.duelResultVignette=true
+assert(R.Preview("won"))
+assert(resultRoot.alpha==0 and ns.Motion.GetRuntimeState().driver)
+driver.scripts.OnUpdate(driver,.68)
+assert(resultRoot.alpha==1 and not ns.Motion.GetRuntimeState().driver)
+Advance(now+5.4)
+assert(ns.Motion.GetRuntimeState().driver)
+driver.scripts.OnUpdate(driver,.55)
+assert(not resultRoot:IsShown() and not DuelsReimaginedResultVignette:IsShown() and not ns.Motion.GetRuntimeState().driver)
+assert(R.GetDiagnosticResources().timers==0)
+print("Duel result: PASS (simulated preview, observed result gate, deduplication, duration, combat deferral, vignette, reveal and cleanup)")

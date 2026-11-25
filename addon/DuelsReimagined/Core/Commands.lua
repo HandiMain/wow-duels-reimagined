@@ -15,6 +15,11 @@ SlashCmdList.DUELSREIMAGINED = function(message)
         print("DR | "..detail.." | "..countdown.." countdown packs / "..fight.." FIGHT! sounds")
         return
     end
+    if message=="result victory" or message=="result defeat" then
+        local ok,why=ns.DuelResult.Preview(message=="result victory" and "won" or "lost")
+        if not ok then print("DR | "..tostring(why)) end
+        return
+    end
     if message=="countdown preview" then
         local ok,why=ns.DuelCountdown.Preview()
         if not ok then print("DR | "..tostring(why)) end

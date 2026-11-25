@@ -125,6 +125,12 @@ Check("Module ownership / load order","health",function()
     end
     return "PASS","Shared core/UI owners loaded."
 end)
+Check("Duel result presentation","health",function()
+    Assert(ns.DuelResult and ns.DuelResult.GetDiagnosticResources,"duel result owner missing")
+    local r=ns.DuelResult.GetDiagnosticResources()
+    Assert(r.timers<=1 and r.subscriptions<=1,"unexpected result resources")
+    return "PASS","Read-only local result presentation; no rating or history writes. Live appearance not verified."
+end)
 Check("Optional sound packs","health",function()
     Assert(ns.CountdownAudio and ns.CountdownAudio.GetPackStatus,"countdown audio owner missing")
     local state,countdown,fight,detail=ns.CountdownAudio.GetPackStatus()

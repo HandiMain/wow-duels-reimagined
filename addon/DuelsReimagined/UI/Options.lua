@@ -78,6 +78,7 @@ local bannerIndices = {
     widget = 0,
     widgetNotifications = 0,
     countdown = 0,
+    result = 0,
 }
 local bannerSubtitles = {
     appearance="FONT MATCHING & VISUAL IDENTITY",
@@ -89,6 +90,7 @@ local bannerSubtitles = {
     widget="POSITION, SIZE & BEHAVIOR",
     widgetNotifications="ALERTS, SOUNDS & PREVIEWS",
     countdown="DUEL START & COUNTDOWN",
+    result="VICTORY, DEFEAT & SCREEN EFFECTS",
 }
 
 local function Card(page, y, height)
@@ -151,6 +153,7 @@ local notificationsCard = Card(interface, 549, 100)
 local hudCard = Card(widgetPage, 0, 290)
 local hudNotificationsCard = Card(widgetPage, 298, 340)
 local countdownCard = Card(combatVisuals, 0, 180)
+local resultCard = Card(combatVisuals, 188, 210)
 if ns.DiagnosticAudit then ns.DiagnosticAudit.RegisterUIRoot("Options / Combat Visuals",combatVisuals.scrollOwner) end
 if ns.DiagnosticAudit then ns.DiagnosticAudit.RegisterUIRoot("Options / Widget",widgetPage.scrollOwner) end
 
@@ -181,7 +184,7 @@ local function Section(card, key, title, help, extra)
     local left = Slice(0, BANNER_LEFT)
     local right = Slice(BANNER_CELL_W - BANNER_RIGHT, BANNER_CELL_W)
     local isAppearance = key == "appearance"
-    local nativeWidget = key == "widget" or key == "widgetNotifications" or key == "minimap" or key == "countdown"
+    local nativeWidget = key == "widget" or key == "widgetNotifications" or key == "minimap" or key == "countdown" or key == "result"
     local nativeMotif
     if isAppearance then
         left:Hide()
@@ -197,7 +200,7 @@ local function Section(card, key, title, help, extra)
         card.appearancePalette, card.appearanceMotifPalette = palette, motifPalette
     elseif nativeWidget then
         left:Hide();right:Hide()
-        local kind=key=="widgetNotifications" and "notifications" or key=="minimap" and "launcher" or key=="countdown" and "countdown" or "widget"
+        local kind=key=="widgetNotifications" and "notifications" or key=="minimap" and "launcher" or (key=="countdown" or key=="result") and "countdown" or "widget"
         local nativeIcon=ns.Chrome.WidgetGlyph(header,kind,34)
         nativeIcon:SetPoint("CENTER",header,"LEFT",50,0)
         nativeMotif=ns.Chrome.WidgetGlyph(header,kind,46)
@@ -278,6 +281,9 @@ Section(hudNotificationsCard, "widgetNotifications", "Notifications",
 Section(countdownCard,"countdown","Duel Countdown",
     "Show a cinematic countdown when a duel begins.",
     "The fight cue follows the observed Blizzard countdown; reduced motion is respected.")
+Section(resultCard,"result","Duel Result",
+    "Show the outcome of a completed duel. Previews are sample data only.",
+    "The screen-edge glow fades automatically and never takes control of your character.")
 
 local unavailable = "Enable EllesmereUI and its third-party skinning support to use this setting."
 local rows = {}
@@ -400,6 +406,22 @@ editLayout:SetScript("OnClick",function()
     if not ok and ns.Feedback then ns.Feedback.Toast(why,editLayout) end
 end)
 RegisterOption("editCountdownLayout","Edit countdown layout","Move and resize the entire countdown effect","combatvisuals",editLayout)
+local resultVisual=AddToggle(resultCard,"combatvisuals","duelResultVisual","Show duel result",
+    "Reveal the victory or defeat banner after a locally observed duel result.",-90,false)
+local resultVignette=AddToggle(resultCard,"combatvisuals","duelResultVignette","Screen-edge glow",
+    "Fade gold around the edges for victory, crimson for defeat.",-125,false)
+local function ResultPreview(label,outcome,y)
+    local button=Style.Action(resultCard,label,"footer")
+    button:SetHeight(30);MarkPosition(button,resultCard,y)
+    button:SetScript("OnClick",function()
+        local ok,why=ns.DuelResult.Preview(outcome)
+        if not ok and ns.Feedback then ns.Feedback.Toast(why,button) end
+    end)
+    RegisterOption("previewResult"..outcome,label,"Preview the duel-end banner using sample data","combatvisuals",button)
+    return button
+end
+local victoryPreview=ResultPreview("Preview victory","won",-161)
+local defeatPreview=ResultPreview("Preview defeat","lost",-196)
 local consentRow
 if ns.CompetitiveStorage and ns.CompetitiveStorage.PeerEpoch() then
     consentRow = AddToggle(behaviorCard,"interface","competitiveConsent","Allow competitive duel exchange",
@@ -807,7 +829,8 @@ if warConsentRow then interfaceGroups[1].entries[#interfaceGroups[1].entries+1]=
 function appearance:Relayout(width) LayoutPage(self, appearanceGroups, width) end
 function interface:Relayout(width) LayoutPage(self, interfaceGroups, width) end
 function widgetPage:Relayout(width) LayoutPage(self, widgetGroups, width) end
-local combatGroups={{card=countdownCard,entries={{widget=countdownRow},{widget=countdownChoice},{widget=countdownFont},{widget=countdownSounds},{widget=soundPack},{widget=audioChannel},{widget=fightSounds},{widget=fightPack},{widget=fightChannel},{widget=countdownPreview,height=30},{widget=editLayout,height=30}}}}
+local combatGroups={{card=countdownCard,entries={{widget=countdownRow},{widget=countdownChoice},{widget=countdownFont},{widget=countdownSounds},{widget=soundPack},{widget=audioChannel},{widget=fightSounds},{widget=fightPack},{widget=fightChannel},{widget=countdownPreview,height=30},{widget=editLayout,height=30}}},
+    {card=resultCard,entries={{widget=resultVisual},{widget=resultVignette},{widget=victoryPreview,height=30},{widget=defeatPreview,height=30}}}}
 function combatVisuals:Relayout(width) LayoutPage(self,combatGroups,width) end
 appearance:Relayout(appearance:GetWidth())
 interface:Relayout(interface:GetWidth())
@@ -866,6 +889,7 @@ function Options.Refresh()
     countdownFont:SetAvailable(true)
     countdownFont:SetModified(Settings.IsModified("duelCountdownFont"))
     countdownFont.resetIcon:SetVertexColor(unpack(C.gold))
+    resultVignette:SetAvailable(Settings.Get("duelResultVisual"),"Enable the duel result first.")
     local visualOn=Settings.Get("duelCountdownVisual")
     local soundOn=visualOn and Settings.Get("duelCountdownSounds")
     countdownSounds:SetAvailable(visualOn,"Enable the duel countdown first.")

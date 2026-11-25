@@ -73,6 +73,8 @@ local boolDefaults = {
     duelCountdownVisual = true,
     duelCountdownSounds = true,
     duelFightSounds = true,
+    duelResultVisual = true,
+    duelResultVignette = true,
     warGamesConsent = false,
     showTooltips = true,
     patchNotesReminder = true,
@@ -699,6 +701,9 @@ function Settings.Set(key, value)
     elseif key == "duelCountdownSounds" or key=="duelFightSounds" then
         if ns.CountdownAudio then ns.CountdownAudio.Stop(key=="duelFightSounds" and "fight" or "countdown") end
         if ns.Options and ns.Options.Refresh then ns.Options.Refresh() end
+    elseif key=="duelResultVisual" or key=="duelResultVignette" then
+        if ns.DuelResult then ns.DuelResult.Refresh() end
+        if ns.Options and ns.Options.Refresh then ns.Options.Refresh() end
     elseif key == "duelCountdownVisual" then
         if ns.DuelCountdown then ns.DuelCountdown.Refresh() end
         if ns.Options and ns.Options.Refresh then ns.Options.Refresh() end
@@ -741,6 +746,7 @@ function Settings.Set(key, value)
         ns.Theme.Refresh()
     end
     if key == "reduceMotion" and ns.DuelCountdown then ns.DuelCountdown.Refresh() end
+    if key == "reduceMotion" and ns.DuelResult then ns.DuelResult.Refresh() end
     if key == "reduceMotion" and ns.PatchNotes and
         ns.PatchNotes.RefreshReminder then
         ns.PatchNotes.RefreshReminder()
