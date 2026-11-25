@@ -93,9 +93,9 @@ local function SavePeerEvidence(client,node,population)
     return {version=population and 2 or 1,scope="PEER",epoch=node.GetSeasonEpoch(),ledger=ledger.SaveCompact(),clocks=data.clocks,population=population}
 end
 -- Private character commitment journal; the tournament domain validates its shape.
-local function TournamentJournal(client,owner,raw)
+local function TournamentJournal(client,owner,raw,private)
     local r=ns.TournamentRecovery
-    return r and r.Validate(client,owner,raw)
+    return r and r.Validate(client,owner,raw,private)
 end
 local function Root(raw,kind,owner,scope)
     local clean={version=VERSION,kind=kind,owner=owner,scope=scope,clients={}}
@@ -132,7 +132,7 @@ local function Root(raw,kind,owner,scope)
             if type(envelope)~="table" or envelope.scope~="PRIVATE_TEST" or envelope.version~=1 then return nil end
             for field in pairs(envelope) do if field~="scope" and field~="version" and field~="journal" then return nil end end
             if type(envelope.journal)~="table" then return nil end
-            local journal=TournamentJournal(k,owner,envelope.journal)
+            local journal=TournamentJournal(k,owner,envelope.journal,true)
             if not journal then return nil end
             part.tournamentTestJournal={scope="PRIVATE_TEST",version=1,journal=journal}
         end
@@ -234,7 +234,7 @@ local function SessionStats(history,start,replay)
     end
     return out
 end
-local function Build(read,write,client,identity,scope)
+local function Build(read,write,client,identity,scope,privateFixture)
     scope=scope or "LOCAL"
     local D,loaded={},false
     function D.MarkLoaded() loaded=true end
@@ -299,26 +299,26 @@ local function Build(read,write,client,identity,scope)
         return TournamentJournal(k,c.owner,checked.clients[k].tournamentJournal)
     end
     function D.ReadTournamentTestJournal()
-        if scope~="LOCAL" or not TOURNAMENT_TEST_ENABLED then return nil,"disabled" end
+        if scope~="LOCAL" or not (TOURNAMENT_TEST_ENABLED or privateFixture==true) then return nil,"disabled" end
         local a,c,k,why=Pair();if not a then return nil,why end
         local part=c.clients[k];local envelope=part and part.tournamentTestJournal
-        return TournamentJournal(k,c.owner,envelope and envelope.journal)
+        return TournamentJournal(k,c.owner,envelope and envelope.journal,true)
     end
     function D.CommitTournamentTestJournal(expected,candidate,action)
-        if scope~="LOCAL" or not TOURNAMENT_TEST_ENABLED then return nil,"disabled" end
+        if scope~="LOCAL" or not (TOURNAMENT_TEST_ENABLED or privateFixture==true) then return nil,"disabled" end
         local a,c,k,why=Pair();if not a then return nil,why end
         local part=c.clients[k] or {probe=0,runCounter=0}
         local envelope=part.tournamentTestJournal
-        local old=TournamentJournal(k,c.owner,envelope and envelope.journal)
+        local old=TournamentJournal(k,c.owner,envelope and envelope.journal,true)
         if not old or old.revision~=expected then return nil,"stale_revision" end
-        local clean=TournamentJournal(k,c.owner,candidate)
-        if not clean or not ns.TournamentRecovery.Transition(old,clean,action) then return nil,"invalid_transition" end
+        local clean=TournamentJournal(k,c.owner,candidate,true)
+        if not clean or not ns.TournamentRecovery.Transition(old,clean,action,true) then return nil,"invalid_transition" end
         part.tournamentTestJournal={scope="PRIVATE_TEST",version=1,journal=clean}
         c.clients[k]=part
         local checked=Root(c,"character",c.owner,scope)
         if not checked then return nil,"invalid_storage" end
         write(a,checked)
-        return TournamentJournal(k,c.owner,checked.clients[k].tournamentTestJournal.journal)
+        return TournamentJournal(k,c.owner,checked.clients[k].tournamentTestJournal.journal,true)
     end
     -- Local observations use the character root only. No shared ledger,
     -- rating, simulated record, or account competitive data is imported.
@@ -770,6 +770,10 @@ end
 -- Injected private roots only. No production adapter.
 function P.NewSimulated(read,write,client,identity)
     return Build(read,write,client,identity,"SIMULATED")
+end
+-- Injected roots for private-test journal QA; never exposes the real roots.
+function P.NewPrivateTournamentFixture(read,write,client,identity)
+    return Build(read,write,client,identity,"LOCAL",true)
 end
 local live=Build(function() return _G.DuelsReimaginedCompetitiveDB,_G.DuelsReimaginedCharacterDB end,
     function(a,c) _G.DuelsReimaginedCompetitiveDB=a;_G.DuelsReimaginedCharacterDB=c end,

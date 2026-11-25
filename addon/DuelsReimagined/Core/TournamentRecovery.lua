@@ -115,7 +115,50 @@ local function CompletedCheckpoint(record,cp)
     restored.state="open";restored.revision=a.revision
     return Equal(a,restored) and Equal(record.bracket.checkpoint.roster,cp.host.roster)
 end
-function R.Validate(client,character,raw)
+-- Private-test-only assignment identity. One owner-selected game at a
+-- time; serial is the host journal revision at issuance, never a reused
+-- simulated fixture token. The bracket remains the only result owner.
+local function MatchID(v) return type(v)=="string" and #v<=8 and v:match("^R%d+M%d+$")~=nil end
+local function SeatIdentity(a)
+    return type(a)=="table" and MatchID(a.match) and Whole(a.game,1,5) and Whole(a.attempt,0,1)
+        and Whole(a.term,1,2147483647) and Whole(a.serial,1,2147483647)
+end
+function R.PrivateSession(a)
+    if not SeatIdentity(a) then return nil end
+    return "t"..a.term.."-"..a.match.."-"..a.game.."-"..a.attempt..":"..a.serial
+end
+function R.PrivateAssignment(view,control,raw,revision)
+    if not SeatIdentity(raw) or not view or view.state~="running" or not control or control.paused
+        or control.coordinator~=view.owner or raw.term~=control.term or raw.serial>revision
+        or type(raw.ready1)~="boolean" or type(raw.ready2)~="boolean" then return nil end
+    local row
+    for _,round in ipairs(view.rounds) do for _,m in ipairs(round) do if m.id==raw.match then row=m end end end
+    if not row or row.state~="ready" or not Guid(row.a) or not Guid(row.b)
+        or raw.player1~=row.a or raw.player2~=row.b or raw.game~=row.wins[1]+row.wins[2]+1
+        or raw.attempt~=(row.replayedGame==raw.game and 1 or 0) then return nil end
+    local game=row.games[raw.game]
+    if game then
+        if not raw.ready1 or not raw.ready2 then return nil end
+        for _,report in pairs(game.reports) do
+            if report.evidence~="T:"..R.PrivateSession(raw) then return nil end
+        end
+    end
+    local clean={match=raw.match,game=raw.game,attempt=raw.attempt,term=raw.term,serial=raw.serial,
+        player1=row.a,player2=row.b,ready1=raw.ready1,ready2=raw.ready2}
+    if Equal(raw,clean) then return clean end
+end
+function R.PrivateSeat(character,lock,raw)
+    if not SeatIdentity(raw) or not lock or lock.role~="participant" or lock.status~="checked"
+        or raw.event~=lock.id or raw.owner~=lock.owner or not Guid(raw.peer)
+        or raw.peer==character or raw.peer==lock.owner
+        or (raw.phase~="armed" and raw.phase~="reported") then return nil end
+    if raw.phase=="armed" and raw.winner~=nil then return nil end
+    if raw.phase=="reported" and raw.winner~=character and raw.winner~=raw.peer then return nil end
+    local clean={event=lock.id,owner=lock.owner,peer=raw.peer,match=raw.match,game=raw.game,
+        attempt=raw.attempt,term=raw.term,serial=raw.serial,phase=raw.phase,winner=raw.winner}
+    if Equal(raw,clean) then return clean end
+end
+function R.Validate(client,character,raw,private)
     if not Guid(character) or (client~="retail" and client~="forever") then return nil end
     if raw==nil then return {version=1,scope="SIMULATED",client=client,character=character,revision=0,sequence=0} end
     if type(raw)~="table" or raw.version~=1 or raw.scope~="SIMULATED" or raw.client~=client
@@ -167,7 +210,17 @@ function R.Validate(client,character,raw)
         out.bracket=engine.Save()
         out.control=Control(out.bracket,raw.control)
         if not out.control then return nil end
-    elseif raw.control~=nil then return nil end
+        if raw.privateAssignment~=nil then
+            if private~=true then return nil end
+            out.privateAssignment=R.PrivateAssignment(engine.Snapshot(),out.control,raw.privateAssignment,raw.revision)
+            if not out.privateAssignment then return nil end
+        end
+    elseif raw.control~=nil or raw.privateAssignment~=nil then return nil end
+    if raw.privateSeat~=nil then
+        if private~=true or (raw.pending and raw.pending.op~="S") then return nil end
+        out.privateSeat=R.PrivateSeat(character,l,raw.privateSeat)
+        if not out.privateSeat then return nil end
+    end
     -- Compact terminal evidence is never evicted to make room for a new cup.
     if raw.cancelled~=nil then
         if type(raw.cancelled)~="table" then return nil end
@@ -214,8 +267,48 @@ local function Same(a,b)
 end
 -- Called only after trusted local fixture adapter has verified the receipt.
 -- Storage checks transitions but cannot establish sender authenticity.
-function R.Transition(old,new,action)
+function R.Transition(old,new,action,private)
     if new.revision~=old.revision+1 then return false end
+    local oa,na,os,newSeat=old.privateAssignment,new.privateAssignment,old.privateSeat,new.privateSeat
+    if (oa or na or os or newSeat) and private~=true then return false end
+    local privateAction=action=="private_assign" or action=="private_ready" or action=="seat_arm" or action=="seat_report" or action=="seat_clear"
+    if privateAction then
+        if private~=true then return false end
+        local a,b={},{}
+        for k,v in pairs(old) do if k~="revision" and k~="privateAssignment" and k~="privateSeat" then a[k]=v end end
+        for k,v in pairs(new) do if k~="revision" and k~="privateAssignment" and k~="privateSeat" then b[k]=v end end
+        if not Equal(a,b) or old.pending or new.pending then return false end
+        if action=="private_assign" then
+            return not oa and na and not os and not newSeat and na.serial==new.revision and not na.ready1 and not na.ready2
+        elseif action=="private_ready" then
+            if not oa or not na or os or newSeat then return false end
+            local copy={};for k,v in pairs(oa) do copy[k]=v end
+            if not oa.ready1 and na.ready1 and oa.ready2==na.ready2 then copy.ready1=true
+            elseif not oa.ready2 and na.ready2 and oa.ready1==na.ready1 then copy.ready2=true
+            else return false end
+            return Equal(copy,na)
+        elseif action=="seat_arm" then
+            return not oa and not na and not os and newSeat and newSeat.phase=="armed"
+        elseif action=="seat_report" then
+            if oa or na or not os or not newSeat or os.phase~="armed" or newSeat.phase~="reported" then return false end
+            local copy={};for k,v in pairs(os) do copy[k]=v end
+            copy.phase="reported";copy.winner=newSeat.winner
+            return Equal(copy,newSeat)
+        else return not oa and not na and os~=nil and newSeat==nil end
+    end
+    if not Equal(os,newSeat) and not (action=="ack" and os and not newSeat and not new.commitment) then return false end
+    if not Equal(oa,na) then
+        if not oa or na then return false end
+        if action=="bracket_report" then
+            local saved=new.bracket;local ad=saved and saved.checkpoint.ad
+            -- Revalidate the old assignment against the next canonical game.
+            -- Clearing a still-valid offer would discard a recoverable result.
+            local domain=ns.TournamentBracket
+            if not domain or not ad then return false end
+            local b=domain.OpenSimulated(ad,ad.owner,saved)
+            if not b or R.PrivateAssignment(b.Snapshot(),new.control,oa,new.revision) then return false end
+        elseif action~="control_change" and action~="host_cancel" and action~="host_complete" then return false end
+    end
     local x,y=old.checkpoint,new.checkpoint
     local expected={}
     for id,v in pairs(old.cancelled or {}) do expected[id]=v end

@@ -437,6 +437,7 @@ local function WireClient(scope,cache,clock,resolve,store)
         candidate.revision=journal.revision+1;candidate.sequence=nextSeq
         candidate.commitment=nextLock and {role="participant",owner=nextLock.owner,id=nextLock.id,population=key,status=nextLock.status} or nil
         candidate.pending=nextOp and {op=nextOp,sequence=nextSeq} or nil
+        if not nextLock then candidate.privateSeat=nil end
         local saved=store.CommitTournamentJournal(journal.revision,candidate,action)
         if not saved then return false end
         journal=saved;return true
@@ -474,7 +475,8 @@ local function WireClient(scope,cache,clock,resolve,store)
         end
     end
     function D.Action(op)
-        if not commitment or commitment.status=="pending" or (op~="L" and op~="C" and op~="S") then return nil end
+        if not commitment or commitment.status=="pending" or (op~="L" and op~="C" and op~="S")
+            or (journal and journal.privateSeat and op~="S") then return nil end
         return Begin(commitment.owner,op,commitment.id)
     end
     function D.Retry()
@@ -483,6 +485,32 @@ local function WireClient(scope,cache,clock,resolve,store)
     end
     function D.Status() return Copy(commitment) end
     function D.PendingOwner() Expire();return pending and pending.owner end
+    function D.PrivateSeat()
+        if journal and Fresh() then return Copy(journal.privateSeat) end
+    end
+    local function SaveSeat(seat,action)
+        Expire()
+        if not journal or not store or pending or not Fresh() then return false end
+        local next=Copy(journal);next.revision=next.revision+1;next.privateSeat=seat
+        local saved=store.CommitTournamentJournal(journal.revision,next,action)
+        if not saved then return false end
+        journal=saved;return true
+    end
+    function D.ArmPrivateSeat(seat)
+        if not journal or journal.privateSeat or not commitment or commitment.status~="checked"
+            or type(seat)~="table" or seat.phase~="armed" then return false end
+        return SaveSeat(Copy(seat),"seat_arm")
+    end
+    function D.RecordPrivateSeat(winner)
+        local seat=D.PrivateSeat()
+        if not seat or seat.phase~="armed" then return false end
+        seat.phase="reported";seat.winner=winner
+        return SaveSeat(seat,"seat_report")
+    end
+    function D.ClearPrivateSeat()
+        if not D.PrivateSeat() then return false end
+        return SaveSeat(nil,"seat_clear")
+    end
     function D.ReserveProgress()
         Expire()
         if not Fresh() or pending or not commitment or commitment.status=="pending" or seq>=2147483647 then return nil end
@@ -914,7 +942,7 @@ local function DurableHost(s,h,clock,resolve,store)
         candidate.checkpoint={host=snap,receipts=wire and wire.SaveReceipts() or {}}
         local a=snap.ad
         if action=="host_cancel" then
-            candidate.bracket=nil;candidate.control=nil
+            candidate.bracket=nil;candidate.control=nil;candidate.privateAssignment=nil
             candidate.cancelled=candidate.cancelled or {}
             candidate.cancelled[a.id]={population=key,revision=a.revision}
         elseif action=="host_open" and journal.checkpoint then
@@ -1000,6 +1028,9 @@ local function DurableHost(s,h,clock,resolve,store)
         candidate.revision=candidate.revision+1
         candidate.bracket=engine.Save()
         if action=="bracket_start" then candidate.control=ns.TournamentRecovery.InitialControl(candidate.bracket) end
+        if candidate.privateAssignment and not ns.TournamentRecovery.PrivateAssignment(engine.Snapshot(),candidate.control,candidate.privateAssignment,candidate.revision) then
+            candidate.privateAssignment=nil
+        end
         local saved=store.CommitTournamentJournal(journal.revision,candidate,action)
         if not saved then return false end
         journal=saved;return true
@@ -1098,7 +1129,7 @@ local function DurableHost(s,h,clock,resolve,store)
         if not Fresh() or not journal.bracket or not journal.control or journal.control.term~=term then return false end
         local c=ns.TournamentRecovery.ReconcileControl(journal.bracket,journal.control,connections,copies)
         if not c then return false end
-        local candidate=Copy(journal);candidate.revision=candidate.revision+1;candidate.control=c
+        local candidate=Copy(journal);candidate.revision=candidate.revision+1;candidate.control=c;candidate.privateAssignment=nil
         local saved=store.CommitTournamentJournal(journal.revision,candidate,"control_change")
         if not saved then return false end
         journal=saved;CloseAssignments();return true
@@ -1115,13 +1146,102 @@ local function DurableHost(s,h,clock,resolve,store)
         candidate.checkpoint={host=e.Save(),receipts=Copy(journal.checkpoint.receipts)}
         candidate.completed=candidate.completed or {}
         candidate.completed[id]=record
-        candidate.bracket=nil;candidate.control=nil;candidate.commitment=nil
+        candidate.bracket=nil;candidate.control=nil;candidate.commitment=nil;candidate.privateAssignment=nil
         local saved=store.CommitTournamentJournal(journal.revision,candidate,"host_complete")
         if not saved then return false end
         journal=saved;CloseAssignments();return true
     end
     function D.Completed(id)
         if Fresh() and journal.completed then return Copy(journal.completed[id]) end
+    end
+    local function SavePrivateAssignment(a,action)
+        if not Fresh() then return false end
+        local candidate=Copy(journal);candidate.revision=candidate.revision+1;candidate.privateAssignment=Copy(a)
+        local saved=store.CommitTournamentJournal(journal.revision,candidate,action)
+        if not saved then return false end
+        journal=saved;return true
+    end
+    local function PrivateCurrent()
+        if not Fresh() then return nil end
+        local a=journal.privateAssignment
+        local b=a and OpenBracket()
+        if b and ns.TournamentRecovery.PrivateAssignment(b.Snapshot(),journal.control,a,journal.revision) then return a,b end
+    end
+    function D.PrivateAssign(match)
+        if not Fresh() or journal.privateAssignment then return nil end
+        local b=OpenBracket();local c=journal.control
+        if not b or not c or c.paused or c.coordinator~=h.guid then return nil end
+        local v=b.Snapshot()
+        if v.state~="running" then return nil end
+        for _,round in ipairs(v.rounds) do
+            for _,m in ipairs(round) do
+                if m.id==match and m.state=="ready" then
+                    local game=m.wins[1]+m.wins[2]+1
+                    if m.games[game] then return nil end
+                    local a={match=match,game=game,attempt=m.replayedGame==game and 1 or 0,term=c.term,
+                        serial=journal.revision+1,player1=m.a,player2=m.b,ready1=false,ready2=false}
+                    if SavePrivateAssignment(a,"private_assign") then return Copy(a) end
+                end
+            end
+        end
+    end
+    function D.PrivateOffer()
+        local a=PrivateCurrent();return Copy(a)
+    end
+    local function ForActor(actor,a,b)
+        local side=actor.guid==a.player1 and 1 or actor.guid==a.player2 and 2
+        if not side then return nil end
+        local v=b.Snapshot()
+        for _,round in ipairs(v.rounds) do for _,m in ipairs(round) do if m.id==a.match then
+            local game=m.games[a.game]
+            return {event=v.event,match=a.match,game=a.game,attempt=a.attempt,term=a.term,serial=a.serial,
+                peer=side==1 and a.player2 or a.player1,ready=side==1 and a.ready1 or side==2 and a.ready2,
+                both=a.ready1 and a.ready2,reported=game and game.reports[actor.guid]~=nil or false}
+        end end end
+    end
+    function D.PrivateOfferFor(sender,event,match)
+        local actor=resolve(sender);local a,b=PrivateCurrent()
+        if not Actor(s,actor) or not a or not Permit(actor) or event~=b.Snapshot().event or match~=a.match then return nil end
+        return ForActor(actor,a,b)
+    end
+    function D.PrivateReady(sender,event,match,term,serial)
+        local actor=resolve(sender);local a,b=PrivateCurrent()
+        if not Actor(s,actor) or not a or not Permit(actor) or event~=b.Snapshot().event
+            or match~=a.match or term~=a.term or serial~=a.serial then return nil end
+        local offer=ForActor(actor,a,b)
+        if not offer or offer.reported then return nil end
+        if not offer.ready then
+            local next=Copy(a)
+            if actor.guid==a.player1 then next.ready1=true else next.ready2=true end
+            if not SavePrivateAssignment(next,"private_ready") then return nil end
+            a=next
+        end
+        return ForActor(actor,a,b)
+    end
+    function D.PrivateReport(sender,event,match,term,serial,outcome)
+        if outcome~="won" and outcome~="lost" then return false end
+        local actor=resolve(sender)
+        if not Actor(s,actor) or not Fresh() then return false end
+        local a,b=PrivateCurrent()
+        if a and b and a.match==match and a.term==term and a.serial==serial and a.ready1 and a.ready2
+            and b.Snapshot().event==event then
+            local offer=ForActor(actor,a,b)
+            if not offer then return false end
+            local winner=outcome=="won" and actor.guid or offer.peer
+            return D.ReportBracket(sender,{event=event,match=match,game=a.game,attempt=a.attempt==1 and 1 or nil,
+                winner=winner,evidence="T:"..ns.TournamentRecovery.PrivateSession(a)},term,h.guid)
+        end
+        -- Exact receipt retry after a confirmed game cleared its offer.
+        -- Never use a late unmatched claim to manufacture a new report.
+        local saved=journal.bracket or (journal.completed and journal.completed[event] and journal.completed[event].bracket)
+        if not saved or saved.checkpoint.ad.id~=event or not Permit(actor) then return false end
+        for _,r in ipairs(saved.reports) do
+            if r.sender==actor.guid and not r.kind and r.match==match
+                and r.evidence=="T:"..tostring(ns.TournamentRecovery.PrivateSession({match=match,game=r.game,
+                    attempt=r.attempt or 0,term=term,serial=serial}))
+                and (r.winner==actor.guid)==(outcome=="won") then return true,"duplicate" end
+        end
+        return false
     end
     function D.PrivateProgress()
         if not Fresh() then return nil end
@@ -1157,7 +1277,7 @@ local function DurableHost(s,h,clock,resolve,store)
         if not Fresh() or sender~=h.guid or not journal.commitment or journal.commitment.id~=id
             or not c or c.coordinator~=sender or c.paused or c.term~=term or term>=2147483647 then return false end
         local candidate=Copy(journal);candidate.revision=candidate.revision+1
-        candidate.control={term=term+1,coordinator=sender,paused=true}
+        candidate.control={term=term+1,coordinator=sender,paused=true};candidate.privateAssignment=nil
         local saved=store.CommitTournamentJournal(journal.revision,candidate,"control_change")
         if not saved then return false end
         journal=saved;CloseAssignments();return true
