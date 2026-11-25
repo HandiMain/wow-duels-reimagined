@@ -132,9 +132,7 @@ bracketPanel.detail=Label(bracketPanel,"No tournament bracket available.",15,C.m
 local bracketView
 -- Explicit rehearsal views. Normal browsing never contains test events.
 local organizer=Page("manage")
-local hostTest=Panel(organizer,"Local test - Organizer")
-local hostSummary=Label(hostTest,"",15,C.text)
-local hostRoster=Label(hostTest,"",14,C.pale)
+local organizerView
 
 local function Action(parent,label,fn)
     local b=S.Action(parent,label,"footer",{plate="dark",text=C.pale,edge=C.goldDim,hover=C.gold,tooltip=false})
@@ -169,16 +167,6 @@ local function Run(action,key)
     if ok and action=="cancel" and ns.Notifications then ns.Notifications.ClearTournamentPreview() end
     if ok and key then Switch(key) else U.Show(active or "overview") end
 end
-local hostPlayer=Action(hostTest,"Player Preview",function()
-    local p=R.PreviewSnapshot()
-    if p then Run("player",p.member and "my-tournament" or "browse") else Switch("overview") end
-end)
-local hostStart=Action(hostTest,"Start Test Bracket",function()Run("start-bracket","brackets")end)
-local hostFill=Action(hostTest,"Fill Remaining Slots",function()Run("fill")end)
-local hostSim=Action(hostTest,"Simulate Next Game",function()Run("simulate-game","brackets")end)
-local hostCancel=Action(hostTest,"Cancel Test",function()Run("cancel","host")end)
-local featurePrev=Action(hostTest,"Previous featured match",function()Run("feature-prev")end)
-local featureNext=Action(hostTest,"Next featured match",function()Run("feature-next")end)
 local check=Action(myPanel,"Test Check-in",function()Run("checkin")end)
 local advance=Action(myPanel,"Test Check-in Time",function()Run("checkin-time")end)
 local leave=Action(myPanel,"Leave Test",function()Run("leave","browse")end)
@@ -280,7 +268,6 @@ local function RefreshTest()
     if id~=lastTestID then feedback="";lastTestID=id end
     local hosting=p and p.role=="host"
     local player=p and p.role=="player"
-    hostTest:SetShown(not not hosting)
     local canCreate=R.CanCreatePreview()
     if hostView and not canCreate then hostView.Hide() end
     if p or listings then subtitle:SetText("LOCAL TEST - Nothing is published online") end
@@ -289,40 +276,21 @@ local function RefreshTest()
     advance:SetShown(not not (player and p.member and not started and p.now<p.event.draft.startAt-1800))
     leave:SetShown(not not (player and p.member and not started))
     matchNotice:SetShown(not not (player and p.match))
-    hostStart:SetShown(not not (hosting and not started))
-    hostStart:SetEnabled(not not (hosting and not started and (p.mode=="host" and p.event.count>=2 or p.member and p.member.checkedIn)))
-    hostPlayer:SetShown(not not (hosting and not p.mode))
-    hostFill:SetShown(not not (hosting and p.mode=="host" and not started and p.event.count<p.event.draft.capacity))
-    hostSim:SetShown(not not (hosting and started and p.bracket.state=="running"))
     sampleStart:SetShown(not not (player and p.mode=="join" and not started and p.member and p.member.checkedIn))
     sampleGame:SetShown(not not (player and started and p.bracket.state=="running"))
     bracketGame:SetShown(not not (started and p.bracket.state=="running"))
     broadcast:SetShown(not not (started and p.bracket.state=="running"))
     local fixtureReady=started and p.bracket.state=="running" and p.selected
     local busy=started and (p.demo or p.offline)
-    hostSim:SetEnabled(not busy);sampleGame:SetEnabled(not busy)
+    sampleGame:SetEnabled(not busy)
     broadcast:SetEnabled(not busy)
     testDisconnect:SetShown(not not (fixtureReady and not p.demo and not p.offline))
     testAdvance:SetShown(not not (fixtureReady and p.offline))
     testReconnect:SetShown(not not (fixtureReady and p.offline))
     bracketGame:SetEnabled(not not (fixtureReady and not p.demo and not p.offline))
     if started then broadcast.label:SetText(p.broadcast and "Exit broadcast" or "Broadcast view") end
-    local feature=hosting and started and p.bracket.state=="running" and p.readyCount>1
-    featurePrev:SetShown(not not feature);featureNext:SetShown(not not feature)
-    featurePrev:SetEnabled(not busy);featureNext:SetEnabled(not busy)
     myHost:SetShown(not not (player and not p.mode))
     if not started and bracketView and not (ns.TournamentSession and ns.TournamentSession.IsActive() and ns.TournamentSession.GetProjection()) then bracketView.Hide() end
-    if hosting then
-        local model=ns.TournamentHUD.Project(p)
-        hostSummary:SetText(Describe(p.event)..(model and model.matchID and "\n\nFeatured: "..model.left.." vs "..model.right or ""))
-        local lines={"Registered participants"}
-        for _,r in ipairs(p.roster) do lines[#lines+1]=r.name.." - Level "..r.level..(r.checkedIn and " - Checked in" or " - Registered") end
-        if #p.roster==0 then lines[#lines+1]="No registered participants." end
-        hostRoster:SetText(table.concat(lines,"\n")..(feedback~="" and "\n"..feedback or ""))
-        if p.bracket and p.bracket.champion then
-            hostSummary:SetText(Describe(p.event).."\n\nSimulated champion: "..(p.names[p.bracket.champion] or "Unknown"))
-        end
-    end
     if player then
         if p.match then
             local m=p.match
@@ -413,7 +381,7 @@ local function Layout()
     if privatePanel then privatePanel:Hide() end
     if privateBack then privateBack:Hide() end
     if p or listings then communityNote:SetText("Local test only. Community settings are automatically detected.") end
-    local showCommunity=active=="manage" or active=="my-tournament" or active=="brackets"
+    local showCommunity=active=="my-tournament" or active=="brackets"
     community:SetShown(showCommunity)
     local top=showCommunity and LayoutCommunity(w) or 0
     if active and pages[active] then
@@ -425,6 +393,7 @@ local function Layout()
     if active~="overview" and overviewView then overviewView.Hide() end
     if active~="browse" and browseView then browseView.Hide() end
     if active~="host" and hostView then hostView.Hide() end
+    if active~="manage" and organizerView then organizerView.Hide() end
     if active=="overview" then
         height=LayoutOverview(w,p,listings,private)
     elseif active=="brackets" and privateProjection then
@@ -444,22 +413,34 @@ local function Layout()
         height=LayoutHost(w)
     elseif active=="manage" then
         if p and p.role=="host" then
-            local rosterH=math.max(120,24*(#p.roster+2))
-            local y=340+rosterH
-            height=y+(p.bracket and p.readyCount>1 and 158 or 122)
-            Place(hostTest,organizer,0,0,w,height);Header(hostTest,w)
-            TextAt(hostSummary,hostTest,12,44,w-24,280)
-            hostRoster:SetJustifyV("TOP")
-            TextAt(hostRoster,hostTest,12,332,w-24,rosterH)
-            Place(hostStart,hostTest,12,y,w-24,28)
-            Place(hostSim,hostTest,12,y,w-24,28)
-            Place(hostFill,hostTest,12,y+36,w-24,28)
-            Place(hostPlayer,hostTest,12,y+36,w-24,28)
-            Place(hostCancel,hostTest,12,y+72,w-24,28)
-            local half=math.max(1,(w-30)/2)
-            Place(featurePrev,hostTest,12,y+108,half,28)
-            Place(featureNext,hostTest,18+half,y+108,half,28)
-        else height=1 end
+            if not organizerView then
+                organizerView=ns.TournamentOrganizer.New(organizer,{
+                    action=function(command)
+                        if command=="brackets" then Switch("brackets")
+                        elseif command=="player" then
+                            local current=R.PreviewSnapshot()
+                            if current then Run("player",current.member and "my-tournament" or "browse") end
+                        elseif command=="cancel" then Run("cancel","host")
+                        elseif command=="start-bracket" or command=="simulate-game" then Run(command,"brackets")
+                        else Run(command) end
+                    end,
+                    profile=function(row)
+                        local current=R.PreviewSnapshot()
+                        if not current or current.role~="host" then return end
+                        for _,member in ipairs(current.roster or {}) do
+                            if member.guid==row.guid then
+                                ns.CompetitiveUI.OpenTournamentPlayerCard(member,current.event.draft.name,current.scope)
+                                return
+                            end
+                        end
+                    end,
+                })
+            end
+            height=organizerView.Show(p,w,Population.GetCurrent(),feedback)
+        else
+            if organizerView then organizerView.Hide() end
+            height=1
+        end
     else
         local f=active=="champions" and archive or active=="my-tournament" and myPanel or bracketPanel
         if active and f then
@@ -503,12 +484,13 @@ local function Layout()
     bar:Refresh()
 end
 function U.Show(key)
-    if (active=="host" or active=="browse") and key~=active then W.CloseChoices() end
+    if (active=="host" or active=="browse" or active=="manage") and key~=active then W.CloseChoices() end
     if not key then
         if bracketView then bracketView.Hide() end
         if overviewView then overviewView.Hide() end
         if browseView then browseView.Hide() end
         if hostView then hostView.Hide() end
+        if organizerView then organizerView.Hide() end
         privateConfirm=nil
         active=nil;root:Hide();return
     end
@@ -532,11 +514,11 @@ end
 function U.GetPageScroll() return scroll:GetVerticalScroll() end
 function U.SetPageScroll(_,offset) SetOffset(offset);bar:Refresh() end
 scroll:SetScript("OnMouseWheel",function(_,d)
-    if active=="host" or active=="browse" then W.CloseChoices() end
+    if active=="host" or active=="browse" or active=="manage" then W.CloseChoices() end
     SetOffset(scroll:GetVerticalScroll()-d*42);bar:Refresh()
 end)
 scroll:HookScript("OnSizeChanged",function()
-    if active=="host" or active=="browse" then W.CloseChoices() end
+    if active=="host" or active=="browse" or active=="manage" then W.CloseChoices() end
     if active then Layout() end
 end)
 root:HookScript("OnShow",function() if active then RefreshCommunity();Layout() end end)

@@ -741,6 +741,7 @@ ns.Window.frame:HookScript("OnHide",function()card:Hide()end)
 function U.ClosePlayerCard()card:Hide()end
 function U.IsPlayerCardOpen()return card:IsShown()end
 local profileSeason=3
+local tournamentCard
 local profileHero=Panel(profile)
 local profileEmblem=Rank(profileHero,106,true)
 local profileName=Text(profileHero,25,C.pale)
@@ -772,8 +773,34 @@ end
 local seasonHead,oppHead={},{}
 for i,x in ipairs({"Season","End Rating","Peak Rating","W / L","Win Rate"}) do seasonHead[i]=T(seasonsPanel,x,10,C.muted,"CENTER") end
 for i,x in ipairs({"Opponent","W / L","Win Rate"}) do oppHead[i]=T(opponentPanel,x,10,C.muted,"CENTER") end
+local tournamentDetails=Panel(profile)
+tournamentDetails:Hide()
+local tournamentName=Text(tournamentDetails,28,C.pale)
+local tournamentInfo=Text(tournamentDetails,18,C.text)
+tournamentInfo:SetWordWrap(true)
+local tournamentNotice=Text(tournamentDetails,16,C.muted)
+tournamentNotice:SetWordWrap(true)
+local function ProfileMode(isTournament)
+    profileHero:SetShown(not isTournament);profileStats:SetShown(not isTournament)
+    profileGraphPanel:SetShown(not isTournament);seasonsPanel:SetShown(not isTournament)
+    opponentPanel:SetShown(not isTournament);tournamentDetails:SetShown(isTournament)
+end
 function profile.Render()
+    ProfileMode(tournamentCard~=nil)
+    if tournamentCard then
+        local w,h=profile:GetWidth(),profile:GetHeight()
+        Place(tournamentDetails,profile,0,58,w,math.max(150,h-58))
+        Place(tournamentName,tournamentDetails,24,18,w-48,48)
+        Set(tournamentName,tournamentCard.name)
+        Place(tournamentInfo,tournamentDetails,24,82,w-48,150)
+        Set(tournamentInfo,"Tournament: "..tournamentCard.event.."\nLevel: "..tournamentCard.level.."\nStatus: "..tournamentCard.status.."\nClass: Not observed")
+        Place(tournamentNotice,tournamentDetails,24,248,w-48,100)
+        Set(tournamentNotice,"Local test participant. Competitive rating, match history and statistics are not available. No real player data is created or modified.")
+        profile.dataCaption:SetText("LOCAL TEST")
+        return
+    end
     local d=Data();if not d then return end
+    profile.dataCaption:SetText(d.scope=="SIMULATED" and "LOCAL TEST" or "Local data")
     local w,h=profile:GetWidth(),profile:GetHeight()
     local p=d.view.Profile(profileId or d.me,profileSeason)
     if not p then p={id=profileId,stats={},seasons={}} end
@@ -834,6 +861,7 @@ OpenProfile=function(id)
     if not preview.view.ProfileSummary(id,preview.current) and
         not preview.view.ProfileSummary(id,boardSeason) then return end
     W.CloseChoices()
+    tournamentCard=nil
     profileId=id
     profileSeason=active=="standings" and boardSeason or active=="overview" and preview.current or profileSeason
     profileChoice.SetChoice(profileSeason)
@@ -845,7 +873,22 @@ OpenProfile=function(id)
     profile.Render()
 end
 U.OpenPlayerCard=OpenProfile
-profile:SetScript("OnSizeChanged",function(self)if card:IsShown() and preview then self.Render()end end)
+function U.OpenTournamentPlayerCard(member,event,scope)
+    -- Simulation IDs must never resolve to competitive fixture or real IDs.
+    if scope~="SIMULATED" or type(member)~="table" or type(member.name)~="string" then return false end
+    W.CloseChoices()
+    tournamentCard={name=member.name,event=event or "Local test",level=tostring(member.level or "Unknown"),
+        status=member.checkedIn and "Checked in" or "Registered"}
+    local width,height=UIParent:GetWidth(),UIParent:GetHeight()
+    card:SetScale(math.max(.4,math.min(1,(width-24)/800,(height-24)/590)))
+    profile:Show();card:Show();card:Raise();profile.Render()
+    return true
+end
+function U.CloseTournamentPlayerCard()
+    if tournamentCard then card:Hide();tournamentCard=nil end
+end
+card:HookScript("OnHide",function()tournamentCard=nil end)
+profile:SetScript("OnSizeChanged",function(self)if card:IsShown() and (preview or tournamentCard) then self.Render()end end)
 -- Private history: display local observations, join only confirmed replay IDs.
 local history=Page("history","Match History","Your dueling journey, one match at a time.",-71)
 local historyQuery,historyType,historyOutcome="", "All duels","All outcomes"
@@ -1027,6 +1070,8 @@ end
 
 function U.Refresh()
     if ns.DuelHUD and ns.DuelHUD.InvalidateRank then ns.DuelHUD.InvalidateRank() end
+    -- The tournament card is independent of competitive page visibility.
+    if tournamentCard and card:IsShown() then return end
     local simulated=ns.CompetitivePreview.IsActive()
     if preview and (preview.scope=="SIMULATED")~=simulated then
         if card:IsShown() then card:Hide() end
