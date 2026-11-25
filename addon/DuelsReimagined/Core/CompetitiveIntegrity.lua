@@ -61,10 +61,27 @@ function P.GetDiagnosticResources() return {pending=0,subscriptions=0,timers=0} 
 -- It never trusts a majority, treats silence as evidence, or changes records.
 -- Receipt lifetime is one local evidence generation and at most ten minutes.
 local REVIEW_LIMIT,REVIEW_TTL=32,600
-local function Counter(v)
-    return type(v)=="number" and v>=0 and v<=9007199254740991 and v==math.floor(v)
+local function FiniteNonnegative(v)
+    -- Reject secret or nonnumeric inputs before arithmetic or formatting.
+    if type(issecretvalue)=="function" then
+        local ok,secret=pcall(issecretvalue,v)
+        if not ok or secret then return false end
+    end
+    if type(v)~="number" then return false end
+    -- WoW has native numeric predicates; ordinary Lua may not. Comparisons
+    -- alone are not sufficient for NaN on optimized client runtimes.
+    if type(math.isfinite)=="function" and not math.isfinite(v) then return false end
+    if type(math.isnan)=="function" and math.isnan(v) then return false end
+    -- A finite nonnegative number has a decimal/scientific representation.
+    -- Reject NaN/Inf spellings, including platform-specific variants.
+    local repr=tostring(v)
+    if not (repr:match("^%-?%d+%.?%d*$") or repr:match("^%-?%d+%.?%d*[eE][+-]?%d+$")) then return false end
+    return v>=0 and v<math.huge
 end
-local function Clock(v) return type(v)=="number" and v>=0 and v<math.huge end
+local function Counter(v)
+    return FiniteNonnegative(v) and v<=9007199254740991 and v==math.floor(v)
+end
+local function Clock(v) return FiniteNonnegative(v) end
 local function ReviewPeer(v)
     return type(v)=="string" and #v<=64 and v:match("^Player%-%w[%w%-]*$")~=nil
 end
@@ -153,9 +170,29 @@ function P.RunReviewSelfTest(emit)
                 assert(not d.Observe(Receipt(1,state),1))
             end
             local s=Receipt(1,"summary_agrees");s.peer="bad";assert(not d.Observe(s,1))
-            s=Receipt(1,"summary_agrees");s.comparedRevision=0/0;assert(not d.Observe(s,1))
+            local zero=0
+            local invalidNumbers={0/0, zero/zero, -(zero/zero), math.huge, -math.huge, -1, "4", false, {}}
+            for index,v in ipairs(invalidNumbers) do
+                s=Receipt(1,"summary_agrees");s.comparedRevision=v
+                assert(not d.Observe(s,1),"invalid revision "..index.." ("..tostring(v)..")")
+                assert(not d.Observe(Receipt(1,"summary_agrees"),v),"invalid clock "..index.." ("..tostring(v)..")")
+                assert(d.Snapshot(v,1).matching==0 and d.Snapshot(4,v).matching==0)
+            end
+            for _,v in ipairs({0.5,9007199254740992}) do
+                s=Receipt(1,"summary_agrees");s.comparedRevision=v
+                assert(not d.Observe(s,1),"fractional or oversized revision")
+            end
+            s=Receipt(1,"summary_agrees");s.comparedRevision=nil;assert(not d.Observe(s,1))
+            assert(not d.Observe(Receipt(1,"summary_agrees"),nil))
             s=Receipt(1,"summary_agrees");s.rankEligible=true;assert(not d.Observe(s,1))
             assert(d.Snapshot(4,1).retained==0)
+            assert(d.Observe(Receipt(1,"summary_agrees",0),0))
+            assert(d.Snapshot(0,0).matching==1)
+            for _,v in ipairs(invalidNumbers) do
+                assert(d.Snapshot(v,0).matching==0 and d.Snapshot(0,v).matching==0)
+            end
+            assert(d.Observe(Receipt(1,"summary_agrees",9007199254740991),1.25))
+            assert(d.Snapshot(9007199254740991,1.25).matching==1)
         end)
         Case(client.." client, domain, context and simulation isolation",function()
             local d=Review();local s=Receipt(1,"summary_agrees")
