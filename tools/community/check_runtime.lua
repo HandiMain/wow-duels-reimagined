@@ -160,6 +160,20 @@ Check(Settings.Get("widgetSize")==80 and math.abs(Settings.Get("widgetTransparen
 _G.DuelsReimaginedDB.autoPeekMoving=false
 Check(Settings.Get("autoPeekMoving")==false and Settings.IsModified("autoPeekMoving"),
     "existing explicit OFF remains saved and resettable")
+Check(Settings.Get("duelHUDAdaptive")==true and Settings.Get("duelHUDOpacity")==1,"HUD defaults")
+local opacityChanges,hudChanges=0,0
+ns.DuelHUD={ApplyOpacity=function() opacityChanges=opacityChanges+1 end,Refresh=function()hudChanges=hudChanges+1 end}
+Settings.Set("duelHUDOpacity",.63)
+Check(Settings.Get("duelHUDOpacity")==.65 and Settings.IsModified("duelHUDOpacity"),"HUD opacity step")
+Settings.Set("duelHUDOpacity",-1);Check(Settings.Get("duelHUDOpacity")==.3,"HUD lower bound")
+Settings.Set("duelHUDOpacity",2);Check(Settings.Get("duelHUDOpacity")==1,"HUD upper bound")
+Settings.Set("duelHUDOpacity",.5);Settings.Reset("duelHUDOpacity")
+Check(Settings.Get("duelHUDOpacity")==1 and not Settings.IsModified("duelHUDOpacity") and opacityChanges==5,"HUD opacity reset")
+Check(math.abs(Settings.Get("widgetTransparency")-.65)<.001,"HUD opacity does not affect launcher")
+Settings.Set("duelHUDAdaptive",false);Check(Settings.Get("duelHUDAdaptive")==false,"adaptive off")
+Settings.Reset("duelHUDAdaptive");Check(Settings.Get("duelHUDAdaptive")==true and hudChanges==2,"adaptive reset")
+_G.DuelsReimaginedDB.duelHUDOpacity="bad";Check(Settings.Get("duelHUDOpacity")==1,"invalid opacity uses default")
+ns.DuelHUD=nil
 _G.DuelsReimaginedDB=originalDB
 ns.AccessIcons, ns.Options, ns.Header = nil,nil,nil
 print("Independent access settings and default-on Peek: PASS")

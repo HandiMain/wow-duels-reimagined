@@ -37,6 +37,7 @@ local boolDefaults = {
     practiceDuels = false,
     duelHUDEnabled = true,
     duelHUDLocked = false,
+    duelHUDAdaptive = true,
     warGamesConsent = false,
     showTooltips = true,
     patchNotesReminder = true,
@@ -65,7 +66,7 @@ local function IsMatchPreference(key)
 end
 
 function Settings.GetDefault(key)
-    if key == "duelHUDScale" then return 1 end
+    if key == "duelHUDScale" or key == "duelHUDOpacity" then return 1 end
     if key == "menuScale" then return 1 end
     if key == "fontChoice" then return "default" end
     if key == "fontScale" then return 1 end
@@ -353,6 +354,11 @@ end
 
 function Settings.Get(key)
     local db = ReadDB()
+    if key == "duelHUDOpacity" then
+        local v=db and db.duelHUDOpacity
+        if type(v)~="number" or v~=v then return 1 end
+        return math.max(.3,math.min(1,math.floor(v*20+.5)/20))
+    end
     if key == "duelHUDScale" then
         local v=db and db.duelHUDScale
         if type(v)~="number" or v~=v then return 1 end
@@ -467,11 +473,17 @@ function Settings.ResetAccessPositions()
 end
 
 function Settings.Set(key, value)
-    if key=="duelHUDScale" then
+    if key=="duelHUDScale" or key=="duelHUDOpacity" then
         if type(value)~="number" or value~=value then return end
-        WriteDB().duelHUDScale=math.max(.8,math.min(1.2,math.floor(value*20+.5)/20))
-        if ns.DuelHUD then ns.DuelHUD.Refresh() end
-        if ns.Options and ns.Options.Refresh then ns.Options.Refresh() end
+        local normalized=key=="duelHUDScale" and math.max(.8,math.min(1.2,math.floor(value*20+.5)/20)) or math.max(.3,math.min(1,math.floor(value*20+.5)/20))
+        local db=WriteDB()
+        if db[key]==normalized then return end
+        db[key]=normalized
+        if ns.DuelHUD then
+            if key=="duelHUDOpacity" then ns.DuelHUD.ApplyOpacity()
+            else ns.DuelHUD.Refresh() end
+        end
+        if ns.Options and ns.Options.RefreshHUDModified then ns.Options.RefreshHUDModified() end
         return
     end
     if accessDefaults[key] ~= nil then
@@ -563,7 +575,7 @@ function Settings.Set(key, value)
     elseif key == "warGamesConsent" then
         if ns.WarGames then ns.WarGames.PreferenceChanged() end
         if ns.Options and ns.Options.Refresh then ns.Options.Refresh() end
-    elseif key == "duelHUDEnabled" or key == "duelHUDLocked" then
+    elseif key == "duelHUDEnabled" or key == "duelHUDLocked" or key == "duelHUDAdaptive" then
         if ns.DuelHUD then ns.DuelHUD.Refresh() end
         if ns.Options and ns.Options.Refresh then ns.Options.Refresh() end
     elseif key == "practiceDuels" then
@@ -619,6 +631,7 @@ loader:SetScript("OnEvent", function(self, _, loadedName)
         end
     end
     db.duelHUDScale = Settings.Get("duelHUDScale")
+    db.duelHUDOpacity = Settings.Get("duelHUDOpacity")
     db.menuScale = Settings.NormalizeScale(db.menuScale)
     -- Normalize through the same getters, keeping existing SavedVariables.
     -- Retire old theme/color overrides; retain font and other player settings.

@@ -74,6 +74,7 @@ local bannerIndices = {
     minimap = 3,
     typography = 4,
     notifications = 5,
+    widget = 0, widgetNotifications = 0,
 }
 
 local function Card(page, y, height)
@@ -121,17 +122,20 @@ end
 
 local appearance = Page(130)
 local interface = Page(740)
+local widgetPage = Page(480)
 if ns.DiagnosticAudit then ns.DiagnosticAudit.RegisterUIRoot("Options / Appearance",appearance.scrollOwner) end
 if ns.DiagnosticAudit then ns.DiagnosticAudit.RegisterUIRoot("Options / Interface",interface.scrollOwner) end
 
--- Every preference stays on the SAME Interface page and uses the existing
--- whole-card responsive layout. No extra tab or separate settings owner.
+-- Three subcategories, one Options owner and one responsive layout.
 local appearanceCard = Card(appearance, 0, 165)
 local behaviorCard = Card(interface, 0, 100)
 local gameAccessCard = Card(interface, 108, 100)
 local accessCard = Card(interface, 216, 174)
 local typographyCard = Card(interface, 398, 143)
 local notificationsCard = Card(interface, 549, 100)
+local hudCard = Card(widgetPage, 0, 290)
+local hudNotificationsCard = Card(widgetPage, 298, 340)
+if ns.DiagnosticAudit then ns.DiagnosticAudit.RegisterUIRoot("Options / Widget",widgetPage.scrollOwner) end
 
 -- Same header renderer on Appearance and Interface. Gold labels, icons,
 -- and motifs remain the approved source pixels. The middle stays empty and
@@ -162,9 +166,11 @@ local function Section(card, key, title, help, extra)
     local right = Slice(BANNER_CELL_W - BANNER_RIGHT, BANNER_CELL_W)
     -- The first atlas cell has truncated palette pixels on BOTH ornaments,
     -- as well as its title. Keep its original gold swoosh at right, but draw
-    -- the two complete palette glyphs on top. All five other section banners
-    -- stay unmodified and use their original, intact atlas iconography.
+    -- the two complete palette glyphs on top. New category art below uses
+    -- a separate gold native mark, while untouched banners keep their atlas.
     local isAppearance = key == "appearance"
+    local nativeWidget = key == "widget" or key == "widgetNotifications" or key == "minimap"
+    local nativeIcon,nativeMotif
     if isAppearance then
         left:Hide() -- remove the damaged left icon and baked lettering
         local palette = header:CreateTexture(nil, "ARTWORK", nil, 6)
@@ -180,16 +186,24 @@ local function Section(card, key, title, help, extra)
             ns.Chrome.Sharp(motifPalette)
         end
         card.appearancePalette, card.appearanceMotifPalette = palette, motifPalette
+    elseif nativeWidget then
+        left:Hide();right:Hide()
+        local kind=key=="widgetNotifications" and "notifications" or key=="minimap" and "launcher" or "widget"
+        nativeIcon=ns.Chrome.WidgetGlyph(header,kind,34)
+        nativeIcon:SetPoint("LEFT",header,"LEFT",20,0)
+        nativeMotif=ns.Chrome.WidgetGlyph(header,kind,46)
+        nativeMotif:SetPoint("RIGHT",header,"RIGHT",-19,0)
+        nativeMotif:SetAlpha(.38)
     end
     -- Center both bitmap halves vertically so all six fixed headings and
     -- subtitles have breathing space at full and half-card widths.
     left:SetPoint("LEFT", header, "LEFT", 0, 0)
     right:SetPoint("RIGHT", header, "RIGHT", 0, 0)
 
-    -- Only Appearance uses real, fixed-size WoW labels: its raster title
-    -- cannot be restored by moving a crop. The other five headings remain
-    -- original atlas art with the same live tooltip and settings owners.
-    if isAppearance then
+    -- Native titles for the repaired Appearance header and new category art;
+    -- untouched headings continue to use the original atlas.
+    local nativeName,nativeSub
+    if isAppearance or nativeWidget then
         local name = header:CreateFontString(nil, "ARTWORK", nil, 5)
         if not name:SetFont("Fonts\\MORPHEUS.TTF", 26, "OUTLINE") then
             name:SetFont(STANDARD_TEXT_FONT or "Fonts\\FRIZQT__.TTF",
@@ -217,8 +231,15 @@ local function Section(card, key, title, help, extra)
         sub:SetJustifyV("MIDDLE")
         sub:SetPoint("TOPLEFT", header, "TOPLEFT", 96, -44)
         sub:SetSize(340, 16)
-        sub:SetText("FONT MATCHING & VISUAL IDENTITY")
-        card.appearanceHeading, card.appearanceSubtitle = name, sub
+        if isAppearance then
+            sub:SetText("FONT MATCHING & VISUAL IDENTITY")
+            card.appearanceHeading, card.appearanceSubtitle = name, sub
+        else
+            sub:SetText(key=="widget" and "POSITION, SIZE & BEHAVIOR" or key=="widgetNotifications" and "ALERTS, SOUNDS & PREVIEWS" or "MINIMAP & FLOATING ACCESS ICON")
+            name:ClearAllPoints();name:SetPoint("TOPLEFT",header,"TOPLEFT",66,-9)
+            sub:ClearAllPoints();sub:SetPoint("TOPLEFT",header,"TOPLEFT",66,-44)
+            nativeName,nativeSub=name,sub
+        end
     end
 
     local function FitSlices(self)
@@ -230,6 +251,15 @@ local function Section(card, key, title, help, extra)
             math.max(1, BANNER_CELL_H * scale))
         right:SetSize(math.max(1, BANNER_RIGHT * scale),
             math.max(1, BANNER_CELL_H * scale))
+        if nativeName then
+            local showMotif=width>=(key=="minimap" and 420 or 350)
+            nativeMotif:SetShown(showMotif)
+            local room=math.max(1,width-66-(showMotif and 73 or 8))
+            nativeName:SetWidth(room);nativeSub:SetWidth(room)
+            if not nativeName:SetFont("Fonts\\MORPHEUS.TTF",width<330 and 20 or 24,"OUTLINE") then
+                nativeName:SetFont(STANDARD_TEXT_FONT or "Fonts\\FRIZQT__.TTF",width<330 and 20 or 24,"OUTLINE")
+            end
+        end
     end
     header:SetScript("OnSizeChanged", FitSlices)
     FitSlices(header)
@@ -257,14 +287,19 @@ Section(behaviorCard, "motion", "Window & Motion",
 Section(gameAccessCard, "access", "Game Access",
     "Choose where to open Duels from Blizzard's interface.",
     "The Escape menu button uses Blizzard's normal look unless EllesmereUI skins it.")
-Section(accessCard, "minimap", "Minimap & Widget",
-    "Choose your minimap button or floating widget.",
+Section(accessCard, "minimap", "Minimap & Launcher",
+    "Choose your minimap button or floating access icon.",
     "Drag either icon to move it. If both are hidden, type /duels to open this window.")
 Section(typographyCard, "typography", "Typography",
     "Choose text appearance independently of window scale.",
     "Font matching is controlled under Appearance.")
 Section(notificationsCard, "notifications", "Notifications & Help",
     "Choose which hints and notifications Duels shows.",
+    "Patch reminders and shared addon tooltips.")
+Section(hudCard, "widget", "Duel Widget",
+    "Customize the independent duel companion.")
+Section(hudNotificationsCard, "widgetNotifications", "Notifications",
+    "Choose the notifications attached to your duel companion.",
     "Notification audio follows Blizzard's Effects volume.")
 
 local unavailable = "Enable EllesmereUI and its third-party skinning support to use this setting."
@@ -279,7 +314,7 @@ end
 -- while the relevant row remains below the viewport.
 local function RegisterOption(key, name, detail, pageKey, widget, available)
     ns.Search.Register("setting:" .. key, name,
-        "Options / " .. (pageKey == "options" and "Appearance" or "Interface"),
+        "Options / " .. (pageKey == "options" and "Appearance" or pageKey == "widget" and "Widget" or "Interface"),
         detail, function()
             if ns.Navigation and ns.Navigation.SelectKey then
                 ns.Navigation.SelectKey("options", pageKey)
@@ -322,10 +357,12 @@ local autoPeekRow = AddToggle(behaviorCard, "interface", "autoPeekMoving", "Auto
     "Fade the window during movement; restore it when you stop.", -64, false)
 local reduceMotionRow = AddToggle(behaviorCard, "interface", "reduceMotion", "Reduce motion",
     "Shorten or skip UI animation while retaining visual feedback.", -119, false)
-local hudEnabledRow=AddToggle(accessCard,"interface","duelHUDEnabled","Show Duel HUD",
-    "Show the independent duel companion, separate from the floating access icon.",-174,false)
-local hudLockRow=AddToggle(accessCard,"interface","duelHUDLocked","Lock Duel HUD",
-    "Prevent moving the duel companion by its header.",-230,false)
+local hudEnabledRow=AddToggle(hudCard,"widget","duelHUDEnabled","Show Duel Widget",
+    "Show the independent duel companion, separate from the floating access icon.",-90,false)
+local hudLockRow=AddToggle(hudCard,"widget","duelHUDLocked","Lock position",
+    "Prevent moving the duel companion by its header.",-119,false)
+local hudAdaptiveRow=AddToggle(hudCard,"widget","duelHUDAdaptive","Adaptive layout",
+    "Automatically resize as the duel state changes. Off keeps a fixed height.",-148,false)
 local consentRow
 if ns.CompetitiveStorage and ns.CompetitiveStorage.PeerEpoch() then
     consentRow = AddToggle(behaviorCard,"interface","competitiveConsent","Allow competitive duel exchange",
@@ -341,13 +378,13 @@ local tooltipsRow = AddToggle(notificationsCard, "interface", "showTooltips", "S
 local reminderRow = AddToggle(notificationsCard, "interface", "patchNotesReminder", "New patch reminder",
     "Show a subtle unread dot on Patch Notes when a new update is published.",
     -119, false)
-local notifyRow=AddToggle(notificationsCard,"interface","notificationEnabled","Show notifications",
+local notifyRow=AddToggle(hudNotificationsCard,"widget","notificationEnabled","Show notifications",
     "Show cards while the Duel HUD is visible or folded. Hiding the HUD disables notifications. Never interrupts duels or combat.",-174,false)
-local notifySoundRow=AddToggle(notificationsCard,"interface","notificationSounds","Notification sounds",
+local notifySoundRow=AddToggle(hudNotificationsCard,"widget","notificationSounds","Notification sounds",
     "Play your notification sound through Blizzard's Effects channel.",-230,false)
-local notifyPreview=Style.Action(notificationsCard,"Preview update notification","footer")
+local notifyPreview=Style.Action(hudNotificationsCard,"Preview update notification","footer")
 notifyPreview:SetHeight(30)
-MarkPosition(notifyPreview,notificationsCard,-284)
+MarkPosition(notifyPreview,hudNotificationsCard,-284)
 notifyPreview:SetScript("OnClick",function()
     if ns.Notifications then
         local ok,why=ns.Notifications.Preview()
@@ -355,10 +392,10 @@ notifyPreview:SetScript("OnClick",function()
     end
 end)
 RegisterOption("previewUpdateNotification","Preview update notification",
-    "Preview the update card and its sound without inventing a real release.","interface",notifyPreview)
-local promotionPreview=Style.Action(notificationsCard,"Preview rank promotion","footer")
+    "Preview the update card and its sound without inventing a real release.","widget",notifyPreview)
+local promotionPreview=Style.Action(hudNotificationsCard,"Preview rank promotion","footer")
 promotionPreview:SetHeight(30)
-MarkPosition(promotionPreview,notificationsCard,-322)
+MarkPosition(promotionPreview,hudNotificationsCard,-322)
 promotionPreview:SetScript("OnClick",function()
     if ns.Notifications then
         local ok,why=ns.Notifications.PreviewPromotion()
@@ -366,10 +403,10 @@ promotionPreview:SetScript("OnClick",function()
     end
 end)
 RegisterOption("previewRankPromotion","Preview rank promotion",
-    "Simulate a promotion without changing ranks, rating or duel history.","interface",promotionPreview)
-local achievementPreview=Style.Action(notificationsCard,"Preview achievement notification","footer")
+    "Simulate a promotion without changing ranks, rating or duel history.","widget",promotionPreview)
+local achievementPreview=Style.Action(hudNotificationsCard,"Preview achievement notification","footer")
 achievementPreview:SetHeight(30)
-MarkPosition(achievementPreview,notificationsCard,-360)
+MarkPosition(achievementPreview,hudNotificationsCard,-360)
 achievementPreview:SetScript("OnClick",function()
     if ns.Notifications then
         local ok,why=ns.Notifications.PreviewAchievement()
@@ -377,10 +414,10 @@ achievementPreview:SetScript("OnClick",function()
     end
 end)
 RegisterOption("previewAchievement","Preview achievement notification",
-    "Preview the achievement card and sound without awarding points.","interface",achievementPreview)
-local warningPreview=Style.Action(notificationsCard,"Preview warning notification","footer")
+    "Preview the achievement card and sound without awarding points.","widget",achievementPreview)
+local warningPreview=Style.Action(hudNotificationsCard,"Preview warning notification","footer")
 warningPreview:SetHeight(30)
-MarkPosition(warningPreview,notificationsCard,-398)
+MarkPosition(warningPreview,hudNotificationsCard,-398)
 warningPreview:SetScript("OnClick",function()
     if ns.Notifications then
         local ok,why=ns.Notifications.PreviewWarning()
@@ -388,7 +425,7 @@ warningPreview:SetScript("OnClick",function()
     end
 end)
 RegisterOption("previewWarning","Preview warning notification",
-    "Preview the compact warning card without changing duel results.","interface",warningPreview)
+    "Preview the compact warning card without changing duel results.","widget",warningPreview)
 local gameMenuRow = AddToggle(gameAccessCard, "interface", "showGameMenuButton", "Show Escape menu button",
     "Add Duels Reimagined to Blizzard's Escape menu. Uses Blizzard's normal look unless EllesmereUI skins that menu.",
     -64, false)
@@ -481,7 +518,7 @@ MarkPosition(minimapTransparency, accessCard, -200)
 RegisterOption("minimapTransparency", "Minimap transparency",
     "Set idle opacity of the minimap icon.", "interface", minimapTransparency, HasMinimap)
 
-local widgetSize = Widgets.SliderRow(accessCard, "Widget size",
+local widgetSize = Widgets.SliderRow(accessCard, "Floating icon size",
     "Size of the movable floating icon (24 to 128 pixels).",
     Settings.MIN_WIDGET_SIZE, Settings.MAX_WIDGET_SIZE, Settings.WIDGET_SIZE_STEP,
     function(value) Settings.Set("widgetSize", value) end,
@@ -493,18 +530,32 @@ local widgetSize = Widgets.SliderRow(accessCard, "Widget size",
 widgetSize:SetPoint("TOPLEFT", accessCard, "TOPLEFT", 20, -131)
 widgetSize:SetPoint("TOPRIGHT", accessCard, "TOPRIGHT", -20, -131)
 MarkPosition(widgetSize, accessCard, -131)
-RegisterOption("widgetSize", "Widget size",
+RegisterOption("widgetSize", "Floating icon size",
     "Resize the floating access widget; hover to show a live widget preview",
     "interface", widgetSize, HasWidget)
 
-local hudScale=Widgets.SliderRow(accessCard,"Duel HUD scale",
+local hudScale=Widgets.SliderRow(hudCard,"Widget scale",
     "Resize the duel companion, from 80% to 120%.",
     .8,1.2,.05,function(v) Settings.Set("duelHUDScale",v) end,
     function() Settings.Reset("duelHUDScale") end,
     function(v) return math.floor(v*100+.5).."%" end,true)
-MarkPosition(hudScale,accessCard,-300)
-RegisterOption("duelHUDScale","Duel HUD scale","Size of the duel companion","interface",hudScale)
-local widgetTransparency = Widgets.SliderRow(accessCard, "Widget transparency",
+MarkPosition(hudScale,hudCard,-178)
+RegisterOption("duelHUDScale","Duel Widget scale","Size of the duel companion","widget",hudScale)
+local hudOpacity=Widgets.SliderRow(hudCard,"Widget opacity",
+    "Set idle opacity (30–100%). Hovering or dueling restores full visibility.",
+    .3,1,.05,function(v) Settings.Set("duelHUDOpacity",v) end,
+    function() Settings.Reset("duelHUDOpacity") end,nil,true)
+MarkPosition(hudOpacity,hudCard,-210)
+RegisterOption("duelHUDOpacity","Duel Widget opacity","Set the idle transparency of the duel companion","widget",hudOpacity)
+local resetHUD=Style.Action(hudCard,"Reset widget position","footer")
+resetHUD:SetHeight(30)
+MarkPosition(resetHUD,hudCard,-248)
+resetHUD:SetScript("OnClick",function()
+    Settings.ResetDuelHUDPosition()
+    if ns.Feedback then ns.Feedback.ConfirmAction(resetHUD,"Position restored") end
+end)
+RegisterOption("resetDuelHUDPosition","Reset Duel Widget position","Restore the duel companion's position","widget",resetHUD)
+local widgetTransparency = Widgets.SliderRow(accessCard, "Floating icon transparency",
     "Fade the floating widget when you are not hovering over it.",
     0, Settings.MAX_WIDGET_TRANSPARENCY, 0.05,
     function(value) Settings.Set("widgetTransparency", value) end,
@@ -515,7 +566,7 @@ local widgetTransparency = Widgets.SliderRow(accessCard, "Widget transparency",
 widgetTransparency:SetPoint("TOPLEFT", accessCard, "TOPLEFT", 20, -200)
 widgetTransparency:SetPoint("TOPRIGHT", accessCard, "TOPRIGHT", -20, -200)
 MarkPosition(widgetTransparency, accessCard, -200)
-RegisterOption("widgetTransparency", "Widget transparency",
+RegisterOption("widgetTransparency", "Floating icon transparency",
     "Set idle opacity of the floating access icon", "interface", widgetTransparency, HasWidget)
 -- Miniatures are anchored to our own window, without changing any setting
 -- or intercepting the live slider. Both rows can show the same preview.
@@ -669,7 +720,6 @@ local interfaceGroups = {
         { widget = minimapTransparency, visible = HasMinimap },
         { widget = widgetSize, visible = HasWidget },
         { widget = widgetTransparency, visible = HasWidget },
-        { widget = hudEnabledRow }, { widget = hudLockRow }, { widget = hudScale },
     }, footer = function(card, sectionY, y, usable)
         local buttonY = y + 4
         resetAccess:ClearAllPoints()
@@ -684,6 +734,14 @@ local interfaceGroups = {
     }},
     { card = notificationsCard, entries = {
         { widget = tooltipsRow }, { widget = reminderRow },
+    }},
+}
+local widgetGroups = {
+    { card = hudCard, entries = {
+        { widget = hudEnabledRow }, { widget = hudLockRow }, { widget = hudAdaptiveRow },
+        { widget = hudScale }, { widget = hudOpacity }, { widget = resetHUD, height=30 },
+    }},
+    { card = hudNotificationsCard, entries = {
         { widget = notifyRow }, { widget = notifySoundRow }, { widget = notifyPreview, height=30 },
         { widget = promotionPreview, height=30 }, { widget = achievementPreview, height=30 }, { widget = warningPreview, height=30 },
     }},
@@ -692,8 +750,10 @@ if consentRow then interfaceGroups[1].entries[#interfaceGroups[1].entries+1]={wi
 if warConsentRow then interfaceGroups[1].entries[#interfaceGroups[1].entries+1]={widget=warConsentRow} end
 function appearance:Relayout(width) LayoutPage(self, appearanceGroups, width) end
 function interface:Relayout(width) LayoutPage(self, interfaceGroups, width) end
+function widgetPage:Relayout(width) LayoutPage(self, widgetGroups, width) end
 appearance:Relayout(appearance:GetWidth())
 interface:Relayout(interface:GetWidth())
+widgetPage:Relayout(widgetPage:GetWidth())
 
 -- During a live slider drag repaint only its reset/modified indicator.
 -- A full Refresh would programmatically reassign the active thumb.
@@ -705,6 +765,14 @@ function Options.RefreshAccessModified()
     -- The widget sliders already update live. Repaint only the noninteractive
     -- miniature; never replace an in-progress thumb/slider value.
     if ns.Feedback then ns.Feedback.RefreshWidgetPreview() end
+end
+
+function Options.RefreshHUDModified()
+    for _,entry in ipairs({{hudScale,"duelHUDScale"},{hudOpacity,"duelHUDOpacity"}}) do
+        local row,key=entry[1],entry[2]
+        if not row:IsDragging() then row:SetValue(Settings.Get(key)) end
+        row:SetModified(Settings.IsModified(key))
+    end
 end
 
 function Options.Refresh()
@@ -760,9 +828,8 @@ function Options.Refresh()
     widgetTransparency:SetValue(Settings.Get("widgetTransparency"))
     widgetTransparency:SetModified(Settings.IsModified("widgetTransparency"))
     widgetTransparency:RefreshColors()
-    hudScale:SetValue(Settings.Get("duelHUDScale"))
-    hudScale:SetModified(Settings.IsModified("duelHUDScale"))
-    hudScale:RefreshColors()
+    Options.RefreshHUDModified()
+    hudScale:RefreshColors();hudOpacity:RefreshColors()
     if ns.Feedback then ns.Feedback.RefreshWidgetPreview() end
     local hasWidget, hasMinimap = HasWidget(), HasMinimap()
     minimapSize:SetAvailable(hasMinimap)
@@ -781,8 +848,10 @@ function Options.Refresh()
     -- changing window dimensions. Keep the adaptive layout in sync.
     appearance:Relayout(appearance:GetWidth())
     interface:Relayout(interface:GetWidth())
+    widgetPage:Relayout(widgetPage:GetWidth())
     appearance.scrollBar:Refresh()
     interface.scrollBar:Refresh()
+    widgetPage.scrollBar:Refresh()
 end
 
 -- Navigation only requests positions; this module remains the single owner
@@ -790,6 +859,7 @@ end
 local function ScrollPage(key)
     if key == "options" then return appearance end
     if key == "interface" then return interface end
+    if key == "widget" then return widgetPage end
 end
 function Options.GetPageScroll(pageKey)
     local page = ScrollPage(pageKey)
@@ -809,9 +879,9 @@ function Options.Show(pageKey)
     Widgets.CloseChoices()
     appearance.scrollOwner:SetShown(pageKey == "options")
     interface.scrollOwner:SetShown(pageKey == "interface")
-    if pageKey == "options" then appearance:Relayout(appearance:GetWidth()) end
-    if pageKey == "interface" then interface:Relayout(interface:GetWidth()) end
-    if pageKey == "options" or pageKey == "interface" then Options.Refresh() end
+    widgetPage.scrollOwner:SetShown(pageKey == "widget")
+    local page=ScrollPage(pageKey)
+    if page then page:Relayout(page:GetWidth());Options.Refresh() end
 end
 
 Window.frame:HookScript("OnHide", Widgets.CloseChoices)

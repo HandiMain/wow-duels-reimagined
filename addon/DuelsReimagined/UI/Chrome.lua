@@ -48,6 +48,42 @@ function Chrome.Icon(parent, name)
     return Chrome.Sharp(tex)
 end
 
+-- Gold native outline marks shared by the Widget tab and section banners.
+function Chrome.WidgetGlyph(parent, kind, size)
+    local mark=CreateFrame("Frame",nil,parent)
+    mark:SetSize(size,size);mark:EnableMouse(false)
+    local scale=size/32
+    if type(mark.CreateLine)~="function" then
+        local fallback=Chrome.Icon(mark,kind=="notifications" and "PatchNotes" or kind=="launcher" and "Options" or "Hall")
+        fallback:SetAllPoints(mark);fallback:SetVertexColor(unpack(C.gold))
+        return mark
+    end
+    local function Stroke(x1,y1,x2,y2,weight)
+        local t=mark:CreateLine(nil,"ARTWORK")
+        t:SetColorTexture(unpack(C.gold));t:SetThickness(weight*scale)
+        t:SetStartPoint("CENTER",mark,(x1-16)*scale,(16-y1)*scale)
+        t:SetEndPoint("CENTER",mark,(x2-16)*scale,(16-y2)*scale)
+    end
+    local function Path(points,weight)
+        for i=1,#points-2,2 do Stroke(points[i],points[i+1],points[i+2],points[i+3],weight) end
+    end
+    if kind=="notifications" then
+        Path({5,23,8,20,9,11,12,7,20,7,23,11,24,20,27,23,5,23},1.8)
+        Path({14,4,18,4},2);Path({13,26,16,29,19,26},1.8)
+        Path({3,12,4,8,7,5},1.3);Path({29,12,28,8,25,5},1.3)
+    elseif kind=="launcher" then
+        Path({16,2,25,6,30,16,25,26,16,30,7,26,2,16,7,6,16,2},1.5)
+        Path({10,22,13,13,22,10,19,19,10,22},2)
+    else
+        Path({3,5,29,5,29,27,3,27,3,5},1.8)
+        Path({3,11,29,11},1.5)
+        Path({7,15,14,15},2);Path({18,15,25,15},2)
+        Path({7,20,14,20},2);Path({18,20,25,20},2)
+        Path({13,24,19,24},1.4)
+    end
+    return mark
+end
+
 -- All thin decorative rules share one pixel-stable renderer. A historical
 -- 1-UI-unit SetColorTexture line would become sub-pixel at fractional window
 -- positions, blinking while dragging a resize corner. Use two *physical*

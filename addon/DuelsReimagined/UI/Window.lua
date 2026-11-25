@@ -603,7 +603,7 @@ emptyHeading:SetPoint("TOP", watermark, "BOTTOM", 0, -8)
 local emptyDetail = Style.Text(content, "Your recent activity will appear here.", 13, C.muted)
 emptyDetail:SetPoint("TOP", emptyHeading, "BOTTOM", 0, -8)
 function Window.ShowPage(page)
-    local isOptions = page.key == "options" or page.key == "interface"
+    local isOptions = page.key == "options" or page.key == "interface" or page.key == "widget"
     title:SetText(isOptions and "Options" or (page.title or ""))
     subtitle:SetText(isOptions and
         "Configure the addon to your preference." or (page.subtitle or ""))

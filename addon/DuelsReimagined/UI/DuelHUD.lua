@@ -157,7 +157,7 @@ local headerTitle=Label("Duels Reimagined",16,C.pale,64,4,163,26,"LEFT")
 local function OpenOptions()
     if Combat() then return end
     if not ns.Window.frame:IsShown() then ns.Window.Toggle() end
-    ns.Navigation.SelectKey("options","interface")
+    ns.Navigation.SelectKey("options","widget")
 end
 local gear=ns.Header.CreateHUDButton(headerLayer,"Options",22)
 Place(gear,234,6,22,22)
@@ -183,7 +183,7 @@ end
 PaintFold()
 foldButton:SetScript("OnClick",function()H.Fold(not folded)end)
 if ns.Tooltips then
-    ns.Tooltips.Bind(gear,{title="Duel HUD options",detail="Open Interface settings."})
+    ns.Tooltips.Bind(gear,{title="Duel HUD options",detail="Open Widget settings."})
     ns.Tooltips.Bind(close,{title="Hide Duel HUD",detail="Also hides notifications. Show it again in Options or with /duels hud."})
     ns.Tooltips.Bind(foldButton,{title="Fold / unfold Duel HUD",detail="Collapse to the header while keeping notifications available."})
 end
@@ -474,7 +474,8 @@ local function Layout(kind)
     Place(note,16,selected and 184 or pending and 156 or 102,WIDTH-32,15)
     Place(challenge,106,204,124,25)
     Place(forfeit,106,pending and 174 or 190,124,25)
-    Resize(HEIGHTS[kind],kind=="idle")
+    local adaptive=Settings.Get("duelHUDAdaptive")~=false
+    Resize(adaptive and HEIGHTS[kind] or HEIGHTS.selected,adaptive and kind=="idle")
 end
 local function Tick()
     if preview then return end
@@ -493,9 +494,33 @@ local function Tick()
         shownResult=nil;H.Refresh()
     end
 end
+-- Notifications have their own UIParent frame, not the HUD's alpha.
+function H.ApplyOpacity(hovered)
+    local engaged=snap and (snap.active or snap.challenge)
+    local over=hovered==true or Plain(root.IsMouseOver,root)==true
+    local opacity=Settings.Get("duelHUDOpacity") or 1
+    root:SetAlpha((over or dragging or engaged or shownResult or preview) and 1 or opacity)
+end
+local hoverGeneration=0
+local function Enter()
+    hoverGeneration=hoverGeneration+1;H.ApplyOpacity(true)
+end
+local function Leave()
+    hoverGeneration=hoverGeneration+1
+    local generation=hoverGeneration
+    local function Apply()
+        if generation==hoverGeneration and root:IsShown() then H.ApplyOpacity() end
+    end
+    if C_Timer and C_Timer.After then C_Timer.After(0,Apply) else Apply() end
+end
+for _,f in ipairs({root,header,gear,foldButton,close,modeRank,modePractice,challenge,forfeit,me.click,other.click}) do
+    f:HookScript("OnEnter",Enter);f:HookScript("OnLeave",Leave)
+end
 local lastRange,lastRangeReason
 local function Paint()
-    if folded or not root:IsShown() or not snap then return end
+    if not root:IsShown() or not snap then return end
+    H.ApplyOpacity()
+    if folded then return end
     note:SetTextColor(unpack(C.muted))
     if preview then
         rankHelp="Visual preview only."
@@ -515,7 +540,7 @@ local function Paint()
     if target and (not self or target.guid==self.guid) then target=nil end
     local opponent=engaged and engaged.opponent or target
     local now=Now()
-    if shownResult and now and now>=shownResult.untilTime then shownResult=nil end
+    if shownResult and now and now>=shownResult.untilTime then shownResult=nil;H.ApplyOpacity() end
     local outgoing=snap.challenge and snap.challenge.direction=="outgoing"
     local kind=snap.active and "active" or snap.challenge and (outgoing and "pending" or "incoming") or shownResult and "result" or snap.state=="idle" and target and "selected" or "idle"
     selectedTargetGuid=kind=="selected" and target.guid or nil
@@ -645,10 +670,11 @@ local function StopDrag()
         Settings.SetDuelHUDPosition(x*ratio/UIParent:GetWidth(),y*ratio/UIParent:GetHeight())
     end
     if ns.Notifications then ns.Notifications.Reanchor() end
+    H.ApplyOpacity()
 end
 header:SetScript("OnDragStart",function()
     if Settings.Get("duelHUDLocked") or Combat() then return end
-    dragging=true;root:StartMoving()
+    dragging=true;root:StartMoving();H.ApplyOpacity(true)
 end)
 header:SetScript("OnDragStop",StopDrag)
 local unsubscribe,unsubscribeDiscovery
@@ -713,7 +739,7 @@ root:SetScript("OnShow",function()
     Receive(ns.DuelDetection.GetSnapshot());ProbeSelected();Paint()
 end)
 root:SetScript("OnHide",function()
-    StopDrag();StopLayout()
+    StopDrag();StopLayout();hoverGeneration=hoverGeneration+1
     if unsubscribe then unsubscribe();unsubscribe=nil end
     if unsubscribeDiscovery then unsubscribeDiscovery();unsubscribeDiscovery=nil end
     probeGeneration=probeGeneration+1
@@ -726,6 +752,7 @@ function H.Refresh()
     if not Settings.Get("duelHUDEnabled") or not ns.Client.IsSupported() then root:Hide();return end
     if Settings.Get("duelHUDLocked") then StopDrag() end
     if not dragging then root:SetScale(Settings.Get("duelHUDScale"));H.ApplyPosition() end
+    H.ApplyOpacity()
     if not root:IsShown() then root:Show()
     else Receive(ns.DuelDetection.GetSnapshot()) end
 end

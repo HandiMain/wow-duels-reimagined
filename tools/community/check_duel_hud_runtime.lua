@@ -19,6 +19,8 @@ function methods:IsShown()return self.shown end
 function methods:IsVisible()return self.shown and (not self.parent or self.parent:IsVisible())end
 function methods:SetText(t)self.text=t end
 function methods:SetTextColor(...)self.textColor={...}end
+function methods:SetAlpha(v)self.alpha=v end
+function methods:IsMouseOver()return self.mouseOver==true end
 function methods:SetStatusBarTexture(t)self.barTexture=t end
 function methods:SetMinMaxValues(lo,hi)self.low,self.high=lo,hi end
 function methods:SetValue(v)self.value=v end
@@ -218,6 +220,21 @@ assert(not VisibleText("Addon detected - Ranked testing disabled") and VisibleTe
 Publish({state="idle"})
 assert(root:GetHeight()==248 and #frames==frameCount)
 print("Opponent recognition mock: PASS (exact peer, no reply, expiry, local gates, incompatibility, mutual preference, no extra probes or frames)")
+prefs.duelHUDAdaptive=false;H.Refresh();Select(nil);FlushTimers()
+assert(root:GetHeight()==248 and not ranked:IsVisible() and VisibleText("Select a player to duel"))
+H.Fold(true);assert(root:GetHeight()==42);H.Fold(false);assert(root:GetHeight()==248)
+prefs.duelHUDAdaptive=true;H.Refresh();FlushTimers();assert(root:GetHeight()==84)
+prefs.duelHUDOpacity=.4;H.ApplyOpacity();assert(root.alpha==.4)
+root.scripts.OnEnter(root);assert(root.alpha==1)
+root.scripts.OnLeave(root);assert(root.alpha==.4)
+Select("target")
+local opponent=ID("target")
+Publish({state="challenge",challenge={direction="incoming",opponent=opponent}})
+assert(root.alpha==1)
+Publish({state="idle"});assert(root.alpha==.4)
+prefs.duelHUDOpacity=1;H.ApplyOpacity();assert(root.alpha==1)
+assert(root:GetHeight()==248 and #frames==frameCount)
+print("HUD customization mock: PASS (fixed/adaptive layout, manual fold, idle opacity, hover, engaged opacity, same frames)")
 local function HealthText(t)
     for _,f in ipairs(frames) do
         if f.text==t and f:IsVisible() then assert(not fitted[f],"health text must not have measurement hook");return true end

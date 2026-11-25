@@ -76,9 +76,9 @@ class ResponsiveSettingsTests(unittest.TestCase):
             self.assertIn("{ widget = "+name, src)
         self.assertIn("resetAccess.optionsY = sectionY + buttonY", src)
 
-    def test_settings_are_categorized_without_new_pages_or_storage(self):
+    def test_settings_are_categorized_under_shared_options_owner(self):
         o = read("UI/Options.lua")
-        for heading in ("Window & Motion", "Game Access", "Minimap & Widget",
+        for heading in ("Window & Motion", "Game Access", "Minimap & Launcher",
                         "Typography", "Notifications & Help"):
             self.assertIn('"' + heading + '"', o)
         for row, parent in (("autoPeekMoving", "behaviorCard"),
@@ -114,7 +114,7 @@ class ResponsiveSettingsTests(unittest.TestCase):
 
     def test_five_clear_categories_stay_compact_and_independent(self):
         o = read("UI/Options.lua")
-        for title in ("Window & Motion", "Game Access", "Minimap & Widget",
+        for title in ("Window & Motion", "Game Access", "Minimap & Launcher",
                       "Typography", "Notifications & Help"):
             self.assertIn('"' + title + '"', o)
         # The same LayoutPage measures whole cards, independent of their rows.
@@ -211,6 +211,23 @@ class ResponsiveSettingsTests(unittest.TestCase):
                 self.assertNotIn('frame:SetScript("OnUpdate"', text)
             else:
                 self.assertNotIn('SetScript("OnUpdate"', text)
+
+    def test_widget_page_has_distinct_cards_and_shared_navigation(self):
+        o,n,w,h=read("UI/Options.lua"),read("UI/Navigation.lua"),read("UI/Window.lua"),read("UI/DuelHUD.lua")
+        self.assertIn('local widgetPage = Page(480)',o)
+        self.assertIn('Section(hudCard, "widget", "Duel Widget"',o)
+        self.assertIn('Section(hudNotificationsCard, "widgetNotifications", "Notifications"',o)
+        self.assertIn('function widgetPage:Relayout(width) LayoutPage(self, widgetGroups, width) end',o)
+        self.assertIn('if key == "widget" then return widgetPage end',o)
+        self.assertIn('widgetPage.scrollOwner:SetShown(pageKey == "widget")',o)
+        self.assertIn('AddToggle(hudCard,"widget","duelHUDEnabled"',o)
+        self.assertIn('AddToggle(hudNotificationsCard,"widget","notificationEnabled"',o)
+        self.assertNotIn('AddToggle(accessCard,"interface","duelHUDEnabled"',o)
+        self.assertIn('Chrome.WidgetGlyph',o)
+        self.assertIn('key = "widget", label = "Widget"',n)
+        self.assertIn('or page.key == "widget" then return ns.Options end',n)
+        self.assertIn('or page.key == "widget"',w)
+        self.assertIn('ns.Navigation.SelectKey("options","widget")',h)
 
 if __name__ == "__main__":
     unittest.main()

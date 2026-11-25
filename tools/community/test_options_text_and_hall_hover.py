@@ -21,7 +21,7 @@ class TextSafeOptionsAndHoverTests(unittest.TestCase):
             'function appearance:Relayout(width)',
             'function interface:Relayout(width)',
         ): self.assertIn(t,o)
-        self.assertEqual(o.count('Section('),7)
+        self.assertEqual(o.count('Section('),9)
         self.assertIn('headingBand:SetClipsChildren(false)',o)
         self.assertIn('(width - 24) / (BANNER_LEFT + BANNER_RIGHT)',o)
         self.assertIn("DuelOptionsBanner.png",o)

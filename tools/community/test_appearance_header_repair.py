@@ -54,7 +54,7 @@ class AppearanceHeaderRepairTests(unittest.TestCase):
         self.assertIn(
             "local right = Slice(BANNER_CELL_W - BANNER_RIGHT, BANNER_CELL_W)",
             SOURCE)
-        self.assertEqual(SOURCE.count("Section("), 7)  # helper plus six cards
+        self.assertEqual(SOURCE.count("Section("), 9)  # helper plus eight cards
         self.assertIn("function appearance:Relayout(width)", SOURCE)
         self.assertIn("function interface:Relayout(width)", SOURCE)
         self.assertIn('ns.Search.Register("setting:" .. key', SOURCE)

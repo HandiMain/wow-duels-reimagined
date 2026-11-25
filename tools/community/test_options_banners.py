@@ -43,7 +43,7 @@ class ApprovedOptionsBannersTests(unittest.TestCase):
         self.assertNotIn('Style.Plate(headingBand, "cardHeading"',src)
         self.assertNotIn('local heading = Style.Text(header, title',src)
         self.assertNotIn('local detail = Style.Text(header',src)
-        self.assertEqual(src.count('Section('),7)
+        self.assertEqual(src.count('Section('),9)
         self.assertIn('local isAppearance = key == "appearance"',src)
         self.assertIn('DuelPaletteMarks.tga',src)
         self.assertIn('motifPalette:SetTexture(COMPLETE_PALETTE)',src)
@@ -53,7 +53,7 @@ class ApprovedOptionsBannersTests(unittest.TestCase):
             self.assertIn("    "+key+" = ",src)
             self.assertIn('Section(',src)
         for name in ("Appearance","Window & Motion","Game Access",
-                     "Minimap & Widget","Typography","Notifications & Help"):
+                     "Minimap & Launcher","Typography","Notifications & Help"):
             self.assertIn('"'+name+'"',src)
         for needle in (
             "local function Slice(fromX, toX)",
