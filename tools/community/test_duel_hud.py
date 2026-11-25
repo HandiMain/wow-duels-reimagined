@@ -22,7 +22,7 @@ class DuelHUDTests(unittest.TestCase):
     def test_rounded_health_assets_and_secret_safe_percentage(self):
         import hashlib, struct
         assets={
-            "DuelHUDPremiumParts.png": ((1024,512),"586f3b8e5c525e0ea3623060d152938d34c2b631"),
+            "DuelHUDPremiumParts.png": ((1024,512),"ef13136df2a270171e43968c1fa2820ed7899309"),
             "DuelHUDHealthFill.png": ((256,32),"77aa11d7b1e264d25b1e7b03ac2fd36d9027536d"),
             "DuelHUDHealthMask.png": ((256,32),"953bba2639425582fe6b138f9ca083ad77a3e412"),
         }
@@ -96,3 +96,22 @@ class DuelHUDTests(unittest.TestCase):
             self.assertGreaterEqual(x,38)
             self.assertLessEqual(x+w,336-38)
         self.assertLessEqual(gem_y+gem_h,310)
+
+    def test_header_corner_and_control_clearance(self):
+        h=read("UI/DuelHUD.lua")
+        self.assertIn('Artwork("topLeft",0,0,28,30,"ARTWORK")',h)
+        self.assertIn('Artwork("topRight",WIDTH-28,0,28,30,"ARTWORK")',h)
+        self.assertIn('Artwork("swords",30,4,28,28,"OVERLAY")',h)
+        self.assertNotIn('Artwork("crest"',h)
+        self.assertIn('Label("Duels Reimagined",16,C.pale,62,4,165,26',h)
+        self.assertIn('gear=Action("",234,6,20,20',h)
+        self.assertIn('Place(foldButton,258,6,20,20)',h)
+        self.assertIn('close=Action("",282,6,20,20',h)
+        self.assertLessEqual(62+165,234)
+        self.assertLessEqual(282+20,336-28)
+        self.assertIn('Artwork("statRow",18,202,300,24)',h)
+        self.assertIn('Artwork("statRow",18,227,300,24)',h)
+        self.assertGreaterEqual(18,11)
+        self.assertLessEqual(18+300,336-11)
+        self.assertIn('Action("Ranked",43,40,119,30',h)
+        self.assertIn('Action("Unranked",174,40,119,30',h)

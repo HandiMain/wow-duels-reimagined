@@ -29,7 +29,7 @@ local premiumArt={
     gem={496,2,130,57},headerFace={330,54,320,46},bodyFill={430,292,32,160},
     timerFace={26,82,142,76},timerBlade={172,82,103,32},statRow={26,163,619,56},
     normal={26,224,280,64},selected={310,224,280,64},red={594,224,280,64},
-    crest={314,292,112,104},healthTrack={26,292,284,38}}
+    healthTrack={26,292,284,38}}
 local art={gear={342,205,24,24},close={372,205,24,24},swords={410,0,30,30},
     playerRing={342,238,48,48},enemyRing={396,238,48,48}}
 local function Place(f,x,y,w,h)
@@ -49,9 +49,9 @@ local function Artwork(key,x,y,w,h,layer,flip)
 end
 -- Expanded body: independent plain material, left/right rails, bottom rail,
 -- four corner pieces (upper pair on headerLayer) and lower jewel.
-Artwork("bodyFill",8,28,WIDTH-16,274,"BACKGROUND")
-Artwork("sideEdge",1,27,10,262,"BORDER")
-Artwork("sideEdge",WIDTH-11,27,10,262,"BORDER",true)
+Artwork("bodyFill",8,29,WIDTH-16,273,"BACKGROUND")
+Artwork("sideEdge",1,25,10,266,"BORDER")
+Artwork("sideEdge",WIDTH-11,25,10,266,"BORDER",true)
 Artwork("bottomEdge",25,297,WIDTH-50,12,"BORDER")
 Artwork("bottomLeft",0,278,38,31,"ARTWORK")
 Artwork("bottomRight",WIDTH-38,278,38,31,"ARTWORK")
@@ -61,8 +61,8 @@ Artwork("timerFace",121,93,94,36)
 Artwork("timerBlade",69,101,48,15)
 Artwork("timerBlade",219,101,48,15,nil,true)
 -- Two independent rows, each with its own live labels and value.
-Artwork("statRow",13,202,310,24)
-Artwork("statRow",13,227,310,24)
+Artwork("statRow",18,202,300,24)
+Artwork("statRow",18,227,300,24)
 Artwork("swords",156,137,24,24)
 local function Rect(x,y,w,h,r,g,b,a)
     local t=surface:CreateTexture(nil,"BORDER")
@@ -85,7 +85,7 @@ local function Action(value,x,y,w,h,fn,red,icon)
     -- No alpha animation on the whole widget: the source art stays opaque.
     b.Paint=function()
         Region(t,icon or (b.selected and "selected" or not b.usable and "normal" or red and "red" or "normal"))
-        local v=not b.usable and not b.selected and .72 or b.pressed and .73 or b.hovered and b.usable and 1 or .90
+        local v=not b.usable and not b.selected and .88 or b.pressed and .78 or b.hovered and b.usable and 1 or .98
         t:SetVertexColor(v,v,v,1)
         label:SetTextColor(unpack((b.usable or b.selected) and C.text or C.muted))
     end
@@ -128,21 +128,21 @@ Artwork("sideEdge",1,27,9,12,"BORDER")
 Artwork("sideEdge",WIDTH-10,27,9,12,"BORDER",true)
 foldedTrim:Hide()
 surface=headerLayer
-Artwork("headerFace",18,7,WIDTH-36,26,"BACKGROUND")
-Artwork("topEdge",26,1,WIDTH-52,8,"BORDER")
-Artwork("topLeft",0,0,32,34,"ARTWORK")
-Artwork("topRight",WIDTH-32,0,32,34,"ARTWORK")
+Artwork("headerFace",8,6,WIDTH-16,28,"BACKGROUND")
+Artwork("topEdge",25,1,WIDTH-50,8,"BORDER")
+Artwork("topLeft",0,0,28,30,"ARTWORK")
+Artwork("topRight",WIDTH-28,0,28,30,"ARTWORK")
 local header=CreateFrame("Frame",nil,headerLayer)
-Place(header,0,0,WIDTH-94,35);header:EnableMouse(true);header:RegisterForDrag("LeftButton")
-Artwork("crest",17,1,35,33,"OVERLAY")
-Label("Duels Reimagined",16,C.pale,56,4,WIDTH-154,26,"LEFT")
+Place(header,0,0,230,35);header:EnableMouse(true);header:RegisterForDrag("LeftButton")
+Artwork("swords",30,4,28,28,"OVERLAY")
+Label("Duels Reimagined",16,C.pale,62,4,165,26,"LEFT")
 local function OpenOptions()
     if Combat() then return end
     if not ns.Window.frame:IsShown() then ns.Window.Toggle() end
     ns.Navigation.SelectKey("options","interface")
 end
-local gear=Action("",WIDTH-91,5,22,22,OpenOptions,false,"gear")
-local foldButton=CreateFrame("Button",nil,headerLayer);Place(foldButton,WIDTH-65,5,22,22)
+local gear=Action("",234,6,20,20,OpenOptions,false,"gear")
+local foldButton=CreateFrame("Button",nil,headerLayer);Place(foldButton,258,6,20,20)
 S.Plate(foldButton,"dark",{corner=6})
 local foldArt=foldButton:CreateTexture(nil,"ARTWORK");foldArt:SetSize(15,15);foldArt:SetPoint("CENTER")
 local function PaintFold()
@@ -155,7 +155,7 @@ foldHover:SetAlpha(0)
 foldButton:SetScript("OnEnter",function()ns.Motion.Fade(foldHover,.34,ns.Motion.Duration("quick"))end)
 foldButton:SetScript("OnLeave",function()ns.Motion.Fade(foldHover,0,ns.Motion.Duration("gentle"))end)
 ns.Widgets.PressFeedback(foldButton,foldHover,{corner=6})
-local close=Action("",WIDTH-39,5,22,22,function() Settings.Set("duelHUDEnabled",false) end,false,"close")
+local close=Action("",282,6,20,20,function() Settings.Set("duelHUDEnabled",false) end,false,"close")
 if ns.Tooltips then
     ns.Tooltips.Bind(gear,{title="Duel HUD options",detail="Open Interface settings."})
     ns.Tooltips.Bind(close,{title="Hide Duel HUD",detail="Also hides notifications. Show it again in Options or with /duels hud."})
@@ -175,8 +175,8 @@ local function Mode(practice)
     end
     Settings.Set("practiceDuels",practice)
 end
-modeRank=Action("Ranked",66,40,101,30,function() Mode(false) end)
-modePractice=Action("Unranked",174,40,101,30,function() Mode(true) end)
+modeRank=Action("Ranked",43,40,119,30,function() Mode(false) end)
+modePractice=Action("Unranked",174,40,119,30,function() Mode(true) end)
 local state=Label("Select a player to duel",13,C.pale,10,77,WIDTH-20,18)
 local timer=Label("00:00",20,C.text,121,96,94,27)
 local function Side(x,enemy)
@@ -235,10 +235,10 @@ local function Side(x,enemy)
     return side
 end
 local me,other=Side(12,false),Side(182,true)
-Label("Damage Done",12,C.text,24,202,180,24,"LEFT")
-Label("Damage Received",12,C.text,24,227,180,24,"LEFT")
-local done=Label("—",13,C.pale,207,202,104,24,"RIGHT")
-local taken=Label("—",13,C.pale,207,227,104,24,"RIGHT")
+Label("Damage Done",12,C.text,30,202,174,24,"LEFT")
+Label("Damage Received",12,C.text,30,227,174,24,"LEFT")
+local done=Label("—",13,C.pale,207,202,100,24,"RIGHT")
+local taken=Label("—",13,C.pale,207,227,100,24,"RIGHT")
 local note=Label("",10,C.muted,16,251,WIDTH-32,15)
 local challenge,forfeit
 local lastRequest
