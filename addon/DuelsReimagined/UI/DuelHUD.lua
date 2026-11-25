@@ -4,6 +4,9 @@ local S,C,Settings=ns.Style,ns.Style.color,ns.Settings
 local H={};ns.DuelHUD=H
 local WIDTH,HEIGHT,FOLDED_HEIGHT=336,310,42
 local folded=false
+local tournamentActive,tournamentSuspended,switchingAnchor=false,false,false
+local tournamentUnsubscribe,tournamentRetry,previewUnsubscribe
+local tournamentKey
 local HEIGHTS={idle=84,selected=248,pending=220,incoming=188,active=232,result=136}
 local root=CreateFrame("Frame","DuelsReimaginedDuelHUD",UIParent)
 root:SetSize(WIDTH,HEIGHT);root:SetFrameStrata("MEDIUM")
@@ -710,8 +713,23 @@ local function Receive(s)
     if s.challenge then shownResult=nil end
     Paint()
     UpdateDriver()
+    if tournamentSuspended and not switchingAnchor and s.state=="idle" and not s.active and not s.challenge and not Combat() then
+        H.ScheduleTournamentRefresh()
+    end
 end
-function H.GetNotificationAnchor() return root end
+function H.IsTournamentHUDActive() return tournamentActive end
+function H.IsSwitchingNotificationAnchor() return switchingAnchor end
+function H.GetNotificationAnchor()
+    return tournamentActive and ns.TournamentHUD.Frame() or root
+end
+function H.GetNotificationScale() return root:GetScale() end
+function H.GetRegularNotificationAnchor() return root end
+function H.ScheduleTournamentRefresh()
+    if tournamentRetry or not C_Timer or not C_Timer.NewTimer then return end
+    tournamentRetry=C_Timer.NewTimer(0,function()
+        tournamentRetry=nil;H.Refresh()
+    end)
+end
 function H.ApplyPosition()
     if dragging then return end
     local x,y=Settings.GetDuelHUDPosition()
@@ -791,6 +809,7 @@ root:SetScript("OnEvent",function(_,event,unit)
             (not id or not c.opponent or id.guid~=c.opponent.guid) then ns.DuelDetection.DismissUnconfirmed() end
     end
     if event=="PLAYER_TARGET_CHANGED" or event=="PLAYER_REGEN_ENABLED" then ProbeSelected() end
+    if event=="PLAYER_REGEN_ENABLED" and tournamentSuspended then H.ScheduleTournamentRefresh() end
     Paint();UpdateDriver()
 end)
 root:SetScript("OnShow",function()
@@ -810,15 +829,62 @@ root:SetScript("OnHide",function()
     preview=false;activeID,acceptedAt,countdownUntil,shownResult=nil,nil,nil,nil
     snap,rankView,rankSeason,selectedTargetGuid=nil,nil,nil,nil;rankDirty=true
 end)
+local function StopTournament()
+    if tournamentRetry then tournamentRetry:Cancel();tournamentRetry=nil end
+    if tournamentUnsubscribe then tournamentUnsubscribe();tournamentUnsubscribe=nil end
+    local f=ns.TournamentHUD.Frame()
+    if f then f:UnregisterAllEvents();f:SetScript("OnEvent",nil) end
+    ns.TournamentHUD.Hide()
+    tournamentActive=false;tournamentKey=nil
+end
 function H.Refresh()
-    if not ready then return end
+    if not ready or switchingAnchor then return end
+    local B=ns.TournamentHUD
+    if B.IsEditing() then return end
     sessionCache=nil
-    if not Settings.Get("duelHUDEnabled") or not ns.Client.IsSupported() then root:Hide();return end
-    if Settings.Get("duelHUDLocked") then StopDrag() end
-    if not dragging then root:SetScale(Settings.Get("duelHUDScale"));H.ApplyPosition() end
-    H.ApplyOpacity()
-    if not root:IsShown() then root:Show()
-    else Receive(ns.DuelDetection.GetSnapshot()) end
+    local enabled=Settings.Get("duelHUDEnabled") and ns.Client.IsSupported()
+    local d=ns.DuelDetection.GetSnapshot()
+    local p=enabled and ns.TournamentRegistration.PreviewHasBracket() and ns.TournamentRegistration.PreviewSnapshot()
+    local model=B.Project(p)
+    local want=model and d.state=="idle" and not d.active and not d.challenge and not Combat()
+    tournamentSuspended=not not (model and not want)
+    switchingAnchor=true
+    local changed=false;local newMatch=false
+    if want then
+        newMatch=tournamentKey~=model.key
+        local f=B.Show(model)
+        if not tournamentActive then
+            tournamentActive=true;changed=true
+            -- Only one duel observer is active at a time. Defer switching out
+            -- of a detector notification so its listener iteration stays safe.
+            root:Hide()
+            tournamentUnsubscribe=ns.DuelDetection.Subscribe(function(s)
+                if s.state~="idle" or s.active or s.challenge then H.ScheduleTournamentRefresh() end
+            end)
+            for _,e in ipairs({"PLAYER_REGEN_DISABLED","PLAYER_ENTERING_WORLD","UI_SCALE_CHANGED","DISPLAY_SIZE_CHANGED"}) do f:RegisterEvent(e) end
+            f:SetScript("OnEvent",function(_,e)
+                if e=="UI_SCALE_CHANGED" or e=="DISPLAY_SIZE_CHANGED" then B.Relayout();if ns.Notifications then ns.Notifications.Reanchor() end
+                else H.Refresh() end
+            end)
+        end
+        tournamentKey=model.key
+    else
+        if tournamentActive then changed=true;StopTournament() end
+        if not enabled then root:Hide()
+        else
+            if Settings.Get("duelHUDLocked") then StopDrag() end
+            if not dragging then root:SetScale(Settings.Get("duelHUDScale"));H.ApplyPosition() end
+            H.ApplyOpacity()
+            if not root:IsShown() then root:Show()
+            else Receive(d) end
+        end
+    end
+    switchingAnchor=false
+    if ns.Notifications then
+        if changed then ns.Notifications.Reanchor();ns.Notifications.Refresh() end
+        if newMatch then ns.Notifications.OnTournamentMatchReady(model.key)
+        elseif changed and not tournamentActive then ns.Notifications.ClearTournamentPreview() end
+    end
 end
 function H.InvalidateRank()
     -- Lazy refresh avoids replaying the ledger on repeated Hall resizes.
@@ -826,7 +892,7 @@ function H.InvalidateRank()
     if root:IsShown() and not preview then Paint() end
 end
 function H.ToggleSessionPreview()
-    if not ready or Combat() or ns.DuelDetection.GetSnapshot().state~="idle" or preview then return false,"Finish your duel first" end
+    if tournamentActive or not ready or Combat() or ns.DuelDetection.GetSnapshot().state~="idle" or preview then return false,"Finish your duel first" end
     if not Settings.Get("duelHUDEnabled") or folded then return false,"Show and unfold the Duel Widget first" end
     sessionPreview=not sessionPreview
     if sessionPreview then CancelProbeRetry() end
@@ -839,11 +905,11 @@ function H.ResetSession()
     sessionPreview=false;H.Refresh();return true
 end
 function H.GetDiagnosticResources()
-    return {subscriptions=(unsubscribe and 1 or 0)+(unsubscribeDiscovery and 1 or 0),timers=(root:GetScript("OnUpdate") and 1 or 0)+(collapseTimer and 1 or 0)+(retryTimer and 1 or 0)}
+    return {subscriptions=(unsubscribe and 1 or 0)+(unsubscribeDiscovery and 1 or 0)+(tournamentUnsubscribe and 1 or 0)+(previewUnsubscribe and 1 or 0),timers=(root:GetScript("OnUpdate") and 1 or 0)+(collapseTimer and 1 or 0)+(retryTimer and 1 or 0)+(tournamentRetry and 1 or 0)}
 end
 local PREVIEW_ENABLED=true
 function H.TogglePreview()
-    if not PREVIEW_ENABLED or not ready or Combat() or ns.DuelDetection.GetSnapshot().state~="idle" then return end
+    if tournamentActive or not PREVIEW_ENABLED or not ready or Combat() or ns.DuelDetection.GetSnapshot().state~="idle" then return end
     if not Settings.Get("duelHUDEnabled") then Settings.Set("duelHUDEnabled",true) end
     preview=not preview
     if preview then CancelProbeRetry();sessionPreview=false end
@@ -851,5 +917,7 @@ function H.TogglePreview()
 end
 local login=CreateFrame("Frame");login:RegisterEvent("PLAYER_LOGIN")
 login:SetScript("OnEvent",function()
-    login:UnregisterAllEvents();ready=true;H.Refresh()
+    login:UnregisterAllEvents();ready=true
+    previewUnsubscribe=ns.TournamentRegistration.SubscribePreview(H.Refresh)
+    H.Refresh()
 end)

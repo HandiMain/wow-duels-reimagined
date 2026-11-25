@@ -414,6 +414,13 @@ editLayout:SetScript("OnClick",function()
     if not ok and ns.Feedback then ns.Feedback.Toast(why,editLayout) end
 end)
 RegisterOption("editCountdownLayout","Edit countdown layout","Move and resize the entire countdown effect","combatvisuals",editLayout)
+local editTournamentHUD=Style.Action(hudCard,"Edit tournament HUD","footer")
+editTournamentHUD:SetHeight(30)
+editTournamentHUD:SetScript("OnClick",function()
+    local ok,why=ns.EditMode.Open("tournamentHUD")
+    if not ok and ns.Feedback then ns.Feedback.Toast(why,editTournamentHUD) end
+end)
+RegisterOption("editTournamentHUD","Edit tournament HUD","Move and scale the tournament scoreboard","widget",editTournamentHUD)
 local resultVisual=AddToggle(resultCard,"combatvisuals","duelResultVisual","Show duel result",
     "Reveal the victory or defeat banner after a locally observed duel result.",-90,false)
 local resultVignette=AddToggle(resultCard,"combatvisuals","duelResultVignette","Screen-edge glow",
@@ -849,6 +856,7 @@ local widgetGroups = {
         { widget = hudEnabledRow }, { widget = hudLockRow }, { widget = hudAdaptiveRow },
         { widget = hudScale }, { widget = hudOpacity }, { widget = resetHUD, height=30 },
         { widget = hudStatsRow }, { widget = sessionPreviewButton, height=30 }, { widget = resetSession, height=30 },
+        { widget = editTournamentHUD, height=30 },
     }},
     { card = hudNotificationsCard, entries = {
         { widget = notifyRow }, { widget = notifySoundRow }, { widget = notifyPreview, height=30 },

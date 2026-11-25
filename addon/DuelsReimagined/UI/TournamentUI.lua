@@ -604,6 +604,9 @@ function U.Show(key)
     open.detail:SetText(p and "Local test active. Resume the rehearsal from the hub." or listings and "Four local test tournaments available. Open Browse to join one." or "No tournaments discovered. Discovery is not active yet.")
     root:Show();SetOffset(0);Layout()
 end
+function U.RefreshActive()
+    if active and root:IsShown() then Layout() end
+end
 function U.GetPageScroll() return scroll:GetVerticalScroll() end
 function U.SetPageScroll(_,offset) SetOffset(offset);bar:Refresh() end
 scroll:SetScript("OnMouseWheel",function(_,d)

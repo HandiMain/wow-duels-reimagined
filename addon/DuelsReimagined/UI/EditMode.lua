@@ -284,7 +284,7 @@ local function Build()
     preview:SetPoint("LEFT",tools,"LEFT",246,0)
     local reset=Button(tools,"Reset",82,function()
         if not session then return end
-        StopDrag();session.x,session.y,session.scale=.5,.5,1;Paint();M.RestoreSample()
+        StopDrag();session.x,session.y,session.scale=Settings.DefaultVisualLayout(session.spec.key);Paint();M.RestoreSample()
     end)
     reset:SetPoint("RIGHT",tools,"RIGHT",-10,0)
     root:SetScript("OnHide",function()if session then M.Cancel(true)end end)
@@ -320,3 +320,7 @@ end
 local V=ns.DuelCountdown
 M.Register({key="countdown",label="DUEL COUNTDOWN",size=V.LayoutSize,draft=V.SetLayoutDraft,
     sample=V.ShowLayoutSample,preview=V.Preview,finish=V.EndLayoutDraft})
+
+local B=ns.TournamentHUD
+M.Register({key="tournamentHUD",label="TOURNAMENT SCOREBOARD",size=B.LayoutSize,draft=B.SetLayoutDraft,
+    sample=B.ShowLayoutSample,preview=B.ShowLayoutSample,finish=B.EndLayoutDraft})

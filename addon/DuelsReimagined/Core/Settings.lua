@@ -537,7 +537,11 @@ end
 
 -- Shared screen-layout storage. Only explicitly registered visual keys may
 -- be saved; editor drafts never touch SavedVariables.
-local visualKeys={countdown=true}
+local visualKeys={countdown=true,tournamentHUD=true}
+function Settings.DefaultVisualLayout(key)
+    if key=="tournamentHUD" then return .5,.94,1 end
+    return .5,.5,1
+end
 local function LayoutNumber(n)
     if type(issecretvalue)=="function" then
         local ok,secret=pcall(issecretvalue,n)
@@ -552,7 +556,7 @@ function Settings.GetVisualLayout(key)
     if type(p)=="table" and LayoutNumber(p.x) and LayoutNumber(p.y) and LayoutNumber(p.scale) then
         return Clamp(p.x,0,1),Clamp(p.y,0,1),Clamp(p.scale,.5,2)
     end
-    return .5,.5,1
+    return Settings.DefaultVisualLayout(key)
 end
 function Settings.SetVisualLayout(key,x,y,scale)
     if not visualKeys[key] or not LayoutNumber(x) or not LayoutNumber(y) or not LayoutNumber(scale) then return false end

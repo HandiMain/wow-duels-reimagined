@@ -190,7 +190,7 @@ end
 local offset=0
 local function Place()
     local hud=ns.DuelHUD and ns.DuelHUD.GetNotificationAnchor()
-    local scale=hud and hud:GetScale() or 1
+    local scale=ns.DuelHUD and ns.DuelHUD.GetNotificationScale() or 1
     card:SetScale(scale)
     local factor=card:GetEffectiveScale()/UIParent:GetEffectiveScale()
     local below=false
@@ -203,7 +203,7 @@ local function Place()
     if not HUDVisible() or not hud:GetTop() or not hud:GetBottom() then return false end
     local hf=hud:GetEffectiveScale()/UIParent:GetEffectiveScale()
     local top=hud:GetTop()*hf
-    below=UIParent:GetHeight()-top<(body+extension+8)*factor and hud:GetBottom()*hf>(body+extension+8)*factor
+    below=ns.DuelHUD.IsTournamentHUDActive() or (UIParent:GetHeight()-top<(body+extension+8)*factor and hud:GetBottom()*hf>(body+extension+8)*factor)
     card:ClearAllPoints()
     if below then card:SetPoint("TOP",hud,"BOTTOM",0,-2+offset)
     else card:SetPoint("BOTTOM",hud,"TOP",0,2-offset) end
@@ -515,6 +515,19 @@ function N.ClearTournamentPreview()
     for i=#queue,1,-1 do if queue[i].kind=="tournament" then table.remove(queue,i) end end
     if current and current.kind=="tournament" then Clear();Pump() end
 end
+local announcedTournamentMatch
+function N.OnTournamentMatchReady(key)
+    if type(key)~="string" or announcedTournamentMatch==key then return false end
+    local p=ns.TournamentRegistration.PreviewSnapshot()
+    if not p or p.role~="player" or not p.match or p.scope~="SIMULATED" then return false end
+    -- Clear only stale tournament messages; preserve any unrelated current
+    -- notification, including its motion, expiry and sound.
+    N.ClearTournamentPreview()
+    local ok=Enqueue({id="preview:tournament-ready:"..key,kind="tournament",preview=true,
+        title="Your match is ready",body=p.match.opponent.."\nBest of "..p.match.bestOf.." - Local test only"})
+    if ok then announcedTournamentMatch=key end
+    return ok
+end
 function N.PreviewTournamentReady()
     if not ready or Blocked() then return false,"Finish your duel or combat first." end
     if not Settings.Get("notificationEnabled") then return false,"Notifications are disabled." end
@@ -547,8 +560,11 @@ events:SetScript("OnEvent",function(_,event)
         ready=true;events:UnregisterEvent("PLAYER_LOGIN")
         unsubscribePresence=ns.Presence.Subscribe(function(snapshot) ns.UpdateNotices.Observe(snapshot);Update() end)
         unsubscribeDuel=ns.DuelDetection.Subscribe(function() Pump() end)
-        local hud=ns.DuelHUD.GetNotificationAnchor()
-        hud:HookScript("OnShow",N.Refresh);hud:HookScript("OnHide",N.Refresh)
+        local hud=ns.DuelHUD.GetRegularNotificationAnchor()
+        local function RefreshAnchor()
+            if not ns.DuelHUD.IsSwitchingNotificationAnchor() then N.Refresh() end
+        end
+        hud:HookScript("OnShow",RefreshAnchor);hud:HookScript("OnHide",RefreshAnchor)
         ns.UpdateNotices.Observe(ns.Presence.GetSnapshot())
         N.CheckAchievements()
         if C_Timer and C_Timer.After then

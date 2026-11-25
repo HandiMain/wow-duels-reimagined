@@ -1995,6 +1995,20 @@ function R.RunHostRecoverySelfTest(emit)
 end
 
 local preview,catalog
+local previewListeners={}
+function R.SubscribePreview(fn)
+    if type(fn)~="function" then return function()end end
+    previewListeners[fn]=true
+    return function()previewListeners[fn]=nil end
+end
+local function PreviewChanged()
+    for fn in pairs(previewListeners) do
+        local ok=pcall(fn)
+        if not ok and ns.Diagnostics and ns.Diagnostics.Record then
+            ns.Diagnostics.Record("Tournament preview callback","A local tournament listener failed")
+        end
+    end
+end
 local TEST_NAMES={"Ashwarden","Duskblade","Ironwill","Frostvale","Emberguard","Stormveil","Mooncrest","Thornheart",
     "Silveroak","Redspire","Shadowfen","Brightforge","Ravenward","Nightbloom","Dawnsteel","Stonewake",
     "Mistfall","Flamecrest","Oakshield","Wintermark","Goldthorn","Duskmantle","Skyrune","Sablewind",
@@ -2157,7 +2171,9 @@ function R.StartPreview(d)
     preview=x;catalog=nil
     return true,"Local test created with "..count.." simulated participants. Nothing sent to other players."
 end
-function R.EndPreview() preview=nil;catalog=nil end
+function R.EndPreview()
+    preview=nil;catalog=nil;PreviewChanged()
+end
 function R.PreviewSnapshot()
     local x=Current();if not x then return nil end
     local ad=x.engine.Ad();x.cache.Accept(x.host.guid,ad)
@@ -2195,7 +2211,7 @@ local function SimulatePreviewGame(x)
     x.bracket=candidate
     return true,"Simulated game confirmed. No rating changes."
 end
-function R.PreviewAction(action)
+local function PreviewAction(action)
     local x=Current();if not x then return false,"No local test tournament." end
     if action=="host" or action=="player" then
         if x.mode then return false,"This local test keeps your tournament role." end
@@ -2217,6 +2233,11 @@ function R.PreviewAction(action)
     end
     if action=="checkin" then return x.engine.CheckIn(x.id,x.player.guid) end
     return false,"Action unavailable."
+end
+function R.PreviewAction(action)
+    local ok,why=PreviewAction(action)
+    if ok and preview then PreviewChanged() end
+    return ok,why
 end
 function R.RunPlayerPreviewSelfTest(emit)
     emit=type(emit)=="function" and emit or function()end
