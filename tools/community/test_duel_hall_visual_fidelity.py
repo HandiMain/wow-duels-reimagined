@@ -17,7 +17,7 @@ class VisualFidelityTests(unittest.TestCase):
         for token in ('header:SetHeight(72)', 'rail:SetWidth(226)',
                       'footer:SetHeight(50)', 'DuelBrand.png',
                       'Drag(brandDrag)', 'local brandArea = CreateFrame',
-                      'Style.Text(content, "Welcome to the Hall", 27, C.pale, nil, "display")'):
+                      'Style.Text(content, "Welcome to the Hall", 27, C.pale)'):
             self.assertIn(token, w)
         for token in ('name == "Close" and 24 or 29', 'Style.Plate(b, name == "Close" and "hall" or "dark", { corner=7 })',
                       'function Header.Fold(value)', 'function Header.CloseSearch(',

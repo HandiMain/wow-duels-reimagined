@@ -15,7 +15,7 @@ class OptionsVisualCorrectionTests(unittest.TestCase):
         o=source("UI/Options.lua")
         for s in ("BANNER_ATLAS_W, BANNER_ATLAS_H = 2048, 256",
                   "BANNER_CELL_W, BANNER_CELL_H = 640, 80",
-                  "BANNER_LEFT, BANNER_RIGHT = 438, 160",
+                  "BANNER_LEFT, BANNER_RIGHT = 112, 160",
                   'headingBand:SetPoint("TOPLEFT", card, "TOPLEFT", 12, -6)',
                   'headingBand:SetPoint("TOPRIGHT", card, "TOPRIGHT", -12, -6)',
                   "function interface:Relayout(width)",
