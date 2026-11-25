@@ -2305,6 +2305,20 @@ function R.RunShowcaseSelfTest(emit)
             local found=0
             for _,g in ipairs(v.slots) do if g then found=found+1 end end
             assert(found==7 and y.role=="player")
+            local own
+            for i=1,7 do
+                own=PreviewMatch(y,y.bracket.Snapshot())
+                if own then break end
+                local ok,why,result=SimulatePreviewGame(y)
+                assert(ok and not result,why)
+            end
+            assert(own,"Expected an assigned local player match")
+            local ok,why,result=SimulatePreviewGame(y)
+            assert(ok and result and result.scope=="SIMULATED",why)
+            assert(result.opponent==own.opponent and result.complete==true)
+            assert((result.outcome=="won" and result.score==1 and result.opponentScore==0 and result.advanced)
+                or (result.outcome=="lost" and result.score==0 and result.opponentScore==1 and not result.advanced))
+
             local rows=assert(MakeCatalog(s,a,n,date or os and os.date))
             assert(#rows.entries==4)
             for i,e in ipairs(rows.entries) do
