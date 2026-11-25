@@ -85,3 +85,14 @@ class DuelHUDTests(unittest.TestCase):
         self.assertIn('pcall(_G.StartDuel,"target",true)',d)
         self.assertIn('lastRange==true',h)
         self.assertIn('ns.DuelDetection.DismissUnconfirmed()',h)
+
+    def test_footer_ornaments_do_not_cover_controls(self):
+        import re
+        h=read("UI/DuelHUD.lua")
+        gem_y,gem_h=map(int,re.search(r'Artwork\("gem",WIDTH/2-\d+,(\d+),\d+,(\d+),',h).groups())
+        for name in ("Challenge Target","Forfeit"):
+            x,y,w,height=map(int,re.search(r'Action\("'+name+r'",(\d+),(\d+),(\d+),(\d+),',h).groups())
+            self.assertLessEqual(y+height,gem_y)
+            self.assertGreaterEqual(x,38)
+            self.assertLessEqual(x+w,336-38)
+        self.assertLessEqual(gem_y+gem_h,310)

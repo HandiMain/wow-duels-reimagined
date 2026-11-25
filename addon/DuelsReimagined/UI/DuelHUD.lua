@@ -55,7 +55,7 @@ Artwork("sideEdge",WIDTH-11,27,10,262,"BORDER",true)
 Artwork("bottomEdge",25,297,WIDTH-50,12,"BORDER")
 Artwork("bottomLeft",0,278,38,31,"ARTWORK")
 Artwork("bottomRight",WIDTH-38,278,38,31,"ARTWORK")
-Artwork("gem",WIDTH/2-23,290,46,20,"OVERLAY")
+Artwork("gem",WIDTH/2-20,294,40,16,"OVERLAY")
 -- Timer is three independent decorations; no other UI pixels can leak.
 Artwork("timerFace",121,93,94,36)
 Artwork("timerBlade",69,101,48,15)
@@ -251,7 +251,7 @@ local function Native(fn,unit)
     end
     note:SetText("Request sent to Blizzard; awaiting observation.");return true
 end
-challenge=Action("Challenge Target",21,268,153,25,function()
+challenge=Action("Challenge Target",39,268,145,25,function()
     if preview or ns.CompetitivePreview.IsActive() or Combat() or not snap or snap.state~="idle" then return end
     local id=Identity("target");local self=Identity("player")
     local now=Now()
@@ -269,7 +269,7 @@ challenge=Action("Challenge Target",21,268,153,25,function()
         else note:SetText("Request not confirmed; try again") end
     end
 end,false)
-forfeit=Action("Forfeit",185,268,130,25,function()
+forfeit=Action("Forfeit",190,268,107,25,function()
     if preview or ns.CompetitivePreview.IsActive() or not snap or snap.state=="finishing" then return end
     if snap.challenge and snap.challenge.direction=="outgoing" then
         if not snap.challenge.requestConfirmed then ns.DuelDetection.DismissUnconfirmed()
