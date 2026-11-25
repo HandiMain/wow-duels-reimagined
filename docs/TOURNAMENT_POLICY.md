@@ -1,0 +1,19 @@
+# Tournament rules and safeguards — living policy
+
+Version 1 — approved decisions, 2026-11-25. Update this policy when the creator approves a change or a new rule; add regression coverage for changed behavior. Policy is intent, not evidence of implementation. See TOURNAMENTS.md and RELEASE_VERIFICATION.md for actual implementation and verification status.
+
+## Approved rules
+
+1. One active hosted tournament per player until cancellation or confirmed completion. Current simulated enforcement is per character GUID; account-wide enforcement is not established.
+2. Communities are isolated by client, region, supported ruleset and faction. No manual community switch or foreign tournament entries. Unknown identity fails closed.
+3. The original creator permanently owns the specific event. The creator cannot register for, compete in or earn competition rewards from their own tournament. Owner-only start, pre-start edits and cancellation. Never transfer ownership itself.
+4. Before actual start, the creator remains controller while offline, including events scheduled days ahead. No coordinator election just because the scheduled time arrives or creator is offline. Online peers may eventually relay discovery and pending registration requests; confirmation requires owner authority. No guaranteed offline availability or independent server. Offline relay and edits are not implemented.
+5. After actual start, temporary coordination may migrate to an eligible participant if the creator disconnects. A coordinator may synchronize and advance independently confirmed results, never edit the rules, cancel, transfer ownership, forge results or gain extra privileges in their own matches.
+6. When the creator reconnects, synchronize the latest authoritative checkpoint and automatically return coordination of that exact tournament to the creator, with a new authority generation. A stale creator copy cannot overwrite current progress. Reject stale coordinator messages.
+7. When there is insufficient reliable evidence, or everyone is disconnected, pause rather than invent progress, remove participants or release ownership. Silence is unknown connectivity, not definitive offline status. Preserve confirmed registration and confirmed results; do not infer a defeat merely from disconnection. Explicit no-show, grace period, withdrawal and dispute decisions require later policy approval.
+8. Frozen checked-in roster, deterministic bracket, BO1/3/5 and bilateral matching result evidence. Byes are not wins. No ranking or champion credit from test fixtures. Disputes pause advancement; no provisional champion releases ownership.
+9. Separate tournament and ranked systems, reuse shared storage/communication/duel evidence. Simulated tests cannot prove live transport, persistence or distributed authority. Keep live gates closed until verified.
+
+## Implementation choices awaiting further review
+
+Stage 7A uses one injected simulated journal and monotonically increasing control terms. Handoff and handback require identical bracket checkpoint copies from ALL frozen checked-in participants, online observed candidate, and synchronized creator copy for handback. This conservative policy can block progress if even one participant is absent; it is not a final election policy and does not establish distributed consensus. Trusted fixture observation adapter, not a live sender identity or election certificate. Later work must define durable election votes, term fencing across independent peer stores, roster/bracket replication, creator handback during partial connectivity, offline registration, real connectivity observation, completion/reward proof, dispute/no-show resolution and retention. Changes to these choices should be explicit and tested.

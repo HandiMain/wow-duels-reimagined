@@ -12,6 +12,59 @@ local function Equal(a,b)
     for k in pairs(b) do if a[k]==nil then return false end end
     return true
 end
+-- Control is a term-fenced projection of the existing organizer journal.
+-- The fixture adapter supplies observed connections and exact checkpoints;
+-- neither raw packets nor a timeout alone confer authority.
+local function Control(bracket,raw)
+    if not bracket or type(raw)~="table" or not Whole(raw.term,1,2147483647)
+        or type(raw.paused)~="boolean" then return nil end
+    local owner=bracket.checkpoint.ad.owner
+    local eligible=raw.coordinator==owner
+    for _,m in ipairs(bracket.checkpoint.roster) do
+        if m.checkedIn and m.guid==raw.coordinator then eligible=true end
+    end
+    if not eligible or (raw.term==1 and raw.coordinator~=owner) then return nil end
+    local clean={term=raw.term,coordinator=raw.coordinator,paused=raw.paused}
+    if Equal(clean,raw) then return clean end
+end
+function R.InitialControl(bracket)
+    if not bracket then return nil end
+    return {term=1,coordinator=bracket.checkpoint.ad.owner,paused=false}
+end
+-- Conservative unanimity of the frozen checked-in electorate. No claim of
+-- distributed consensus: only one injected storage root is authoritative.
+function R.ReconcileControl(bracket,control,connections,copies)
+    local c=Control(bracket,control)
+    if not c or c.term>=2147483647 or type(connections)~="table" or type(copies)~="table" then return nil end
+    local owner=bracket.checkpoint.ad.owner
+    local ownerState=connections[owner]
+    local coordinatorState=connections[c.coordinator]
+    local function State(v) return v=="online" or v=="offline" or v=="unknown" end
+    if not State(ownerState) or not State(coordinatorState) then return nil end
+    local preferred=ownerState=="online" and owner or nil
+    if not preferred and ownerState=="offline" then
+        for _,m in ipairs(bracket.checkpoint.roster) do
+            if m.checkedIn and connections[m.guid]=="online" then preferred=m.guid;break end
+        end
+        -- Avoid unnecessary migration between available participants.
+        if c.coordinator~=owner and coordinatorState=="online" then preferred=c.coordinator end
+    end
+    if not c.paused then
+        if coordinatorState=="online" and (not preferred or preferred==c.coordinator) then return nil end
+        return {term=c.term+1,coordinator=c.coordinator,paused=true}
+    end
+    if not preferred or connections[preferred]~="online" then return nil end
+    local voters={}
+    for _,m in ipairs(bracket.checkpoint.roster) do
+        if m.checkedIn then
+            voters[m.guid]=true
+            if connections[m.guid]~="online" or not Equal(copies[m.guid],bracket) then return nil end
+        end
+    end
+    if preferred==owner and not Equal(copies[owner],bracket) then return nil end
+    for guid in pairs(copies) do if guid~=owner and not voters[guid] then return nil end end
+    return {term=c.term+1,coordinator=preferred,paused=false}
+end
 function R.Validate(client,character,raw)
     if not Guid(character) or (client~="retail" and client~="forever") then return nil end
     if raw==nil then return {version=1,scope="SIMULATED",client=client,character=character,revision=0,sequence=0} end
@@ -62,7 +115,9 @@ function R.Validate(client,character,raw)
         local engine=b and b.OpenSimulated(scope,character,raw.bracket)
         if not engine then return nil end
         out.bracket=engine.Save()
-    end
+        out.control=Control(out.bracket,raw.control)
+        if not out.control then return nil end
+    elseif raw.control~=nil then return nil end
     -- Compact terminal evidence is never evicted to make room for a new cup.
     if raw.cancelled~=nil then
         if type(raw.cancelled)~="table" then return nil end
@@ -108,12 +163,23 @@ function R.Transition(old,new,action)
     end
     if not Equal(expected,new.cancelled or {}) then return false end
     local before,after=old.bracket,new.bracket
+    local oc,nc=old.control,new.control
+    if action=="control_change" then
+        if not before or not after or not oc or not nc or nc.term~=oc.term+1 or oc.paused==nc.paused
+            or not Equal(before,after) or not Equal(x,y) or not Same(old.commitment,new.commitment)
+            or old.pending or new.pending or new.sequence~=old.sequence then return false end
+        return not nc.paused or nc.coordinator==oc.coordinator
+    elseif action=="bracket_start" then
+        if oc or not nc or not Equal(nc,R.InitialControl(after)) then return false end
+    elseif action=="host_cancel" then
+        if nc then return false end
+    elseif not Equal(oc,nc) then return false end
     if action=="bracket_start" or action=="bracket_report" then
         if not x or not y or not old.commitment or old.commitment.role~="host"
             or not Same(old.commitment,new.commitment) or old.pending or new.pending
             or new.sequence~=old.sequence or not Equal(x,y) or not after then return false end
         if action=="bracket_start" then return not before and #after.reports==0 end
-        if not before or before.startedAt~=after.startedAt or not Equal(before.checkpoint,after.checkpoint)
+        if not oc or oc.paused or not before or before.startedAt~=after.startedAt or not Equal(before.checkpoint,after.checkpoint)
             or #after.reports~=#before.reports+1 then return false end
         for i,v in ipairs(before.reports) do if not Equal(v,after.reports[i]) then return false end end
         return true
