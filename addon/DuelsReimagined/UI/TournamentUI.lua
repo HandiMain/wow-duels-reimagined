@@ -326,6 +326,7 @@ local leave=Action(myPanel,"Leave Test",function()Run("leave","browse")end)
 local myHost=Action(myPanel,"Organizer View",function()Run("host","manage")end)
 local sampleStart=Action(myPanel,"Simulate Tournament Start",function()Run("start-bracket","brackets")end)
 local sampleGame=Action(myPanel,"Simulate Next Game",function()Run("simulate-game","brackets")end)
+local bracketGame=Action(bracketPanel,"Simulate Next Game",function()Run("simulate-game")end)
 local matchNotice=Action(myPanel,"Preview Match Notification",function()
     local ok,why=ns.Notifications.PreviewTournamentReady()
     feedback=ok and "Match notification shown." or why or "Notification unavailable."
@@ -386,6 +387,7 @@ local function RefreshTest()
     hostSim:SetShown(not not (hosting and started and p.bracket.state=="running"))
     sampleStart:SetShown(not not (player and p.mode=="join" and not started and p.member and p.member.checkedIn))
     sampleGame:SetShown(not not (player and started and p.bracket.state=="running"))
+    bracketGame:SetShown(not not (started and p.bracket.state=="running"))
     myHost:SetShown(not not (player and not p.mode))
     if not started and bracketView then bracketView.Hide() end
     if hosting then
@@ -413,7 +415,7 @@ local function RefreshTest()
                 "Your next opponent\n"..m.opponent.."\n\nSeries score: "..m.score.." - "..m.opponentScore..
                 "\n\nMatch ready - gameplay preview not connected yet.\n"..feedback)
         elseif p.member then
-            local summary=p.bracket and (p.bracket.champion and "Simulated champion: "..(p.names[p.bracket.champion] or "Unknown") or "Waiting for the next match.") or (p.member.checkedIn and "Checked in" or "Registered")
+            local summary=p.bracket and (p.bracket.champion and "Simulated champion: "..(p.names[p.bracket.champion] or "Unknown") or p.state=="eliminated" and "Eliminated - follow the remaining matches." or "Waiting for the next match.") or (p.member.checkedIn and "Checked in" or "Registered")
             myPanel.detail:SetText(Describe(p.event).."\n"..summary.."\n"..feedback)
         end
     elseif listings then
@@ -456,7 +458,7 @@ local function Layout()
         page:SetPoint("BOTTOMRIGHT",canvas,"BOTTOMRIGHT",0,0)
     end
     if active=="overview" then
-        local heroH=wide and 184 or 220
+        local heroH=(wide and 184 or 220)+(listings and 38 or 0)
         Place(hero,overview,0,0,w,heroH);Header(hero,w)
         local artW=math.min(190,w*.28)
         Place(hero.emblem,hero,16,48,artW,artW*.70)
@@ -471,6 +473,8 @@ local function Layout()
         if p then
             Place(resumeTest,hero,x,110,room,30)
             Place(endTest,hero,x,146,room,28)
+        elseif listings then
+            Place(endTest,hero,x,wide and 150 or 190,room,28)
         end
         Place(open,overview,0,heroH+12,w,132);Header(open,w)
         TextAt(open.detail,open,12,42,w-24,42)
@@ -554,6 +558,7 @@ local function Layout()
                 Place(myHost,f,12,h-36,w-24,28)
             elseif active=="brackets" and p and p.bracket then
                 h=math.max(h,260);Place(f,pages[active],0,0,w,h)
+                Place(bracketGame,bracketPanel,math.max(12,w-194),6,182,27)
                 if not bracketView then bracketView=ns.BracketView.New(bracketPanel) end
                 f.detail:SetShown(not bracketView.Show(p,w,h))
                 f.detail:SetText("Bracket unavailable.")

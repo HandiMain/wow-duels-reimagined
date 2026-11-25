@@ -2084,14 +2084,15 @@ local function Current()
     if catalog and key~=catalog.key then catalog=nil end
     return preview
 end
-local function MakeCatalog(s,a,n)
+local function MakeCatalog(s,a,n,formatter)
     local data={key=P.Key(s),entries={}}
     local titles={"Duskblade Invitational","Iron Ring Cup","Emberfall Open","Stormcrest Championship"}
-    local locations={"Elwynn Forest","Durotar","Dun Morogh","Tirisfal Glades"}
+    local locations=s.faction=="Alliance" and {"Elwynn Forest","Dun Morogh","Westfall","Loch Modan"} or
+        {"Durotar","Tirisfal Glades","Mulgore","The Barrens"}
     for i,size in ipairs({4,8,16,32}) do
         local d=T.DraftDefaults();d.name=titles[i];d.location=locations[i]
         -- UTC fixture scheduling relative to the actual session, not a fixed old date.
-        d.startUTC=Read(date,"!%Y-%m-%d %H:%M",math.floor(n/60)*60+(i+2)*3600)
+        d.startUTC=Read(formatter or date,"!%Y-%m-%d %H:%M",math.floor(n/60)*60+(i+2)*3600)
         d.capacity=size;d.bestOf=i%2==0 and 3 or 1
         d=T.ValidateDraft(s.client,d,n,s.region,s.ruleset,s.faction)
         if not d then return nil end
@@ -2129,7 +2130,12 @@ function R.PreviewState()
     if x.role=="host" then return "hosting" end
     if x.bracket then
         local v=x.bracket.Snapshot()
-        if v.state=="completed" then return "eliminated" end
+        for _,round in ipairs(v.rounds) do
+            for _,m in ipairs(round) do
+                if m.state=="done" and not m.bye and (m.a==x.player.guid or m.b==x.player.guid)
+                    and m.winner~=x.player.guid then return "eliminated" end
+            end
+        end
         return "competing"
     end
     return x.joined and "registered" or "preview-browse"
@@ -2166,6 +2172,29 @@ function R.PreviewSnapshot()
         roster=x.role=="host" and rows or nil,member=member,now=x.now,bracket=bracket,
         match=PreviewMatch(x,bracket),names=names,mode=x.mode}
 end
+local function SimulatePreviewGame(x)
+    local v=x.bracket.Snapshot()
+    if v.state~="running" then return false,"The test bracket is not running." end
+    local match
+    local own=PreviewMatch(x,v)
+    for _,round in ipairs(v.rounds) do
+        for _,m in ipairs(round) do
+            if m.state=="ready" and (not match or own and m.id==own.id) then match=m end
+        end
+    end
+    if not match then return false,"No test match is ready." end
+    local game=match.wins[1]+match.wins[2]+1
+    local winner=(v.revision+game+x.seed)%3==0 and match.b or match.a
+    local candidate=ns.TournamentBracket.OpenSimulated(x.scope,x.host.guid,x.bracket.Save())
+    if not candidate then return false,"Test bracket unavailable." end
+    local report={event=v.event,match=match.id,game=game,winner=winner,evidence="TEST:"..match.id..":"..game}
+    local ok,why=candidate.Report(match.a,report)
+    if not ok or why~="pending" then return false,"Test report unavailable." end
+    ok,why=candidate.Report(match.b,report)
+    if not ok or why~="confirmed" then return false,"Test result unavailable." end
+    x.bracket=candidate
+    return true,"Simulated game confirmed. No rating changes."
+end
 function R.PreviewAction(action)
     local x=Current();if not x then return false,"No local test tournament." end
     if action=="host" or action=="player" then
@@ -2174,29 +2203,7 @@ function R.PreviewAction(action)
     end
     if action=="fill" and x.mode=="host" and not x.bracket then return FillPreview(x,x.engine.Ad().draft.capacity) end
     if action=="start-bracket" and x.mode=="join" and x.role=="player" then return StartPreviewBracket(x) end
-    if action=="simulate-game" and x.bracket then
-        local v=x.bracket.Snapshot()
-        if v.state~="running" then return false,"The test bracket is not running." end
-        local match
-        local own=PreviewMatch(x,v)
-        for _,round in ipairs(v.rounds) do
-            for _,m in ipairs(round) do
-                if m.state=="ready" and (not match or own and m.id==own.id) then match=m end
-            end
-        end
-        if not match then return false,"No test match is ready." end
-        local game=match.wins[1]+match.wins[2]+1
-        local winner=(v.revision+game+x.seed)%3==0 and match.b or match.a
-        local candidate=ns.TournamentBracket.OpenSimulated(x.scope,x.host.guid,x.bracket.Save())
-        if not candidate then return false,"Test bracket unavailable." end
-        local report={event=v.event,match=match.id,game=game,winner=winner,evidence="TEST:"..match.id..":"..game}
-        local ok,why=candidate.Report(match.a,report)
-        if not ok or why~="pending" then return false,"Test report unavailable." end
-        ok,why=candidate.Report(match.b,report)
-        if not ok or why~="confirmed" then return false,"Test result unavailable." end
-        x.bracket=candidate
-        return true,"Simulated game confirmed. No rating changes."
-    end
+    if action=="simulate-game" and x.bracket then return SimulatePreviewGame(x) end
     if action=="cancel" and x.role=="host" then local ok,why=x.engine.Cancel(x.id,x.host.guid);if ok then R.EndPreview() end;return ok,why end
     if action=="start-bracket" and x.role=="host" then return StartPreviewBracket(x) end
     if x.bracket then return false,"The local test has already started." end
@@ -2263,6 +2270,18 @@ function R.RunShowcaseSelfTest(emit)
             local found=0
             for _,g in ipairs(v.slots) do if g then found=found+1 end end
             assert(found==7 and y.role=="player")
+            local rows=assert(MakeCatalog(s,a,n,date or os and os.date))
+            assert(#rows.entries==4)
+            for i,e in ipairs(rows.entries) do
+                local ad=e.engine.Ad()
+                assert(P.Matches(s,ad) and ad.count<ad.draft.capacity and ad.draft.capacity==2^(i+1))
+            end
+            local games=0
+            while x.bracket.Snapshot().state=="running" do
+                assert(SimulatePreviewGame(x));games=games+1;assert(games<=7)
+            end
+            assert(games==7 and x.bracket.Snapshot().champion)
+            assert(not SimulatePreviewGame(x))
         end)
         if ok then p=p+1 else f=f+1 end
         emit("DR | SIMULATED | "..(ok and "PASS " or "FAIL ")..client.." hosted and joined showcase draw"..(ok and "" or ": "..tostring(err)))
