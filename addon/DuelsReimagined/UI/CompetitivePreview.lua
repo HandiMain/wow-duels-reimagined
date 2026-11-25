@@ -184,7 +184,9 @@ function P.Command(command)
     if not TEST_ENABLED then return false,"Solo simulation is unavailable in this build." end
     if command=="help" then return true,"/duels sim start | [unranked/pending] win/loss [1-20] | unknown/fled/retreat [1-20] | reset | stop | status" end
     if command=="stop" then
-        session,cached=nil,nil;Refresh();return true,"Simulation discarded. Real data view restored."
+        session,cached=nil,nil
+        if ns.Notifications and ns.Notifications.ResetAchievementPreview then ns.Notifications.ResetAchievementPreview() end
+        Refresh();return true,"Simulation discarded. Real data view restored."
     end
     if command=="status" then
         return true,session and ("SIMULATED: "..#session.." duels; /duels sim stop to exit.") or "Simulation inactive."
@@ -192,7 +194,9 @@ function P.Command(command)
     if command=="start" or command=="reset" then
         local ok,data=pcall(Build,ns.Client.Kind(),{})
         if not ok then return false,"Could not initialize test session." end
-        session,cached={},data;Refresh();return true,"Empty SIMULATED session. No real data changed."
+        session,cached={},data
+        if ns.Notifications and ns.Notifications.ResetAchievementPreview then ns.Notifications.ResetAchievementPreview() end
+        Refresh();return true,"Empty SIMULATED session. No real data changed."
     end
     local mode,rest=command:match("^(%a+)%s+(.+)$")
     if mode~="practice" and mode~="unranked" and mode~="pending" then mode,rest="ranked",command end

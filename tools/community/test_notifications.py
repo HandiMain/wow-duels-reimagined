@@ -55,3 +55,20 @@ class NotificationTests(unittest.TestCase):
         u=read("UI/Notifications.lua")
         self.assertIn("local PROMOTION_SOUND_SECONDS=8.04",u)
         self.assertIn("PROMOTION_SOUND_SECONDS+2",u)
+
+    def test_achievement_art_audio_and_shared_bridge(self):
+        import hashlib,struct
+        def blob(data):
+            return hashlib.sha1(b"blob "+str(len(data)).encode()+b"\0"+data).hexdigest()
+        sound=(ROOT/"Media/Sounds/Notifications/Achievement.mp3").read_bytes()
+        self.assertEqual(blob(sound),"ef355c8d9ba8721fad79df44a03f581bfdb0be81")
+        art=(ROOT/"Media/Skin/AchievementNotificationArt.png").read_bytes()
+        self.assertEqual(blob(art),"3fe53bb5c77bccfda64ae9c0ef253ff4526be1df")
+        self.assertEqual(struct.unpack(">II",art[16:24]),(1024,512))
+        u=read("UI/Notifications.lua")
+        for token in ('ACHIEVEMENT_SOUND_SECONDS=6.426094','ACHIEVEMENT_SOUND_SECONDS+2',
+                      'pcall(PlaySoundFile,ACHIEVEMENT_SOUND,"SFX")','ns.AchievementUI.PaintAchievementIcon',
+                      'function N.CheckAchievements()','function N.ResetAchievementPreview()'):
+            self.assertIn(token,u)
+        self.assertIn('message=="notify achievement"',read("Core/Commands.lua"))
+        self.assertIn('Preview achievement notification',read("UI/Options.lua"))

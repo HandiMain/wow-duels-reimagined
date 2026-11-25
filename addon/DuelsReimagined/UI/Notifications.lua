@@ -10,6 +10,10 @@ local PROMOTION_SOUND="Interface\\AddOns\\DuelsReimagined\\Media\\Sounds\\Notifi
 local PROMOTION_ART="Interface\\AddOns\\DuelsReimagined\\Media\\Skin\\RankPromotionArt.tga"
 -- Original MP3 measured with ffprobe: 8.040 seconds.
 local PROMOTION_SOUND_SECONDS=8.04
+local ACHIEVEMENT_SOUND="Interface\\AddOns\\DuelsReimagined\\Media\\Sounds\\Notifications\\Achievement.mp3"
+local ACHIEVEMENT_ART="Interface\\AddOns\\DuelsReimagined\\Media\\Skin\\AchievementNotificationArt.png"
+local ACHIEVEMENT_SOUND_SECONDS=6.426094
+local ACH_BODY,ACH_CONNECTOR,ACH_OVERLAP=140,51,19
 local card=CreateFrame("Frame","DuelsReimaginedNotificationCard",UIParent)
 card:SetSize(WIDTH,BODY+CONNECTOR);card:SetFrameStrata("HIGH")
 card:SetClampedToScreen(true);card:EnableMouse(true);card:Hide()
@@ -29,7 +33,7 @@ local function Region(parent,layer,x,y,w,h,ax,ay,aw,ah)
     t:SetTexCoord((ax+.5)/1024,(ax+aw-.5)/1024,(ay+.5)/512,(ay+ah-.5)/512)
     Position(t,parent,x,y,w,h);return t
 end
-Region(panel,"BACKGROUND",0,0,WIDTH,BODY,8,8,792,356)
+local defaultBackground=Region(panel,"BACKGROUND",0,0,WIDTH,BODY,8,8,792,356)
 -- Ornaments have their own alpha cells, no rectangular backdrop baked into
 -- the frame. Reserve a clean centered text lane between their inner tips.
 local ornamentLeft=Region(panel,"ARTWORK",32,14,88,20,820,112,192,44)
@@ -76,6 +80,31 @@ local ratingGain=RankLabel("",16,{.49,.92,.30,1},164,137,232,25)
 local rankColors={Aspirant={.76,.53,.32,1},Contender={.77,.81,.86,1},
     Veteran={.97,.77,.36,1},Duelist={.45,.79,1,1},
     Master={.58,.81,1,1},Grandmaster={1,.65,.28,1}}
+-- Achievement artwork is extracted from the approved rendered concept.
+-- Only the art is static. All strings and the achievement icon are live.
+local achievement=CreateFrame("Frame",nil,panel);achievement:SetAllPoints(panel);achievement:Hide()
+local function AchArt(parent,layer,x,y,w,h,ax,ay,aw,ah)
+    local t=parent:CreateTexture(nil,layer);t:SetTexture(ACHIEVEMENT_ART);SmoothTexture(t)
+    t:SetTexCoord((ax+.5)/1024,(ax+aw-.5)/1024,(ay+.5)/512,(ay+ah-.5)/512)
+    Position(t,parent,x,y,w,h);return t
+end
+local achGlow=AchArt(achievement,"BACKGROUND",77,-36,256,58,400,300,512,116)
+local achBody=AchArt(achievement,"ARTWORK",0,0,WIDTH,ACH_BODY,8,8,820,280)
+local achConnector=AchArt(card,"ARTWORK",122,ACH_BODY-ACH_OVERLAP,166,ACH_CONNECTOR,8,300,332,103)
+achConnector:Hide();achGlow:SetAlpha(0)
+local achIcon=achievement:CreateTexture(nil,"OVERLAY");SmoothTexture(achIcon)
+Position(achIcon,achievement,11,35,96,96)
+local function AchLabel(value,size,color,x,y,w,h)
+    local t=S.Text(achievement,value,size,color);t:SetJustifyH("CENTER")
+    Position(t,achievement,x,y,w,h)
+    if S.ConstrainText then S.ConstrainText(t,w,h,8) end
+    return t
+end
+local achCategory=AchLabel("ACHIEVEMENT UNLOCKED",13,C.pale,71,13,268,24)
+local achTitle=AchLabel("",22,C.pale,110,49,208,38)
+local achDescription=AchLabel("",12,C.text,110,86,208,40);achDescription:SetWordWrap(true)
+local achPoints=AchLabel("",20,C.pale,331,55,61,28)
+local achPointsLabel=AchLabel("Points",11,C.pale,331,80,61,18)
 local current,closing,shownSound,handle,animationKey
 local queue,seen={},{}
 local ready,loginDone=false,false
@@ -123,10 +152,11 @@ local function Play()
     local now=Plain(GetTime)
     -- Prevent overlap even when the client does not return a sound handle.
     if type(now)~="number" or now-lastSound<4.1 or type(PlaySoundFile)~="function" then return end
-    local path=current and current.kind=="promotion" and PROMOTION_SOUND or SOUND
+    local path=current and (current.kind=="promotion" and PROMOTION_SOUND or current.kind=="achievement" and ACHIEVEMENT_SOUND) or SOUND
     local ok,played,id
     if path==SOUND then ok,played,id=pcall(PlaySoundFile,SOUND,"SFX")
-    else ok,played,id=pcall(PlaySoundFile,PROMOTION_SOUND,"SFX") end
+    elseif path==PROMOTION_SOUND then ok,played,id=pcall(PlaySoundFile,PROMOTION_SOUND,"SFX")
+    else ok,played,id=pcall(PlaySoundFile,ACHIEVEMENT_SOUND,"SFX") end
     if ok and played==true then lastSound=now;handle=id end
 end
 local offset=0
@@ -136,15 +166,23 @@ local function Place()
     card:SetScale(scale)
     local factor=card:GetEffectiveScale()/UIParent:GetEffectiveScale()
     local below=false
+    local isAch=current and current.kind=="achievement"
+    local body=isAch and ACH_BODY or BODY
+    local extension=isAch and ACH_CONNECTOR-ACH_OVERLAP or CONNECTOR
+    card:SetSize(WIDTH,body+extension);panel:SetSize(WIDTH,body)
     if not HUDVisible() or not hud:GetTop() or not hud:GetBottom() then return false end
     local hf=hud:GetEffectiveScale()/UIParent:GetEffectiveScale()
     local top=hud:GetTop()*hf
-    below=UIParent:GetHeight()-top<(BODY+CONNECTOR+8)*factor and hud:GetBottom()*hf>(BODY+CONNECTOR+8)*factor
+    below=UIParent:GetHeight()-top<(body+extension+8)*factor and hud:GetBottom()*hf>(body+extension+8)*factor
     card:ClearAllPoints()
     if below then card:SetPoint("TOP",hud,"BOTTOM",0,-2+offset)
     else card:SetPoint("BOTTOM",hud,"TOP",0,2-offset) end
     panel:ClearAllPoints()
-    panel:SetPoint("TOPLEFT",card,"TOPLEFT",0,below and -CONNECTOR or 0)
+    panel:SetPoint("TOPLEFT",card,"TOPLEFT",0,below and -extension or 0)
+    if isAch then
+        Position(achConnector,card,122,below and 0 or body-ACH_OVERLAP,166,ACH_CONNECTOR)
+        achConnector:SetTexCoord(8.5/1024,339.5/1024,(below and 402.5 or 300.5)/512,(below and 300.5 or 402.5)/512)
+    end
     Position(connector,card,0,below and 0 or BODY,WIDTH,CONNECTOR)
     if below then connector:SetTexCoord(8.5/1024,799.5/1024,437.5/512,372.5/512)
     else connector:SetTexCoord(8.5/1024,799.5/1024,372.5/512,437.5/512) end
@@ -161,6 +199,8 @@ local function Animate(from,to,duration,done)
         offset=(1-v)*18;card:SetAlpha(v)
         if current and current.kind=="promotion" then
             glow:SetAlpha(0);rankHeaderGlow:SetAlpha(v*.82);rankHalo:SetAlpha(v*.68)
+        elseif current and current.kind=="achievement" then
+            glow:SetAlpha(0);achGlow:SetAlpha(v*.85)
         else glow:SetAlpha(v*.85) end
         Place()
         if v==to then animationKey=nil;if done then done() end end
@@ -237,11 +277,23 @@ rankClose:SetTexCoord(372.25/512,395.75/512,205.25/512,228.75/512)
 SmoothTexture(rankClose);rankClose:Hide()
 local function Paint(m)
     local ranked=m.kind=="promotion"
+    local achieved=m.kind=="achievement"
     for _,region in ipairs({ornamentLeft,ornamentRight,emblem,category,heading,description,updateAction,updateDismiss,closeText}) do
-        Visible(region,not ranked)
+        Visible(region,not ranked and not achieved)
     end
-    Visible(promotion,ranked);Visible(rankClose,ranked)
-    if ranked then
+    Visible(defaultBackground,not achieved);Visible(connector,not achieved)
+    Visible(achievement,achieved);Visible(achConnector,achieved)
+    Visible(promotion,ranked);Visible(rankClose,ranked or achieved)
+    if achieved then
+        Position(close,panel,WIDTH-27,32,19,19)
+        achCategory:SetText(m.preview and "PREVIEW: Achievement unlocked" or "ACHIEVEMENT UNLOCKED")
+        ns.AchievementUI.PaintAchievementIcon(achIcon,m.achievement.id,false)
+        achTitle:SetText(m.achievement.title);achDescription:SetText(m.achievement.description)
+        achPoints:SetText("+"..m.achievement.points)
+        local rarityColors={{1,.78,.36},{.57,1,.43},{.39,.70,1},{.80,.48,1},{1,.67,.22}}
+        local color=rarityColors[m.achievement.rarity] or rarityColors[1]
+        achGlow:SetVertexColor(color[1],color[2],color[3],1)
+    elseif ranked then
         Position(close,panel,WIDTH-29,8,23,23)
         rankCategory:SetText(m.preview and "PREVIEW: Rank promotion" or "RANK PROMOTION")
         rankArt.Paint(m.newRank)
@@ -259,8 +311,8 @@ local function Paint(m)
     end
 end
 local function StartExpiry()
-    if not current or current.kind~="promotion" or not C_Timer or not C_Timer.NewTimer then return end
-    local seconds=expiryRemaining or (PROMOTION_SOUND_SECONDS+2)
+    if not current or (current.kind~="promotion" and current.kind~="achievement") or not C_Timer or not C_Timer.NewTimer then return end
+    local seconds=expiryRemaining or (current.kind=="achievement" and ACHIEVEMENT_SOUND_SECONDS+2 or PROMOTION_SOUND_SECONDS+2)
     local now=Plain(GetTime)
     expiryAt=type(now)=="number" and now+seconds or nil
     local m=current
@@ -275,8 +327,8 @@ local function Celebrate()
     local key={};rankGlowKey=key
     M.Value(key,1,0,.95,function(_,v)
         if rankGlowKey~=key then return end
-        rankHeaderGlow:SetAlpha(.72+.28*v)
-        rankHalo:SetAlpha(.58+.42*v)
+        if current and current.kind=="achievement" then achGlow:SetAlpha(.72+.28*v)
+        else rankHeaderGlow:SetAlpha(.72+.28*v);rankHalo:SetAlpha(.58+.42*v) end
         if v==0 then rankGlowKey=nil end
     end)
 end
@@ -284,7 +336,7 @@ local function ShowCurrent()
     if not current or card:IsShown() then return end
     Paint(current);offset=18;if not Place() then return end;card:SetAlpha(0);card:Show()
     if not current.preview then seen[current.id]=true end
-    local isPromotion=current.kind=="promotion"
+    local isPromotion=current.kind=="promotion" or current.kind=="achievement"
     local firstAppearance=not promotionCelebrated
     if isPromotion then promotionCelebrated=true end
     -- The shared entrance owns the glow until complete; celebration owns
@@ -366,6 +418,53 @@ function N.PreviewPromotion()
     return Enqueue({id="preview:promotion",kind="promotion",preview=true,
         oldRank=previous,newRank=nextRank,gain=24})
 end
+-- Only the achievement engine decides what is earned. The notification
+-- bridge keeps ephemeral observed state, not a second progression database.
+-- Existing earned rows are silently baselined, including after reload.
+local observedLive,observedSim={},{}
+local function ReadAchievements()
+    if not ns.Achievements or not ns.CompetitivePreview then return end
+    local source=ns.CompetitivePreview
+    if not source.IsActive() and not ns.CompetitiveStorage.LocalRecordingEnabled() then return end
+    local ok,data=pcall(function()return ns.Achievements.Evaluate(source.Get())end)
+    if ok and not data.storageReason and not data.recordingDisabled then return data end
+end
+function N.CheckAchievements()
+    if not ready then return end
+    local data=ReadAchievements()
+    if not data then return end
+    local simulated=data.scope=="SIMULATED"
+    local observed=simulated and observedSim or observedLive
+    for _,row in ipairs(data.rows) do
+        if not row.unavailable then
+            local previous=observed[row.id]
+            if previous==nil then observed[row.id]=row.earned
+            elseif row.earned and not previous then
+                observed[row.id]=true
+                Enqueue({id=(simulated and "sim:achievement:" or "achievement:")..row.id,
+                    kind="achievement",preview=simulated,simulated=simulated,achievement=row})
+            end
+        end
+    end
+end
+function N.ResetAchievementPreview()
+    observedSim={}
+    for i=#queue,1,-1 do if queue[i].simulated then table.remove(queue,i) end end
+    if current and current.simulated then Clear() end
+    Pump()
+end
+function N.PreviewAchievement()
+    if not PREVIEW_ENABLED or not ready then return false,"Preview unavailable" end
+    if Blocked() then return false,"Finish your duel or combat first" end
+    if not Settings.Get("notificationEnabled") then return false,"Notifications are disabled" end
+    if not HUDVisible() then return false,"Show the Duel HUD to receive notifications" end
+    if current or #queue>0 then return false,"Dismiss the current notification first" end
+    local sample=ns.Achievements.Evaluate({scope="SIMULATED",matches={{id="preview",kind="standard",outcome="won"}}})
+    for _,row in ipairs(sample.rows) do if row.id=="first" and row.earned then
+        return Enqueue({id="preview:achievement",kind="achievement",preview=true,achievement=row})
+    end end
+    return false,"Preview unavailable"
+end
 function N.GetDiagnosticResources()
     return {subscriptions=(unsubscribePresence and 1 or 0)+(unsubscribeDuel and 1 or 0),
         timers=delayCount,queued=#queue}
@@ -382,6 +481,7 @@ events:SetScript("OnEvent",function(_,event)
         local hud=ns.DuelHUD.GetNotificationAnchor()
         hud:HookScript("OnShow",N.Refresh);hud:HookScript("OnHide",N.Refresh)
         ns.UpdateNotices.Observe(ns.Presence.GetSnapshot())
+        N.CheckAchievements()
         if C_Timer and C_Timer.After then
             delayCount=delayCount+1;C_Timer.After(10,function()
                 delayCount=delayCount-1;loginDone=true;Update()

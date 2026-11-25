@@ -46,15 +46,20 @@ _G.C_Timer={After=function(_,fn)timers[#timers+1]=fn end,NewTimer=function(secon
 end}
 local played,stopped,lastPlayedPath=0,0,nil
 _G.PlaySoundFile=function(path,channel)
-    assert((path:find("General.mp3",1,true) or path:find("RankPromotion.mp3",1,true)) and channel=="SFX")
+    assert((path:find("General.mp3",1,true) or path:find("RankPromotion.mp3",1,true) or path:find("Achievement.mp3",1,true)) and channel=="SFX")
     lastPlayedPath=path;played=played+1;return true,played
 end
 _G.StopSound=function()stopped=stopped+1 end
 local prefs={notificationEnabled=true,notificationSounds=true}
+local simulation=false;local simulatedMatches={}
+local localEnabled=false;local localMatches={}
 local snoozed,pc,dc,links
 links=0
 local ns={
     Client={IsSupported=function()return true end},
+    AchievementUI={PaintAchievementIcon=function(f,id)f.achievementID=id end},
+    CompetitiveStorage={LocalRecordingEnabled=function()return localEnabled end},
+    CompetitivePreview={IsActive=function()return simulation end,Get=function()return {scope=simulation and "SIMULATED" or "LOCAL",matches=simulation and simulatedMatches or localMatches}end},
     CompetitiveUI={CreateRankEmblem=function(parent)
         local f=Frame("Rank",nil,parent);f.Paint=function(r)f.rank=r end;return f
     end},
@@ -88,6 +93,7 @@ assert(not U.Select("0.1.0",R("9.9.9","9.9.9")))
 local stale=R("0.1.1","0.1.1");stale.stale=true;assert(not U.Select("0.1.0",stale))
 U.Observe(R("0.1.1","0.1.1"));assert(not U.GetNotice())
 assert(loadfile(root.."Core/SeasonRules.lua"))("DuelsReimagined",ns)
+assert(loadfile(root.."Core/Achievements.lua"))("DuelsReimagined",ns)
 assert(loadfile(root.."UI/Notifications.lua"))("DuelsReimagined",ns)
 local card,events
 for _,f in ipairs(frames) do
@@ -152,3 +158,30 @@ hud:Show();hud.scripts.OnShow();assert(not card:IsShown())
 assert(N.PreviewPromotion() and card:IsShown())
 prefs.notificationEnabled=false;N.Refresh();assert(not card:IsShown())
 print("Rank promotion mock: PASS (shared folded anchor, hide clears queue/audio/expiry, no stale preview, update restoration)")
+
+prefs.notificationEnabled=true;now=180;assert(N.PreviewAchievement() and card:IsShown())
+assert(lastPlayedPath:find("Achievement.mp3",1,true) and math.abs(expiry[#expiry].seconds-8.426094)<.001)
+assert(card:GetHeight()==172 and not buttons["Got it"]:IsShown())
+local foundIcon,foundPoints=false,false
+for _,f in ipairs(frames) do
+    if f.achievementID=="first" then foundIcon=true end
+    if f.text=="+5" then foundPoints=true end
+end
+assert(foundIcon and foundPoints)
+expiry[#expiry].fn();flush();assert(not card:IsShown())
+simulation=true;simulatedMatches={};N.ResetAchievementPreview();N.CheckAchievements()
+now=190;simulatedMatches={{id="a",kind="standard",outcome="won"}}
+N.CheckAchievements();assert(card:IsShown() and N.GetDiagnosticResources().queued==1)
+N.CheckAchievements();assert(N.GetDiagnosticResources().queued==1)
+now=199;expiry[#expiry].fn();flush();assert(card:IsShown() and N.GetDiagnosticResources().queued==0)
+N.ResetAchievementPreview();assert(not card:IsShown())
+simulation=false
+localEnabled=true;localMatches={{id="old",kind="standard",outcome="won"}}
+N.CheckAchievements();assert(not card:IsShown(),"existing achievements must not replay")
+now=210;table.insert(localMatches,1,{id="new",kind="standard",outcome="won"});N.CheckAchievements()
+assert(card:IsShown() and N.GetDiagnosticResources().queued==0)
+hud:Hide();hud.scripts.OnHide();assert(not card:IsShown() and N.GetDiagnosticResources().queued==0)
+hud:Show();hud.scripts.OnShow();N.CheckAchievements();assert(not card:IsShown())
+now=230;assert(N.PreviewPromotion() and card:GetHeight()==218);prefs.notificationEnabled=false;N.Refresh()
+assert(not card:IsShown() and N.GetDiagnosticResources().timers==0)
+print("Achievement notification mock: PASS (asset selection, duration, queue, baseline, reset, visibility, shared size restore)")

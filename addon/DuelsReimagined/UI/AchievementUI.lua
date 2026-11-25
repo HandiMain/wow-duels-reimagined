@@ -19,6 +19,9 @@ end
 local function PaintIcon(t,slot)
     Sample(t,(slot%6)*128+1,math.floor(slot/6)*128+1,126,126)
 end
+function U.PaintAchievementIcon(t,id,hidden)
+    PaintIcon(t,hidden and HIDDEN_SLOT or iconSlots[id] or HIDDEN_SLOT)
+end
 local function Place(f,p,x,y,w,h)
     f:ClearAllPoints();f:SetPoint("TOPLEFT",p,"TOPLEFT",x,-y);f:SetSize(math.max(1,w),math.max(1,h))
 end
@@ -119,7 +122,7 @@ local function Paint(f,r,w,h)
     local rim=f.skin and f.skin.groups and f.skin.groups[4]
     if rim then for _,t in ipairs(rim.regions) do t:SetVertexColor(color[1],color[2],color[3],1) end end
     local sz=h-10;Place(f.icon,f,5,5,sz,sz)
-    PaintIcon(f.icon,r.hidden and HIDDEN_SLOT or iconSlots[r.id] or HIDDEN_SLOT)
+    U.PaintAchievementIcon(f.icon,r.id,r.hidden)
     local locked=r.unavailable or (not r.earned and r.progress==0)
     -- Keep authored metal and colored silhouettes readable even when locked.
     -- The existing state text and subdued rim distinguish unavailable rows.
@@ -205,6 +208,7 @@ end
 function U.GetPageScroll()return offset end
 function U.SetPageScroll(_,v)offset=math.max(0,math.floor(tonumber(v) or 0));Render()end
 function U.Refresh()
+    if ns.Notifications and ns.Notifications.CheckAchievements then ns.Notifications.CheckAchievements() end
     if not shown or not page:IsVisible() then data=nil;return end
     local ok,result=pcall(function()return ns.Achievements.Evaluate(ns.CompetitivePreview.Get())end)
     if ok then data=result else
