@@ -404,7 +404,7 @@ local function WireClient(scope,cache,clock,resolve,store)
         local nextLock=status~="none" and {owner=commitment.owner,id=commitment.id,status=status} or nil
         if not Persist(seq,nextLock,nil,"ack") then return false end
         pending=nil;commitment=nextLock
-        return true,ok and "confirmed" or "refused"
+        return true,ok and "confirmed" or "refused",Number(a[6],1,2147483647)
     end
     return D
 end
@@ -550,6 +550,35 @@ function R.ValidateHostCheckpoint(client,owner,raw)
     local out={host=host,receipts=receipts}
     if Equal(out,raw) then return out end
 end
+-- Explicit one-page requests: no broadcast, no participant list to a
+-- non-member, no mixed-revision roster. Each page uses bounded fragments.
+local function RosterReply(s,actor,snap,body)
+    local a=Split(body);local ad=snap.ad
+    local nonce=Number(a[3],1,2147483647)
+    local rev=Number(a[5],1,2147483647)
+    local page=Number(a[6],0,32)
+    if #a~=6 or a[1]~="G" or a[2]~=P.Key(s) or not nonce or a[4]~=ad.id
+        or rev~=ad.revision or not page or page>ad.count or ad.state~="open" then return nil end
+    local member
+    for _,m in ipairs(snap.roster) do if m.guid==actor.guid then member=true;break end end
+    if not member then return nil end
+    local payload
+    if page==0 then payload=ad.id.."|"..EncodeAd(ad)
+    else
+        local m=snap.roster[page]
+        payload=table.concat({ad.id,m.guid,m.name,m.level,m.checkedIn and "1" or "0"},"|")
+    end
+    local encoded=Hex(payload)
+    local total=math.ceil(#encoded/CHUNK)
+    if total<1 or total>MAX_PARTS then return nil end
+    local result={}
+    for i=1,total do
+        local packet=table.concat({"B",P.Key(s),nonce,rev,page,i,total,encoded:sub((i-1)*CHUNK+1,i*CHUNK)},"|")
+        if not Packet(packet) then return nil end
+        result[i]=packet
+    end
+    return result
+end
 local function DurableHost(s,h,clock,resolve,store)
     local D={}
     local journal=store.ReadTournamentJournal()
@@ -570,6 +599,16 @@ local function DurableHost(s,h,clock,resolve,store)
         if action=="host_open" then candidate.sequence=candidate.sequence+1 end
         candidate.checkpoint={host=snap,receipts=wire and wire.SaveReceipts() or {}}
         local a=snap.ad
+        if action=="host_cancel" then
+            candidate.cancelled=candidate.cancelled or {}
+            candidate.cancelled[a.id]={population=key,revision=a.revision}
+        elseif action=="host_open" and journal.checkpoint then
+            local old=journal.checkpoint.host.ad
+            if old.state=="cancelled" then
+                candidate.cancelled=candidate.cancelled or {}
+                candidate.cancelled[old.id]={population=P.Key(old),revision=old.revision}
+            end
+        end
         candidate.commitment=a.state=="open" and {role="host",owner=h.guid,id=a.id,population=key,status="hosting"} or nil
         local saved=store.CommitTournamentJournal(journal.revision,candidate,action)
         if not saved then return false end
@@ -596,7 +635,18 @@ local function DurableHost(s,h,clock,resolve,store)
         if not Packet(body) then return nil end
         local actor=resolve(sender)
         if not Actor(s,actor) or actor.guid==h.guid or not Permit(actor) then return nil end
+        if not Fresh() then return nil end
+        local a=Split(body)
+        local seq=Number(a[3],1,2147483647)
+        if #a==5 and a[1]=="M" and a[2]==key and seq
+            and (a[4]=="J" or a[4]=="L" or a[4]=="C" or a[4]=="S") then
+            local terminal=journal.cancelled and journal.cancelled[a[5]]
+            if terminal and terminal.population==key then
+                return {table.concat({"X",key,seq,a[5],terminal.revision},"|")}
+            end
+        end
         local e=Open();if not e then return nil end
+        if a[1]=="G" then return RosterReply(s,actor,e.Save(),body) end
         local w=WireHost(s,h,e,resolve,journal.checkpoint.receipts)
         local reply=w.Receive(sender,body)
         if not reply then return nil end
@@ -633,6 +683,81 @@ local function Replica(s,owner,id)
     end
     function D.Snapshot() return Copy(current) end
     return D
+end
+
+-- Read-only roster assembly for a registered participant. A caller starts
+-- from an observed owner and the revision returned by a status receipt.
+-- Nonces here are fixture inputs; live session/epoch binding is still required.
+local function RosterReceiver(s,owner,id,rev,nonce,clock,resolve,replica)
+    if not P.Key(s) or not Guid(owner) or not Whole(rev,1,2147483647) or not Whole(nonce,1,2147483647) then return nil end
+    local D,ad,rows={},nil,{}
+    local pending,dead
+    function D.Request(page)
+        local now=Now(clock)
+        if dead or not now or not Whole(page,0,32) or (page~=0 and (not ad or page>ad.count)) then return nil end
+        if pending and now<pending.deadline then return nil end
+        if (page==0 and ad) or rows[page] then return nil end
+        pending={page=page,parts={},count=0,deadline=now+30}
+        return table.concat({"G",P.Key(s),nonce,id,rev,page},"|")
+    end
+    function D.Receive(sender,body)
+        local now=Now(clock)
+        if dead or not pending or not now or now>=pending.deadline or not Packet(body) then return false end
+        local actor=resolve(sender)
+        if not Actor(s,actor) or actor.guid~=owner then return false end
+        local a=Split(body)
+        if #a~=8 or a[1]~="B" or a[2]~=P.Key(s) or Number(a[3],1,2147483647)~=nonce
+            or Number(a[4],1,2147483647)~=rev or Number(a[5],0,32)~=pending.page then return false end
+        local i,n=Number(a[6],1,MAX_PARTS),Number(a[7],1,MAX_PARTS)
+        local chunk=a[8]
+        if not i or not n or i>n or #chunk<2 or #chunk>CHUNK or (i<n and #chunk~=CHUNK) or not Unhex(chunk) then return false end
+        if (pending.total and pending.total~=n) or (pending.parts[i] and pending.parts[i]~=chunk) then
+            dead=true;pending=nil;return false
+        end
+        pending.total=n
+        if not pending.parts[i] then pending.parts[i]=chunk;pending.count=pending.count+1 end
+        if pending.count<n then return true,"partial" end
+        local payload=Unhex(table.concat(pending.parts))
+        local page=pending.page;pending=nil
+        local event,rest=payload:match("^([^|]+)|(.+)$")
+        if event~=id then dead=true;return false end
+        if page==0 then
+            ad=DecodeAd(s,owner,rest)
+            if not ad or ad.id~=id or ad.revision~=rev or ad.state~="open" or ad.count<1 then dead=true;return false end
+        else
+            local fields=Split(rest)
+            local level=Number(fields[3],1,255)
+            if #fields~=4 or not Guid(fields[1]) or not Name(fields[2]) or not level
+                or (fields[4]~="0" and fields[4]~="1") then dead=true;return false end
+            rows[page]={guid=fields[1],name=fields[2],level=level,checkedIn=fields[4]=="1"}
+        end
+        if ad then
+            for i=1,ad.count do if not rows[i] then return true,"page" end end
+            dead=true
+            if replica.Accept(owner,{ad=ad,roster=rows}) then return true,"complete" end
+            return false
+        end
+        return true,"page"
+    end
+    return D
+end
+-- Coordinator handoff readiness is only a checkpoint agreement check.
+-- It never elects anyone, grants owner rights or advances the tournament.
+local function CheckpointAgreement(s,owner,snap,observations)
+    if type(snap)~="table" or type(snap.ad)~="table" or snap.ad.owner~=owner
+        or snap.ad.state~="open" or type(observations)~="table" then return false end
+    local h=Copy(s);h.guid=owner;h.name=snap.ad.organizer
+    local canonical=Checkpoint(s,h,snap)
+    if not canonical or canonical.ad.count<2 then return false end
+    local eligible={}
+    for _,m in ipairs(canonical.roster) do if m.checkedIn then eligible[m.guid]=true end end
+    local count=0
+    for guid,copy in pairs(observations) do
+        if not eligible[guid] or not Equal(copy,canonical) then return false end
+        count=count+1
+    end
+    local total=0;for _ in pairs(eligible) do total=total+1 end
+    return total>=2 and count==total
 end
 
 function R.RunRecoverySelfTest(emit)
@@ -750,6 +875,7 @@ function R.RunHostRecoverySelfTest(emit)
             local function Resolve(sender)if sender=="host" then return h elseif sender=="player" then return a elseif sender=="other" then return other end end
             local d=T.DraftDefaults();d.name="Host Recovery Cup";d.location="Meeting place";d.startUTC="2026-11-25 18:00";d.capacity=4
             x.draft=assert(T.ValidateDraft(client,d,n,s.region,s.ruleset,s.faction))
+            x.clock=clock;x.resolve=Resolve
             function x.Open()return DurableHost(s,h,clock,Resolve,x.Store("hostRoot"))end
             x.cache=assert(Cache(s,clock))
             function x.Player()return WireClient(s,x.cache,clock,Resolve,x.Store("playerRoot"))end
@@ -806,6 +932,103 @@ function R.RunHostRecoverySelfTest(emit)
             local copy=replica.Snapshot();copy.roster[1].name="Changed";assert(Equal(replica.Snapshot(),cp))
             assert(x.engine.Cancel(x.h.guid,x.ad.id) and replica.Accept(x.h.guid,x.engine.Snapshot()))
             assert(not replica.Accept(x.h.guid,cp))
+        end)
+        Case(client.." cancelled history survives new publication and organizer reopen",function()
+            local x=Fixture();local w,j,ack=Join(x)
+            assert(x.engine.Cancel(x.h.guid,x.ad.id))
+            local old=assert(x.Store("hostRoot").ReadTournamentJournal())
+            assert(old.cancelled[x.ad.id].population==P.Key(x.s))
+            local next=assert(x.engine.Publish(x.draft))
+            assert(next.id~=x.ad.id and next.count==0)
+            local recovered=assert(x.Open())
+            x.Advance()
+            local reply=assert(recovered.Receive("player",j))[1]
+            assert(reply:sub(1,2)=="X|" and not w.Receive("other",reply))
+            assert(w.Receive("host",reply) and not w.Status() and not w.Receive("host",ack))
+            assert(recovered.Snapshot().ad.id==next.id and recovered.Snapshot().ad.count==0)
+        end)
+        Case(client.." cancellation evidence cannot be silently removed or invented",function()
+            local x=Fixture();assert(x.engine.Cancel(x.h.guid,x.ad.id))
+            local store=x.Store("hostRoot");local old=assert(store.ReadTournamentJournal())
+            local candidate=Copy(old);candidate.revision=candidate.revision+1;candidate.sequence=candidate.sequence+1
+            candidate.cancelled={}
+            assert(not store.CommitTournamentJournal(old.revision,candidate,"query"))
+            candidate=Copy(old);candidate.revision=candidate.revision+1;candidate.sequence=candidate.sequence+1
+            candidate.cancelled[ID(x.h.guid,x.ad.publishedAt,99)]={population=P.Key(x.s),revision=2}
+            assert(not store.CommitTournamentJournal(old.revision,candidate,"query"))
+            assert(Equal(store.ReadTournamentJournal(),old))
+        end)
+        Case(client.." participant roster pages assemble atomically and reject wrong sender",function()
+            local x=Fixture();local w,j,ack=Join(x)
+            local ok,_,rev=w.Receive("host",ack);assert(ok and rev==2)
+            local replica=Replica(x.s,x.h.guid,x.ad.id)
+            local receiver=assert(RosterReceiver(x.s,x.h.guid,x.ad.id,rev,1,x.clock,x.resolve,replica))
+            x.Advance()
+            local request=assert(receiver.Request(0))
+            assert(not x.engine.Receive("other",request))
+            local frames=assert(x.engine.Receive("player",request))
+            assert(not receiver.Receive("other",frames[1]))
+            for i=#frames,1,-1 do
+                assert(#frames[i]+3<=240 and receiver.Receive("host",frames[i]))
+                if i>1 then assert(receiver.Receive("host",frames[i])) end
+            end
+            assert(not replica.Snapshot())
+            x.Advance()
+            local page=assert(x.engine.Receive("player",assert(receiver.Request(1))))
+            for _,p in ipairs(page) do assert(#p+3<=240 and receiver.Receive("host",p)) end
+            assert(Equal(replica.Snapshot(),x.engine.Snapshot()))
+            assert(not receiver.Receive("host",page[1]))
+        end)
+        Case(client.." roster revision change forces fresh request and preserves previous snapshot",function()
+            local x=Fixture();local w,j,ack=Join(x);assert(w.Receive("host",ack))
+            local previous=x.engine.Snapshot()
+            local replica=Replica(x.s,x.h.guid,x.ad.id);assert(replica.Accept(x.h.guid,previous))
+            local receiver=assert(RosterReceiver(x.s,x.h.guid,x.ad.id,previous.ad.revision,2,x.clock,x.resolve,replica))
+            x.Advance()
+            for _,p in ipairs(assert(x.engine.Receive("player",assert(receiver.Request(0))))) do assert(receiver.Receive("host",p)) end
+            x.Advance()
+            local otherJoin=table.concat({"M",P.Key(x.s),1,"J",x.ad.id},"|")
+            assert(x.engine.Receive("other",otherJoin))
+            assert(not x.engine.Receive("player",assert(receiver.Request(1))))
+            assert(Equal(replica.Snapshot(),previous))
+            x.Advance()
+            local q=assert(w.Action("S"));local result=assert(x.engine.Receive("player",q))[1]
+            local ok,_,rev=w.Receive("host",result);assert(ok and rev==previous.ad.revision+1)
+            local fresh=assert(RosterReceiver(x.s,x.h.guid,x.ad.id,rev,3,x.clock,x.resolve,replica))
+            for i=0,2 do
+                x.Advance()
+                for _,p in ipairs(assert(x.engine.Receive("player",assert(fresh.Request(i))))) do assert(fresh.Receive("host",p)) end
+            end
+            assert(Equal(replica.Snapshot(),x.engine.Snapshot()))
+        end)
+        Case(client.." full 32-player roster and exact checkpoint agreement",function()
+            local x=Fixture()
+            local d=T.DraftDefaults();d.name="Full Cup";d.location="Meeting place";d.startUTC="2026-11-25 18:00";d.capacity=32
+            d=assert(T.ValidateDraft(client,d,x.clock(),x.s.region,x.s.ruleset,x.s.faction))
+            local e=assert(Host(x.s,x.h,x.clock));local ad=assert(e.Publish(x.h.guid,d))
+            local actors={}
+            for i=1,32 do
+                local a=Copy(x.s);a.guid=string.format("Player-1-P%02d",i);a.name=string.rep("N",160);a.level=30
+                actors[i]=a;assert(e.Join(ad.id,a.guid,a))
+            end
+            local cp=e.Save();assert(cp.ad.count==32)
+            local replica=Replica(x.s,x.h.guid,ad.id)
+            local receiver=assert(RosterReceiver(x.s,x.h.guid,ad.id,cp.ad.revision,4,x.clock,x.resolve,replica))
+            for i=0,32 do
+                local reply=assert(RosterReply(x.s,actors[1],cp,assert(receiver.Request(i))))
+                for k=#reply,1,-1 do assert(#reply[k]+3<=240 and receiver.Receive("host",reply[k])) end
+                if i<32 then assert(not replica.Snapshot()) end
+            end
+            assert(Equal(cp,replica.Snapshot()))
+            assert(not CheckpointAgreement(x.s,x.h.guid,cp,{}))
+            x.Advance(cp.ad.draft.startAt-1800-x.clock())
+            assert(e.CheckIn(ad.id,actors[1].guid) and e.CheckIn(ad.id,actors[2].guid))
+            cp=e.Save()
+            assert(not CheckpointAgreement(x.s,x.h.guid,cp,{[actors[1].guid]=cp}))
+            assert(CheckpointAgreement(x.s,x.h.guid,cp,{[actors[1].guid]=cp,[actors[2].guid]=cp}))
+            local conflict=Copy(cp);conflict.roster[1].name="Changed"
+            assert(not CheckpointAgreement(x.s,x.h.guid,cp,{[actors[1].guid]=cp,[actors[2].guid]=conflict}))
+            assert(not CheckpointAgreement(x.s,x.h.guid,cp,{[actors[1].guid]=cp,[actors[2].guid]=cp,[actors[3].guid]=cp}))
         end)
         Case(client.." rate limit and corrupt checkpoint cannot emit mutation acknowledgement",function()
             local x=Fixture();local w=assert(x.Player());local q=assert(w.Query(x.h.guid))
@@ -963,7 +1186,7 @@ end
 if ns.Diagnostics then
 ns.Diagnostics.Register("Tournament host recovery / isolated checkpoint QA","deep",function()
     local log={};local p,f=R.RunHostRecoverySelfTest(function(line)log[#log+1]=line end)
-    return f==0 and p==10 and "PASS" or "FAIL",string.format("%d passed / %d failed (SIMULATED)\n",p,f)..table.concat(log,"\n")
+    return f==0 and p==20 and "PASS" or "FAIL",string.format("%d passed / %d failed (SIMULATED)\n",p,f)..table.concat(log,"\n")
 end)
 ns.Diagnostics.Register("Tournament recovery / isolated journal QA","deep",function()
     local log={};local p,f=R.RunRecoverySelfTest(function(line)log[#log+1]=line end)

@@ -45,6 +45,28 @@ function R.Validate(client,character,raw)
         elseif l and l.role=="host" then return nil end
         out.checkpoint=cp
     end
+    -- Compact terminal evidence is never evicted to make room for a new cup.
+    if raw.cancelled~=nil then
+        if type(raw.cancelled)~="table" then return nil end
+        local archive,n={},0
+        for id,v in pairs(raw.cancelled) do
+            n=n+1
+            if n>128 or type(id)~="string" or #id>96 or type(v)~="table"
+                or type(v.population)~="string" or not P.Code(v.population,client)
+                or not Whole(v.revision,2,2147483647) then return nil end
+            local who,stamp,serial=id:match("^(Player%-%w[%w%-]*):(%d+):(%d+)$")
+            local a,b=tonumber(stamp),tonumber(serial)
+            if who~=character or not Whole(a,1,4102444800) or tostring(a)~=stamp
+                or not Whole(b,1,2147483647) or tostring(b)~=serial then return nil end
+            for k in pairs(v) do if k~="population" and k~="revision" then return nil end end
+            if out.checkpoint and out.checkpoint.host.ad.id==id then
+                local ad=out.checkpoint.host.ad
+                if ad.state~="cancelled" or ad.revision~=v.revision or P.Key(ad)~=v.population then return nil end
+            end
+            archive[id]={population=v.population,revision=v.revision}
+        end
+        out.cancelled=archive
+    end
     for k in pairs(raw) do if out[k]==nil then return nil end end
     return out
 end
@@ -64,7 +86,19 @@ end
 function R.Transition(old,new,action)
     if new.revision~=old.revision+1 then return false end
     local x,y=old.checkpoint,new.checkpoint
+    local expected={}
+    for id,v in pairs(old.cancelled or {}) do expected[id]=v end
+    if action=="host_cancel" and y then
+        local a=y.host.ad
+        expected[a.id]={population=P.Key(a),revision=a.revision}
+    elseif action=="host_open" and x and x.host.ad.state=="cancelled" then
+        local a=x.host.ad
+        expected[a.id]={population=P.Key(a),revision=a.revision}
+    end
+    if not Equal(expected,new.cancelled or {}) then return false end
     if action=="host_open" then
+        local n=0;for _ in pairs(expected) do n=n+1 end
+        if n>=128 then return false end
         return not old.commitment and not old.pending and not new.pending and new.commitment
             and new.commitment.role=="host" and y and y.host.ad.state=="open" and y.host.ad.revision==1
             and y.host.ad.count==0 and next(y.receipts)==nil and new.sequence==old.sequence+1

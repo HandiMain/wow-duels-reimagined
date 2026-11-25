@@ -15,7 +15,7 @@ assert(ep==10 and ef==0,"tournament exchange QA failed")
 local jp,jf=ns.TournamentRegistration.RunRecoverySelfTest(print)
 assert(jp==10 and jf==0,"tournament recovery QA failed")
 local hp,hf=ns.TournamentRegistration.RunHostRecoverySelfTest(print)
-assert(hp==10 and hf==0,"tournament host recovery QA failed")
+assert(hp==20 and hf==0,"tournament host recovery QA failed")
 local T=ns.TournamentState
 local cp,cf=T.RunCalendarSelfTest(print)
 assert(cp==5 and cf==0,"calendar QA failed")
