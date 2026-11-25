@@ -113,16 +113,27 @@ function H.New(parent,callbacks)
     end
     local function Field(p,key,caption,limit,help,icon)
         local label=Label(p,17,C.pale);label:SetText(caption)
-        local box=CreateFrame("EditBox",nil,p)
+        -- Like the shared header search: paint the housing on a parent,
+        -- then initialize the native input font before registering it for
+        -- subsequent theme changes. Host is created after the first theme pass.
+        local housing=CreateFrame("Frame",nil,p)
+        S.Skin(housing,C.body,{corner=8,edge=C.border,shine=.16,shade=.20})
+        local box=CreateFrame("EditBox",nil,housing)
+        box:SetAllPoints(housing)
         box:SetAutoFocus(false);box:SetMultiLine(false);box:SetMaxLetters(limit)
+        local fontPath,fontSize,flags=label:GetFont()
+        local scale=ns.Settings and ns.Settings.Get("fontScale") or 1
+        if not box:SetFont(fontPath or STANDARD_TEXT_FONT or "Fonts\\FRIZQT__.TTF",18*scale,flags or "") then
+            box:SetFont(STANDARD_TEXT_FONT or "Fonts\\FRIZQT__.TTF",18*scale,"")
+        end
+        box:SetTextColor(unpack(C.text));box:SetJustifyH("LEFT")
         box:SetTextInsets(9,9,0,0);S.BindFont(box,18,false,C.text)
-        S.Skin(box,C.body,{corner=8,edge=C.border,shine=.16,shade=.20})
         box:SetScript("OnEnterPressed",function(self)self:ClearFocus()end)
         box:SetScript("OnEscapePressed",function(self)self:ClearFocus()end)
         box:SetScript("OnHide",function(self)self:ClearFocus()end)
         box:SetScript("OnTextChanged",function(_,userInput)if userInput then Dirty() end end)
         box:SetText(defaults[key] or "")
-        controls[key]={label=label,box=box,parent=p,icon=icon and chrome.Art(p,icon)}
+        controls[key]={label=label,box=box,housing=housing,parent=p,icon=icon and chrome.Art(p,icon)}
         ns.Tooltips.Bind(box,{title=caption,detail=help})
         return box
     end
@@ -164,8 +175,8 @@ function H.New(parent,callbacks)
     Choice(rules,"capacity","Maximum players",{{key=4,label="4 players"},{key=8,label="8 players"},
         {key=16,label="16 players"},{key=32,label="32 players"}},"players")
     Choice(rules,"bestOf","Match series",{{key=1,label="Best of 1"},{key=3,label="Best of 3"},{key=5,label="Best of 5"}},"swords")
-    Field(rules,"minLevel","Minimum level (optional)",3,"Leave blank for no minimum. Eligibility checks come with registration.")
-    Field(rules,"maxLevel","Maximum level (optional)",3,"Leave blank for no maximum. Eligibility checks come with registration.")
+    Field(rules,"minLevel","Min. level (optional)",3,"Leave blank for no minimum. Eligibility checks come with registration.")
+    Field(rules,"maxLevel","Max. level (optional)",3,"Leave blank for no maximum. Eligibility checks come with registration.")
     Field(rules,"rules","Additional rules (optional)",160,"Plain text rules for the organizer to enforce; not automatically detected.",6)
     local ruleHint=Label(rules,15,C.muted)
     local scheduleHint=Label(details,15,C.muted)
@@ -227,7 +238,7 @@ function H.New(parent,callbacks)
         if v.icon then At(v.icon,v.parent,x,y+2,23,23) end
         At(v.label,v.parent,x+pad,y,w-pad,27)
         if S.ConstrainText then S.ConstrainText(v.label,w-pad,27,14) end
-        At(v.box,v.parent,x,y+29,w,40)
+        At(v.housing or v.box,v.parent,x,y+29,w,40)
     end
     local function Cleanup() W.CloseChoices();ClearFocus() end
     f:HookScript("OnHide",Cleanup)
