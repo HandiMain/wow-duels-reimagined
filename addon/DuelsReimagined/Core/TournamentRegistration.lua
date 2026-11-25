@@ -823,6 +823,7 @@ local function DurableHost(s,h,clock,resolve,store)
     function D.BracketSnapshot()
         local b=OpenBracket();return b and b.Snapshot()
     end
+    local observed={}
     function D.ReportBracket(sender,report,term,coordinator)
         local c=journal.control
         if not Fresh() or not c or c.paused or c.term~=term or c.coordinator~=coordinator then return false end
@@ -830,6 +831,57 @@ local function DurableHost(s,h,clock,resolve,store)
         if not Actor(s,actor) or not Permit(actor) then return false end
         local b=OpenBracket();if not b then return false end
         local ok,why=b.Report(actor.guid,report)
+        if not ok then return false end
+        if why=="duplicate" then return true,why end
+        if not SaveBracket(b,"bracket_report") then return false end
+        observed[report.match]=nil
+        return true,why
+    end
+    -- One transient observer per ready match; at most 31 match IDs.
+    -- The caller supplies verified fixture observations, not remote claims.
+    -- No timers, live presence subscriptions or notification side effects.
+    function D.ObserveMatch(match,states,term,coordinator)
+        local c=journal.control;local now=Now(clock)
+        if not Fresh() or not c or c.paused or c.term~=term or c.coordinator~=coordinator or not now then return nil end
+        local b=OpenBracket();local view=b and b.Snapshot()
+        if not view or view.state~="running" or type(match)~="string" then return nil end
+        if type(states)~="table" then observed[match]=nil;return nil end
+        local m
+        for _,round in ipairs(view.rounds) do for _,v in ipairs(round) do if v.id==match then m=v end end end
+        if not m or m.state~="ready" then return nil end
+        local a,z=states[m.a],states[m.b]
+        local function valid(v)return v=="online" or v=="offline" or v=="unknown" end
+        if not valid(a) or not valid(z) then observed[match]=nil;return nil end
+        for guid in pairs(states) do if guid~=m.a and guid~=m.b then observed[match]=nil;return nil end end
+        local old=observed[match]
+        if old and (old.term~=term or now<old.last or now-old.last>15) then old=nil;observed[match]=nil end
+        local loser=a=="offline" and z=="online" and m.a or z=="offline" and a=="online" and m.b or nil
+        local out={scope="SIMULATED",event=view.event,match=match,players=Copy(states),grace=300}
+        if not loser then
+            if old and states[old.loser]=="online" then out.notice="reconnected";out.player=old.loser
+            elseif old then out.notice="interrupted";out.player=old.loser end
+            observed[match]=nil;return out
+        end
+        if not old or old.loser~=loser then
+            old={loser=loser,since=now,last=now,term=term};observed[match]=old
+            out.notice="started";out.player=loser
+        end
+        old.last=now
+        out.player=loser;out.remaining=math.max(0,300-(now-old.since))
+        if out.remaining==0 then
+            local ok=b.ForfeitOffline({kind="offline",event=view.event,match=match,revision=view.revision,loser=loser,since=old.since,at=now})
+            if not ok or not SaveBracket(b,"bracket_report") then return nil end
+            observed[match]=nil;out.notice="forfeited"
+        end
+        return out
+    end
+    function D.WithdrawBracket(sender,request,term,coordinator)
+        local c=journal.control
+        if not Fresh() or not c or c.paused or c.term~=term or c.coordinator~=coordinator then return false end
+        local actor=resolve(sender)
+        if not Actor(s,actor) or not Permit(actor) then return false end
+        local b=OpenBracket();if not b then return false end
+        local ok,why=b.Withdraw(actor.guid,request)
         if not ok then return false end
         if why=="duplicate" then return true,why end
         if not SaveBracket(b,"bracket_report") then return false end
@@ -1650,6 +1702,50 @@ function R.RunHostRecoverySelfTest(emit)
             x.hostRoot.clients[client].tournamentJournal.completed[id].champion=owner
             assert(not x.Open() and not x.engine.Completed(id))
         end)
+        Case(client.." five minute observed grace resets on reconnect unknown and gaps",function()
+            local x,w,Req,m=StartCompetition()
+            local owner=x.h.guid
+            local states={[x.a.guid]="online",[x.other.guid]="offline"}
+            local function Observe()return assert(x.engine.ObserveMatch(m.id,states,1,owner))end
+            local v=Observe();assert(v.remaining==300 and v.notice=="started")
+            x.Advance(10);v=Observe();assert(v.remaining==290 and not v.notice)
+            assert(not x.engine.ObserveMatch(m.id,{},1,owner))
+            assert(Observe().remaining==300)
+            states[x.other.guid]="online";v=Observe();assert(v.notice=="reconnected")
+            states[x.other.guid]="offline";v=Observe();assert(v.remaining==300 and v.notice=="started")
+            x.Advance(16);assert(Observe().remaining==300)
+            states[x.a.guid]="unknown";v=Observe();assert(not v.remaining and v.notice=="interrupted")
+            states[x.a.guid]="offline";assert(not Observe().remaining)
+            states[x.a.guid]="online";assert(Observe().remaining==300)
+            for i=1,29 do x.Advance(10);v=Observe();assert(v.remaining==300-i*10 and not v.notice) end
+            x.Advance(9);assert(Observe().remaining==1)
+            x.Advance();assert(not x.engine.ObserveMatch(m.id,states,2,owner))
+            assert(not x.engine.ObserveMatch(m.id,states,1,x.other.guid))
+            v=Observe();assert(v.remaining==0 and v.notice=="forfeited")
+            assert(x.engine.BracketSnapshot().champion==x.a.guid)
+            assert(not x.engine.ObserveMatch(m.id,states,1,owner))
+            assert(Equal(assert(x.Open()).BracketSnapshot(),x.engine.BracketSnapshot()))
+            local saved=x.Store("hostRoot").ReadTournamentJournal().bracket
+            assert(not x.engine.Finalize(owner,x.ad.id,1,{}))
+            local conflict=Copy(saved);conflict.startedAt=conflict.startedAt+1
+            assert(not x.engine.Finalize(owner,x.ad.id,1,{[x.a.guid]=saved,[x.other.guid]=conflict}))
+            assert(x.engine.Finalize(owner,x.ad.id,1,{[x.a.guid]=saved}))
+            assert(x.engine.Completed(x.ad.id).champion==x.a.guid)
+        end)
+        Case(client.." reopen resets unverified absence and withdrawal preserves outcome",function()
+            local x,w,Req,m=StartCompetition()
+            local owner=x.h.guid;local states={[x.a.guid]="online",[x.other.guid]="offline"}
+            assert(x.engine.ObserveMatch(m.id,states,1,owner).remaining==300)
+            x.Advance(10)
+            local reopened=assert(x.Open())
+            assert(reopened.ObserveMatch(m.id,states,1,owner).remaining==300)
+            local q={event=x.ad.id,match=m.id}
+            assert(not reopened.WithdrawBracket("host",q,1,owner))
+            assert(not reopened.WithdrawBracket("other",q,2,owner))
+            assert(reopened.WithdrawBracket("other",q,1,owner))
+            assert(reopened.BracketSnapshot().champion==x.a.guid)
+            assert(not x.engine.BracketSnapshot())
+        end)
         Case(client.." rate limit and corrupt checkpoint cannot emit mutation acknowledgement",function()
             local x=Fixture();local w=assert(x.Player());local q=assert(w.Query(x.h.guid))
             assert(x.engine.Receive("player",q) and x.engine.Receive("player",q) and not x.engine.Receive("player",q))
@@ -1806,7 +1902,7 @@ end
 if ns.Diagnostics then
 ns.Diagnostics.Register("Tournament host recovery / isolated checkpoint QA","deep",function()
     local log={};local p,f=R.RunHostRecoverySelfTest(function(line)log[#log+1]=line end)
-    return f==0 and p==50 and "PASS" or "FAIL",string.format("%d passed / %d failed (SIMULATED)\n",p,f)..table.concat(log,"\n")
+    return f==0 and p==54 and "PASS" or "FAIL",string.format("%d passed / %d failed (SIMULATED)\n",p,f)..table.concat(log,"\n")
 end)
 ns.Diagnostics.Register("Tournament recovery / isolated journal QA","deep",function()
     local log={};local p,f=R.RunRecoverySelfTest(function(line)log[#log+1]=line end)

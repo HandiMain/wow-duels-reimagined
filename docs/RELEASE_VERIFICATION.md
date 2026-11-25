@@ -224,3 +224,7 @@ Offline test evidence: exact prepared review block (9119 bytes, FNV-1a 679973287
 Stage 7B integrity refinement: the progress-replica fixture verifier must supply the exact independently accepted journal log in addition to current control. Reject a valid-looking appended duel report invented by the coordinator. Single-journal evidence only; live independent report receipts and certificates still required.
 
 - [ ] T23 — Stage 7C1 organizer recovery 50/50 and brackets 16/16. Finalize only with complete undisputed log, owner current term and matching participant copies; archive persists; host releases and may publish another event; participant completion receipt survives lost ack/new event; owner hold and term resume; tampering fails closed. No actual peer authentication, terminal correction, retention or disconnect adjudication claim. Test counts only until executed.
+
+- [ ] T24 — Stage 7C2 host recovery 54/54; brackets 20/20. Check 299/300 boundary, reconnect reset, unknown/both offline, continuity gap, stale term/controller, withdrawal and replay. No real presence, timers, visible countdown or notification firing tested; absent-player completion and dispute correction pending.
+
+T24 also checks finalization after verified offline forfeit without an absent loser's acknowledgement; missing champion or conflicting supplied copy rejected.

@@ -131,6 +131,32 @@ local function Engine(scope,owner,snapshot,now)
         if m.wins[side]==needed then m.state="done";m.winner=a.winner;Refresh() end
         return true,"confirmed"
     end
+    -- Series forfeits are not played duel results.
+    local function Forfeit(m,loser,reason,record)
+        journal[#journal+1]=record
+        m.state="done";m.winner=loser==m.a and m.b or m.a
+        m.forfeit={loser=loser,reason=reason};Refresh()
+        return true,"forfeited"
+    end
+    function D.Withdraw(sender,request)
+        if paused or type(request)~="table" or request.event~=ad.id then return false end
+        local m=byID[request.match]
+        if not m or not m.a or not m.b or (sender~=m.a and sender~=m.b)
+            or not Equal(request,{event=ad.id,match=m.id}) then return false end
+        if m.forfeit and m.forfeit.reason=="withdrawn" and m.forfeit.loser==sender then return true,"duplicate" end
+        if m.state~="ready" then return false end
+        return Forfeit(m,sender,"withdrawn",{kind="withdraw",sender=sender,event=ad.id,match=m.id})
+    end
+    -- Only the observation adapter may establish continuous absence.
+    -- Replay checks structure, not actual network presence.
+    function D.ForfeitOffline(record)
+        if paused or type(record)~="table" or record.event~=ad.id or record.revision~=#journal
+            or not Whole(record.since,now,4102444500) or not Whole(record.at,record.since+300,4102444800) then return false end
+        local m=byID[record.match]
+        if not m or m.state~="ready" or (record.loser~=m.a and record.loser~=m.b)
+            or not Equal(record,{kind="offline",event=ad.id,match=m.id,revision=#journal,loser=record.loser,since=record.since,at=record.at}) then return false end
+        return Forfeit(m,record.loser,"offline",Copy(record))
+    end
     return D
 end
 function B.NewSimulated(scope,owner,snapshot,now,sender)
@@ -141,14 +167,17 @@ function B.OpenSimulated(scope,owner,saved)
     if type(saved)~="table" or saved.version~=1 or saved.scope~="SIMULATED" or type(saved.reports)~="table" then return nil end
     local n=0
     for k in pairs(saved.reports) do
-        n=n+1;if n>311 or not Whole(k,1,311) then return nil end
+        n=n+1;if n>342 or not Whole(k,1,342) then return nil end
     end
     local d=Engine(scope,owner,saved.checkpoint,saved.startedAt)
     if not d then return nil end
     for i=1,n do
         local r=saved.reports[i]
         if type(r)~="table" then return nil end
-        local ok,why=d.Report(r.sender,{event=r.event,match=r.match,game=r.game,winner=r.winner,evidence=r.evidence})
+        local ok,why
+        if r.kind=="offline" then ok,why=d.ForfeitOffline(r)
+        elseif r.kind=="withdraw" then ok,why=d.Withdraw(r.sender,{event=r.event,match=r.match})
+        else ok,why=d.Report(r.sender,{event=r.event,match=r.match,game=r.game,winner=r.winner,evidence=r.evidence}) end
         if not ok or why=="duplicate" then return nil end
     end
     if Equal(d.Save(),saved) then return d end
@@ -281,6 +310,29 @@ function B.RunSelfTest(emit)
             end
             assert(Finish(d)==8)
         end)
+        Case(client.." offline series forfeit refuses early or stale evidence and replays",function()
+            local s,h,cp,now=Fixture(4,4,5)
+            local d=assert(B.NewSimulated(s,h,cp,now,h));local m=Ready(d)
+            local q={kind="offline",event=cp.ad.id,match=m.id,revision=0,loser=m.b,since=now,at=now+299}
+            assert(not d.ForfeitOffline(q))
+            q.at=now+300;q.revision=1;assert(not d.ForfeitOffline(q))
+            q.revision=0;assert(d.ForfeitOffline(q))
+            local v=d.Snapshot().rounds[1][1]
+            assert(v.winner==m.a and v.forfeit.reason=="offline" and v.wins[1]==0 and next(v.games)==nil)
+            assert(not d.ForfeitOffline(q))
+            assert(Equal(d.Snapshot(),assert(B.OpenSimulated(s,h,d.Save())).Snapshot()))
+        end)
+        Case(client.." voluntary withdrawal cannot be submitted by organizer",function()
+            local s,h,cp,now=Fixture(4,4,3)
+            local d=assert(B.NewSimulated(s,h,cp,now,h));local m=Ready(d)
+            local q={event=cp.ad.id,match=m.id}
+            assert(not d.Withdraw(h,q));assert(d.Withdraw(m.b,q))
+            local ok,why=d.Withdraw(m.b,q);assert(ok and why=="duplicate")
+            local v=d.Snapshot().rounds[1][1]
+            assert(v.winner==m.a and v.forfeit.reason=="withdrawn" and v.wins[1]==0)
+            assert(not Report(d,m,1,m.a,"late",m.a))
+            assert(Equal(d.Snapshot(),assert(B.OpenSimulated(s,h,d.Save())).Snapshot()))
+        end)
         Case(client.." replay restores pending series and rejects corrupted records",function()
             local s,h,cp,now=Fixture(8,6,5)
             local d=assert(B.NewSimulated(s,h,cp,now,h));local m=Ready(d)
@@ -300,6 +352,6 @@ end
 if ns.Diagnostics then
     ns.Diagnostics.Register("Tournament brackets / isolated competition QA","deep",function()
         local log={};local p,f=B.RunSelfTest(function(line)log[#log+1]=line end)
-        return p==16 and f==0 and "PASS" or "FAIL",string.format("%d passed / %d failed (SIMULATED)\n",p,f)..table.concat(log,"\n")
+        return p==20 and f==0 and "PASS" or "FAIL",string.format("%d passed / %d failed (SIMULATED)\n",p,f)..table.concat(log,"\n")
     end)
 end
