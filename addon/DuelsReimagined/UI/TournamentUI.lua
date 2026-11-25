@@ -288,6 +288,10 @@ end
 local function Run(action,key)
     local p=action=="simulate-game" and R.PreviewSnapshot()
     local ok,why
+    if (action=="disconnect" or action=="feature-next" or action=="feature-prev" or action=="broadcast")
+        and ns.DuelCountdown.IsTournamentPreviewRunning() then
+        feedback="Wait for the test countdown to finish.";U.Show(active or "overview");return
+    end
     if (action=="disconnect" or action=="advance-grace" or action=="reconnect") and not ns.DuelHUD.IsTournamentHUDActive() then
         feedback="Show the tournament HUD and finish combat first.";U.Show(active or "overview");return
     end

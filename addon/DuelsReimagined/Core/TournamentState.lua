@@ -405,7 +405,8 @@ function T.RunSelfTest()
     check(T.Project("eliminated",true)["my-tournament"] and not T.Project("eliminated",true).host)
     check(T.Project("hosting",true).manage and T.Project("hosting",true).brackets and not T.Project("hosting",true).browse and not T.Project("hosting",true).host)
     check(T.Project("preview-browse",false).browse and not T.Project("preview-browse",false).host and not T.Project("preview-browse",false).manage)
-    check(not T.Project("idle",false).manage and not T.Project("completed",false).manage)
+    check(not T.Project("idle",false).manage and not T.Project("completed",false).manage
+        and T.Project("watching",true).brackets and not T.Project("watching",true).host and not T.Project("watching",false).brackets)
     check(T.Project("completed",true).browse and T.Project("completed",true).host and T.Project("completed",true)["my-tournament"])
     idle.browse=nil
     check(T.Project("idle",false).browse)

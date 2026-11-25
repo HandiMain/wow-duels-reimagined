@@ -519,7 +519,7 @@ function N.ClearTournamentPreview()
     for i=#queue,1,-1 do if TournamentMessage(queue[i]) then table.remove(queue,i) end end
     if TournamentMessage(current) then Clear();Pump() end
 end
-local function Announce(event,key,title,body,warning)
+local function Announce(event,key,title,body,warning,personal)
     if type(event)~="string" or type(key)~="string" then return false end
     if tournamentEvent~=event then
         tournamentEvent=event;tournamentAnnouncements={}
@@ -527,7 +527,7 @@ local function Announce(event,key,title,body,warning)
     end
     if tournamentAnnouncements[key] then return false end
     local ok=Enqueue({id="preview:tournament:"..event..":"..key,kind=warning and "warning" or "tournament",
-        tournamentPreview=true,preview=true,title=title,body=body.."\nLocal test only"})
+        tournamentPreview=true,personalTournament=personal==true,preview=true,title=title,body=body.."\nLocal test only"})
     if ok then tournamentAnnouncements[key]=true end
     return ok
 end
@@ -538,15 +538,19 @@ function N.OnTournamentProgress(p,visible)
     end
     if not visible or not p.event then return end
     local id=p.event.id
+    if p.broadcast then
+        for i=#queue,1,-1 do if queue[i].personalTournament then table.remove(queue,i) end end
+        if current and current.personalTournament then Clear();Pump() end
+    end
     if p.bracket.state=="completed" and p.bracket.champion then
         Announce(id,"champion","Tournament complete",(p.names[p.bracket.champion] or "Winner").." is champion")
     elseif p.role=="player" and not p.broadcast then
         if p.state=="eliminated" then
-            Announce(id,"eliminated","Tournament result","You are eliminated. Keep watching the remaining matches.")
+            Announce(id,"eliminated","Tournament result","You are eliminated. Keep watching the remaining matches.",false,true)
         elseif p.match then
-            Announce(id,"ready:"..p.match.id,"Your match is ready",p.match.opponent.."\nBest of "..p.match.bestOf)
+            Announce(id,"ready:"..p.match.id,"Your match is ready",p.match.opponent.."\nBest of "..p.match.bestOf,false,true)
         elseif p.upcoming then
-            Announce(id,"upcoming:"..p.upcoming.id,"Get ready for the next round","Your opponent is being decided.")
+            Announce(id,"upcoming:"..p.upcoming.id,"Get ready for the next round","Your opponent is being decided.",false,true)
         end
     end
 end
