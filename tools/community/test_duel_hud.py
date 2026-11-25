@@ -127,3 +127,17 @@ class DuelHUDTests(unittest.TestCase):
         self.assertNotIn('Artwork("bottomEdge",8,32',h)
         self.assertNotIn('gear=Action(',h)
         self.assertNotIn('close=Action(',h)
+
+    def test_folded_face_is_continuous_and_controls_are_glyphs(self):
+        h=read("UI/DuelHUD.lua")
+        header=read("UI/Header.lua")
+        self.assertIn('foldedBacking:SetColorTexture(.10,.018,.010,1)',h)
+        self.assertIn('Place(foldedBacking,3,3,WIDTH-6,FOLDED_HEIGHT-6)',h)
+        self.assertIn('local foldedFace=Artwork("headerFace",3,3,WIDTH-6,FOLDED_HEIGHT-6,"ARTWORK")',h)
+        self.assertIn('foldedFace:SetDrawLayer("BACKGROUND",1)',h)
+        self.assertIn('expandedFace:SetShown(not folded)',h)
+        self.assertIn('local dy=folded and 4 or 0',h)
+        self.assertIn('Place(headerTitle,64,4+dy,163,26)',h)
+        self.assertIn('if not compact then\n        Style.Plate(b, name == "Close" and "hall" or "dark"',header)
+        self.assertIn('art:SetVertexColor(1,.91,.70,1)',header)
+        self.assertIn('rim=compact and 0 or 0.82',header)

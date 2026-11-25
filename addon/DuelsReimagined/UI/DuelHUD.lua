@@ -123,11 +123,17 @@ local foldedTrim=CreateFrame("Frame",nil,root)
 Place(foldedTrim,0,0,WIDTH,FOLDED_HEIGHT)
 foldedTrim:EnableMouse(false)
 surface=foldedTrim
-Artwork("bodyFill",4,4,WIDTH-8,FOLDED_HEIGHT-8,"BACKGROUND")
+-- Opaque backing and uninterrupted burgundy face fill the entire copper rim.
+-- Both belong to the folded frame, below its nine-slice, not to the title.
+local foldedBacking=foldedTrim:CreateTexture(nil,"BACKGROUND")
+foldedBacking:SetColorTexture(.10,.018,.010,1)
+Place(foldedBacking,3,3,WIDTH-6,FOLDED_HEIGHT-6)
+local foldedFace=Artwork("headerFace",3,3,WIDTH-6,FOLDED_HEIGHT-6,"ARTWORK")
+foldedFace:SetDrawLayer("BACKGROUND",1)
 S.Plate(foldedTrim,"shellCopper",{corner=12,layer="ARTWORK",sublevel=1})
 foldedTrim:Hide()
 surface=headerLayer
-Artwork("headerFace",8,6,WIDTH-16,28,"BACKGROUND")
+local expandedFace=Artwork("headerFace",8,6,WIDTH-16,28,"BACKGROUND")
 local expandedTop={
     Artwork("topEdge",25,1,WIDTH-50,8,"BORDER"),
     Artwork("topLeft",0,0,28,30,"ARTWORK"),
@@ -141,7 +147,7 @@ brand:SetTexture("Interface\\AddOns\\DuelsReimagined\\Media\\Skin\\DuelBrand.png
 brand:SetTexCoord(10/512,77/512,22/128,91/128)
 ns.Chrome.Sharp(brand)
 Place(brand,29,2,31,32)
-Label("Duels Reimagined",16,C.pale,64,4,163,26,"LEFT")
+local headerTitle=Label("Duels Reimagined",16,C.pale,64,4,163,26,"LEFT")
 local function OpenOptions()
     if Combat() then return end
     if not ns.Window.frame:IsShown() then ns.Window.Toggle() end
@@ -152,16 +158,24 @@ Place(gear,234,6,21,21)
 gear:SetScript("OnClick",OpenOptions)
 local foldButton=ns.Header.CreateHUDButton(headerLayer,"FoldUp",21)
 Place(foldButton,258,6,21,21)
+local close=ns.Header.CreateHUDButton(headerLayer,"Close",20)
+Place(close,282,6,20,20)
+close:SetScript("OnClick",function()Settings.Set("duelHUDEnabled",false)end)
 local function PaintFold()
+    local dy=folded and 4 or 0
+    Place(brand,29,2+dy,31,32)
+    Place(headerTitle,64,4+dy,163,26)
+    Place(gear,234,6+dy,21,21)
+    Place(foldButton,258,6+dy,21,21)
+    Place(close,282,6+dy,20,20)
+    Place(header,0,0,230,folded and FOLDED_HEIGHT or 35)
+    expandedFace:SetShown(not folded)
     foldButton.art:SetTexture("Interface\\AddOns\\DuelsReimagined\\Media\\Artwork\\Header\\"..(folded and "FoldDown" or "FoldUp")..".png")
     ns.Motion.Fade(foldButton.chosen,folded and .42 or 0,ns.Motion.Duration("quick"))
     for _,part in ipairs(expandedTop) do part:SetShown(not folded) end
 end
 PaintFold()
 foldButton:SetScript("OnClick",function()H.Fold(not folded)end)
-local close=ns.Header.CreateHUDButton(headerLayer,"Close",20)
-Place(close,282,6,20,20)
-close:SetScript("OnClick",function()Settings.Set("duelHUDEnabled",false)end)
 if ns.Tooltips then
     ns.Tooltips.Bind(gear,{title="Duel HUD options",detail="Open Interface settings."})
     ns.Tooltips.Bind(close,{title="Hide Duel HUD",detail="Also hides notifications. Show it again in Options or with /duels hud."})

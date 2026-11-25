@@ -22,9 +22,14 @@ local function HeaderButton(name, title, detail, parent, withoutTooltip, compact
     -- Dark forged controls at rest; the close X gets its crimson plate.
     -- Exactly one extracted button surface. The click/Peek/Fold behavior
     -- stays native; drawing a second rim caused the doubled gold outline.
-    Style.Plate(b, name == "Close" and "hall" or "dark", { corner=7 })
+    -- Compact HUD glyphs rest directly on their continuous header face.
+    -- Main window and dialog buttons keep their original forged plates.
+    if not compact then
+        Style.Plate(b, name == "Close" and "hall" or "dark", { corner=7 })
+    end
     local hover = Style.FeedbackOverlay(b, {
-        corner=8, inset=2, fill=C.gold, edge=C.gold, shine=0.60, rim=0.82,
+        corner=compact and 6 or 8, inset=2, fill=C.gold, edge=C.gold,
+        shine=compact and 0.45 or 0.60, rim=compact and 0 or 0.82,
     })
     local art
     if name == "Options" then
@@ -33,15 +38,19 @@ local function HeaderButton(name, title, detail, parent, withoutTooltip, compact
         art = b:CreateTexture(nil, "ARTWORK")
         art:SetTexture(iconBase .. name .. ".png")
     end
-    local iconSize = compact and (name == "Close" and 12 or 15) or (name == "Close" and 15 or 19)
+    local iconSize = compact and (name == "Close" and 17 or 19) or (name == "Close" and 15 or 19)
+    if compact then
+        if art.SetDrawLayer then art:SetDrawLayer("OVERLAY",3) end
+        art:SetVertexColor(1,.91,.70,1)
+    end
     art:SetSize(iconSize, iconSize)
     art:SetPoint("CENTER")
     ns.Chrome.Sharp(art)
     -- A separate, persistent selected accent for Fold/Peek, distinct from
     -- the short press flash. It does not cover the approved button art.
     local chosen = Style.FeedbackOverlay(b, {
-        corner=8, inset=2, fill=C.goldDim, edge=C.gold,
-        shine=0.36, rim=0.94,
+        corner=compact and 6 or 8, inset=2, fill=C.goldDim, edge=C.gold,
+        shine=0.36, rim=compact and 0 or 0.94,
     })
     b.art, b.hover, b.chosen = art, hover, chosen
     b.tooltipTitle, b.tooltipDetail = title, detail
@@ -52,7 +61,7 @@ local function HeaderButton(name, title, detail, parent, withoutTooltip, compact
         Motion.Fade(hover, 0, 0.18)
     end)
     ns.Widgets.PressFeedback(b, hover, {
-        corner=8, hoverAlpha=0.24, clickAlpha=0.42,
+        corner=compact and 6 or 8, hoverAlpha=0.24, clickAlpha=0.42,
     })
     b:HookScript("OnMouseDown", function(_, mouse)
         if mouse == "LeftButton" then

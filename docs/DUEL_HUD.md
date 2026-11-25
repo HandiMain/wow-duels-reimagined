@@ -37,3 +37,5 @@ Re-audited modular layout against the in-game screenshot. Removed header fragmen
 
 ### Header polish
 HUD header uses the existing main-window brand's isolated swords artwork and the shared HeaderButton factory (including the Options glyph, fold arrows, red close plate and motion feedback). Folded state uses the same continuous copper nine-slice as the main window instead of truncated expanded corners; the shared title and controls stay in place. No additional textures or gameplay changes. Reference: Polestar UI/GuideFrameLook.lua shared header controls and theme metrics. Live appearance unverified.
+
+Folded header refinement: compact header controls now show isolated gold glyphs at rest, without individual dark or red plates. Shared hover/press feedback and main window buttons remain intact. Folded trim owns a fully opaque backing and continuous burgundy face beneath the copper nine-slice; the expanded face is hidden during folding. Title, logo, and controls center vertically in the folded height without moving the notification anchor. No extra art or gameplay changes. In-game visual verification pending.

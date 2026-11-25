@@ -22,6 +22,7 @@ function methods:SetStatusBarTexture(t)self.barTexture=t end
 function methods:SetMinMaxValues(lo,hi)self.low,self.high=lo,hi end
 function methods:SetValue(v)self.value=v end
 function methods:SetTexture(t)self.texture=t end
+function methods:SetColorTexture(...)self.color={...}end
 function methods:SetScale(v)self.scale=v end
 function methods:GetEffectiveScale()return self.scale or 1 end
 function methods:GetFrameLevel()return 1 end
@@ -75,6 +76,7 @@ assert(root:IsShown() and root:GetHeight()==310 and not H.IsFolded() and subscri
 assert(root:GetScript("OnUpdate") and fits>=15)
 local arrow,ranked,header
 local upper,foldTrim,controls={},nil,0
+local title,foldBacking,foldFace,expandedFace
 for _,f in ipairs(frames)do
     if f.texture and f.texture:find("FoldUp.png",1,true)then arrow=f.parent end
     if f.text=="Ranked"then ranked=f end
@@ -83,11 +85,22 @@ for _,f in ipairs(frames)do
     if f.parent==root and f.h==42 and f~=arrow and f.scripts.OnDragStart==nil and not f:IsShown() then foldTrim=f end
 end
 assert(arrow and ranked and ranked:IsVisible() and header and controls==3 and foldTrim)
+for _,f in ipairs(frames) do
+    if f.text=="Duels Reimagined" then title=f end
+    if f.parent==foldTrim and f.color and f.color[4]==1 then foldBacking=f end
+    if f.parent==foldTrim and f.texture and f.w==330 and f.h==36 then foldFace=f end
+    if f.parent==arrow.parent and f.texture and f.w==320 and f.h==28 then expandedFace=f end
+end
+assert(title and foldBacking and foldFace and expandedFace)
+assert(foldBacking.w==330 and foldBacking.h==36 and not foldBacking:IsVisible())
+assert(expandedFace:IsVisible() and title.point[5]==-4)
 local top=root.point[5];local frameCount=#frames
 arrow.scripts.OnClick()
 assert(H.IsFolded() and root:IsShown() and root:GetHeight()==42 and root.point[5]==top)
 assert(not ranked:IsVisible() and arrow:IsVisible() and not root:GetScript("OnUpdate") and subscribers==2)
 assert(foldTrim:IsVisible() and arrow.chosen.alpha==.42)
+assert(foldBacking:IsVisible() and foldFace:IsVisible() and not expandedFace:IsShown())
+assert(title.point[5]==-8 and arrow.point[5]==-10)
 -- Moving while folded stores the expanded centre, not the tiny header centre.
 header.scripts.OnDragStart();root.point[4]=720;root.point[5]=650
 header.scripts.OnDragStop()
@@ -96,6 +109,7 @@ arrow.scripts.OnClick()
 assert(not H.IsFolded() and root:GetHeight()==310 and math.abs(root.point[5]-650)<.001)
 assert(ranked:IsVisible() and root:GetScript("OnUpdate") and subscribers==2)
 assert(not foldTrim:IsShown() and arrow.chosen.alpha==0)
+assert(expandedFace:IsVisible() and title.point[5]==-4 and arrow.point[5]==-6)
 H.Fold(true);prefs.duelHUDEnabled=false;H.Refresh()
 assert(not root:IsShown() and subscribers==0 and not root:GetScript("OnUpdate"))
 prefs.duelHUDEnabled=true;H.Refresh()
