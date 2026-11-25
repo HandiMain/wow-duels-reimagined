@@ -17,41 +17,58 @@ local surface=body
 -- One authored skin owner. In particular, do not use Style.Fill followed
 -- by a second anchor: its original opposing anchors stretch the region.
 local ATLAS="Interface\\AddOns\\DuelsReimagined\\Media\\Skin\\DuelHUDArt.png"
-local PREMIUM="Interface\\AddOns\\DuelsReimagined\\Media\\Skin\\DuelHUDPremium.png"
+local PREMIUM="Interface\\AddOns\\DuelsReimagined\\Media\\Skin\\DuelHUDPremiumParts.png"
 local HEALTH_FILL="Interface\\AddOns\\DuelsReimagined\\Media\\Skin\\DuelHUDHealthFill.png"
 local HEALTH_MASK="Interface\\AddOns\\DuelsReimagined\\Media\\Skin\\DuelHUDHealthMask.png"
--- Approved rendered shell and individual blank control surfaces. The shared
--- small original gear, close, portrait rims and crossed-swords art remain in
--- the original atlas, also used by Notifications. Never replace that atlas.
-local premiumArt={shell={2,2,672,620},foldedShell={2,630,672,84},
-    timer={2,724,380,76},stats={2,814,620,118},normal={700,2,280,64},
-    selected={700,72,280,64},disabled={700,142,280,64},red={700,212,280,64},
-    crest={700,286,112,104},healthTrack={700,402,284,38}}
+-- Each cell contains ONE piece, not a flattened window. Chrome, content
+-- and interactive controls have independent anchors and lifetimes.
+local premiumArt={
+    topLeft={2,2,70,74},topRight={76,2,70,74},
+    bottomLeft={150,2,85,69},bottomRight={239,2,85,69},
+    topEdge={330,2,160,17},sideEdge={2,82,20,320},bottomEdge={330,23,160,26},
+    gem={496,2,130,57},headerFace={330,54,320,46},bodyFill={430,292,32,160},
+    timerFace={26,82,142,76},timerBlade={172,82,103,32},statRow={26,163,619,56},
+    normal={26,224,280,64},selected={310,224,280,64},red={594,224,280,64},
+    crest={314,292,112,104},healthTrack={26,292,284,38}}
 local art={gear={342,205,24,24},close={372,205,24,24},swords={410,0,30,30},
     playerRing={342,238,48,48},enemyRing={396,238,48,48}}
 local function Place(f,x,y,w,h)
     f:ClearAllPoints();f:SetPoint("TOPLEFT",f:GetParent(),"TOPLEFT",x,-y);f:SetSize(w,h)
 end
-local function Region(t,key)
+local function Region(t,key,flip)
     local premium=premiumArt[key]
-    local a=premium or assert(art[key]);local size=premium and 1024 or 512
+    local a=premium or assert(art[key]);local atlasWidth=premium and 1024 or 512
     t:SetTexture(premium and PREMIUM or ATLAS)
     if t.SetSnapToPixelGrid then t:SetSnapToPixelGrid(false) end
     if t.SetTexelSnappingBias then t:SetTexelSnappingBias(0) end
-    t:SetTexCoord((a[1]+.5)/size,(a[1]+a[3]-.5)/size,(a[2]+.5)/size,(a[2]+a[4]-.5)/size)
+    local left,right=(a[1]+.5)/atlasWidth,(a[1]+a[3]-.5)/atlasWidth
+    t:SetTexCoord(flip and right or left,flip and left or right,(a[2]+.5)/512,(a[2]+a[4]-.5)/512)
 end
-local function Artwork(key,x,y,w,h,layer)
-    local t=surface:CreateTexture(nil,layer or "ARTWORK");Region(t,key);Place(t,x,y,w,h);return t
+local function Artwork(key,x,y,w,h,layer,flip)
+    local t=surface:CreateTexture(nil,layer or "ARTWORK");Region(t,key,flip);Place(t,x,y,w,h);return t
 end
-Artwork("shell",0,0,WIDTH,HEIGHT,"BACKGROUND")
-Artwork("stats",10,202,316,54)
-Artwork("timer",73,91,190,38)
+-- Expanded body: independent plain material, left/right rails, bottom rail,
+-- four corner pieces (upper pair on headerLayer) and lower jewel.
+Artwork("bodyFill",8,28,WIDTH-16,274,"BACKGROUND")
+Artwork("sideEdge",1,27,10,262,"BORDER")
+Artwork("sideEdge",WIDTH-11,27,10,262,"BORDER",true)
+Artwork("bottomEdge",25,297,WIDTH-50,12,"BORDER")
+Artwork("bottomLeft",0,278,38,31,"ARTWORK")
+Artwork("bottomRight",WIDTH-38,278,38,31,"ARTWORK")
+Artwork("gem",WIDTH/2-23,290,46,20,"OVERLAY")
+-- Timer is three independent decorations; no other UI pixels can leak.
+Artwork("timerFace",121,93,94,36)
+Artwork("timerBlade",69,101,48,15)
+Artwork("timerBlade",219,101,48,15,nil,true)
+-- Two independent rows, each with its own live labels and value.
+Artwork("statRow",13,202,310,24)
+Artwork("statRow",13,227,310,24)
 Artwork("swords",156,137,24,24)
 local function Rect(x,y,w,h,r,g,b,a)
     local t=surface:CreateTexture(nil,"BORDER")
     t:SetColorTexture(r,g,b,a or 1);Place(t,x,y,w,h);return t
 end
--- Header and statistics dividers are part of their rendered surfaces.
+-- Only the standalone mode separator is drawn here.
 Rect(14,74,308,1,.19,.15,.10,.85)
 local function Label(value,size,color,x,y,w,h,align)
     local f=S.Text(surface,value,size,color or C.text)
@@ -67,8 +84,8 @@ local function Action(value,x,y,w,h,fn,red,icon)
     b.label=label;b.selected=false;b.usable=true
     -- No alpha animation on the whole widget: the source art stays opaque.
     b.Paint=function()
-        Region(t,icon or (b.selected and "selected" or not b.usable and "disabled" or red and "red" or "normal"))
-        local v=b.pressed and .73 or b.hovered and b.usable and 1 or .90
+        Region(t,icon or (b.selected and "selected" or not b.usable and "normal" or red and "red" or "normal"))
+        local v=not b.usable and not b.selected and .72 or b.pressed and .73 or b.hovered and b.usable and 1 or .90
         t:SetVertexColor(v,v,v,1)
         label:SetTextColor(unpack((b.usable or b.selected) and C.text or C.muted))
     end
@@ -99,23 +116,33 @@ local function MatchUnit(id)
         if Plain(UnitGUID,unit)==id.guid then return unit end
     end
 end
--- The expanded shell belongs to the body. The folded shell samples only
--- the original header and lower rim, so no body artwork leaks below it.
+-- The SAME header is retained when folded. Only a small independent lower
+-- rail appears below it. No alternate screenshot or duplicate header.
 surface=root
-local foldedShell=Artwork("foldedShell",0,0,WIDTH,FOLDED_HEIGHT,"BACKGROUND")
-foldedShell:Hide()
+local foldedTrim=CreateFrame("Frame",nil,root)
+Place(foldedTrim,0,0,WIDTH,FOLDED_HEIGHT)
+surface=foldedTrim
+Artwork("bodyFill",8,7,WIDTH-16,31,"BACKGROUND")
+Artwork("bottomEdge",8,32,WIDTH-16,10,"BORDER")
+Artwork("sideEdge",1,27,9,12,"BORDER")
+Artwork("sideEdge",WIDTH-10,27,9,12,"BORDER",true)
+foldedTrim:Hide()
 surface=headerLayer
+Artwork("headerFace",18,7,WIDTH-36,26,"BACKGROUND")
+Artwork("topEdge",26,1,WIDTH-52,8,"BORDER")
+Artwork("topLeft",0,0,32,34,"ARTWORK")
+Artwork("topRight",WIDTH-32,0,32,34,"ARTWORK")
 local header=CreateFrame("Frame",nil,headerLayer)
-Place(header,0,0,WIDTH-87,35);header:EnableMouse(true);header:RegisterForDrag("LeftButton")
-Artwork("crest",7,-1,46,43,"OVERLAY")
-Label("Duels Reimagined",17,C.pale,54,4,WIDTH-147,26,"LEFT")
+Place(header,0,0,WIDTH-94,35);header:EnableMouse(true);header:RegisterForDrag("LeftButton")
+Artwork("crest",17,1,35,33,"OVERLAY")
+Label("Duels Reimagined",16,C.pale,56,4,WIDTH-154,26,"LEFT")
 local function OpenOptions()
     if Combat() then return end
     if not ns.Window.frame:IsShown() then ns.Window.Toggle() end
     ns.Navigation.SelectKey("options","interface")
 end
-local gear=Action("",WIDTH-84,5,23,23,OpenOptions,false,"gear")
-local foldButton=CreateFrame("Button",nil,headerLayer);Place(foldButton,WIDTH-57,5,23,23)
+local gear=Action("",WIDTH-91,5,22,22,OpenOptions,false,"gear")
+local foldButton=CreateFrame("Button",nil,headerLayer);Place(foldButton,WIDTH-65,5,22,22)
 S.Plate(foldButton,"dark",{corner=6})
 local foldArt=foldButton:CreateTexture(nil,"ARTWORK");foldArt:SetSize(15,15);foldArt:SetPoint("CENTER")
 local function PaintFold()
@@ -128,7 +155,7 @@ foldHover:SetAlpha(0)
 foldButton:SetScript("OnEnter",function()ns.Motion.Fade(foldHover,.34,ns.Motion.Duration("quick"))end)
 foldButton:SetScript("OnLeave",function()ns.Motion.Fade(foldHover,0,ns.Motion.Duration("gentle"))end)
 ns.Widgets.PressFeedback(foldButton,foldHover,{corner=6})
-local close=Action("",WIDTH-30,5,23,23,function() Settings.Set("duelHUDEnabled",false) end,false,"close")
+local close=Action("",WIDTH-39,5,22,22,function() Settings.Set("duelHUDEnabled",false) end,false,"close")
 if ns.Tooltips then
     ns.Tooltips.Bind(gear,{title="Duel HUD options",detail="Open Interface settings."})
     ns.Tooltips.Bind(close,{title="Hide Duel HUD",detail="Also hides notifications. Show it again in Options or with /duels hud."})
@@ -151,7 +178,7 @@ end
 modeRank=Action("Ranked",66,40,101,30,function() Mode(false) end)
 modePractice=Action("Unranked",174,40,101,30,function() Mode(true) end)
 local state=Label("Select a player to duel",13,C.pale,10,77,WIDTH-20,18)
-local timer=Label("00:00",20,C.text,114,96,108,27)
+local timer=Label("00:00",20,C.text,121,96,94,27)
 local function Side(x,enemy)
     local side={}
     local ix=enemy and x+104 or x+2
@@ -195,7 +222,8 @@ local function Side(x,enemy)
     overlay:SetFrameLevel(side.hp:GetFrameLevel()+1);Place(overlay,x,181,142,19)
     side.hpText=S.Text(overlay,"",11,{1,1,1,1});side.hpText:SetAllPoints(overlay);side.hpText:SetJustifyH("CENTER")
     if side.hpText.SetJustifyV then side.hpText:SetJustifyV("MIDDLE") end
-    S.ConstrainText(side.hpText,136,17,8)
+    -- Health text may be client-restricted. It stays in the shared font
+    -- registry but is never measured or fitted on text change.
     local click=CreateFrame("Button",nil,body);Place(click,x,163,142,19)
     click:SetScript("OnClick",function()
         if Combat() or preview or not side.profile or not side.id or ns.CompetitivePreview.IsActive() then return end
@@ -207,11 +235,11 @@ local function Side(x,enemy)
     return side
 end
 local me,other=Side(12,false),Side(182,true)
-Label("Damage Done",12,C.text,24,205,180,23,"LEFT")
-Label("Damage Received",12,C.text,24,230,180,23,"LEFT")
-local done=Label("—",13,C.pale,207,205,104,23,"RIGHT")
-local taken=Label("—",13,C.pale,207,230,104,23,"RIGHT")
-local note=Label("",10,C.muted,12,258,WIDTH-24,17)
+Label("Damage Done",12,C.text,24,202,180,24,"LEFT")
+Label("Damage Received",12,C.text,24,227,180,24,"LEFT")
+local done=Label("—",13,C.pale,207,202,104,24,"RIGHT")
+local taken=Label("—",13,C.pale,207,227,104,24,"RIGHT")
+local note=Label("",10,C.muted,16,251,WIDTH-32,15)
 local challenge,forfeit
 local lastRequest
 local function Native(fn,unit)
@@ -223,7 +251,7 @@ local function Native(fn,unit)
     end
     note:SetText("Request sent to Blizzard; awaiting observation.");return true
 end
-challenge=Action("Challenge Target",18,272,157,27,function()
+challenge=Action("Challenge Target",21,268,153,25,function()
     if preview or ns.CompetitivePreview.IsActive() or Combat() or not snap or snap.state~="idle" then return end
     local id=Identity("target");local self=Identity("player")
     local now=Now()
@@ -241,7 +269,7 @@ challenge=Action("Challenge Target",18,272,157,27,function()
         else note:SetText("Request not confirmed; try again") end
     end
 end,false)
-forfeit=Action("Forfeit",187,272,131,27,function()
+forfeit=Action("Forfeit",185,268,130,25,function()
     if preview or ns.CompetitivePreview.IsActive() or not snap or snap.state=="finishing" then return end
     if snap.challenge and snap.challenge.direction=="outgoing" then
         if not snap.challenge.requestConfirmed then ns.DuelDetection.DismissUnconfirmed()
@@ -498,7 +526,7 @@ function H.Fold(value)
     local want=value==true
     if want==folded then return end
     StopDrag();folded=want;probeGeneration=probeGeneration+1
-    body:SetShown(not folded);foldedShell:SetShown(folded)
+    body:SetShown(not folded);foldedTrim:SetShown(folded)
     root:SetHeight(folded and FOLDED_HEIGHT or HEIGHT);PaintFold();H.ApplyPosition()
     if not folded and root:IsShown() then rankDirty=true;Receive(ns.DuelDetection.GetSnapshot());ProbeSelected() end
     UpdateDriver()

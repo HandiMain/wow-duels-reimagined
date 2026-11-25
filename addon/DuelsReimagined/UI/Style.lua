@@ -37,17 +37,35 @@ for token, code in pairs(duelHall) do Style.color[token] = Hex(code) end
 local C = Style.color
 local colorTextures, fontStrings, pixelEdges = {}, {}, {}
 -- Shared bounded-label measurement; no permanent OnUpdate or duplicate font engine.
+-- Restricted text can produce a secret width even from ordinary font APIs.
+-- Check before EVERY comparison or arithmetic, and fail closed on refusal.
+local function ReadableNumber(v)
+    if type(issecretvalue)=="function" then
+        local ok,secret=pcall(issecretvalue,v)
+        if not ok or secret then return false end
+    end
+    return type(v)=="number"
+end
 local function FitLabelFont(entry)
     local fit = entry.fit
     if not fit then return end
     local fs = entry.label
     local face, size, flags = fs:GetFont()
-    if not face or not size then return end
-    local room = math.max(1, fit.width or (fit.button:GetWidth() - fit.left - fit.right - 3))
+    if not face or not ReadableNumber(size) then return end
+    local room = fit.width
+    if not room then
+        local ok,width=pcall(fit.button.GetWidth,fit.button)
+        if not ok or not ReadableNumber(width) then return end
+        room=width-fit.left-fit.right-3
+    end
+    room=math.max(1,room)
     local measure = fs.GetUnboundedStringWidth or fs.GetStringWidth
     if not measure then return end
     local current = size
-    while current > fit.minimum and (measure(fs) > room or (fit.height and current > fit.height)) do
+    while current > fit.minimum do
+        local ok,width=pcall(measure,fs)
+        if not ok or not ReadableNumber(width) then return end
+        if width<=room and (not fit.height or current<=fit.height) then return end
         current = math.max(fit.minimum, current - 0.75)
         if not fs:SetFont(face, current, flags or "") then break end
     end

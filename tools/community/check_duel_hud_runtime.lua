@@ -42,11 +42,12 @@ local C=setmetatable({}, {__index=function(t,k)local v={1,1,1,1};rawset(t,k,v);r
 local prefs={duelHUDEnabled=true,duelHUDLocked=false,duelHUDScale=1}
 local px,py=.4,.5
 local fits,anchors,subscribers=0,0,0
+local fitted={}
 local snap={state="idle"}
 local function Subscribe()subscribers=subscribers+1;return function()subscribers=subscribers-1 end end
 local ns={
     Style={color=C,Text=function(p,t)local f=Frame(p);f:SetText(t);return f end,
-        ConstrainText=function(_,w,h)assert(w>0 and h>0);fits=fits+1 end,
+        ConstrainText=function(label,w,h)assert(w>0 and h>0);fits=fits+1;fitted[label]=true end,
         Plate=noop,FeedbackOverlay=function(p)return Frame(p)end},
     Settings={Get=function(k)return prefs[k] end,GetDuelHUDPosition=function()return px,py end,
         SetDuelHUDPosition=function(x,y)px,py=x,y end},
@@ -92,7 +93,7 @@ assert(#frames==frameCount and anchors>3 and ranked:IsVisible())
 print("Duel HUD fold mock: PASS (stable top, body visibility, dragging, polling, subscriptions and font registration)")
 local function HealthText(t)
     for _,f in ipairs(frames) do
-        if f.text==t and f:IsVisible() then return true end
+        if f.text==t and f:IsVisible() then assert(not fitted[f],"health text must not have measurement hook");return true end
     end
 end
 local barCount=0
@@ -130,3 +131,33 @@ end
 max=0;hp=0;root.scripts.OnEvent(root,"UNIT_HEALTH","player")
 assert(HealthText("Unavailable"))
 print("Duel HUD health mock: PASS (two native pill bars, readable percent, protected display, refusal and empty state)")
+-- Execute the actual shared Style helper through its public font registration.
+-- A secret-like object would throw on comparison, matching the reported fault.
+local sf={}
+local widthSecret=setmetatable({}, {__lt=function()error("secret comparison")end,__le=function()error("secret comparison")end})
+issecretvalue=function(v)return v==widthSecret end
+local onSetText
+hooksecurefunc=function(label,key,fn)if key=="SetText" then onSetText=fn end end
+local measured=widthSecret
+local fontSize
+local label={}
+function label:SetFont(_,size)fontSize=size;return true end
+function label:GetFont()return "mock",fontSize,"" end
+function label:SetText()if onSetText then onSetText()end end
+function label:GetUnboundedStringWidth()if measured=="refuse" then error("measurement refused")end;return measured end
+function label:SetTextColor()end
+function label:SetJustifyH()end
+function label:SetJustifyV()end
+local parent={CreateFontString=function()return label end}
+local sty={Settings={Get=function()return 1 end}}
+assert(loadfile("addon/DuelsReimagined/UI/Style.lua"))("DuelsReimagined",sty)
+sty.Style.Text(parent,"x",11)
+sty.Style.ConstrainText(label,100,20,8)
+assert(fontSize==11)
+label:SetText("restricted")
+assert(fontSize==11)
+measured="refuse";label:SetText("refused");assert(fontSize==11)
+measured=130;label:SetText("long");assert(fontSize==8)
+measured=30;label:SetText("short");assert(fontSize==11)
+print("Shared font fitting: PASS (secret width, refused width and ordinary shrink/restore)")
+

@@ -8,19 +8,21 @@ class DuelHUDTests(unittest.TestCase):
     def test_approved_concept_art_and_bounded_regions(self):
         h=read("UI/DuelHUD.lua")
         self.assertIn("DuelHUDArt.png",h)
-        self.assertIn('Artwork("shell",0,0,WIDTH,HEIGHT,"BACKGROUND")',h)
+        self.assertNotIn('Artwork("shell"',h)
+        for part in ("bodyFill","sideEdge","topEdge","bottomEdge","topLeft","topRight","bottomLeft","bottomRight","gem","headerFace","timerFace","timerBlade","statRow"):
+            self.assertIn('Artwork("'+part+'"',h)
         self.assertIn("f:ClearAllPoints();f:SetPoint",h)
         self.assertNotIn("S.Fill(",h)
         self.assertNotIn("S.Skin(root",h)
         self.assertTrue((ROOT/"Media/Skin/DuelHUDArt.png").is_file())
-        self.assertIn("DuelHUDPremium.png",h)
-        self.assertIn('local foldedShell=Artwork("foldedShell",0,0,WIDTH,FOLDED_HEIGHT,"BACKGROUND")',h)
-        self.assertIn("body:SetShown(not folded);foldedShell:SetShown(folded)",h)
+        self.assertIn("DuelHUDPremiumParts.png",h)
+        self.assertIn('local foldedTrim=CreateFrame("Frame",nil,root)',h)
+        self.assertIn("body:SetShown(not folded);foldedTrim:SetShown(folded)",h)
 
     def test_rounded_health_assets_and_secret_safe_percentage(self):
         import hashlib, struct
         assets={
-            "DuelHUDPremium.png": ((1024,1024),"6fd4670b4b21b1859dee9d54fa782a6e8b997dac"),
+            "DuelHUDPremiumParts.png": ((1024,512),"586f3b8e5c525e0ea3623060d152938d34c2b631"),
             "DuelHUDHealthFill.png": ((256,32),"77aa11d7b1e264d25b1e7b03ac2fd36d9027536d"),
             "DuelHUDHealthMask.png": ((256,32),"953bba2639425582fe6b138f9ca083ad77a3e412"),
         }
@@ -34,6 +36,14 @@ class DuelHUDTests(unittest.TestCase):
                       'if Secret(percent) then','pcall(side.hpText.SetFormattedText,side.hpText,"%.0f%%",percent)',
                       'elseif type(percent)=="number" and percent>=0 and percent<=100 then'):
             self.assertIn(token,h)
+
+    def test_secret_measurement_not_used_by_health_labels(self):
+        h=read("UI/DuelHUD.lua")
+        self.assertNotIn("S.ConstrainText(side.hpText",h)
+        s=read("UI/Style.lua")
+        self.assertIn("if not ok or not ReadableNumber(width) then return end",s)
+        self.assertIn("pcall(issecretvalue,v)",s)
+        self.assertIn("local ok,width=pcall(measure,fs)",s)
 
     def test_independent_default_and_settings(self):
         s,o,h=read("Core/Settings.lua"),read("UI/Options.lua"),read("UI/DuelHUD.lua")
