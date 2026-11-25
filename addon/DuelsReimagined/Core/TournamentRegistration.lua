@@ -2690,6 +2690,10 @@ function R.OpenTestCatalog()
     catalog=MakeCatalog(s,a,n)
     return catalog~=nil,catalog and "Choose a local test tournament." or "Could not prepare test tournaments."
 end
+-- Catalog clocks are frozen local rehearsal clocks, not real deadlines.
+function R.TestCatalogTime()
+    if not Current() and catalog and catalog.entries[1] then return catalog.entries[1].now end
+end
 function R.TestListings()
     if Current() or not catalog then return nil end
     local rows={}

@@ -103,11 +103,7 @@ end
 local overview=Page("overview")
 local overviewView,privateControlsTop
 local browse=Page("browse")
-local list=Panel(browse,"Browse Tournaments")
-list.detail=Label(list,"No tournaments discovered.",17,C.muted,"CENTER")
-list.note=Label(list,"Tournament discovery is not active yet.",13,C.muted,"CENTER")
-local info=Panel(browse,"Tournament Details")
-info.detail=Label(info,"Select a tournament to view its details and rules.",15,C.muted,"CENTER")
+local browseView
 local host=Page("host")
 local manage=Panel(host,"Tournament details")
 local eventRules=Panel(host,"Format & rules")
@@ -308,32 +304,6 @@ local hostSim=Action(hostTest,"Simulate Next Game",function()Run("simulate-game"
 local hostCancel=Action(hostTest,"Cancel Test",function()Run("cancel","host")end)
 local featurePrev=Action(hostTest,"Previous featured match",function()Run("feature-prev")end)
 local featureNext=Action(hostTest,"Next featured match",function()Run("feature-next")end)
-local listRow=CreateFrame("Frame",nil,list)
-S.Skin(listRow,C.body,{corner=8,edge=C.goldDim,shine=.12,shade=.18})
-local listRowText=Label(listRow,"",14,C.pale,"CENTER");listRowText:SetAllPoints(listRow)
-local selectedListing=1
-local catalogRows={}
-for i=1,4 do
-    local index=i
-    catalogRows[i]=Action(list,"",function()
-        selectedListing=index;feedback="";U.Show("browse")
-    end)
-end
-local openCatalog=Action(list,"Browse Test Tournaments",function()
-    local ok,why=R.OpenTestCatalog();feedback=why or "";selectedListing=1
-    U.Show("browse")
-end)
-local join=Action(info,"Test Join",function()
-    if R.TestListings() then
-        local ok,why=R.JoinTestListing(selectedListing);feedback=why or ""
-        if ok then Switch("my-tournament") else U.Show("browse") end
-    else Run("join","my-tournament") end
-end)
-local watch=Action(info,"Watch Test Tournament",function()
-    local ok,why=R.WatchTestListing(selectedListing);feedback=why or ""
-    if ok then Switch("brackets") else U.Show("browse") end
-end)
-local browseHost=Action(info,"Organizer View",function()Run("host","manage")end)
 local check=Action(myPanel,"Test Check-in",function()Run("checkin")end)
 local advance=Action(myPanel,"Test Check-in Time",function()Run("checkin-time")end)
 local leave=Action(myPanel,"Leave Test",function()Run("leave","browse")end)
@@ -439,18 +409,6 @@ local function RefreshTest()
     local canCreate=R.CanCreatePreview()
     manage:SetShown(canCreate);eventRules:SetShown(canCreate);draftFooter:SetShown(canCreate)
     if p or listings then subtitle:SetText("LOCAL TEST - Nothing is published online") end
-    listRow:SetShown(not not (player and p.events[1]))
-    openCatalog:SetShown(not p and not listings)
-    for i,b in ipairs(catalogRows) do
-        local ad=listings and listings[i]
-        b:SetShown(ad~=nil)
-        if ad then
-            b.label:SetText((i==selectedListing and "> " or "")..ad.draft.name.."  "..ad.count.."/"..ad.draft.capacity)
-        end
-    end
-    join:SetShown(not not (listings and listings[selectedListing] or player and p.events[1] and not p.member))
-    browseHost:SetShown(not not (player and not p.mode))
-    watch:SetShown(not not listings)
     local started=p and p.bracket~=nil
     check:SetShown(not not (player and p.member and not started and not p.member.checkedIn))
     advance:SetShown(not not (player and p.member and not started and p.now<p.event.draft.startAt-1800))
@@ -491,13 +449,6 @@ local function RefreshTest()
         end
     end
     if player then
-        local ad=p.events[1]
-        list.detail:SetText(ad and "" or "No open test tournaments.")
-        list.note:SetText("Local rehearsal only. Real discovery is not active.")
-        if ad then
-            listRowText:SetText(ad.draft.name.."  -  "..ad.count.." / "..ad.draft.capacity)
-            info.detail:SetText(Describe(ad).."\nOrganizer: "..ad.organizer.."\n"..feedback)
-        else info.detail:SetText("Registration is closed for this test event. Return to the organizer.") end
         if p.match then
             local m=p.match
             myPanel.detail:SetText("LOCAL TEST - No real duel or rating changes\n\n"..p.event.draft.name.."\n"..
@@ -508,15 +459,7 @@ local function RefreshTest()
             local summary=p.bracket and (p.bracket.champion and "Simulated champion: "..(p.names[p.bracket.champion] or "Unknown") or p.state=="eliminated" and "Eliminated - follow the remaining matches." or "Waiting for the next match.") or (p.member.checkedIn and "Checked in" or "Registered")
             myPanel.detail:SetText(Describe(p.event).."\n"..summary.."\n"..feedback)
         end
-    elseif listings then
-        local ad=listings[selectedListing]
-        list.detail:SetText("")
-        list.note:SetText("Local test tournaments only. Choose a tournament to inspect or join.")
-        info.detail:SetText(Describe(ad).."\nOrganizer: "..ad.organizer.."\n"..feedback)
     else
-        list.detail:SetText("No tournaments discovered.")
-        list.note:SetText("Tournament discovery is not active yet.")
-        info.detail:SetText(feedback~="" and feedback or "Select a tournament to view its details and rules.")
         myPanel.detail:SetText("No active tournament.")
     end
     return p
@@ -530,51 +473,37 @@ local bar=W.ScrollBar(root,function()
 end,SetOffset)
 bar:ClearAllPoints()
 bar:SetPoint("TOPLEFT",scroll,"TOPRIGHT",4,0);bar:SetPoint("BOTTOMLEFT",scroll,"BOTTOMRIGHT",4,0)
-local function LayoutBrowse(w,wide,top,p,listings)
-    local height
-        local h=math.max((p or listings) and 490 or 250,scroll:GetHeight()-top)
-        if wide then
-            local left=math.floor((w-12)*.53)
-            Place(list,browse,0,0,left,h);Header(list,left)
-            Place(info,browse,left+12,0,w-left-12,h);Header(info,w-left-12)
-            TextAt(list.detail,list,12,60,left-24,60)
-            TextAt(list.note,list,12,122,left-24,52)
-            TextAt(info.detail,info,12,60,w-left-36,90)
-            Place(openCatalog,list,12,180,left-24,30)
-            if listings then
-                for i,b in ipairs(catalogRows) do Place(b,list,12,48+(i-1)*40,left-24,34) end
-                TextAt(list.note,list,12,216,left-24,58)
-                TextAt(info.detail,info,12,48,w-left-36,h-100)
-                Place(join,info,12,h-76,w-left-36,28)
-                Place(watch,info,12,h-40,w-left-36,28)
-            elseif p then
-                Place(listRow,list,12,48,left-24,46)
-                TextAt(info.detail,info,12,48,w-left-36,h-132)
-                Place(join,info,12,h-76,w-left-36,28)
-                Place(browseHost,info,12,h-40,w-left-36,28)
-            end
-            height=h
-        else
-            local listH=listings and 288 or 232
-            Place(list,browse,0,0,w,listH);Header(list,w)
-            TextAt(list.detail,list,12,60,w-24,60);TextAt(list.note,list,12,122,w-24,52)
-            Place(openCatalog,list,12,184,w-24,30)
-            local infoH=(p or listings) and 490 or 190
-            Place(info,browse,0,listH+12,w,infoH);Header(info,w)
-            TextAt(info.detail,info,12,48,w-24,(p or listings) and 350 or 100)
-            if listings then
-                for i,b in ipairs(catalogRows) do Place(b,list,12,48+(i-1)*40,w-24,34) end
-                TextAt(list.note,list,12,216,w-24,58)
-                Place(join,info,12,infoH-76,w-24,28)
-                Place(watch,info,12,infoH-40,w-24,28)
-            elseif p then
-                Place(listRow,list,12,48,w-24,46)
-                Place(join,info,12,infoH-76,w-24,28)
-                Place(browseHost,info,12,infoH-40,w-24,28)
-            end
-            height=listH+12+infoH
-        end
-    return height
+local function BrowseAction(kind,entry)
+    if kind=="open" then
+        local ok,why=R.OpenTestCatalog();feedback=why or "";U.Show("browse");return
+    end
+    if not entry then return end
+    local listings=R.TestListings()
+    if listings then
+        local ad=listings[entry.index]
+        if not ad or ad.id~=entry.id or ad.revision~=entry.ad.revision then feedback="Tournament details changed. Select it again.";U.RefreshActive();return end
+        local ok,why
+        if kind=="join" then ok,why=R.JoinTestListing(entry.index)
+        elseif kind=="bracket" then ok,why=R.WatchTestListing(entry.index) end
+        feedback=why or ""
+        if ok then Switch(kind=="join" and "my-tournament" or "brackets") else U.RefreshActive() end
+        return
+    end
+    local p=R.PreviewSnapshot()
+    if not p or p.event.id~=entry.id or p.event.revision~=entry.ad.revision then return end
+    if kind=="join" and p.role=="player" and not p.member then Run("join","my-tournament")
+    elseif kind=="bracket" and p.bracket then Switch("brackets")
+    elseif kind=="bracket" and p.role=="player" and not p.mode then Run("host","manage") end
+end
+local function LayoutBrowse(w,p,listings)
+    if not browseView then browseView=ns.TournamentBrowse.New(browse,BrowseAction,U.RefreshActive) end
+    local rows=listings or (p and p.role=="player" and p.events) or {}
+    return browseView.Show({rows=rows,now=listings and R.TestCatalogTime() or p and p.now,
+        scope=Population.GetCurrent(),catalog=listings~=nil,preview=p~=nil,
+        canJoin=listings~=nil or p and p.role=="player" and not p.member,
+        organizer=p and p.role=="player" and not p.mode,hasBracket=p and p.bracket~=nil,
+        canOpenTest=not p and not listings and R.CanCreatePreview(),feedback=feedback,
+        context=listings and "catalog" or p and p.event.id or "empty"},w)
 end
 local function LayoutOverview(w,p,listings,private)
     local privateActive=private and private.active
@@ -609,7 +538,7 @@ local function Layout()
     if privatePanel then privatePanel:Hide() end
     if privateBack then privateBack:Hide() end
     if p or listings then communityNote:SetText("Local test only. Community settings are automatically detected.") end
-    local showCommunity=active=="host" or active=="manage" or active=="browse" or active=="my-tournament" or active=="brackets"
+    local showCommunity=active=="host" or active=="manage" or active=="my-tournament" or active=="brackets"
     community:SetShown(showCommunity)
     local top=showCommunity and LayoutCommunity(w) or 0
     if active and pages[active] then
@@ -619,6 +548,7 @@ local function Layout()
         page:SetPoint("BOTTOMRIGHT",canvas,"BOTTOMRIGHT",0,0)
     end
     if active~="overview" and overviewView then overviewView.Hide() end
+    if active~="browse" and browseView then browseView.Hide() end
     if active=="overview" then
         height=LayoutOverview(w,p,listings,private)
     elseif active=="brackets" and privateProjection then
@@ -633,7 +563,7 @@ local function Layout()
         subtitle:SetText("PRIVATE NETWORK TEST - Organizer snapshot")
         height=h
     elseif active=="browse" then
-        height=LayoutBrowse(w,wide,top,p,listings)
+        height=LayoutBrowse(w,p,listings)
     elseif active=="host" then
         height=LayoutHost(w)
     elseif active=="manage" then
@@ -697,10 +627,11 @@ local function Layout()
     bar:Refresh()
 end
 function U.Show(key)
-    if active=="host" and key~="host" then W.CloseChoices() end
+    if (active=="host" or active=="browse") and key~=active then W.CloseChoices() end
     if not key then
         if bracketView then bracketView.Hide() end
         if overviewView then overviewView.Hide() end
+        if browseView then browseView.Hide() end
         privateConfirm=nil
         active=nil;root:Hide();return
     end
@@ -725,11 +656,11 @@ end
 function U.GetPageScroll() return scroll:GetVerticalScroll() end
 function U.SetPageScroll(_,offset) SetOffset(offset);bar:Refresh() end
 scroll:SetScript("OnMouseWheel",function(_,d)
-    if active=="host" then W.CloseChoices() end
+    if active=="host" or active=="browse" then W.CloseChoices() end
     SetOffset(scroll:GetVerticalScroll()-d*42);bar:Refresh()
 end)
 scroll:HookScript("OnSizeChanged",function()
-    if active=="host" then W.CloseChoices() end
+    if active=="host" or active=="browse" then W.CloseChoices() end
     if active then Layout() end
 end)
 root:HookScript("OnShow",function() if active then RefreshCommunity();Layout() end end)
