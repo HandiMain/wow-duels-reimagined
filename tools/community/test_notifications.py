@@ -72,3 +72,8 @@ class NotificationTests(unittest.TestCase):
             self.assertIn(token,u)
         self.assertIn('message=="notify achievement"',read("Core/Commands.lua"))
         self.assertIn('Preview achievement notification',read("UI/Options.lua"))
+
+    def test_achievement_points_share_wreath_center(self):
+        u=read("UI/Notifications.lua")
+        self.assertIn('achPoints=AchLabel("",20,C.pale,326,58,61,28)',u)
+        self.assertIn('achPointsLabel=AchLabel("Points",11,C.pale,326,83,61,18)',u)

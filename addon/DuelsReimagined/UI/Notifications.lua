@@ -103,8 +103,9 @@ end
 local achCategory=AchLabel("ACHIEVEMENT UNLOCKED",13,C.pale,71,13,268,24)
 local achTitle=AchLabel("",22,C.pale,110,49,208,38)
 local achDescription=AchLabel("",12,C.text,110,86,208,40);achDescription:SetWordWrap(true)
-local achPoints=AchLabel("",20,C.pale,331,55,61,28)
-local achPointsLabel=AchLabel("Points",11,C.pale,331,80,61,18)
+-- Align the live labels to the wreath artwork optical center.
+local achPoints=AchLabel("",20,C.pale,326,58,61,28)
+local achPointsLabel=AchLabel("Points",11,C.pale,326,83,61,18)
 local current,closing,shownSound,handle,animationKey
 local queue,seen={},{}
 local ready,loginDone=false,false
