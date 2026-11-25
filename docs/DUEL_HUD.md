@@ -34,3 +34,6 @@ Replaces the full-panel premium shell with separate corner, rail, header materia
 
 ### Individual asset cleanup
 Re-audited modular layout against the in-game screenshot. Removed header fragments from corner assets and discarded the contaminated crest crop, reusing the already packaged crossed-sword emblem. Header face is continuous; controls and emblem fit between corner bounds. Reconstructed lower edge of each stat-row asset and smoothed hard button-face patch seams while preserving rendered bevels. Wider centered mode buttons and less aggressive disabled-art dimming preserve the concept's metallic detail. Stat rows inset from side rails. No gameplay, health bar, secret handling or notification changes. Offline 336x310 composite checked; live WoW appearance pending.
+
+### Header polish
+HUD header uses the existing main-window brand's isolated swords artwork and the shared HeaderButton factory (including the Options glyph, fold arrows, red close plate and motion feedback). Folded state uses the same continuous copper nine-slice as the main window instead of truncated expanded corners; the shared title and controls stay in place. No additional textures or gameplay changes. Reference: Polestar UI/GuideFrameLook.lua shared header controls and theme metrics. Live appearance unverified.

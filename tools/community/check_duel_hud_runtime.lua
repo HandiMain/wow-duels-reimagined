@@ -51,7 +51,14 @@ local ns={
         Plate=noop,FeedbackOverlay=function(p)return Frame(p)end},
     Settings={Get=function(k)return prefs[k] end,GetDuelHUDPosition=function()return px,py end,
         SetDuelHUDPosition=function(x,y)px,py=x,y end},
-    Motion={Fade=noop,Duration=function()return .1 end},Widgets={PressFeedback=noop},
+    Motion={Fade=function(f,a)f.alpha=a end,Duration=function()return .1 end},Widgets={PressFeedback=noop},
+    Chrome={Sharp=function(t)return t end},
+    Header={CreateHUDButton=function(p,name,size)
+        local b=Frame(p);b:SetSize(size,size);b.art=Frame(b);b.chosen=Frame(b)
+        b.headerControl=name
+        b.art:SetTexture(name..".png")
+        return b
+    end},
     Client={IsSupported=function()return true end},
     Group={ReadCompetitiveIdentity=function(unit)return {guid="Player-1-"..unit,name=unit}end},
     CompetitiveLifecycle={RankedAvailability=function()return false,"Unranked only",false end,GetSnapshot=function()return {}end},
@@ -67,16 +74,20 @@ for _,f in ipairs(frames)do if f.events.PLAYER_LOGIN then f.scripts.OnEvent(f,"P
 assert(root:IsShown() and root:GetHeight()==310 and not H.IsFolded() and subscribers==2)
 assert(root:GetScript("OnUpdate") and fits>=15)
 local arrow,ranked,header
+local upper,foldTrim,controls={},nil,0
 for _,f in ipairs(frames)do
     if f.texture and f.texture:find("FoldUp.png",1,true)then arrow=f.parent end
     if f.text=="Ranked"then ranked=f end
     if f.scripts.OnDragStart then header=f end
+    if f.headerControl then controls=controls+1 end
+    if f.parent==root and f.h==42 and f~=arrow and f.scripts.OnDragStart==nil and not f:IsShown() then foldTrim=f end
 end
-assert(arrow and ranked and ranked:IsVisible() and header)
+assert(arrow and ranked and ranked:IsVisible() and header and controls==3 and foldTrim)
 local top=root.point[5];local frameCount=#frames
 arrow.scripts.OnClick()
 assert(H.IsFolded() and root:IsShown() and root:GetHeight()==42 and root.point[5]==top)
 assert(not ranked:IsVisible() and arrow:IsVisible() and not root:GetScript("OnUpdate") and subscribers==2)
+assert(foldTrim:IsVisible() and arrow.chosen.alpha==.42)
 -- Moving while folded stores the expanded centre, not the tiny header centre.
 header.scripts.OnDragStart();root.point[4]=720;root.point[5]=650
 header.scripts.OnDragStop()
@@ -84,6 +95,7 @@ assert(math.abs(px-.5)<.0001 and math.abs(py-(650-155)/900)<.0001)
 arrow.scripts.OnClick()
 assert(not H.IsFolded() and root:GetHeight()==310 and math.abs(root.point[5]-650)<.001)
 assert(ranked:IsVisible() and root:GetScript("OnUpdate") and subscribers==2)
+assert(not foldTrim:IsShown() and arrow.chosen.alpha==0)
 H.Fold(true);prefs.duelHUDEnabled=false;H.Refresh()
 assert(not root:IsShown() and subscribers==0 and not root:GetScript("OnUpdate"))
 prefs.duelHUDEnabled=true;H.Refresh()

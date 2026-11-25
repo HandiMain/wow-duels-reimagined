@@ -30,7 +30,7 @@ local premiumArt={
     timerFace={26,82,142,76},timerBlade={172,82,103,32},statRow={26,163,619,56},
     normal={26,224,280,64},selected={310,224,280,64},red={594,224,280,64},
     healthTrack={26,292,284,38}}
-local art={gear={342,205,24,24},close={372,205,24,24},swords={410,0,30,30},
+local art={swords={410,0,30,30},
     playerRing={342,238,48,48},enemyRing={396,238,48,48}}
 local function Place(f,x,y,w,h)
     f:ClearAllPoints();f:SetPoint("TOPLEFT",f:GetParent(),"TOPLEFT",x,-y);f:SetSize(w,h)
@@ -75,7 +75,7 @@ local function Label(value,size,color,x,y,w,h,align)
     f:SetJustifyH(align or "CENTER");f:SetWordWrap(false);Place(f,x,y,w,h)
     S.ConstrainText(f,w,h,8);return f
 end
-local function Action(value,x,y,w,h,fn,red,icon)
+local function Action(value,x,y,w,h,fn,red)
     local b=CreateFrame("Button",nil,surface);Place(b,x,y,w,h)
     b:RegisterForClicks("LeftButtonUp")
     local t=b:CreateTexture(nil,"BACKGROUND");t:SetAllPoints(b)
@@ -84,7 +84,7 @@ local function Action(value,x,y,w,h,fn,red,icon)
     b.label=label;b.selected=false;b.usable=true
     -- No alpha animation on the whole widget: the source art stays opaque.
     b.Paint=function()
-        Region(t,icon or (b.selected and "selected" or not b.usable and "normal" or red and "red" or "normal"))
+        Region(t,b.selected and "selected" or not b.usable and "normal" or red and "red" or "normal")
         local v=not b.usable and not b.selected and .88 or b.pressed and .78 or b.hovered and b.usable and 1 or .98
         t:SetVertexColor(v,v,v,1)
         label:SetTextColor(unpack((b.usable or b.selected) and C.text or C.muted))
@@ -116,46 +116,52 @@ local function MatchUnit(id)
         if Plain(UnitGUID,unit)==id.guid then return unit end
     end
 end
--- The SAME header is retained when folded. Only a small independent lower
--- rail appears below it. No alternate screenshot or duplicate header.
+-- Folded mode has its own continuous copper nine-slice, shared with the
+-- main window. The expanded top corners are hidden, not cut in half.
 surface=root
 local foldedTrim=CreateFrame("Frame",nil,root)
 Place(foldedTrim,0,0,WIDTH,FOLDED_HEIGHT)
+foldedTrim:EnableMouse(false)
 surface=foldedTrim
-Artwork("bodyFill",8,7,WIDTH-16,31,"BACKGROUND")
-Artwork("bottomEdge",8,32,WIDTH-16,10,"BORDER")
-Artwork("sideEdge",1,27,9,12,"BORDER")
-Artwork("sideEdge",WIDTH-10,27,9,12,"BORDER",true)
+Artwork("bodyFill",4,4,WIDTH-8,FOLDED_HEIGHT-8,"BACKGROUND")
+S.Plate(foldedTrim,"shellCopper",{corner=12,layer="ARTWORK",sublevel=1})
 foldedTrim:Hide()
 surface=headerLayer
 Artwork("headerFace",8,6,WIDTH-16,28,"BACKGROUND")
-Artwork("topEdge",25,1,WIDTH-50,8,"BORDER")
-Artwork("topLeft",0,0,28,30,"ARTWORK")
-Artwork("topRight",WIDTH-28,0,28,30,"ARTWORK")
+local expandedTop={
+    Artwork("topEdge",25,1,WIDTH-50,8,"BORDER"),
+    Artwork("topLeft",0,0,28,30,"ARTWORK"),
+    Artwork("topRight",WIDTH-28,0,28,30,"ARTWORK"),
+}
 local header=CreateFrame("Frame",nil,headerLayer)
 Place(header,0,0,230,35);header:EnableMouse(true);header:RegisterForDrag("LeftButton")
-Artwork("swords",30,4,28,28,"OVERLAY")
-Label("Duels Reimagined",16,C.pale,62,4,165,26,"LEFT")
+-- Exact main-window silver/gold crossed swords, sampled independently.
+local brand=headerLayer:CreateTexture(nil,"OVERLAY")
+brand:SetTexture("Interface\\AddOns\\DuelsReimagined\\Media\\Skin\\DuelBrand.png")
+brand:SetTexCoord(10/512,77/512,22/128,91/128)
+ns.Chrome.Sharp(brand)
+Place(brand,29,2,31,32)
+Label("Duels Reimagined",16,C.pale,64,4,163,26,"LEFT")
 local function OpenOptions()
     if Combat() then return end
     if not ns.Window.frame:IsShown() then ns.Window.Toggle() end
     ns.Navigation.SelectKey("options","interface")
 end
-local gear=Action("",234,6,20,20,OpenOptions,false,"gear")
-local foldButton=CreateFrame("Button",nil,headerLayer);Place(foldButton,258,6,20,20)
-S.Plate(foldButton,"dark",{corner=6})
-local foldArt=foldButton:CreateTexture(nil,"ARTWORK");foldArt:SetSize(15,15);foldArt:SetPoint("CENTER")
+local gear=ns.Header.CreateHUDButton(headerLayer,"Options",21)
+Place(gear,234,6,21,21)
+gear:SetScript("OnClick",OpenOptions)
+local foldButton=ns.Header.CreateHUDButton(headerLayer,"FoldUp",21)
+Place(foldButton,258,6,21,21)
 local function PaintFold()
-    foldArt:SetTexture("Interface\\AddOns\\DuelsReimagined\\Media\\Artwork\\Header\\"..(folded and "FoldDown" or "FoldUp")..".png")
+    foldButton.art:SetTexture("Interface\\AddOns\\DuelsReimagined\\Media\\Artwork\\Header\\"..(folded and "FoldDown" or "FoldUp")..".png")
+    ns.Motion.Fade(foldButton.chosen,folded and .42 or 0,ns.Motion.Duration("quick"))
+    for _,part in ipairs(expandedTop) do part:SetShown(not folded) end
 end
 PaintFold()
 foldButton:SetScript("OnClick",function()H.Fold(not folded)end)
-local foldHover=S.FeedbackOverlay(foldButton,{corner=6,inset=1,fill=C.gold,edge=C.gold,shine=.4,rim=.6})
-foldHover:SetAlpha(0)
-foldButton:SetScript("OnEnter",function()ns.Motion.Fade(foldHover,.34,ns.Motion.Duration("quick"))end)
-foldButton:SetScript("OnLeave",function()ns.Motion.Fade(foldHover,0,ns.Motion.Duration("gentle"))end)
-ns.Widgets.PressFeedback(foldButton,foldHover,{corner=6})
-local close=Action("",282,6,20,20,function() Settings.Set("duelHUDEnabled",false) end,false,"close")
+local close=ns.Header.CreateHUDButton(headerLayer,"Close",20)
+Place(close,282,6,20,20)
+close:SetScript("OnClick",function()Settings.Set("duelHUDEnabled",false)end)
 if ns.Tooltips then
     ns.Tooltips.Bind(gear,{title="Duel HUD options",detail="Open Interface settings."})
     ns.Tooltips.Bind(close,{title="Hide Duel HUD",detail="Also hides notifications. Show it again in Options or with /duels hud."})

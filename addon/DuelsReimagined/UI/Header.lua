@@ -12,11 +12,12 @@ local manualPeek, moving, folded = false, false, false
 local expandedHeight = frame:GetHeight()
 local alphaWhilePeeking = 0.16
 
-local function HeaderButton(name, title, detail, parent, withoutTooltip)
+local function HeaderButton(name, title, detail, parent, withoutTooltip, compact)
     local b = CreateFrame("Button", nil, parent or header)
     -- The red X is deliberately smaller than Peek/Fold, while its native
     -- button retains ordinary hover, pressed and tooltip behavior.
-    b:SetSize(name == "Close" and 24 or 29, name == "Close" and 24 or 29)
+    local size = compact or (name == "Close" and 24 or 29)
+    b:SetSize(size, size)
     b:RegisterForClicks("LeftButtonUp")
     -- Dark forged controls at rest; the close X gets its crimson plate.
     -- Exactly one extracted button surface. The click/Peek/Fold behavior
@@ -25,9 +26,15 @@ local function HeaderButton(name, title, detail, parent, withoutTooltip)
     local hover = Style.FeedbackOverlay(b, {
         corner=8, inset=2, fill=C.gold, edge=C.gold, shine=0.60, rim=0.82,
     })
-    local art = b:CreateTexture(nil, "ARTWORK")
-    art:SetTexture(iconBase .. name .. ".png")
-    art:SetSize(name == "Close" and 15 or 19, name == "Close" and 15 or 19)
+    local art
+    if name == "Options" then
+        art = ns.Chrome.Icon(b, "Options")
+    else
+        art = b:CreateTexture(nil, "ARTWORK")
+        art:SetTexture(iconBase .. name .. ".png")
+    end
+    local iconSize = compact and (name == "Close" and 12 or 15) or (name == "Close" and 15 or 19)
+    art:SetSize(iconSize, iconSize)
     art:SetPoint("CENTER")
     ns.Chrome.Sharp(art)
     -- A separate, persistent selected accent for Fold/Peek, distinct from
@@ -74,6 +81,12 @@ end
 -- but has no tooltip in an already self-explanatory dialog.
 function Header.CreateCloseButton(parent)
     return HeaderButton("Close", "Close", "Close dialog", parent, true)
+end
+
+-- HUD controls share the same plated icon, hover, press and motion owner.
+-- The HUD retains its own placement, tooltips and actions.
+function Header.CreateHUDButton(parent, name, size)
+    return HeaderButton(name, "", "", parent, true, size)
 end
 
 local function RefreshFade()
