@@ -286,7 +286,13 @@ local function Switch(key)
     if not (ns.Navigation and ns.Navigation.SelectKey("tournaments",key)) then U.Show(key) end
 end
 local function Run(action,key)
-    local ok,why=R.PreviewAction(action);feedback=why or ""
+    local p=action=="simulate-game" and R.PreviewSnapshot()
+    local ok,why
+    if p and p.role=="player" and p.match then
+        if ns.DuelHUD.IsTournamentHUDActive() then ok,why=ns.TournamentHUD.RequestGame()
+        else ok,why=false,"Show the tournament HUD and finish combat first." end
+    else ok,why=R.PreviewAction(action) end
+    feedback=why or ""
     if ok and action=="cancel" and ns.Notifications then ns.Notifications.ClearTournamentPreview() end
     if ok and key then Switch(key) else U.Show(active or "overview") end
 end
@@ -334,6 +340,7 @@ local matchNotice=Action(myPanel,"Preview Match Notification",function()
 end)
 local endTest=Action(hero,"End Local Test",function()
     R.EndPreview()
+    if ns.DuelResult then ns.DuelResult.ClearTournamentPreview() end
     if ns.Notifications then ns.Notifications.ClearTournamentPreview() end
     feedback="";Switch("overview")
 end)

@@ -93,8 +93,7 @@ local function Build()
     At(sim,front,574,113,149,23)
     sim:SetScript("OnClick",function()
         if editing or not ns.DuelHUD or not ns.DuelHUD.IsTournamentHUDActive() then return end
-        local ok,why=ns.TournamentRegistration.PreviewAction("simulate-game")
-        if ns.TournamentUI.RefreshActive then ns.TournamentUI.RefreshActive() end
+        local ok,why=B.RequestGame()
         if not ok and ns.Feedback then ns.Feedback.Toast(why or "Test game unavailable",sim) end
     end)
     local test=Text(front,10,129,134,20,10,C.muted);test:SetText("LOCAL TEST")
@@ -131,6 +130,37 @@ local function Paint(m)
     end
     fields.sim:SetShown(not editing)
 end
+local function SafeIdle()
+    local ok,v=pcall(InCombatLockdown)
+    if not ok then return false end
+    if type(issecretvalue)=="function" then
+        local safe,secret=pcall(issecretvalue,v)
+        if not safe or secret then return false end
+    end
+    if v~=false then return false end
+    local d=ns.DuelDetection.GetSnapshot()
+    return d and d.state=="idle" and not d.active and not d.challenge
+end
+-- The existing countdown timer owns completion; no second timer or
+-- fabricated detector events. Revalidate the assignment before scoring.
+function B.RequestGame()
+    if editing or not ns.DuelHUD.IsTournamentHUDActive() or not SafeIdle() then return false,"No assigned test match." end
+    local R=ns.TournamentRegistration
+    local m=B.Project(R.PreviewSnapshot())
+    if not m then return false,"No assigned test match." end
+    local function Finish()
+        local current=B.Project(R.PreviewSnapshot())
+        if not ns.DuelHUD.IsTournamentHUDActive() or not current or current.key~=m.key or current.game~=m.game or not SafeIdle() then return false,"Test match changed." end
+        local ok,why,outcome=R.PreviewAction("simulate-game")
+        if ns.TournamentUI.RefreshActive then ns.TournamentUI.RefreshActive() end
+        if ok and outcome then ns.DuelResult.ShowTournamentPreview(outcome) end
+        return ok,why
+    end
+    if ns.DuelCountdown.IsTournamentPreviewRunning() then return false,"Countdown already running." end
+    if ns.DuelResult then ns.DuelResult.ClearTournamentPreview() end
+    if not Settings.Get("duelCountdownVisual") then return Finish() end
+    return ns.DuelCountdown.PreviewTournament(Finish)
+end
 function B.Frame() return root end
 function B.Show(m)
     Build()
@@ -140,6 +170,7 @@ function B.Show(m)
 end
 function B.Hide()
     if root and not editing then root:Hide() end
+    if ns.DuelCountdown then ns.DuelCountdown.CancelTournamentPreview() end
 end
 function B.Relayout()
     if root and root:IsShown() then Layout() end

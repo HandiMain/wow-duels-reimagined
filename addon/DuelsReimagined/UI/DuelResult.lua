@@ -105,7 +105,7 @@ local function Layout()
     if not Number(w) or not Number(h) or w<=0 or h<=0 then return end
     local scale=math.min(1,w*.84/W,h*.6/H)
     root:SetScale(scale);root:ClearAllPoints()
-    root:SetPoint("TOP",UIParent,"TOP",0,-h*.09/scale)
+    root:SetPoint("TOP",UIParent,"TOP",0,-h*(current and current.tournament and .20 or .09)/scale)
 end
 local function Progress(v)
     local p=math.max(0,math.min(1,v))
@@ -119,7 +119,7 @@ local function Progress(v)
 end
 local function Show(data)
     if not S.Get("duelResultVisual") or not Idle() then return false end
-    Clear();Build();Layout();current=data
+    Clear();Build();current=data;Layout()
     local win=data.outcome=="won" or data.outcome=="they_fled"
     heading:SetText(win and "VICTORY" or "DEFEAT")
     if win then heading:SetTextColor(1,.79,.37);edge.texture:SetVertexColor(.95,.58,.14)
@@ -130,9 +130,14 @@ local function Show(data)
     else subtitle:SetText(win and "You defeated "..opponent or "You were defeated by "..opponent) end
     local duration=data.duration
     meta:SetText(duration and string.format("Duel duration: %02d:%02d",math.floor(duration/60),math.floor(duration%60)) or "Duration not observed")
-    rank.label:SetText(data.preview and (win and "+10 Rating" or "-9 Rating") or "Rating not confirmed")
-    detail:SetText(data.preview and "PREVIEW  •  SAMPLE DATA" or "Locally observed result")
-    local stats=data.preview and {"124.6K","37.2K","18.9K"} or {"Not observed","Not observed","Not observed"}
+    if data.tournament then
+        rank.label:SetText("Series: "..data.score.." - "..data.opponentScore)
+        detail:SetText("LOCAL TEST  •  "..(data.complete and (data.advanced and "Series won" or "Series lost") or "Tournament game"))
+    else
+        rank.label:SetText(data.preview and (win and "+10 Rating" or "-9 Rating") or "Rating not confirmed")
+        detail:SetText(data.preview and "PREVIEW  •  SAMPLE DATA" or "Locally observed result")
+    end
+    local stats=data.preview and not data.tournament and {"124.6K","37.2K","18.9K"} or {"Not observed","Not observed","Not observed"}
     for i,v in ipairs(statValues) do v:SetText(stats[i]) end
     root:Show();edge:SetShown(S.Get("duelResultVignette")==true)
     Progress(0)
@@ -196,6 +201,18 @@ function R.Preview(outcome)
     if not S.Get("duelResultVisual") then return false,"Enable the duel result first" end
     if ns.DuelCountdown then ns.DuelCountdown.Refresh() end
     return Show({preview=true,outcome=outcome=="lost" and "lost" or "won",opponent="Thornblade",duration=28})
+end
+function R.ClearTournamentPreview()
+    if current and current.tournament then Clear() end
+end
+function R.ShowTournamentPreview(data)
+    if type(data)~="table" or data.scope~="SIMULATED" or not Idle() or not ns.Client.IsSupported() then return false end
+    local s=ns.DuelDetection.GetSnapshot()
+    if not s or s.state~="idle" or s.active or s.challenge or ns.EditMode and ns.EditMode.IsActive() then return false end
+    if (data.outcome~="won" and data.outcome~="lost") or type(data.opponent)~="string" or
+        not Number(data.score) or not Number(data.opponentScore) or data.score<0 or data.opponentScore<0 or data.score>3 or data.opponentScore>3 then return false end
+    return Show({tournament=true,outcome=data.outcome,opponent=data.opponent,score=data.score,opponentScore=data.opponentScore,
+        complete=data.complete==true,advanced=data.advanced==true})
 end
 function R.Refresh()
     if not S.Get("duelResultVisual") then Clear();return end

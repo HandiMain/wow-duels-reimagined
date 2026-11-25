@@ -43,6 +43,7 @@ local animKey={}
 local timer,cycle,deadline,shown,preview,ready,unsubscribe
 local selectedStyle="impact"
 local fightUntil
+local tournamentFinish
 local layoutDraft
 local BASE_W,BASE_H=480,240
 local function Read(fn,...)
@@ -80,6 +81,8 @@ local function Clear()
     StopTimer();Hide()
     if ns.CountdownAudio then ns.CountdownAudio.Stop("countdown");ns.CountdownAudio.Stop("fight") end
     cycle,deadline,shown,preview,fightUntil=nil,nil,nil,nil,nil
+    tournamentFinish=nil
+    previewLabel:SetText("COUNTDOWN PREVIEW")
 end
 local function Live(s,id)
     return s and s.scope=="LOCAL" and s.state=="accepted" and s.active and
@@ -304,8 +307,10 @@ Tick=function()
             -- or sword tail finish on the same bounded stage timer.
             if fightUntil and now<fightUntil then Hide();Arm(fightUntil-now);return end
             local editing=preview and layoutDraft
+            local finish=tournamentFinish
             Clear()
             if editing and ns.EditMode and ns.EditMode.IsActive() then ns.EditMode.RestoreSample() end
+            if finish then finish() end
             return
         end
         -- Don't play an old fight cue after a long frame stall or reload.
@@ -377,6 +382,16 @@ function V.Preview()
     local now=Now();if not now then return false,"Preview unavailable" end
     Clear();preview=true;deadline=now+3;selectedStyle=Settings.Get("duelCountdownStyle") or "impact";Tick()
     return true
+end
+function V.IsTournamentPreviewRunning() return tournamentFinish~=nil end
+function V.CancelTournamentPreview()
+    if tournamentFinish then Clear() end
+end
+function V.PreviewTournament(finish)
+    if type(finish)~="function" or tournamentFinish or layoutDraft or not Settings.Get("duelCountdownVisual") then return false,"Countdown unavailable." end
+    local ok,why=V.Preview()
+    if ok then tournamentFinish=finish;previewLabel:SetText("LOCAL TEST - TOURNAMENT") end
+    return ok,why
 end
 function V.GetDiagnosticResources()
     return {subscriptions=unsubscribe and 1 or 0,timers=timer and 1 or 0}

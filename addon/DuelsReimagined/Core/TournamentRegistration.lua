@@ -2209,7 +2209,21 @@ local function SimulatePreviewGame(x)
     ok,why=candidate.Report(match.b,report)
     if not ok or why~="confirmed" then return false,"Test result unavailable." end
     x.bracket=candidate
-    return true,"Simulated game confirmed. No rating changes."
+    local result
+    if own and match.id==own.id and x.role=="player" then
+        local nextView=candidate.Snapshot()
+        for _,round in ipairs(nextView.rounds) do
+            for _,m in ipairs(round) do
+                if m.id==match.id then
+                    local first=m.a==x.player.guid
+                    result={scope="SIMULATED",outcome=winner==x.player.guid and "won" or "lost",
+                        opponent=own.opponent,score=m.wins[first and 1 or 2],opponentScore=m.wins[first and 2 or 1],
+                        complete=m.state=="done",advanced=m.state=="done" and m.winner==x.player.guid}
+                end
+            end
+        end
+    end
+    return true,"Simulated game confirmed. No rating changes.",result
 end
 local function PreviewAction(action)
     local x=Current();if not x then return false,"No local test tournament." end
@@ -2235,9 +2249,9 @@ local function PreviewAction(action)
     return false,"Action unavailable."
 end
 function R.PreviewAction(action)
-    local ok,why=PreviewAction(action)
+    local ok,why,result=PreviewAction(action)
     if ok and preview then PreviewChanged() end
-    return ok,why
+    return ok,why,result
 end
 function R.RunPlayerPreviewSelfTest(emit)
     emit=type(emit)=="function" and emit or function()end
