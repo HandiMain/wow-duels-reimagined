@@ -528,6 +528,52 @@ local bar=W.ScrollBar(root,function()
 end,SetOffset)
 bar:ClearAllPoints()
 bar:SetPoint("TOPLEFT",scroll,"TOPRIGHT",4,0);bar:SetPoint("BOTTOMLEFT",scroll,"BOTTOMRIGHT",4,0)
+local function LayoutBrowse(w,wide,top,p,listings)
+    local height
+        local h=math.max((p or listings) and 490 or 250,scroll:GetHeight()-top)
+        if wide then
+            local left=math.floor((w-12)*.53)
+            Place(list,browse,0,0,left,h);Header(list,left)
+            Place(info,browse,left+12,0,w-left-12,h);Header(info,w-left-12)
+            TextAt(list.detail,list,12,60,left-24,60)
+            TextAt(list.note,list,12,122,left-24,52)
+            TextAt(info.detail,info,12,60,w-left-36,90)
+            Place(openCatalog,list,12,180,left-24,30)
+            if listings then
+                for i,b in ipairs(catalogRows) do Place(b,list,12,48+(i-1)*40,left-24,34) end
+                TextAt(list.note,list,12,216,left-24,58)
+                TextAt(info.detail,info,12,48,w-left-36,h-100)
+                Place(join,info,12,h-76,w-left-36,28)
+                Place(watch,info,12,h-40,w-left-36,28)
+            elseif p then
+                Place(listRow,list,12,48,left-24,46)
+                TextAt(info.detail,info,12,48,w-left-36,h-132)
+                Place(join,info,12,h-76,w-left-36,28)
+                Place(browseHost,info,12,h-40,w-left-36,28)
+            end
+            height=h
+        else
+            local listH=listings and 288 or 232
+            Place(list,browse,0,0,w,listH);Header(list,w)
+            TextAt(list.detail,list,12,60,w-24,60);TextAt(list.note,list,12,122,w-24,52)
+            Place(openCatalog,list,12,184,w-24,30)
+            local infoH=(p or listings) and 490 or 190
+            Place(info,browse,0,listH+12,w,infoH);Header(info,w)
+            TextAt(info.detail,info,12,48,w-24,(p or listings) and 350 or 100)
+            if listings then
+                for i,b in ipairs(catalogRows) do Place(b,list,12,48+(i-1)*40,w-24,34) end
+                TextAt(list.note,list,12,216,w-24,58)
+                Place(join,info,12,infoH-76,w-24,28)
+                Place(watch,info,12,infoH-40,w-24,28)
+            elseif p then
+                Place(listRow,list,12,48,w-24,46)
+                Place(join,info,12,infoH-76,w-24,28)
+                Place(browseHost,info,12,infoH-40,w-24,28)
+            end
+            height=listH+12+infoH
+        end
+    return height
+end
 local function Layout()
     local w=math.max(1,scroll:GetWidth()-1)
     subtitle:SetWidth(math.max(1,root:GetWidth()-170))
@@ -593,48 +639,7 @@ local function Layout()
         subtitle:SetText("PRIVATE NETWORK TEST - Organizer snapshot")
         height=h
     elseif active=="browse" then
-        local h=math.max((p or listings) and 490 or 250,scroll:GetHeight()-top)
-        if wide then
-            local left=math.floor((w-12)*.53)
-            Place(list,browse,0,0,left,h);Header(list,left)
-            Place(info,browse,left+12,0,w-left-12,h);Header(info,w-left-12)
-            TextAt(list.detail,list,12,60,left-24,60)
-            TextAt(list.note,list,12,122,left-24,52)
-            TextAt(info.detail,info,12,60,w-left-36,90)
-            Place(openCatalog,list,12,180,left-24,30)
-            if listings then
-                for i,b in ipairs(catalogRows) do Place(b,list,12,48+(i-1)*40,left-24,34) end
-                TextAt(list.note,list,12,216,left-24,58)
-                TextAt(info.detail,info,12,48,w-left-36,h-100)
-                Place(join,info,12,h-76,w-left-36,28)
-                Place(watch,info,12,h-40,w-left-36,28)
-            elseif p then
-                Place(listRow,list,12,48,left-24,46)
-                TextAt(info.detail,info,12,48,w-left-36,h-132)
-                Place(join,info,12,h-76,w-left-36,28)
-                Place(browseHost,info,12,h-40,w-left-36,28)
-            end
-            height=h
-        else
-            local listH=listings and 288 or 232
-            Place(list,browse,0,0,w,listH);Header(list,w)
-            TextAt(list.detail,list,12,60,w-24,60);TextAt(list.note,list,12,122,w-24,52)
-            Place(openCatalog,list,12,184,w-24,30)
-            local infoH=(p or listings) and 490 or 190
-            Place(info,browse,0,listH+12,w,infoH);Header(info,w)
-            TextAt(info.detail,info,12,48,w-24,(p or listings) and 350 or 100)
-            if listings then
-                for i,b in ipairs(catalogRows) do Place(b,list,12,48+(i-1)*40,w-24,34) end
-                TextAt(list.note,list,12,216,w-24,58)
-                Place(join,info,12,infoH-76,w-24,28)
-                Place(watch,info,12,infoH-40,w-24,28)
-            elseif p then
-                Place(listRow,list,12,48,w-24,46)
-                Place(join,info,12,infoH-76,w-24,28)
-                Place(browseHost,info,12,infoH-40,w-24,28)
-            end
-            height=listH+12+infoH
-        end
+        height=LayoutBrowse(w,wide,top,p,listings)
     elseif active=="host" then
         height=LayoutHost(w)
     elseif active=="manage" then

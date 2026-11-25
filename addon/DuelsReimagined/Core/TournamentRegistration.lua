@@ -1263,7 +1263,11 @@ local function DurableHost(s,h,clock,resolve,store)
         end
         -- Exact receipt retry after a confirmed game cleared its offer.
         -- Never use a late unmatched claim to manufacture a new report.
-        local saved=journal.bracket or (journal.completed and journal.completed[event] and journal.completed[event].bracket)
+        local saved=journal.bracket
+        if not saved or saved.checkpoint.ad.id~=event then
+            local finished=journal.completed and journal.completed[event]
+            saved=finished and finished.bracket
+        end
         if not saved or saved.checkpoint.ad.id~=event or not Permit(actor) then return false end
         for _,r in ipairs(saved.reports) do
             if r.sender==actor.guid and not r.kind and r.match==match
@@ -1366,6 +1370,17 @@ local function DurableHost(s,h,clock,resolve,store)
         local c=journal.control
         if not Fresh() or sender~=h.guid or not journal.commitment or journal.commitment.id~=id
             or not c or c.coordinator~=sender or c.paused or c.term~=term or term>=2147483647 then return false end
+        -- Preserve a partially reported game: changing term would orphan its matching receipt.
+        local a=journal.privateAssignment
+        if a then
+            local b=OpenBracket();if not b then return false end
+            for _,round in ipairs(b.Snapshot().rounds) do for _,m in ipairs(round) do
+                if m.id==a.match then
+                    local game=m.games[a.game]
+                    if game and next(game.reports) then return false,"A result is awaiting its matching report. Close and reopen the session to preserve it." end
+                end
+            end end
+        end
         local candidate=Copy(journal);candidate.revision=candidate.revision+1
         candidate.control={term=term+1,coordinator=sender,paused=true};candidate.privateAssignment=nil
         local saved=store.CommitTournamentJournal(journal.revision,candidate,"control_change")

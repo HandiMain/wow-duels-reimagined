@@ -475,8 +475,9 @@ function L.Command(command)
             Changed();return a~=nil,a and "Assignment issued. Both players must request it and confirm readiness." or "No unassigned ready game."
         elseif command=="hold" then
             local c=d.ControlSnapshot()
-            local ok=c and d.Hold(active.actor.guid,c.event,c.term)
-            Changed();return not not ok,ok and "Tournament paused safely." or "Hold refused."
+            local ok,why
+            if c then ok,why=d.Hold(active.actor.guid,c.event,c.term) end
+            Changed();return not not ok,ok and "Tournament paused safely." or why or "Hold refused."
         elseif command=="resume" then
             Group.Refresh()
             local ok=d.PrivateResume(ConnectionStates());Changed()

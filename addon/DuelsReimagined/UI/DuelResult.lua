@@ -105,7 +105,7 @@ local function Layout()
     if not Number(w) or not Number(h) or w<=0 or h<=0 then return end
     local scale=math.min(1,w*.84/W,h*.6/H)
     root:SetScale(scale);root:ClearAllPoints()
-    root:SetPoint("TOP",UIParent,"TOP",0,-h*(current and current.tournament and .20 or .09)/scale)
+    root:SetPoint("TOP",UIParent,"TOP",0,-h*(current and (current.tournament or current.privateTournament) and .20 or .09)/scale)
 end
 local function Progress(v)
     local p=math.max(0,math.min(1,v))

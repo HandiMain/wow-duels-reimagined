@@ -872,7 +872,7 @@ function H.Refresh()
             end
             f:SetScript("OnEvent",function(_,e,unit)
                 if e=="UI_SCALE_CHANGED" or e=="DISPLAY_SIZE_CHANGED" then B.Relayout();if ns.Notifications then ns.Notifications.Reanchor() end
-                elseif e=="UNIT_HEALTH" or e=="UNIT_MAXHEALTH" then B.RefreshObservedHealth(type(unit)=="string" and unit or nil)
+                elseif e=="UNIT_HEALTH" or e=="UNIT_MAXHEALTH" then if not Secret(unit) and type(unit)=="string" then B.RefreshObservedHealth(unit) end
                 elseif e=="UNIT_CONNECTION" or e=="GROUP_ROSTER_UPDATE" then B.RefreshObservedHealth()
                 else H.Refresh() end
             end)
