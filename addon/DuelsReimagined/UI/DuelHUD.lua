@@ -552,7 +552,7 @@ function H.ApplyOpacity(hovered)
     local engaged=snap and (snap.active or snap.challenge)
     local over=hovered==true or Plain(root.IsMouseOver,root)==true
     local opacity=Settings.Get("duelHUDOpacity") or 1
-    root:SetAlpha((over or dragging or engaged or shownResult or preview) and 1 or opacity)
+    root:SetAlpha((over or dragging or engaged or shownResult or preview or sessionPreview) and 1 or opacity)
 end
 local hoverGeneration=0
 local function Enter()
@@ -665,9 +665,16 @@ local function UpdateDriver()
         end
     end or nil)
 end
+local retryTimer
+local function CancelProbeRetry()
+    if retryTimer then retryTimer:Cancel();retryTimer=nil end
+end
 local function Receive(s)
     snap=s
-    if s.active and preview then preview=false end
+    if s.active or s.challenge or s.state~="idle" then
+        CancelProbeRetry()
+        preview=false;sessionPreview=false
+    end
     if s.active then
         if activeID~=s.active.id then
             activeID=s.active.id;acceptedAt=s.active.acceptedAt
@@ -692,7 +699,9 @@ local function Receive(s)
     elseif activeID then
         if s.last and s.last.id==activeID and Now() then
             local labels={won="Victory",lost="Defeat",fled="You retreated",they_fled="Opponent retreated",unknown="Result unknown"}
-            shownResult={text=s.last.outcomeObserved and (labels[s.last.outcome] or "Result unknown") or "Result unknown",
+            local confirmed=s.last.reason=="matching_result_and_finish" and s.last.outcomeObserved==true
+                and s.last.finishObserved==true and s.last.resultObserved==true and s.last.conflict==false
+            shownResult={text=confirmed and (labels[s.last.outcome] or "Result unknown") or "Result unknown",
                 duration=TimeText(type(s.last.endedAt)=="number" and countdownUntil and s.last.endedAt-countdownUntil or nil),
                 rating="Rating not confirmed",untilTime=Now()+6}
         end
@@ -731,18 +740,17 @@ header:SetScript("OnDragStart",function()
 end)
 header:SetScript("OnDragStop",StopDrag)
 local unsubscribe,unsubscribeDiscovery
-local probeGeneration=0
 local function ProbeSelected()
-    probeGeneration=probeGeneration+1
-    local generation=probeGeneration
-    if folded or preview or not snap or snap.state~="idle" or Combat() then return end
+    CancelProbeRetry()
+    if folded or preview or sessionPreview or not snap or snap.state~="idle" or Combat() then return end
     local id=Identity("target");local own=Identity("player")
     if not id or not own or id.guid==own.guid then return end
     -- One throttled retry on rapid target changes; no repeating network poll.
     local ok,reason=ns.OpponentDiscovery.ProbeTarget(true)
-    if not ok and reason=="cooldown" and C_Timer and C_Timer.After then
-        C_Timer.After(8.1,function()
-            if generation~=probeGeneration or not root:IsShown() or folded or preview or Combat() or not snap or snap.state~="idle" then return end
+    if not ok and reason=="cooldown" and C_Timer and C_Timer.NewTimer then
+        retryTimer=C_Timer.NewTimer(8.1,function()
+            retryTimer=nil
+            if not root:IsShown() or folded or preview or sessionPreview or Combat() or not snap or snap.state~="idle" then return end
             local current=Identity("target")
             if current and current.guid==id.guid then ns.OpponentDiscovery.ProbeTarget(true);Paint() end
         end)
@@ -752,7 +760,7 @@ function H.IsFolded() return folded end
 function H.Fold(value)
     local want=value==true
     if want==folded then return end
-    StopDrag();StopLayout();folded=want;probeGeneration=probeGeneration+1
+    StopDrag();StopLayout();CancelProbeRetry();folded=want
     if folded then sessionPreview=false end
     body:SetShown(not folded);foldedTrim:SetShown(folded)
     content:Hide()
@@ -763,7 +771,7 @@ function H.Fold(value)
 end
 local events={"PLAYER_TARGET_CHANGED","PLAYER_FOCUS_CHANGED","UPDATE_MOUSEOVER_UNIT","UNIT_HEALTH","UNIT_MAXHEALTH","UNIT_NAME_UPDATE","PLAYER_REGEN_ENABLED","PLAYER_REGEN_DISABLED","UI_SCALE_CHANGED","DISPLAY_SIZE_CHANGED"}
 root:SetScript("OnEvent",function(_,event,unit)
-    if event=="PLAYER_REGEN_DISABLED" then StopDrag() end
+    if event=="PLAYER_REGEN_DISABLED" then StopDrag();CancelProbeRetry();preview=false;sessionPreview=false end
     if event=="UI_SCALE_CHANGED" or event=="DISPLAY_SIZE_CHANGED" then H.ApplyPosition() end
     if event=="UNIT_HEALTH" or event=="UNIT_MAXHEALTH" then
         if folded or preview or not participants:IsShown() then return end
@@ -797,7 +805,7 @@ root:SetScript("OnHide",function()
     sessionPreview=false;sessionCache=nil
     if unsubscribe then unsubscribe();unsubscribe=nil end
     if unsubscribeDiscovery then unsubscribeDiscovery();unsubscribeDiscovery=nil end
-    probeGeneration=probeGeneration+1
+    CancelProbeRetry()
     root:UnregisterAllEvents();root:SetScript("OnUpdate",nil)
     preview=false;activeID,acceptedAt,countdownUntil,shownResult=nil,nil,nil,nil
     snap,rankView,rankSeason,selectedTargetGuid=nil,nil,nil,nil;rankDirty=true
@@ -821,6 +829,7 @@ function H.ToggleSessionPreview()
     if not ready or Combat() or ns.DuelDetection.GetSnapshot().state~="idle" or preview then return false,"Finish your duel first" end
     if not Settings.Get("duelHUDEnabled") or folded then return false,"Show and unfold the Duel Widget first" end
     sessionPreview=not sessionPreview
+    if sessionPreview then CancelProbeRetry() end
     H.Refresh();return true
 end
 function H.ResetSession()
@@ -830,13 +839,14 @@ function H.ResetSession()
     sessionPreview=false;H.Refresh();return true
 end
 function H.GetDiagnosticResources()
-    return {subscriptions=(unsubscribe and 1 or 0)+(unsubscribeDiscovery and 1 or 0),timers=(root:GetScript("OnUpdate") and 1 or 0)+(collapseTimer and 1 or 0)}
+    return {subscriptions=(unsubscribe and 1 or 0)+(unsubscribeDiscovery and 1 or 0),timers=(root:GetScript("OnUpdate") and 1 or 0)+(collapseTimer and 1 or 0)+(retryTimer and 1 or 0)}
 end
 local PREVIEW_ENABLED=true
 function H.TogglePreview()
     if not PREVIEW_ENABLED or not ready or Combat() or ns.DuelDetection.GetSnapshot().state~="idle" then return end
     if not Settings.Get("duelHUDEnabled") then Settings.Set("duelHUDEnabled",true) end
     preview=not preview
+    if preview then CancelProbeRetry();sessionPreview=false end
     H.Refresh()
 end
 local login=CreateFrame("Frame");login:RegisterEvent("PLAYER_LOGIN")

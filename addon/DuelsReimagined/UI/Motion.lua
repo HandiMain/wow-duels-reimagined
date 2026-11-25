@@ -27,7 +27,7 @@ local function Tick(_, elapsed)
         local progress = math.min(1, tween.elapsed / tween.duration)
         local value = tween.from + (tween.to - tween.from) * Smooth(progress)
         tween.apply(key, value)
-        if progress >= 1 then
+        if progress >= 1 and active[key] == tween then
             active[key] = nil
         end
     end

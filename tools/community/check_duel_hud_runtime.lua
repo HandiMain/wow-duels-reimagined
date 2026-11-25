@@ -57,6 +57,7 @@ local duelListener,discoveryListener
 local discovery={state="idle"}
 local rankAvailable,rankReason,rankSelectable=false,"Ranked testing disabled",false
 local probes=0
+local probeCooldown=false
 local function ID(unit)
     local name=unit=="target" and target or unit~="target" and unit or nil
     if not name or name=="NPC" then return nil end
@@ -85,7 +86,7 @@ local ns={
     CompetitivePreview={IsActive=function()return false end},
     CompetitiveUI={CreateRankEmblem=function(p)local f=Frame(p);f.Paint=noop;return f end},
     DuelDetection={GetSnapshot=function()return snap end,Subscribe=function(fn)duelListener=fn;return Subscribe()end,GetChallengeRange=function()return true end},
-    OpponentDiscovery={Subscribe=function(fn)discoveryListener=fn;return Subscribe()end,GetSnapshot=function()return discovery end,ProbeTarget=function()probes=probes+1;return true end},
+    OpponentDiscovery={Subscribe=function(fn)discoveryListener=fn;return Subscribe()end,GetSnapshot=function()return discovery end,ProbeTarget=function()probes=probes+1;if probeCooldown then return false,"cooldown" end;return true end},
     Notifications={Reanchor=function()anchors=anchors+1 end}
 }
 assert(loadfile("addon/DuelsReimagined/UI/DuelHUD.lua"))("DuelsReimagined",ns)
@@ -167,7 +168,7 @@ assert(root:GetHeight()==232 and VisibleText("3") and VisibleText("rival") and n
 now=115;root:GetScript("OnUpdate")(root,.3);assert(VisibleText("00:02"))
 H.Fold(true);Select(nil);assert(root:GetHeight()==42 and not root:GetScript("OnUpdate"))
 now=117;H.Fold(false);assert(root:GetHeight()==232 and VisibleText("00:04") and VisibleText("rival"))
-now=120;Publish({state="idle",last={id=1,outcome="won",outcomeObserved=true,endedAt=120}})
+now=120;Publish({state="idle",last={id=1,outcome="won",outcomeObserved=true,finishObserved=true,resultObserved=true,conflict=false,reason="matching_result_and_finish",endedAt=120}})
 assert(root:GetHeight()==136 and VisibleText("Victory") and VisibleText("00:07") and VisibleText("Rating not confirmed"))
 Select("newtarget");assert(root:GetHeight()==136 and VisibleText("Victory"))
 now=127;root:GetScript("OnUpdate")(root,.3);assert(root:GetHeight()==248 and VisibleText("newtarget"))
@@ -246,6 +247,28 @@ Publish({state="idle"});assert(root:GetHeight()==352 and VisibleText("CURRENT SE
 prefs.duelHUDSessionStats=false;H.Refresh()
 assert(root:GetHeight()==248 and not VisibleText("CURRENT SESSION") and #frames==frameCount)
 print("Session HUD mock: PASS (opt-in, resize, explicit simulation, pending cancellation, no added frames during play)")
+-- Rapid target changes keep at most one retry and cancel it on fold/hide.
+probeCooldown=true
+for i=1,25 do Select("peer"..i) end
+local liveRetries=0
+for _,timer in ipairs(pendingTimers) do if not timer.cancelled and timer.delay==8.1 then liveRetries=liveRetries+1 end end
+assert(liveRetries==1 and H.GetDiagnosticResources().timers==2)
+local beforeRetry=probes
+H.Fold(true);FlushTimers();assert(probes==beforeRetry and H.GetDiagnosticResources().timers==0)
+probeCooldown=false;H.Fold(false)
+assert(H.ToggleSessionPreview() and VisibleText("SESSION PREVIEW - SIMULATED"))
+root.scripts.OnEvent(root,"PLAYER_REGEN_DISABLED")
+assert(not VisibleText("SESSION PREVIEW - SIMULATED"))
+H.TogglePreview();assert(VisibleText("SOLO PREVIEW - SIMULATED"))
+Publish({state="challenge",challenge={direction="incoming",opponent=ID("target")}})
+assert(not VisibleText("SOLO PREVIEW - SIMULATED") and VisibleText("Challenge pending"))
+Publish({state="accepted",active={id=2,opponent=ID("target"),acceptedAt=now}})
+Publish({state="idle",last={id=2,outcome="won",outcomeObserved=true,endedAt=now+1}})
+assert(VisibleText("Result unknown") and not VisibleText("Victory"))
+now=now+8;root:GetScript("OnUpdate")(root,.3)
+assert(root:GetHeight()==248 and #frames==frameCount)
+print("HUD lifecycle regression: PASS (bounded retry, fold cleanup, combat preview exit, incoming challenge, incomplete result)")
+
 local function HealthText(t)
     for _,f in ipairs(frames) do
         if f.text==t and f:IsVisible() then assert(not fitted[f],"health text must not have measurement hook");return true end
@@ -320,3 +343,18 @@ for _=1,20 do sty.Style.ConstrainText(label,200,20,8) end
 assert(fitHooks==1,"responsive bounds must not stack SetText hooks")
 print("Shared font fitting: PASS (secret width, refusal, shrink/restore, repeatable responsive bounds)")
 
+-- Exercise the actual animation owner, including same-key retargeting from completion.
+local driver
+local oldCreate=CreateFrame
+CreateFrame=function(...)driver=oldCreate(...);return driver end
+local animNS={Settings={Get=function()return false end}}
+assert(loadfile("addon/DuelsReimagined/UI/Motion.lua"))("DuelsReimagined",animNS)
+CreateFrame=oldCreate
+local Motion=animNS.Motion
+local key,last={},nil
+Motion.Value(key,0,1,.1,function(_,v)if v==1 then Motion.Value(key,1,2,.1,function(_,n)last=n end) end end)
+driver.scripts.OnUpdate(driver,.1)
+assert(Motion.GetRuntimeState().active==1)
+driver.scripts.OnUpdate(driver,.1)
+assert(last==2 and not Motion.GetRuntimeState().driver)
+print("Shared motion regression: PASS (completion retarget survives and driver releases)")
