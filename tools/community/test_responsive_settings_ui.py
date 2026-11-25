@@ -53,7 +53,8 @@ class ResponsiveSettingsTests(unittest.TestCase):
             "self:SetHeight(compact and 28 or 54)",
             "self:SetHeight(compact and 32 or 66)",
             "self:SetHeight(compact and 32 or 64)",
-            'control:SetWidth(math.max(112, math.min(140, width - 165)))',
+            'local controlWidth=compact and math.max(112,math.min(140,width-165)) or 226',
+            'control:SetWidth(controlWidth)',
             'slider:SetWidth(math.max(75, math.min(112, width - 165)))',
             'Paint(slider:GetValue())',
         ):
