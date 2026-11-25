@@ -460,17 +460,22 @@ end
 function Style.ConstrainText(label,width,height,minimum)
     for _,entry in ipairs(fontStrings) do
         if entry.label==label then
-            entry.fit={width=math.max(1,width-3),height=math.max(1,height-2),minimum=minimum or 8}
+            local fitWidth,fitHeight=math.max(1,width-3),math.max(1,height-2)
+            local old=entry.fit
+            if old and old.width==fitWidth and old.height==fitHeight and old.minimum==(minimum or 8) then return end
+            entry.fit={width=fitWidth,height=fitHeight,minimum=minimum or 8}
             local function Refit()
                 local path,_,flags=label:GetFont()
                 local scale=ns.Settings and ns.Settings.Get("fontScale") or 1
                 if path then label:SetFont(path,entry.size*scale,flags or "") end
                 FitLabelFont(entry)
             end
-            if type(hooksecurefunc)=="function" then
-                pcall(hooksecurefunc,label,"SetText",Refit)
+            -- A responsive header may update bounds repeatedly. Install
+            -- only one SetText hook and restore the preferred size on reflow.
+            if not entry.textFitHook and type(hooksecurefunc)=="function" then
+                entry.textFitHook=pcall(hooksecurefunc,label,"SetText",Refit)
             end
-            FitLabelFont(entry)
+            Refit()
             return
         end
     end

@@ -280,8 +280,8 @@ print("Duel HUD health mock: PASS (two native pill bars, readable percent, prote
 local sf={}
 local widthSecret=setmetatable({}, {__lt=function()error("secret comparison")end,__le=function()error("secret comparison")end})
 issecretvalue=function(v)return v==widthSecret end
-local onSetText
-hooksecurefunc=function(label,key,fn)if key=="SetText" then onSetText=fn end end
+local onSetText,fitHooks=nil,0
+hooksecurefunc=function(label,key,fn)if key=="SetText" then onSetText=fn;fitHooks=fitHooks+1 end end
 local measured=widthSecret
 local fontSize
 local label={}
@@ -303,5 +303,9 @@ assert(fontSize==11)
 measured="refuse";label:SetText("refused");assert(fontSize==11)
 measured=130;label:SetText("long");assert(fontSize==8)
 measured=30;label:SetText("short");assert(fontSize==11)
-print("Shared font fitting: PASS (secret width, refused width and ordinary shrink/restore)")
+measured=130;sty.Style.ConstrainText(label,70,20,8);assert(fontSize==8)
+sty.Style.ConstrainText(label,200,20,8);assert(fontSize==11)
+for _=1,20 do sty.Style.ConstrainText(label,200,20,8) end
+assert(fitHooks==1,"responsive bounds must not stack SetText hooks")
+print("Shared font fitting: PASS (secret width, refusal, shrink/restore, repeatable responsive bounds)")
 

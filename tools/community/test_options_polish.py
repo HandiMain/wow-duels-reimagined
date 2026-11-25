@@ -14,7 +14,7 @@ class ApprovedOptionsPolishTests(unittest.TestCase):
         o = lua("UI/Options.lua")
         self.assertIn('headingBand:SetPoint("TOPLEFT", card, "TOPLEFT", 12, -6)',o)
         self.assertIn('headingBand:SetPoint("TOPRIGHT", card, "TOPRIGHT", -12, -6)',o)
-        self.assertIn('local BANNER_LEFT, BANNER_RIGHT = 438, 160',o)
+        self.assertIn('local BANNER_LEFT, BANNER_RIGHT = 112, 160',o)
         self.assertIn('local BANNER_HEIGHT = 72',o)
         self.assertIn('local ROW_TOP = 90',o)
         self.assertIn('widget.optionsY = sectionY + y',o)

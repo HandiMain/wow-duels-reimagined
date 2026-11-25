@@ -66,7 +66,8 @@ local BANNER_ART = "Interface\\AddOns\\DuelsReimagined\\Media\\Skin\\DuelOptions
 local COMPLETE_PALETTE = "Interface\\AddOns\\DuelsReimagined\\Media\\Skin\\DuelPaletteMarks.tga"
 local BANNER_ATLAS_W, BANNER_ATLAS_H = 2048, 256
 local BANNER_CELL_W, BANNER_CELL_H = 640, 80
-local BANNER_LEFT, BANNER_RIGHT = 438, 160
+local BANNER_LEFT, BANNER_RIGHT = 112, 160
+local BANNER_REFERENCE_WIDTH = 598 -- retain original artwork scale, not its lettering
 local bannerIndices = {
     appearance = 0,
     motion = 1,
@@ -74,7 +75,18 @@ local bannerIndices = {
     minimap = 3,
     typography = 4,
     notifications = 5,
-    widget = 0, widgetNotifications = 0,
+    widget = 0,
+    widgetNotifications = 0,
+}
+local bannerSubtitles = {
+    appearance="FONT MATCHING & VISUAL IDENTITY",
+    motion="MOVEMENT, BEHAVIOR & PERFORMANCE",
+    access="GAME MENU & ADDON INTEGRATION",
+    minimap="MINIMAP & FLOATING ACCESS ICON",
+    typography="INTERFACE FONT & TEXT STYLING",
+    notifications="TOOLTIPS, REMINDERS & GUIDANCE",
+    widget="POSITION, SIZE & BEHAVIOR",
+    widgetNotifications="ALERTS, SOUNDS & PREVIEWS",
 }
 
 local function Card(page, y, height)
@@ -137,9 +149,8 @@ local hudCard = Card(widgetPage, 0, 290)
 local hudNotificationsCard = Card(widgetPage, 298, 340)
 if ns.DiagnosticAudit then ns.DiagnosticAudit.RegisterUIRoot("Options / Widget",widgetPage.scrollOwner) end
 
--- Same header renderer on Appearance and Interface. Gold labels, icons,
--- and motifs remain the approved source pixels. The middle stays empty and
--- dark; there is deliberately NO separate backdrop beneath the artwork.
+-- One header renderer for all Options pages: live font labels, gold icon
+-- art and motifs, without a separate backdrop.
 local function Section(card, key, title, help, extra)
     local index = assert(bannerIndices[key], "Unknown Duels Options banner")
     local band = card.optionsBand
@@ -160,19 +171,15 @@ local function Section(card, key, title, help, extra)
         if ns.Chrome and ns.Chrome.Sharp then ns.Chrome.Sharp(piece) end
         return piece
     end
-    -- Two independent textures for sharp artwork at any card width.
-    -- There is no center strip to magnify or truncate the approved design.
+    -- Use only the icon and decorative motif slices. Never draw the old
+    -- atlas lettering: all eight titles/subtitles are live shared fonts.
     local left = Slice(0, BANNER_LEFT)
     local right = Slice(BANNER_CELL_W - BANNER_RIGHT, BANNER_CELL_W)
-    -- The first atlas cell has truncated palette pixels on BOTH ornaments,
-    -- as well as its title. Keep its original gold swoosh at right, but draw
-    -- the two complete palette glyphs on top. New category art below uses
-    -- a separate gold native mark, while untouched banners keep their atlas.
     local isAppearance = key == "appearance"
     local nativeWidget = key == "widget" or key == "widgetNotifications" or key == "minimap"
-    local nativeIcon,nativeMotif
+    local nativeMotif
     if isAppearance then
-        left:Hide() -- remove the damaged left icon and baked lettering
+        left:Hide()
         local palette = header:CreateTexture(nil, "ARTWORK", nil, 6)
         palette:SetTexture(COMPLETE_PALETTE)
         palette:SetSize(37, 37)
@@ -181,90 +188,52 @@ local function Section(card, key, title, help, extra)
         motifPalette:SetTexture(COMPLETE_PALETTE)
         motifPalette:SetSize(33, 33)
         motifPalette:SetPoint("CENTER", header, "RIGHT", -69, 0)
-        if ns.Chrome and ns.Chrome.Sharp then
-            ns.Chrome.Sharp(palette)
-            ns.Chrome.Sharp(motifPalette)
-        end
+        ns.Chrome.Sharp(palette);ns.Chrome.Sharp(motifPalette)
         card.appearancePalette, card.appearanceMotifPalette = palette, motifPalette
     elseif nativeWidget then
         left:Hide();right:Hide()
         local kind=key=="widgetNotifications" and "notifications" or key=="minimap" and "launcher" or "widget"
-        nativeIcon=ns.Chrome.WidgetGlyph(header,kind,34)
-        nativeIcon:SetPoint("LEFT",header,"LEFT",20,0)
+        local nativeIcon=ns.Chrome.WidgetGlyph(header,kind,34)
+        nativeIcon:SetPoint("CENTER",header,"LEFT",50,0)
         nativeMotif=ns.Chrome.WidgetGlyph(header,kind,46)
         nativeMotif:SetPoint("RIGHT",header,"RIGHT",-19,0)
         nativeMotif:SetAlpha(.38)
     end
-    -- Center both bitmap halves vertically so all six fixed headings and
-    -- subtitles have breathing space at full and half-card widths.
     left:SetPoint("LEFT", header, "LEFT", 0, 0)
     right:SetPoint("RIGHT", header, "RIGHT", 0, 0)
 
-    -- Native titles for the repaired Appearance header and new category art;
-    -- untouched headings continue to use the original atlas.
-    local nativeName,nativeSub
-    if isAppearance or nativeWidget then
-        local name = header:CreateFontString(nil, "ARTWORK", nil, 5)
-        if not name:SetFont("Fonts\\MORPHEUS.TTF", 26, "OUTLINE") then
-            name:SetFont(STANDARD_TEXT_FONT or "Fonts\\FRIZQT__.TTF",
-                25, "OUTLINE")
-        end
-        name:SetTextColor(unpack(C.gold))
-        name:SetShadowColor(0, 0, 0, 0.85)
-        name:SetShadowOffset(1, -1)
-        name:SetWordWrap(false)
-        name:SetJustifyH("LEFT")
-        name:SetJustifyV("MIDDLE")
-        name:SetPoint("TOPLEFT", header, "TOPLEFT", 96, -9)
-        name:SetSize(290, 35)
-        name:SetText(title)
-        local sub = header:CreateFontString(nil, "ARTWORK", nil, 5)
-        if not sub:SetFont("Fonts\\FRIZQT__.TTF", 10, "") then
-            sub:SetFont(STANDARD_TEXT_FONT or "Fonts\\FRIZQT__.TTF",
-                10, "")
-        end
-        sub:SetTextColor(unpack(C.muted))
-        sub:SetShadowColor(0, 0, 0, 0.8)
-        sub:SetShadowOffset(1, -1)
-        sub:SetWordWrap(false)
-        sub:SetJustifyH("LEFT")
-        sub:SetJustifyV("MIDDLE")
-        sub:SetPoint("TOPLEFT", header, "TOPLEFT", 96, -44)
-        sub:SetSize(340, 16)
-        if isAppearance then
-            sub:SetText("FONT MATCHING & VISUAL IDENTITY")
-            card.appearanceHeading, card.appearanceSubtitle = name, sub
-        else
-            sub:SetText(key=="widget" and "POSITION, SIZE & BEHAVIOR" or key=="widgetNotifications" and "ALERTS, SOUNDS & PREVIEWS" or "MINIMAP & FLOATING ACCESS ICON")
-            name:ClearAllPoints();name:SetPoint("TOPLEFT",header,"TOPLEFT",66,-9)
-            sub:ClearAllPoints();sub:SetPoint("TOPLEFT",header,"TOPLEFT",66,-44)
-            nativeName,nativeSub=name,sub
-        end
-    end
+    local name = Style.Text(header, title, 20, C.pale)
+    local sub = Style.Text(header, bannerSubtitles[key], 10, C.muted)
+    name:SetWordWrap(false);sub:SetWordWrap(false)
+    name:SetShadowColor(0,0,0,.85);name:SetShadowOffset(1,-1)
+    sub:SetShadowColor(0,0,0,.8);sub:SetShadowOffset(1,-1)
+    name:SetPoint("TOPLEFT",header,"TOPLEFT",88,-10)
+    sub:SetPoint("TOPLEFT",header,"TOPLEFT",88,-42)
+    card.optionsTitle,card.optionsSubtitle=name,sub
 
     local function FitSlices(self)
         local width = math.max(1, self:GetWidth())
         local height = math.max(1, self:GetHeight())
         local scale = math.min(math.max(1, height - 8) / BANNER_CELL_H,
-            math.max(0.01, (width - 24) / (BANNER_LEFT + BANNER_RIGHT)))
+            math.max(0.01, (width - 24) / BANNER_REFERENCE_WIDTH))
         left:SetSize(math.max(1, BANNER_LEFT * scale),
             math.max(1, BANNER_CELL_H * scale))
         right:SetSize(math.max(1, BANNER_RIGHT * scale),
             math.max(1, BANNER_CELL_H * scale))
-        if nativeName then
-            local showMotif=width>=(key=="minimap" and 420 or 350)
-            nativeMotif:SetShown(showMotif)
-            local room=math.max(1,width-66-(showMotif and 73 or 8))
-            nativeName:SetWidth(room);nativeSub:SetWidth(room)
-            if not nativeName:SetFont("Fonts\\MORPHEUS.TTF",width<330 and 20 or 24,"OUTLINE") then
-                nativeName:SetFont(STANDARD_TEXT_FONT or "Fonts\\FRIZQT__.TTF",width<330 and 20 or 24,"OUTLINE")
-            end
-        end
+        local motifWidth=nativeWidget and 75 or math.max(100,BANNER_RIGHT*scale)
+        local showMotif=width-88-motifWidth>=190
+        right:SetShown(not nativeWidget and showMotif)
+        if nativeMotif then nativeMotif:SetShown(showMotif) end
+        if isAppearance then card.appearanceMotifPalette:SetShown(showMotif) end
+        local room=math.max(1,width-88-(showMotif and motifWidth or 8))
+        name:SetSize(room,30);sub:SetSize(room,19)
+        Style.ConstrainText(name,room,30,9)
+        Style.ConstrainText(sub,room,19,7)
     end
     header:SetScript("OnSizeChanged", FitSlices)
     FitSlices(header)
 
-    -- All headings (including the repaired native Appearance title) retain tooltips.
+    -- All live headings retain their original tooltips.
     -- No fake row controls; do not attach handlers to texture regions.
     ns.Tooltips.Bind(header, {
         title = title,

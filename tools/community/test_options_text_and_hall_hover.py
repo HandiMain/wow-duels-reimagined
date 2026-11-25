@@ -7,7 +7,7 @@ import unittest
 ROOT=Path(__file__).resolve().parents[2]/"addon"/"DuelsReimagined"
 def lua(name): return (ROOT/"UI"/name).read_text(encoding="utf-8")
 class TextSafeOptionsAndHoverTests(unittest.TestCase):
-    def test_all_six_banners_have_safe_text_height_and_row_separation(self):
+    def test_all_eight_banners_have_safe_text_height_and_row_separation(self):
         o=lua("Options.lua")
         for t in (
             'local BANNER_HEIGHT = 72',
@@ -23,7 +23,7 @@ class TextSafeOptionsAndHoverTests(unittest.TestCase):
         ): self.assertIn(t,o)
         self.assertEqual(o.count('Section('),9)
         self.assertIn('headingBand:SetClipsChildren(false)',o)
-        self.assertIn('(width - 24) / (BANNER_LEFT + BANNER_RIGHT)',o)
+        self.assertIn('(width - 24) / BANNER_REFERENCE_WIDTH',o)
         self.assertIn("DuelOptionsBanner.png",o)
         self.assertNotIn("DuelBannerAmbient.png",o)
         self.assertNotIn("local center = Slice(",o)

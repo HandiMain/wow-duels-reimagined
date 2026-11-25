@@ -1,7 +1,7 @@
-"""Appearance-only raster text repair; static WoW layout contracts.
+"""Appearance palette preservation and shared live Options font contracts.
 
 The approved first atlas cell has damaged lettering AND truncated palette art.
-Only Appearance uses a separate complete palette TGA and native header labels.
+Appearance uses a separate complete palette TGA; all cards use live labels.
 Live WoW screenshots are still required to certify pixel alignment.
 """
 from pathlib import Path
@@ -12,31 +12,28 @@ SOURCE = (BASE / "UI" / "Options.lua").read_text(encoding="utf-8")
 
 
 class AppearanceHeaderRepairTests(unittest.TestCase):
-    def test_only_appearance_uses_native_text_repair(self):
+    def test_appearance_palette_retained_and_all_text_uses_shared_font(self):
         self.assertIn('local isAppearance = key == "appearance"', SOURCE)
-        self.assertIn('left:Hide() -- remove the damaged left icon and baked lettering', SOURCE)
         self.assertIn('palette:SetTexture(COMPLETE_PALETTE)', SOURCE)
         self.assertIn('motifPalette:SetTexture(COMPLETE_PALETTE)', SOURCE)
         self.assertIn('palette:SetPoint("CENTER", header, "LEFT", 50, 0)', SOURCE)
         self.assertIn('motifPalette:SetPoint("CENTER", header, "RIGHT", -69, 0)', SOURCE)
         self.assertIn('card.appearancePalette, card.appearanceMotifPalette = palette, motifPalette', SOURCE)
-        self.assertIn('local name = header:CreateFontString(nil, "ARTWORK", nil, 5)', SOURCE)
-        self.assertIn('name:SetText(title)', SOURCE)
-        self.assertIn('sub:SetText("FONT MATCHING & VISUAL IDENTITY")', SOURCE)
-        self.assertIn('card.appearanceHeading, card.appearanceSubtitle = name, sub', SOURCE)
-        self.assertEqual(SOURCE.count("header:CreateFontString(nil, \"ARTWORK\", nil, 5)"), 2)
+        self.assertIn('local name = Style.Text(header, title, 20, C.pale)', SOURCE)
+        self.assertIn('local sub = Style.Text(header, bannerSubtitles[key], 10, C.muted)', SOURCE)
+        self.assertNotIn(':SetFont(', SOURCE)
+        self.assertNotIn(':CreateFontString(', SOURCE)
 
-    def test_visual_height_and_fallback_are_safe(self):
+    def test_visual_height_and_responsive_fit_are_safe(self):
         self.assertTrue((BASE / "Media" / "Skin" / "DuelPaletteMarks.tga").is_file())
-        self.assertIn('name:SetPoint("TOPLEFT", header, "TOPLEFT", 96, -9)', SOURCE)
-        self.assertIn('name:SetSize(290, 35)', SOURCE)
-        self.assertIn('sub:SetPoint("TOPLEFT", header, "TOPLEFT", 96, -44)', SOURCE)
-        self.assertIn('sub:SetSize(340, 16)', SOURCE)
-        self.assertIn('if not name:SetFont("Fonts\\\\MORPHEUS.TTF", 26, "OUTLINE") then', SOURCE)
-        self.assertIn('if not sub:SetFont("Fonts\\\\FRIZQT__.TTF", 10, "") then', SOURCE)
+        self.assertIn('name:SetPoint("TOPLEFT",header,"TOPLEFT",88,-10)', SOURCE)
+        self.assertIn('sub:SetPoint("TOPLEFT",header,"TOPLEFT",88,-42)', SOURCE)
+        self.assertIn('name:SetSize(room,30);sub:SetSize(room,19)', SOURCE)
+        self.assertIn('Style.ConstrainText(name,room,30,9)', SOURCE)
+        self.assertIn('Style.ConstrainText(sub,room,19,7)', SOURCE)
         self.assertIn('headingBand:SetClipsChildren(false)', SOURCE)
         self.assertIn('local BANNER_HEIGHT = 72', SOURCE)
-        self.assertLess(44 + 16, 72)
+        self.assertLess(42 + 19, 72)
 
     def test_complete_palette_image_is_wow_compatible(self):
         data = (BASE / "Media" / "Skin" / "DuelPaletteMarks.tga").read_bytes()

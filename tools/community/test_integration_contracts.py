@@ -64,7 +64,7 @@ class IntegrationContracts(unittest.TestCase):
         # Extract actual AddToggle argument lists, not a greedy match spanning
         # unrelated lines that could hide an unregistered new setting.
         registered = set(re.findall(
-            r'\bAddToggle\(\s*\w+\s*,\s*"(?:options|interface)"\s*,\s*"([^"]+)"',
+            r'\bAddToggle\(\s*\w+\s*,\s*"(?:options|interface|widget)"\s*,\s*"([^"]+)"',
             options, re.S))
         # Mode is an immediate gameplay choice, not a general option.
         gameplay = {"practiceDuels"}
@@ -75,7 +75,7 @@ class IntegrationContracts(unittest.TestCase):
         self.assertIn('Settings.Set("practiceDuels",practice)',read("UI/DuelHUD.lua"))
         for key in ("iconMode", "widgetSize", "widgetTransparency",
                     "fontChoice", "fontScale", "fontOutline", "minimapButton",
-                    "resetIconPositions"):
+                    "resetIconPositions", "duelHUDScale", "duelHUDOpacity", "resetDuelHUDPosition"):
             self.assertIn('RegisterOption("' + key + '"', options)
         self.assertIn('RegisterOption(key, name, detail, pageKey, row)', options)
         self.assertIn('ns.Search.Register("page:" .. section.key', read("UI/Navigation.lua"))

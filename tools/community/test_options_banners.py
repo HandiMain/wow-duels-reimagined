@@ -1,4 +1,4 @@
-"""Approved Options source graphics: five intact, with Appearance text repaired live.
+"""Approved Options source graphics with live typography for all cards.
 
 These static tests validate the native artwork and retained WoW control owners.
 They do not claim an in-game screenshot has been visually verified.
@@ -34,7 +34,7 @@ class ApprovedOptionsBannersTests(unittest.TestCase):
         self.assertEqual(p,len(data))
         self.assertIn(b"IDAT",seen)
 
-    def test_original_atlas_kept_and_appearance_only_text_repair(self):
+    def test_original_atlas_kept_and_all_banner_text_live(self):
         src = OPTIONS.read_text(encoding="utf-8")
         self.assertIn("DuelOptionsBanner.png",src)
         self.assertNotIn("DuelBannerAmbient.png",src)
@@ -47,9 +47,12 @@ class ApprovedOptionsBannersTests(unittest.TestCase):
         self.assertIn('local isAppearance = key == "appearance"',src)
         self.assertIn('DuelPaletteMarks.tga',src)
         self.assertIn('motifPalette:SetTexture(COMPLETE_PALETTE)',src)
-        self.assertIn('name:SetText(title)',src)
-        self.assertIn('sub:SetText("FONT MATCHING & VISUAL IDENTITY")',src)
-        for key in ("appearance","motion","access","minimap","typography","notifications"):
+        self.assertIn('local name = Style.Text(header, title, 20, C.pale)',src)
+        self.assertIn('local sub = Style.Text(header, bannerSubtitles[key], 10, C.muted)',src)
+        self.assertIn('appearance="FONT MATCHING & VISUAL IDENTITY"',src)
+        self.assertNotIn(':SetFont(',src)
+        self.assertIn('local BANNER_LEFT, BANNER_RIGHT = 112, 160',src)
+        for key in ("appearance","motion","access","minimap","typography","notifications","widget","widgetNotifications"):
             self.assertIn("    "+key+" = ",src)
             self.assertIn('Section(',src)
         for name in ("Appearance","Window & Motion","Game Access",
