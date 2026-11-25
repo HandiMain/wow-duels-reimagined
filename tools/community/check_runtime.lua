@@ -250,6 +250,13 @@ Settings.Set("duelCountdownSoundPack","lsm:missing")
 Check(Settings.Get("duelCountdownSoundPack")=="lsm:Bell & Gong","unregistered shared sound rejected")
 Settings.Reset("duelCountdownSoundPack");Settings.Reset("duelFightSoundPack")
 ns.CountdownAudio=oldAudio
+Check(Settings.Get("duelVictorySounds") and Settings.Get("duelDefeatSounds"),"result sounds default on")
+Check(Settings.Get("duelVictorySoundPack")=="victory:victory1" and Settings.Get("duelDefeatSoundPack")=="defeat:defeat2","result sound defaults")
+Settings.Set("duelVictoryAudioChannel","Music")
+Check(Settings.Get("duelVictoryAudioChannel")=="Music" and Settings.Get("duelDefeatAudioChannel")=="SFX","independent result channels")
+Settings.Set("duelDefeatSounds",false)
+Check(Settings.Get("duelVictorySounds") and not Settings.Get("duelDefeatSounds"),"independent result sound toggles")
+Settings.Reset("duelDefeatSounds");Settings.Reset("duelVictoryAudioChannel")
 _G.DuelsReimaginedDB=originalDB
 ns.AccessIcons, ns.Options, ns.Header = nil,nil,nil
 print("Independent access settings and default-on Peek: PASS")

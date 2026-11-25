@@ -9,16 +9,19 @@ local DEFAULT="builtin:tick"
 local PACK_ADDON="DuelsReimagined_CountdownSounds"
 local FIGHT_BASE="Interface\\AddOns\\DuelsReimagined_CountdownSounds\\Fight\\"
 local groups,available,fightPacks,fightOrder={},{},{},{}
-local previous,previousGroups,previousFight=false
+local resultPacks,resultOrder={victory={},defeat={}},{victory={},defeat={}}
+local previous,previousGroups,previousFight,previousResults=false
 -- Media-only addon can finish loading after this file. Rebuild only when
 -- its manifest or section tables actually change, never on a frame tick.
 local function RefreshCatalog()
     local manifest=DuelsReimaginedCountdownSoundPacks
     local g=type(manifest)=="table" and manifest.groups
     local f=type(manifest)=="table" and manifest.fight
-    if manifest==previous and g==previousGroups and f==previousFight then return false end
-    previous,previousGroups,previousFight=manifest,g,f
+    local results=type(manifest)=="table" and manifest.results
+    if manifest==previous and g==previousGroups and f==previousFight and results==previousResults then return false end
+    previous,previousGroups,previousFight,previousResults=manifest,g,f,results
     groups,available,fightPacks,fightOrder={},{},{},{}
+    resultPacks,resultOrder={victory={},defeat={}},{victory={},defeat={}}
     if type(manifest)=="table" and manifest.version==1 and type(manifest.groups)=="table" then
         local count=0
         for i,g in ipairs(manifest.groups) do
@@ -51,6 +54,24 @@ local function RefreshCatalog()
                 if not fightPacks[key] then
                     local entry={key=key,label=p.label,category=p.category,duration=p.duration,path=FIGHT_BASE..p.key..".ogg"}
                     fightPacks[key]=entry;fightOrder[#fightOrder+1]=entry
+                end
+            end
+        end
+    end
+    if type(manifest)=="table" and manifest.version==1 and type(results)=="table" then
+        for _,kind in ipairs({"victory","defeat"}) do
+            if type(results[kind])=="table" then
+                for i,p in ipairs(results[kind]) do
+                    if i>128 then break end
+                    if type(p)=="table" and type(p.key)=="string" and #p.key<=80 and p.key:match("^[%w_%-]+$") and
+                        type(p.label)=="string" and #p.label<=80 and type(p.duration)=="number" and
+                        p.duration>=.05 and p.duration<=5.3 then
+                        local key=kind..":"..p.key
+                        if not resultPacks[kind][key] then
+                            local entry={key=key,label=p.label,path="Interface\\AddOns\\DuelsReimagined_CountdownSounds\\Results\\"..kind.."\\"..p.key..".ogg"}
+                            resultPacks[kind][key]=entry;resultOrder[kind][#resultOrder[kind]+1]=entry
+                        end
+                    end
                 end
             end
         end
@@ -160,6 +181,30 @@ function A.GetFightChoices(selected)
     end
     return out
 end
+function A.IsResultAvailable(kind,key)
+    RefreshCatalog()
+    return resultPacks[kind]~=nil and (key==DEFAULT or resultPacks[kind][key]~=nil or SharedPath(key)~=nil)
+end
+function A.GetResultChoices(kind,selected)
+    RefreshCatalog()
+    local out={{key=DEFAULT,label="Duels - Metallic Tick"}}
+    local choices=resultOrder[kind] or {}
+    if #choices>0 then
+        local group="result:"..kind
+        out[#out+1]={key=group,label=kind=="victory" and "Victory sounds" or "Defeat sounds",heading=true}
+        for _,p in ipairs(choices) do out[#out+1]={key=p.key,label=p.label,group=group,displayLabel=p.label} end
+    end
+    AppendShared(out)
+    if selected and not A.IsResultAvailable(kind,selected) then
+        local name=SharedName(selected) or selected:gsub("^"..kind..":",""):gsub("^(%a+)(%d+)$","%1 %2")
+        out[#out+1]={key=selected,label=name.." (unavailable)"}
+    end
+    return out
+end
+function A.GetResultSoundCounts()
+    RefreshCatalog()
+    return #resultOrder.victory,#resultOrder.defeat
+end
 local handle,kind
 function A.Stop(which)
     if which and which~=kind then return end
@@ -204,6 +249,17 @@ function A.PlayFight()
         -- stage timer and allow up to five seconds for an arbitrary clip.
         return shared and 4.95 or choice and choice.duration or .5
     end
+end
+function A.PlayResult(which)
+    if not resultPacks[which] then return false end
+    local prefix=which=="victory" and "duelVictory" or "duelDefeat"
+    if Settings.Get("duelResultVisual")~=true or Settings.Get(prefix.."Sounds")~=true then return false end
+    RefreshCatalog()
+    local key=Settings.Get(prefix.."SoundPack")
+    local choice=resultPacks[which][key]
+    A.Stop()
+    return PlayPath(SharedPath(key) or (choice and choice.path) or TICK,
+        Settings.Get(prefix.."AudioChannel") or "SFX",which)
 end
 function A.GetDiagnosticResources()
     return {handles=handle and 1 or 0,timers=0}

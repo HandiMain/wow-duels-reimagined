@@ -134,8 +134,9 @@ end)
 Check("Optional sound packs","health",function()
     Assert(ns.CountdownAudio and ns.CountdownAudio.GetPackStatus,"countdown audio owner missing")
     local state,countdown,fight,detail=ns.CountdownAudio.GetPackStatus()
+    local victory,defeat=ns.CountdownAudio.GetResultSoundCounts()
     return state=="ready" and "PASS" or state=="invalid" and "WARN" or "SKIP",
-        detail.."; "..countdown.." countdown packs / "..fight.." FIGHT! sounds / "..ns.CountdownAudio.GetSharedSoundCount().." SharedMedia sounds. Playback not tested."
+        detail.."; "..countdown.." countdown packs / "..fight.." FIGHT! sounds / "..victory.." victory / "..defeat.." defeat / "..ns.CountdownAudio.GetSharedSoundCount().." SharedMedia sounds. Playback not tested."
 end)
 Check("Detector capability and state","health",function()
     local d=ns.DuelDetection.GetSnapshot()

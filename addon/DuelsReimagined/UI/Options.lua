@@ -418,6 +418,27 @@ local resultVisual=AddToggle(resultCard,"combatvisuals","duelResultVisual","Show
     "Reveal the victory or defeat banner after a locally observed duel result.",-90,false)
 local resultVignette=AddToggle(resultCard,"combatvisuals","duelResultVignette","Screen-edge glow",
     "Fade gold around the edges for victory, crimson for defeat.",-125,false)
+local function ResultAudio(kind,title,prefix,top)
+    local enabled=AddToggle(resultCard,"combatvisuals",prefix.."Sounds",title.." sounds",
+        "Play a sound when the "..kind.." banner appears.",top,false)
+    local packKey,channelKey=prefix.."SoundPack",prefix.."AudioChannel"
+    local pack=Widgets.ChoiceRow(resultCard,title.." sound effect","Choose a sound pack or SharedMedia sound.",
+        function(key) Settings.Set(packKey,key) end,function() Settings.Reset(packKey) end,false,false,true)
+    local function RefreshChoices()
+        local key=Settings.Get(packKey)
+        pack:SetChoices(ns.CountdownAudio.GetResultChoices(kind,key),key)
+    end
+    pack.BeforeOpen=RefreshChoices
+    MarkPosition(pack,resultCard,top-35)
+    RegisterOption(packKey,title.." sound effect","Choose the "..kind.." sound","combatvisuals",pack)
+    local channel=Widgets.ChoiceRow(resultCard,title.." volume channel","Use the selected Blizzard audio slider.",
+        function(key) Settings.Set(channelKey,key) end,function() Settings.Reset(channelKey) end,false)
+    MarkPosition(channel,resultCard,top-106)
+    RegisterOption(channelKey,title.." volume channel","Choose the Blizzard volume channel","combatvisuals",channel)
+    return {enabled=enabled,pack=pack,channel=channel,refresh=RefreshChoices,prefix=prefix,packKey=packKey,channelKey=channelKey}
+end
+local victoryAudio=ResultAudio("victory","Victory","duelVictory",-161)
+local defeatAudio=ResultAudio("defeat","Defeat","duelDefeat",-338)
 local function ResultPreview(label,outcome,y)
     local button=Style.Action(resultCard,label,"footer")
     button:SetHeight(30);MarkPosition(button,resultCard,y)
@@ -428,8 +449,8 @@ local function ResultPreview(label,outcome,y)
     RegisterOption("previewResult"..outcome,label,"Preview the duel-end banner using sample data","combatvisuals",button)
     return button
 end
-local victoryPreview=ResultPreview("Preview victory","won",-161)
-local defeatPreview=ResultPreview("Preview defeat","lost",-196)
+local victoryPreview=ResultPreview("Preview victory","won",-515)
+local defeatPreview=ResultPreview("Preview defeat","lost",-550)
 local consentRow
 if ns.CompetitiveStorage and ns.CompetitiveStorage.PeerEpoch() then
     consentRow = AddToggle(behaviorCard,"interface","competitiveConsent","Allow competitive duel exchange",
@@ -838,7 +859,7 @@ function appearance:Relayout(width) LayoutPage(self, appearanceGroups, width) en
 function interface:Relayout(width) LayoutPage(self, interfaceGroups, width) end
 function widgetPage:Relayout(width) LayoutPage(self, widgetGroups, width) end
 local combatGroups={{card=countdownCard,entries={{widget=countdownRow},{widget=countdownChoice},{widget=countdownFont},{widget=countdownSounds},{widget=soundPack},{widget=audioChannel},{widget=fightSounds},{widget=fightPack},{widget=fightChannel},{widget=countdownPreview,height=30},{widget=editLayout,height=30}}},
-    {card=resultCard,entries={{widget=resultVisual},{widget=resultVignette},{widget=victoryPreview,height=30},{widget=defeatPreview,height=30}}}}
+    {card=resultCard,entries={{widget=resultVisual},{widget=resultVignette},{widget=victoryAudio.enabled},{widget=victoryAudio.pack},{widget=victoryAudio.channel},{widget=defeatAudio.enabled},{widget=defeatAudio.pack},{widget=defeatAudio.channel},{widget=victoryPreview,height=30},{widget=defeatPreview,height=30}}}}
 function combatVisuals:Relayout(width) LayoutPage(self,combatGroups,width) end
 appearance:Relayout(appearance:GetWidth())
 interface:Relayout(interface:GetWidth())
@@ -897,7 +918,20 @@ function Options.Refresh()
     countdownFont:SetAvailable(true)
     countdownFont:SetModified(Settings.IsModified("duelCountdownFont"))
     countdownFont.resetIcon:SetVertexColor(unpack(C.gold))
-    resultVignette:SetAvailable(Settings.Get("duelResultVisual"),"Enable the duel result first.")
+    local resultOn=Settings.Get("duelResultVisual")
+    resultVignette:SetAvailable(resultOn,"Enable the duel result first.")
+    for _,audio in ipairs({victoryAudio,defeatAudio}) do
+        audio.enabled:SetAvailable(resultOn,"Enable the duel result first.")
+        local on=resultOn and Settings.Get(audio.prefix.."Sounds")
+        audio.refresh()
+        audio.pack:SetAvailable(on,"Enable the duel result and its sound first.")
+        audio.pack:SetModified(Settings.IsModified(audio.packKey))
+        audio.pack.resetIcon:SetVertexColor(unpack(C.gold))
+        audio.channel:SetChoices(Settings.GetCountdownChannels(),Settings.Get(audio.channelKey))
+        audio.channel:SetAvailable(on,"Enable the duel result and its sound first.")
+        audio.channel:SetModified(Settings.IsModified(audio.channelKey))
+        audio.channel.resetIcon:SetVertexColor(unpack(C.gold))
+    end
     local visualOn=Settings.Get("duelCountdownVisual")
     local soundOn=visualOn and Settings.Get("duelCountdownSounds")
     countdownSounds:SetAvailable(visualOn,"Enable the duel countdown first.")

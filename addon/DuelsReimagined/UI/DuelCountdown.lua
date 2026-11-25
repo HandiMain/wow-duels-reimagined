@@ -78,7 +78,7 @@ local function Hide()
 end
 local function Clear()
     StopTimer();Hide()
-    if ns.CountdownAudio then ns.CountdownAudio.Stop() end
+    if ns.CountdownAudio then ns.CountdownAudio.Stop("countdown");ns.CountdownAudio.Stop("fight") end
     cycle,deadline,shown,preview,fightUntil=nil,nil,nil,nil,nil
 end
 local function Live(s,id)

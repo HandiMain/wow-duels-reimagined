@@ -12,7 +12,8 @@ SlashCmdList.DUELSREIMAGINED = function(message)
     end
     if message=="sounds" or message=="sounds status" then
         local _,countdown,fight,detail=ns.CountdownAudio.GetPackStatus()
-        print("DR | "..detail.." | "..countdown.." countdown packs / "..fight.." FIGHT! sounds / "..ns.CountdownAudio.GetSharedSoundCount().." SharedMedia sounds")
+        local victory,defeat=ns.CountdownAudio.GetResultSoundCounts()
+        print("DR | "..detail.." | "..countdown.." countdown packs / "..fight.." FIGHT! sounds / "..victory.." victory / "..defeat.." defeat / "..ns.CountdownAudio.GetSharedSoundCount().." SharedMedia sounds")
         return
     end
     if message=="result victory" or message=="result defeat" then

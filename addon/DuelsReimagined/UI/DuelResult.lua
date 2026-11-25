@@ -91,6 +91,7 @@ end
 local function Clear()
     CancelTimer();pending=nil;current=nil;visibleProgress=0
     M.Stop(animation)
+    if ns.CountdownAudio then ns.CountdownAudio.Stop("victory");ns.CountdownAudio.Stop("defeat") end
     if root then root:Hide();edge:Hide() end
 end
 local function Arm(seconds,fn)
@@ -135,6 +136,7 @@ local function Show(data)
     for i,v in ipairs(statValues) do v:SetText(stats[i]) end
     root:Show();edge:SetShown(S.Get("duelResultVignette")==true)
     Progress(0)
+    if ns.CountdownAudio then ns.CountdownAudio.PlayResult(win and "victory" or "defeat") end
     -- One reveal, one hold, one exit on the existing shared driver.
     M.Value(animation,0,1,.68,function(_,p)Progress(p)end)
     Arm(5.3,function()

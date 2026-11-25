@@ -375,3 +375,37 @@ driver.scripts.OnUpdate(driver,.55)
 assert(not resultRoot:IsShown() and not DuelsReimaginedResultVignette:IsShown() and not ns.Motion.GetRuntimeState().driver)
 assert(R.GetDiagnosticResources().timers==0)
 print("Duel result: PASS (simulated preview, observed result gate, deduplication, duration, combat deferral, vignette, reveal and cleanup)")
+
+-- Result audio is an extension of the same catalogue/handle. Actual result
+-- renderer triggers it only on reveal; countdown cleanup is scope-specific.
+DuelsReimaginedCountdownSoundPacks.results={
+    victory={{key="victory1",label="Victory 1",duration=1.76}},
+    defeat={{key="defeat2",label="Defeat 2",duration=1.67}},
+}
+local wins,losses=A.GetResultSoundCounts();assert(wins==1 and losses==1)
+assert(A.IsResultAvailable("victory","victory:victory1"))
+assert(not A.IsResultAvailable("defeat","victory:victory1"))
+prefs.duelVictorySounds=true;prefs.duelDefeatSounds=true
+prefs.duelVictorySoundPack="victory:victory1";prefs.duelDefeatSoundPack="defeat:defeat2"
+prefs.duelVictoryAudioChannel="Music";prefs.duelDefeatAudioChannel="Dialog"
+prefs.reduceMotion=true
+snap={scope="LOCAL",state="idle"}
+local n=#played
+assert(R.Preview("won") and #played==n+1)
+assert(played[#played][1]:find("Results\\victory\\victory1.ogg",1,true) and played[#played][2]=="Music")
+V.Refresh();assert(A.GetDiagnosticResources().handles==1)
+assert(R.Preview("lost") and #played==n+2)
+assert(played[#played][1]:find("Results\\defeat\\defeat2.ogg",1,true) and played[#played][2]=="Dialog")
+prefs.duelVictorySounds=false
+assert(R.Preview("won") and #played==n+2 and A.GetDiagnosticResources().handles==0)
+prefs.duelVictorySounds=true
+LibStub=function()return sharedLib end
+prefs.duelVictorySoundPack="lsm:Sword - Heavy"
+assert(HasShared(A.GetResultChoices("victory",prefs.duelVictorySoundPack),prefs.duelVictorySoundPack))
+assert(R.Preview("won") and played[#played][1]==registry["Sword - Heavy"])
+Advance(now+6);assert(A.GetDiagnosticResources().handles==0)
+LibStub=savedLibStub
+prefs.duelResultVisual=false
+n=#played;assert(not R.Preview("won") and #played==n)
+prefs.duelResultVisual=true
+print("Result audio: PASS (late packs, independent channels, scoped cleanup, SharedMedia, muted and disabled gates)")
