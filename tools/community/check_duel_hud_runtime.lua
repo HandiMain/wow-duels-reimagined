@@ -57,7 +57,8 @@ local ns={
     Header={CreateHUDButton=function(p,name,size)
         local b=Frame(p);b:SetSize(size,size);b.art=Frame(b);b.chosen=Frame(b)
         b.headerControl=name
-        b.art:SetTexture(name..".png")
+        function b:SetGlyph(glyph)self.art:SetTexture(glyph..".png")end
+        b:SetGlyph(name)
         return b
     end},
     Client={IsSupported=function()return true end},
@@ -92,6 +93,7 @@ for _,f in ipairs(frames) do
     if f.parent==arrow.parent and f.texture and f.w==320 and f.h==28 then expandedFace=f end
 end
 assert(title and foldBacking and foldFace and expandedFace)
+for _,f in ipairs(frames) do if f.headerControl then assert(f.w==22 and f.h==22 and f.point[5]==-6) end end
 assert(foldBacking.w==330 and foldBacking.h==36 and not foldBacking:IsVisible())
 assert(expandedFace:IsVisible() and title.point[5]==-4)
 local top=root.point[5];local frameCount=#frames
@@ -101,6 +103,8 @@ assert(not ranked:IsVisible() and arrow:IsVisible() and not root:GetScript("OnUp
 assert(foldTrim:IsVisible() and arrow.chosen.alpha==.42)
 assert(foldBacking:IsVisible() and foldFace:IsVisible() and not expandedFace:IsShown())
 assert(title.point[5]==-8 and arrow.point[5]==-10)
+for _,f in ipairs(frames) do if f.headerControl then assert(f.point[5]==-10) end end
+assert(arrow.art.texture=="FoldDown.png")
 -- Moving while folded stores the expanded centre, not the tiny header centre.
 header.scripts.OnDragStart();root.point[4]=720;root.point[5]=650
 header.scripts.OnDragStop()
@@ -110,6 +114,7 @@ assert(not H.IsFolded() and root:GetHeight()==310 and math.abs(root.point[5]-650
 assert(ranked:IsVisible() and root:GetScript("OnUpdate") and subscribers==2)
 assert(not foldTrim:IsShown() and arrow.chosen.alpha==0)
 assert(expandedFace:IsVisible() and title.point[5]==-4 and arrow.point[5]==-6)
+assert(arrow.art.texture=="FoldUp.png")
 H.Fold(true);prefs.duelHUDEnabled=false;H.Refresh()
 assert(not root:IsShown() and subscribers==0 and not root:GetScript("OnUpdate"))
 prefs.duelHUDEnabled=true;H.Refresh()

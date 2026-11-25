@@ -104,18 +104,18 @@ class DuelHUDTests(unittest.TestCase):
         self.assertIn('brand:SetTexCoord(10/512,77/512,22/128,91/128)',h)
         self.assertNotIn('Artwork("crest"',h)
         self.assertIn('Label("Duels Reimagined",16,C.pale,64,4,163,26',h)
-        self.assertIn('ns.Header.CreateHUDButton(headerLayer,"Options",21)',h)
-        self.assertIn('ns.Header.CreateHUDButton(headerLayer,"FoldUp",21)',h)
-        self.assertIn('ns.Header.CreateHUDButton(headerLayer,"Close",20)',h)
-        self.assertIn('Place(foldButton,258,6,21,21)',h)
+        self.assertIn('ns.Header.CreateHUDButton(headerLayer,"Options",22)',h)
+        self.assertIn('ns.Header.CreateHUDButton(headerLayer,"FoldUp",22)',h)
+        self.assertIn('ns.Header.CreateHUDButton(headerLayer,"Close",22)',h)
+        self.assertIn('Place(foldButton,258,6,22,22)',h)
         self.assertLessEqual(64+163,234)
-        self.assertLessEqual(282+20,336-28)
+        self.assertLessEqual(282+22,336-28)
         self.assertIn('Artwork("statRow",18,202,300,24)',h)
         self.assertIn('Artwork("statRow",18,227,300,24)',h)
         self.assertGreaterEqual(18,11)
         self.assertLessEqual(18+300,336-11)
-        self.assertIn('Action("Ranked",43,40,119,30',h)
-        self.assertIn('Action("Unranked",174,40,119,30',h)
+        self.assertIn('Action("Ranked",38,40,124,30',h)
+        self.assertIn('Action("Unranked",174,40,124,30',h)
 
     def test_folded_rim_and_shared_header_controls(self):
         h=read("UI/DuelHUD.lua")
@@ -141,3 +141,18 @@ class DuelHUDTests(unittest.TestCase):
         self.assertIn('if not compact then\n        Style.Plate(b, name == "Close" and "hall" or "dark"',header)
         self.assertIn('art:SetVertexColor(1,.91,.70,1)',header)
         self.assertIn('rim=compact and 0 or 0.82',header)
+
+    def test_optical_icon_and_action_alignment(self):
+        import re
+        h=read("UI/DuelHUD.lua")
+        header=read("UI/Header.lua")
+        positions=[tuple(map(int,re.search(r'Place\('+name+r',(\d+),6\+dy,(\d+),(\d+)\)',h).groups())) for name in ("gear","foldButton","close")]
+        self.assertEqual(positions,[(234,22,22),(258,22,22),(282,22,22)])
+        self.assertIn('foldButton:SetGlyph(folded and "FoldDown" or "FoldUp")',h)
+        for crop in ("10/64,54/64,10/64,54/64","6/64,58/64,14/64,46/64","6/64,58/64,19/64,51/64"):
+            self.assertIn("art:SetTexCoord("+crop+")",header)
+        for names in (("Ranked","Unranked"),("Challenge Target","Forfeit")):
+            a,b=[tuple(map(int,re.search(r'Action\("'+name+r'",(\d+),(\d+),(\d+),(\d+)',h).groups())) for name in names]
+            self.assertEqual(a[1:],b[1:])
+            self.assertEqual(a[0],336-b[0]-b[2])
+            self.assertEqual(b[0]-a[0]-a[2],12)

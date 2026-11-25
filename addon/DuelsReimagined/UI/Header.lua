@@ -38,12 +38,33 @@ local function HeaderButton(name, title, detail, parent, withoutTooltip, compact
         art = b:CreateTexture(nil, "ARTWORK")
         art:SetTexture(iconBase .. name .. ".png")
     end
-    local iconSize = compact and (name == "Close" and 17 or 19) or (name == "Close" and 15 or 19)
+    local iconSize = name == "Close" and 15 or 19
     if compact then
+        -- Normalize the visible glyphs, not the padded 64px source squares.
+        -- Fold variants have different vertical margins in the source art.
+        function b:SetGlyph(glyph)
+            if glyph == "Options" then
+                art:SetSize(19,19) -- existing Options atlas cell
+                return
+            end
+            art:SetTexture(iconBase .. glyph .. ".png")
+            if glyph == "Close" then
+                art:SetTexCoord(10/64,54/64,10/64,54/64)
+                art:SetSize(17,17)
+            elseif glyph == "FoldUp" then
+                art:SetTexCoord(6/64,58/64,14/64,46/64)
+                art:SetSize(17,17*32/52)
+            elseif glyph == "FoldDown" then
+                art:SetTexCoord(6/64,58/64,19/64,51/64)
+                art:SetSize(17,17*32/52)
+            end
+        end
+        b:SetGlyph(name)
         if art.SetDrawLayer then art:SetDrawLayer("OVERLAY",3) end
         art:SetVertexColor(1,.91,.70,1)
+    else
+        art:SetSize(iconSize, iconSize)
     end
-    art:SetSize(iconSize, iconSize)
     art:SetPoint("CENTER")
     ns.Chrome.Sharp(art)
     -- A separate, persistent selected accent for Fold/Peek, distinct from

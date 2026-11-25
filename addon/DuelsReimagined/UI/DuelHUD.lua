@@ -153,24 +153,24 @@ local function OpenOptions()
     if not ns.Window.frame:IsShown() then ns.Window.Toggle() end
     ns.Navigation.SelectKey("options","interface")
 end
-local gear=ns.Header.CreateHUDButton(headerLayer,"Options",21)
-Place(gear,234,6,21,21)
+local gear=ns.Header.CreateHUDButton(headerLayer,"Options",22)
+Place(gear,234,6,22,22)
 gear:SetScript("OnClick",OpenOptions)
-local foldButton=ns.Header.CreateHUDButton(headerLayer,"FoldUp",21)
-Place(foldButton,258,6,21,21)
-local close=ns.Header.CreateHUDButton(headerLayer,"Close",20)
-Place(close,282,6,20,20)
+local foldButton=ns.Header.CreateHUDButton(headerLayer,"FoldUp",22)
+Place(foldButton,258,6,22,22)
+local close=ns.Header.CreateHUDButton(headerLayer,"Close",22)
+Place(close,282,6,22,22)
 close:SetScript("OnClick",function()Settings.Set("duelHUDEnabled",false)end)
 local function PaintFold()
     local dy=folded and 4 or 0
     Place(brand,29,2+dy,31,32)
     Place(headerTitle,64,4+dy,163,26)
-    Place(gear,234,6+dy,21,21)
-    Place(foldButton,258,6+dy,21,21)
-    Place(close,282,6+dy,20,20)
+    Place(gear,234,6+dy,22,22)
+    Place(foldButton,258,6+dy,22,22)
+    Place(close,282,6+dy,22,22)
     Place(header,0,0,230,folded and FOLDED_HEIGHT or 35)
     expandedFace:SetShown(not folded)
-    foldButton.art:SetTexture("Interface\\AddOns\\DuelsReimagined\\Media\\Artwork\\Header\\"..(folded and "FoldDown" or "FoldUp")..".png")
+    foldButton:SetGlyph(folded and "FoldDown" or "FoldUp")
     ns.Motion.Fade(foldButton.chosen,folded and .42 or 0,ns.Motion.Duration("quick"))
     for _,part in ipairs(expandedTop) do part:SetShown(not folded) end
 end
@@ -195,8 +195,8 @@ local function Mode(practice)
     end
     Settings.Set("practiceDuels",practice)
 end
-modeRank=Action("Ranked",43,40,119,30,function() Mode(false) end)
-modePractice=Action("Unranked",174,40,119,30,function() Mode(true) end)
+modeRank=Action("Ranked",38,40,124,30,function() Mode(false) end)
+modePractice=Action("Unranked",174,40,124,30,function() Mode(true) end)
 local state=Label("Select a player to duel",13,C.pale,10,77,WIDTH-20,18)
 local timer=Label("00:00",20,C.text,121,96,94,27)
 local function Side(x,enemy)
@@ -271,7 +271,7 @@ local function Native(fn,unit)
     end
     note:SetText("Request sent to Blizzard; awaiting observation.");return true
 end
-challenge=Action("Challenge Target",39,268,145,25,function()
+challenge=Action("Challenge Target",38,268,124,25,function()
     if preview or ns.CompetitivePreview.IsActive() or Combat() or not snap or snap.state~="idle" then return end
     local id=Identity("target");local self=Identity("player")
     local now=Now()
@@ -289,7 +289,7 @@ challenge=Action("Challenge Target",39,268,145,25,function()
         else note:SetText("Request not confirmed; try again") end
     end
 end,false)
-forfeit=Action("Forfeit",190,268,107,25,function()
+forfeit=Action("Forfeit",174,268,124,25,function()
     if preview or ns.CompetitivePreview.IsActive() or not snap or snap.state=="finishing" then return end
     if snap.challenge and snap.challenge.direction=="outgoing" then
         if not snap.challenge.requestConfirmed then ns.DuelDetection.DismissUnconfirmed()
