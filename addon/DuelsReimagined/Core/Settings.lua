@@ -27,6 +27,20 @@ local accessDefaults = {
     minimapSize = 36, minimapTransparency = 0,
 }
 local allowedModes = { minimap = true, widget = true, both = true, none = true }
+local countdownStyles = {
+    {key="impact",label="Gladiator"}, {key="slash",label="Blade Strike"},
+    {key="forge",label="Molten Forge"}, {key="arcane",label="Arcane Rift"},
+    {key="thunder",label="Thunderstrike"}, {key="cinematic",label="Cinematic"},
+    {key="shatter",label="Shatter"}, {key="pulse",label="Heartbeat"},
+    {key="minimal",label="Minimal"},
+}
+local allowedCountdownStyles={}
+for _,choice in ipairs(countdownStyles) do allowedCountdownStyles[choice.key]=true end
+function Settings.GetCountdownStyles()
+    local out={}
+    for i,v in ipairs(countdownStyles) do out[i]={key=v.key,label=v.label} end
+    return out
+end
 
 -- Every persistent Options toggle belongs here, including future ones.
 local boolDefaults = {
@@ -68,6 +82,7 @@ local function IsMatchPreference(key)
 end
 
 function Settings.GetDefault(key)
+    if key=="duelCountdownStyle" then return "impact" end
     if key == "duelHUDScale" or key == "duelHUDOpacity" then return 1 end
     if key == "menuScale" then return 1 end
     if key == "fontChoice" then return "default" end
@@ -356,6 +371,10 @@ end
 
 function Settings.Get(key)
     local db = ReadDB()
+    if key=="duelCountdownStyle" then
+        local v=db and db[key]
+        return type(v)=="string" and allowedCountdownStyles[v] and v or "impact"
+    end
     if key == "duelHUDOpacity" then
         local v=db and db.duelHUDOpacity
         if type(v)~="number" or v~=v then return 1 end
@@ -475,6 +494,14 @@ function Settings.ResetAccessPositions()
 end
 
 function Settings.Set(key, value)
+    if key=="duelCountdownStyle" then
+        if type(value)~="string" or not allowedCountdownStyles[value] then return end
+        local db=WriteDB();if db[key]==value then return end
+        db[key]=value
+        if ns.DuelCountdown then ns.DuelCountdown.Refresh() end
+        if ns.Options and ns.Options.Refresh then ns.Options.Refresh() end
+        return
+    end
     if key=="duelHUDScale" or key=="duelHUDOpacity" then
         if type(value)~="number" or value~=value then return end
         local normalized=key=="duelHUDScale" and math.max(.8,math.min(1.2,math.floor(value*20+.5)/20)) or math.max(.3,math.min(1,math.floor(value*20+.5)/20))
@@ -646,6 +673,7 @@ loader:SetScript("OnEvent", function(self, _, loadedName)
     db.fontChoice = Settings.Get("fontChoice")
     db.fontScale = Settings.Get("fontScale")
     db.fontOutline = Settings.Get("fontOutline")
+    db.duelCountdownStyle = Settings.Get("duelCountdownStyle")
     for key in pairs(accessDefaults) do db[key] = Settings.Get(key) end
     if type(db.patchNotesSeenId) ~= "string" or
         #db.patchNotesSeenId > 128 then

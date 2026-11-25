@@ -41,6 +41,7 @@ previewLabel:SetPoint("TOP",root,"BOTTOM",0,12)
 previewLabel:SetText("COUNTDOWN PREVIEW");previewLabel:Hide()
 local animKey={}
 local timer,cycle,deadline,shown,preview,ready,unsubscribe
+local selectedStyle="impact"
 local function Read(fn,...)
     if type(fn)~="function" then return nil end
     local ok,v=pcall(fn,...)
@@ -80,7 +81,7 @@ local function Font(value)
     end
 end
 local function Lerp(a,b,p) return a+(b-a)*math.max(0,math.min(1,p)) end
-local function Render(p,fight)
+local function RenderGladiator(p,fight)
     local scale,alpha
     if p<.19 then
         scale=Lerp(1.9,.89,p/.19);alpha=Lerp(0,1,p/.14)
@@ -103,8 +104,133 @@ local function Render(p,fight)
         t:SetAlpha(p<.1 and 0 or (1-q)*.8)
     end
 end
+-- One palette/choreography catalogue, same stage clock and motion owner.
+-- Original Gladiator remains the exact approved renderer.
+local palettes={
+    slash={.32,1,.66}, forge={1,.39,.09}, arcane={.69,.43,1},
+    thunder={.24,.63,1}, cinematic={1,.65,.79}, shatter={.49,.94,1},
+    pulse={1,.22,.26}, minimal={.98,.98,.98},
+}
+local function MoveGlyph(x,y,scale,alpha)
+    glyph:ClearAllPoints();glyph:SetPoint("CENTER",root,"CENTER",x,y)
+    glyph:SetScale(scale);glyph:SetAlpha(alpha)
+end
+local function ResetLayers(style)
+    MoveGlyph(0,0,1,1)
+    local color=palettes[style]
+    for i,f in ipairs(layers) do
+        f:ClearAllPoints();f:SetPoint("CENTER",glyph,"CENTER",0,-(5-i)*1.8)
+        if color then
+            local tone=({.18,.32,.48,.72,1})[i]
+            f:SetTextColor(color[1]*tone,color[2]*tone,color[3]*tone)
+        else f:SetTextColor(unpack(gold[i])) end
+        f:SetAlpha(style=="minimal" and i<5 and 0 or 1)
+    end
+    if color then
+        front:SetShadowColor(color[1]*.2,color[2]*.2,color[3]*.2,1)
+        glow:SetVertexColor(color[1],color[2],color[3],1)
+        ring:SetVertexColor(color[1],color[2],color[3],1)
+    else
+        front:SetShadowColor(.27,.095,.015,1)
+        glow:SetVertexColor(1,.44,.12,1);ring:SetVertexColor(1,.69,.27,1)
+    end
+    glow:ClearAllPoints();glow:SetPoint("CENTER",root,"CENTER")
+    ring:ClearAllPoints();ring:SetPoint("CENTER",root,"CENTER")
+    for _,t in ipairs(sparks) do
+        if color then t:SetColorTexture(color[1],color[2],color[3],1)
+        else t:SetColorTexture(1,.72,.32,1) end
+        t:SetSize(3,3);t:SetAlpha(0)
+    end
+    glow:SetAlpha(0);ring:SetAlpha(0)
+end
+local function Spark(t,x,y,w,h,alpha)
+    t:ClearAllPoints();t:SetPoint("CENTER",root,"CENTER",x,y)
+    t:SetSize(w,h);t:SetAlpha(math.max(0,math.min(1,alpha)))
+end
+local function Ring(p,size,alpha)
+    ring:SetSize(size,size);ring:SetAlpha(math.max(0,alpha))
+end
+local function Flare(w,h,alpha)
+    glow:SetSize(w,h);glow:SetAlpha(math.max(0,alpha))
+end
+local function Ease(p) p=math.max(0,math.min(1,p));return 1-(1-p)^3 end
+local function Envelope(p,entry,exit)
+    return p<entry and Ease(p/entry) or p>exit and 1-(p-exit)/(1-exit) or 1
+end
+local function RenderPreset(p,fight,value)
+    local style=selectedStyle
+    if style=="impact" or not palettes[style] then RenderGladiator(p,fight);return end
+    local a=Envelope(p,.20,.75)
+    local q=math.min(1,p/.7)
+    local x,y,scale=0,0,1
+    local strength=fight and 1.25 or 1
+    if style=="slash" then
+        local dir=(value=="3" or value=="1") and 1 or -1
+        x=p<.22 and Lerp(dir*270,0,Ease(p/.22)) or p>.75 and Lerp(0,-dir*230,(p-.75)/.25) or 0
+        scale=p<.22 and Lerp(1.12,1,Ease(p/.22)) or 1
+        Flare(410,34,math.max(0,1-p/.32)*.84)
+        for i,t in ipairs(sparks) do
+            Spark(t,dir*(Lerp(25,210,q)-i*13),(i%4-1.5)*11,18,2,(1-q)*.8)
+        end
+    elseif style=="forge" then
+        scale=p<.32 and Lerp(.58,1.03,Ease(p/.32)) or Lerp(1.03,1.14,math.max(0,(p-.76)/.24))
+        y=Lerp(-19,6,Ease(p/.34))
+        Flare(270,210,(1-q)*.72)
+        for i,t in ipairs(sparks) do
+            local drift=math.sin(i*2.7)*Lerp(20,125,q)
+            Spark(t,drift,Lerp(-65,122,q)+(i%4)*11,3+(i%3),6,(1-q)*.93)
+        end
+    elseif style=="arcane" then
+        scale=p<.3 and Lerp(.12,1.08,Ease(p/.3)) or p>.72 and Lerp(1,.12,(p-.72)/.28) or Lerp(1.08,1,(p-.3)/.14)
+        Ring(p,Lerp(55,240,q)*strength,(1-q)*.82)
+        Flare(220,220,(1-q)*.42)
+        local radius=Lerp(24,134,q)*strength
+        for i,t in ipairs(sparks) do
+            local angle=i*math.pi/6+p*math.pi*2
+            Spark(t,math.cos(angle)*radius,math.sin(angle)*radius,4,4,(1-q)*.92)
+        end
+    elseif style=="thunder" then
+        y=p<.17 and Lerp(210,-12,Ease(p/.17)) or p<.26 and Lerp(-12,6,(p-.17)/.09) or p<.38 and Lerp(6,0,(p-.26)/.12) or 0
+        scale=p<.17 and Lerp(1.3,.95,Ease(p/.17)) or p<.3 and Lerp(.95,1,(p-.17)/.13) or 1
+        Ring(p,Lerp(35,310,q)*strength,math.max(0,1-p/.5)*.85)
+        Flare(145,370,math.max(0,1-p/.27)*.75)
+        for i,t in ipairs(sparks) do
+            Spark(t,math.cos(i*2.4)*Lerp(20,145,q),math.sin(i*2.4)*Lerp(15,95,q),2,14,(1-q)*.87)
+        end
+    elseif style=="cinematic" then
+        scale=Lerp(.78,1.22,p)
+        a=Envelope(p,.28,.7)
+        Flare(290,180,math.sin(p*math.pi)*.18)
+    elseif style=="shatter" then
+        scale=p<.25 and Lerp(1.28,1,Ease(p/.25)) or p>.74 and Lerp(1,1.24,(p-.74)/.26) or 1
+        local disperse=p<.22 and 1-Ease(p/.22) or p>.73 and (p-.73)/.27 or 0
+        -- Four embossed text layers converge/separate; shards are independent
+        -- reusable regions, not a claim of true per-pixel glyph destruction.
+        for i,f in ipairs(layers) do
+            local angle=(i-1)*math.pi/2
+            local spread=i==5 and 0 or 31*disperse
+            f:ClearAllPoints();f:SetPoint("CENTER",glyph,"CENTER",math.cos(angle)*spread,-(5-i)*1.8+math.sin(angle)*spread)
+        end
+        Ring(p,Lerp(60,245,q),.38*(1-q))
+        for i,t in ipairs(sparks) do
+            local angle=i*math.pi/6
+            local dist=disperse*(fight and 185 or 145)
+            Spark(t,math.cos(angle)*dist,math.sin(angle)*dist,5+(i%3)*3,8+(i%4)*3,disperse*.95)
+        end
+    elseif style=="pulse" then
+        local beat=math.max(0,1-math.abs(p-.17)/.15)+math.max(0,1-math.abs(p-.43)/.14)
+        scale=1+.23*beat*strength
+        a=Envelope(p,.1,.76)
+        local wave=p<.3 and p/.3 or math.min(1,(p-.3)/.36)
+        Ring(p,Lerp(62,220,wave)*strength,math.max(0,1-wave)*.7)
+        Flare(300,220,.58*beat)
+    elseif style=="minimal" then
+        scale=Lerp(.96,1,Ease(p/.13));a=Envelope(p,.13,.84)
+    end
+    MoveGlyph(x,y,scale,a)
+end
 local function ShowStage(value,seconds)
-    Hide();Font(value);previewLabel:SetShown(preview==true)
+    Hide();Font(value);ResetLayers(selectedStyle);previewLabel:SetShown(preview==true)
     root:Show()
     if Settings.Get("reduceMotion") then
         glyph:SetScale(1);glyph:SetAlpha(1);glow:SetAlpha(0);ring:SetAlpha(0)
@@ -115,13 +241,13 @@ local function ShowStage(value,seconds)
     local fight=value=="FIGHT!"
     local span=math.max(.06,seconds)
     local start=Now()
-    Render(0,fight)
+    RenderPreset(0,fight,value)
     -- Shared driver only. Wall clock gives stage-local keyframes even
     -- though the common numeric tween uses smooth easing.
     Motion.Value(animKey,0,1,span,function(_,v)
         local now=Now()
         local p=v==1 and 1 or start and now and math.max(0,math.min(1,(now-start)/span)) or v
-        Render(p,fight)
+        RenderPreset(p,fight,value)
         if v==1 then root:Hide() end
     end)
 end
@@ -167,7 +293,7 @@ local function Receive(s)
         or not event or event.cycle~=s.active.id or event.reason~="countdown_observed"
         or type(event.time)~="number" or not now or now-event.time>1 or event.time>now+.1 then return end
     local candidate=event.time+count
-    if cycle~=s.active.id then Clear();cycle=s.active.id;deadline=candidate
+    if cycle~=s.active.id then Clear();cycle=s.active.id;deadline=candidate;selectedStyle=Settings.Get("duelCountdownStyle") or "impact"
     elseif not deadline or candidate<deadline then deadline=candidate end
     if shown~="FIGHT!" then Tick() end
 end
@@ -180,7 +306,7 @@ function V.Preview()
     local s=ns.DuelDetection.GetSnapshot()
     if Read(InCombatLockdown)~=false or s.state~="idle" or s.active or s.challenge then return false,"Finish combat or your duel first" end
     local now=Now();if not now then return false,"Preview unavailable" end
-    Clear();preview=true;deadline=now+3;Tick()
+    Clear();preview=true;deadline=now+3;selectedStyle=Settings.Get("duelCountdownStyle") or "impact";Tick()
     return true
 end
 function V.GetDiagnosticResources()

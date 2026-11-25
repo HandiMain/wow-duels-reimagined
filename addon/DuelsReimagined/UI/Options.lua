@@ -344,9 +344,15 @@ local hudStatsRow=AddToggle(hudCard,"widget","duelHUDSessionStats","Show session
     "Show recorded duels, wins, losses and confirmed rating changes. Live recording must be enabled.",-178,false)
 local countdownRow=AddToggle(countdownCard,"combatvisuals","duelCountdownVisual","Show duel countdown",
     "Animate the numbers and FIGHT! when a duel starts. Works independently of the Duel Widget.",-90,false)
+local countdownChoice=Widgets.ChoiceRow(countdownCard,"Animation style",
+    "Choose a different entrance, impact and exit animation.",
+    function(key) Settings.Set("duelCountdownStyle",key) end,
+    function() Settings.Reset("duelCountdownStyle") end,false)
+MarkPosition(countdownChoice,countdownCard,-125)
+RegisterOption("duelCountdownStyle","Animation style","Choose a cinematic countdown style","combatvisuals",countdownChoice)
 local countdownPreview=Style.Action(countdownCard,"Preview countdown","footer")
 countdownPreview:SetHeight(30)
-MarkPosition(countdownPreview,countdownCard,-125)
+MarkPosition(countdownPreview,countdownCard,-196)
 countdownPreview:SetScript("OnClick",function()
     local ok,why=ns.DuelCountdown.Preview()
     if not ok and ns.Feedback then ns.Feedback.Toast(why,countdownPreview) end
@@ -759,7 +765,7 @@ if warConsentRow then interfaceGroups[1].entries[#interfaceGroups[1].entries+1]=
 function appearance:Relayout(width) LayoutPage(self, appearanceGroups, width) end
 function interface:Relayout(width) LayoutPage(self, interfaceGroups, width) end
 function widgetPage:Relayout(width) LayoutPage(self, widgetGroups, width) end
-local combatGroups={{card=countdownCard,entries={{widget=countdownRow},{widget=countdownPreview,height=30}}}}
+local combatGroups={{card=countdownCard,entries={{widget=countdownRow},{widget=countdownChoice},{widget=countdownPreview,height=30}}}}
 function combatVisuals:Relayout(width) LayoutPage(self,combatGroups,width) end
 appearance:Relayout(appearance:GetWidth())
 interface:Relayout(interface:GetWidth())
@@ -810,6 +816,10 @@ function Options.Refresh()
         widget:SetChecked(Settings.Get(entry.key))
         widget:SetModified(Settings.IsModified(entry.key))
     end
+    countdownChoice:SetChoices(Settings.GetCountdownStyles(),Settings.Get("duelCountdownStyle"))
+    countdownChoice:SetAvailable(true)
+    countdownChoice:SetModified(Settings.IsModified("duelCountdownStyle"))
+    countdownChoice.resetIcon:SetVertexColor(unpack(C.gold))
     local matching = ready and Settings.Get("matchFont")
     fontChoice:SetChoices(Fonts.GetChoices(), Settings.Get("fontChoice"),
         matching and "Managed by EllesmereUI" or nil)

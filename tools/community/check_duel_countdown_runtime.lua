@@ -16,6 +16,9 @@ local function Frame(parent)
     function f:SetFont()return true end
     function f:SetScale(v)self.scale=v end
     function f:SetAlpha(v)self.alpha=v end
+    function f:SetPoint(...)self.point={...} end
+    function f:SetTextColor(...)self.color={...} end
+    function f:SetSize(w,h)self.w=w;self.h=h end
     function f:CreateTexture()return Frame(self)end
     function f:CreateFontString()return Frame(self)end
     frames[#frames+1]=f;return f
@@ -79,3 +82,36 @@ V.Refresh();assert(not root:IsShown() and V.GetDiagnosticResources().timers==0)
 prefs.duelCountdownVisual=false;Observe(2,3);assert(not root:IsShown())
 assert(#frames==count)
 print("Duel countdown: PASS (preview, observed countdown, fight timing, cancellation, reduced motion, disabled gate, bounded regions)")
+
+-- Nine styles share the same regions and timer; verify different geometry,
+-- palettes, stage sequence, reduced motion, cancellation and no frame growth.
+snap={scope="LOCAL",state="idle"};callback(snap)
+prefs.duelCountdownVisual=true;prefs.reduceMotion=false
+local glyph,front
+for _,f in ipairs(frames)do
+    if f.parent==root and f.w==440 and f.h==200 then glyph=f end
+end
+assert(glyph)
+for _,f in ipairs(frames)do if f.parent==glyph and f.color then front=f end end
+assert(front)
+local motionSignatures,paletteSignatures={},{}
+for _,id in ipairs({"impact","slash","forge","arcane","thunder","cinematic","shatter","pulse","minimal"}) do
+    prefs.duelCountdownStyle=id
+    local start=now
+    assert(V.Preview() and Text("3"))
+    now=start+.08;driver.scripts.OnUpdate(driver,.08)
+    local x,y=glyph.point[4],glyph.point[5]
+    local signature=string.format("%.2f/%.2f/%.3f/%.3f",x,y,glyph.scale,glyph.alpha)
+    assert(not motionSignatures[signature],"duplicate entrance: "..id);motionSignatures[signature]=true
+    local color=table.concat(front.color,",")
+    assert(not paletteSignatures[color],"duplicate palette: "..id);paletteSignatures[color]=true
+    Advance(start+1.01);assert(Text("2"))
+    Advance(start+2.01);assert(Text("1"))
+    Advance(start+3.01);assert(Text("FIGHT!"))
+    Advance(start+4);assert(not root:IsShown() and not ns.Motion.GetRuntimeState().driver and V.GetDiagnosticResources().timers==0)
+    prefs.reduceMotion=true
+    assert(V.Preview() and glyph.scale==1 and glyph.alpha==1 and not ns.Motion.GetRuntimeState().driver)
+    V.Refresh();prefs.reduceMotion=false
+end
+assert(#frames==count,"styles must not allocate new frames")
+print("Countdown presets: PASS (nine distinct palettes and entrances, stage timing, reduced motion, no frame growth)")

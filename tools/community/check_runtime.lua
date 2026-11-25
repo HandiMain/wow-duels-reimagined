@@ -174,6 +174,17 @@ Settings.Set("duelHUDAdaptive",false);Check(Settings.Get("duelHUDAdaptive")==fal
 Settings.Reset("duelHUDAdaptive");Check(Settings.Get("duelHUDAdaptive")==true and hudChanges==2,"adaptive reset")
 _G.DuelsReimaginedDB.duelHUDOpacity="bad";Check(Settings.Get("duelHUDOpacity")==1,"invalid opacity uses default")
 ns.DuelHUD=nil
+Check(Settings.Get("duelCountdownStyle")=="impact" and #Settings.GetCountdownStyles()==9,"countdown style defaults")
+for _,choice in ipairs(Settings.GetCountdownStyles()) do
+    Settings.Set("duelCountdownStyle",choice.key)
+    Check(Settings.Get("duelCountdownStyle")==choice.key,"valid countdown style persists")
+end
+Settings.Set("duelCountdownStyle","invalid")
+Check(Settings.Get("duelCountdownStyle")=="minimal","invalid style write refused")
+Settings.Reset("duelCountdownStyle")
+Check(not Settings.IsModified("duelCountdownStyle") and Settings.Get("duelCountdownStyle")=="impact","style reset")
+_G.DuelsReimaginedDB.duelCountdownStyle="invalid"
+Check(Settings.Get("duelCountdownStyle")=="impact","invalid saved style fallback")
 _G.DuelsReimaginedDB=originalDB
 ns.AccessIcons, ns.Options, ns.Header = nil,nil,nil
 print("Independent access settings and default-on Peek: PASS")
