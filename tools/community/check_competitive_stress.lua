@@ -11,6 +11,7 @@ assert(pp==9 and pf==0,"scoped ranked storage and wire QA")
 -- Reuse the isolated tournament model in the existing CI runner.
 ns.Client={Kind=function()return "forever" end,IsSupported=function()return true end}
 assert(loadfile(root.."TournamentState.lua"))("DuelsReimagined",ns)
+assert(loadfile(root.."TournamentRecovery.lua"))("DuelsReimagined",ns)
 assert(loadfile(root.."TournamentRegistration.lua"))("DuelsReimagined",ns)
 local cp,cf=ns.TournamentState.RunCalendarSelfTest(print)
 assert(cp==5 and cf==0,"calendar scheduling QA")
@@ -18,6 +19,8 @@ local tp,tf=ns.TournamentRegistration.RunSelfTest(print)
 assert(tp==17 and tf==0,"tournament registration QA")
 local ep,ef=ns.TournamentRegistration.RunExchangeSelfTest(print)
 assert(ep==10 and ef==0,"tournament exchange QA")
+local jp,jf=ns.TournamentRegistration.RunRecoverySelfTest(print)
+assert(jp==10 and jf==0,"tournament recovery QA failed")
 local function Equal(a,b)
     if type(a)~=type(b) then return false end
     if type(a)~="table" then return a==b end

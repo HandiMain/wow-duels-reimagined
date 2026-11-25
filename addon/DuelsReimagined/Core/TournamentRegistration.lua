@@ -242,9 +242,38 @@ local function WireHost(scope,host,engine,resolve)
 end
 -- One outstanding request and one commitment across all known organizers.
 -- A lost mutation acknowledgement is not a rejection or permission to rejoin.
-local function WireClient(scope,cache,clock,resolve)
+local function WireClient(scope,cache,clock,resolve,store)
     local key=P.Key(scope)
     local D,pending,commitment,seq={},nil,nil,0
+    local journal
+    if store then
+        journal=store.ReadTournamentJournal()
+        if not journal or journal.client~=scope.client then return nil end
+        local lock=journal.commitment
+        if lock and (lock.role~="participant" or lock.population~=key) then return nil end
+        seq=journal.sequence
+        if lock then commitment={owner=lock.owner,id=lock.id,status=lock.status} end
+        if journal.pending then
+            local op=journal.pending.op
+            pending={owner=lock.owner,op=op,id=lock.id,seq=seq,body=table.concat({"M",key,seq,op,lock.id},"|")}
+        end
+    end
+    local function Fresh()
+        if not store then return true end
+        local current=store.ReadTournamentJournal()
+        return current and Equal(current,journal)
+    end
+    local function Persist(nextSeq,nextLock,nextOp,action)
+        if not store then return true end
+        if not Fresh() then return false end
+        local candidate=Copy(journal)
+        candidate.revision=journal.revision+1;candidate.sequence=nextSeq
+        candidate.commitment=nextLock and {role="participant",owner=nextLock.owner,id=nextLock.id,population=key,status=nextLock.status} or nil
+        candidate.pending=nextOp and {op=nextOp,sequence=nextSeq} or nil
+        local saved=store.CommitTournamentJournal(journal.revision,candidate,action)
+        if not saved then return false end
+        journal=saved;return true
+    end
     local function Expire()
         local now=Now(clock)
         if pending and pending.op=="Q" and now and now>=pending.deadline then pending=nil end
@@ -252,10 +281,13 @@ local function WireClient(scope,cache,clock,resolve)
     end
     local function Begin(owner,op,id)
         local now=Expire()
-        if pending or not now or not Guid(owner) or seq>=2147483647 then return nil end
-        seq=seq+1
-        local body=op=="Q" and table.concat({"Q",key,seq},"|") or table.concat({"M",key,seq,op,id},"|")
+        if not Fresh() or pending or not now or not Guid(owner) or seq>=2147483647 then return nil end
+        local nextSeq=seq+1
+        local body=op=="Q" and table.concat({"Q",key,nextSeq},"|") or table.concat({"M",key,nextSeq,op,id},"|")
         if not Packet(body) then return nil end
+        local nextLock=op=="J" and {owner=owner,id=id,status="pending"} or commitment
+        if not Persist(nextSeq,nextLock,op~="Q" and op or nil,op=="Q" and "query" or "begin") then return nil end
+        seq=nextSeq;commitment=nextLock
         pending={owner=owner,op=op,id=id,seq=seq,body=body,deadline=now+30,parts={},count=0}
         return body
     end
@@ -266,7 +298,6 @@ local function WireClient(scope,cache,clock,resolve)
         for _,ad in ipairs(cache.Browse()) do if ad.owner==owner and ad.id==id then found=true;break end end
         if not found then return nil end
         local body=Begin(owner,"J",id)
-        if body then commitment={owner=owner,id=id,status="pending"} end
         return body
     end
     function D.Action(op)
@@ -275,12 +306,12 @@ local function WireClient(scope,cache,clock,resolve)
     end
     function D.Retry()
         Expire()
-        return pending and pending.body
+        if Fresh() then return pending and pending.body end
     end
     function D.Status() return Copy(commitment) end
     function D.Receive(sender,body)
         local now=Expire()
-        if not pending or not now or not Packet(body) then return false end
+        if not Fresh() or not pending or not now or not Packet(body) then return false end
         local actor=resolve(sender)
         if not Actor(scope,actor) or actor.guid~=pending.owner then return false end
         local a=Split(body)
@@ -310,8 +341,9 @@ local function WireClient(scope,cache,clock,resolve)
         if not commitment or commitment.owner~=actor.guid or commitment.id~=pending.id then return false end
         local op,status,ok=pending.op,a[8],a[7]=="1"
         if ok and ((op=="J" and status=="none") or (op=="L" and status~="none") or (op=="C" and status~="checked")) then return false end
-        pending=nil
-        if status=="none" then commitment=nil else commitment.status=status end
+        local nextLock=status~="none" and {owner=commitment.owner,id=commitment.id,status=status} or nil
+        if not Persist(seq,nextLock,nil,"ack") then return false end
+        pending=nil;commitment=nextLock
         return true,ok and "confirmed" or "refused"
     end
     return D
@@ -422,6 +454,97 @@ function R.RunExchangeSelfTest(emit)
             assert(not x.player.Receive("host",string.rep("x",238)))
             assert(not x.player.Receive("host",frames[1]:sub(1,-2).."z"))
             assert(#x.c.Browse()==0 and x.e.Ad().count==0)
+        end)
+    end
+    return p,f
+end
+
+function R.RunRecoverySelfTest(emit)
+    emit=type(emit)=="function" and emit or function()end
+    local p,f=0,0
+    local function Case(label,fn)
+        local ok,err=pcall(fn);if ok then p=p+1 else f=f+1 end
+        emit("DR | SIMULATED | "..(ok and "PASS " or "FAIL ")..label..(ok and "" or ": "..tostring(err)))
+    end
+    for _,client in ipairs({"forever","retail"}) do
+        local function Fixture()
+            local s={client=client,region="EU",ruleset=client=="forever" and "pvp" or "retail",faction="Alliance"}
+            local n=1795622400
+            local function A(id)local a=Copy(s);a.guid="Player-1-"..id;a.name=id;a.level=30;return a end
+            local h,a=A("HOST"),A("PLAYER")
+            local x={s=s,owner=a.guid,client=client,writes=0,h=h,a=a}
+            function x.Open()
+                local d=ns.CompetitiveStorage.NewSimulated(function()return x.account,x.character end,
+                    function(ac,ch)x.account=ac;x.character=ch;x.writes=x.writes+1 end,
+                    function()return x.client end,function()return x.owner end)
+                d.MarkLoaded();return d
+            end
+            local clock=function()return n end
+            local function resolve(sender)if sender=="host" then return h elseif sender=="player" then return a end end
+            local d=T.DraftDefaults();d.name="Recovery Cup";d.location="Meeting place";d.startUTC="2026-11-25 18:00"
+            d=assert(T.ValidateDraft(client,d,n,s.region,s.ruleset,s.faction))
+            x.engine=assert(Host(s,h,clock));x.ad=assert(x.engine.Publish(h.guid,d))
+            x.cache=assert(Cache(s,clock));x.wire=WireHost(s,h,x.engine,resolve)
+            function x.Player(scope,cache)return WireClient(scope or s,cache or x.cache,clock,resolve,x.Open()) end
+            return x
+        end
+        local function Discover(x,w)
+            for _,v in ipairs(assert(x.wire.Receive("player",assert(w.Query(x.h.guid))))) do assert(w.Receive("host",v)) end
+        end
+        Case(client.." lost join survives storage reopen and exact retry",function()
+            local x=Fixture();local w=assert(x.Player());Discover(x,w)
+            local j=assert(w.Join(x.h.guid,x.ad.id));local ack=assert(x.wire.Receive("player",j))[1]
+            assert(x.Open().ReadTournamentJournal().pending.op=="J")
+            local next=assert(x.Player());assert(next.Status().status=="pending" and next.Retry()==j)
+            assert(not next.Join(x.h.guid,x.ad.id) and not next.Query(x.h.guid))
+            assert(next.Receive("host",ack) and next.Status().status=="registered")
+            assert(not w.Receive("host",ack) and not w.Retry())
+            assert(x.engine.Ad().count==1 and assert(x.Player()).Status().status=="registered")
+        end)
+        Case(client.." withdrawal acknowledgement recovery and sequence continuity",function()
+            local x=Fixture();local w=assert(x.Player());Discover(x,w)
+            assert(w.Receive("host",assert(x.wire.Receive("player",assert(w.Join(x.h.guid,x.ad.id))))[1]))
+            local l=assert(w.Action("L"));local ack=assert(x.wire.Receive("player",l))[1]
+            local next=assert(x.Player());assert(next.Retry()==l and next.Status().status=="registered")
+            assert(not next.Join(x.h.guid,x.ad.id) and next.Receive("host",ack))
+            assert(not assert(x.Player()).Status() and x.engine.Ad().count==0)
+            local q=assert(assert(x.Player()).Query(x.h.guid));assert(x.wire.Receive("player",q))
+        end)
+        Case(client.." community change and corrupted storage refuse recovery",function()
+            local x=Fixture();local w=assert(x.Player());Discover(x,w);assert(w.Join(x.h.guid,x.ad.id))
+            local foreign=Copy(x.s);foreign.faction="Horde"
+            assert(not x.Player(foreign,Cache(foreign,function()return 1795622400 end)))
+            local saved=x.character;local writes=x.writes
+            x.character.clients[client].tournamentJournal.pending.sequence=0
+            assert(not x.Player() and not x.Open().ReadTournamentJournal() and not w.Retry())
+            assert(x.character==saved and x.writes==writes)
+        end)
+        Case(client.." host slot survives reload and refuses participant creation",function()
+            local x=Fixture();x.owner=x.h.guid
+            local d=x.Open();local old=assert(d.ReadTournamentJournal());local next=Copy(old)
+            next.revision=1;next.sequence=1
+            next.commitment={role="host",owner=x.h.guid,id=x.ad.id,population=P.Key(x.s),status="hosting"}
+            assert(d.CommitTournamentJournal(0,next,"host"))
+            local recovered=assert(x.Open().ReadTournamentJournal());assert(Equal(recovered,next))
+            assert(not x.Player())
+            local replace=Copy(recovered);replace.revision=2;replace.sequence=2
+            replace.commitment.id=ID(x.h.guid,x.ad.publishedAt,2)
+            assert(not x.Open().CommitTournamentJournal(1,replace,"host"))
+            local release=Copy(recovered);release.revision=2;release.commitment=nil
+            assert(not x.Open().CommitTournamentJournal(1,release,"ack"))
+            assert(x.engine.Cancel(x.ad.id,x.h.guid))
+            assert(x.Open().CommitTournamentJournal(1,release,"host_terminal"))
+            assert(not x.Open().ReadTournamentJournal().commitment)
+        end)
+        Case(client.." stale writer and character isolation",function()
+            local x=Fixture();local w=assert(x.Player());local stale=assert(x.Player());Discover(x,w)
+            assert(not stale.Query(x.h.guid))
+            local journal=x.Open().ReadTournamentJournal();journal.sequence=999
+            assert(x.Open().ReadTournamentJournal().sequence==1)
+            local ch=x.character;x.owner="Player-1-ALT";x.character=nil
+            assert(x.Open().ReadTournamentJournal().sequence==0)
+            x.character=ch;assert(not x.Open().ReadTournamentJournal())
+            x.owner=x.a.guid;assert(x.Open().ReadTournamentJournal().sequence==1)
         end)
     end
     return p,f
@@ -566,6 +689,10 @@ function R.RunSelfTest(emit)
     return p,f
 end
 if ns.Diagnostics then
+ns.Diagnostics.Register("Tournament recovery / isolated journal QA","deep",function()
+    local log={};local p,f=R.RunRecoverySelfTest(function(line)log[#log+1]=line end)
+    return f==0 and p==10 and "PASS" or "FAIL",string.format("%d passed / %d failed (SIMULATED)\n",p,f)..table.concat(log,"\n")
+end)
 ns.Diagnostics.Register("Tournament exchange / isolated wire QA","deep",function()
     local log={};local p,f=R.RunExchangeSelfTest(function(line)log[#log+1]=line end)
     return f==0 and p==10 and "PASS" or "FAIL",string.format("%d passed / %d failed (SIMULATED)\n",p,f)..table.concat(log,"\n")

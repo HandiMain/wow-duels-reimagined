@@ -37,6 +37,7 @@ Core\CompetitiveIntegrity.lua
 Core\CompetitiveLifecycle.lua
 Core\Achievements.lua
 Core\TournamentState.lua
+Core\TournamentRecovery.lua
 Core\TournamentRegistration.lua
 Core\WarGames.lua [AllowLoadGameType standard]
 UI\Fonts.lua

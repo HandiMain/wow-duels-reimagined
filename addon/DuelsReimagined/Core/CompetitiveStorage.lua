@@ -90,6 +90,11 @@ local function SavePeerEvidence(client,node,population)
     if not ledger then return nil end
     return {version=population and 2 or 1,scope="PEER",epoch=node.GetSeasonEpoch(),ledger=ledger.SaveCompact(),clocks=data.clocks,population=population}
 end
+-- Private character commitment journal; the tournament domain validates its shape.
+local function TournamentJournal(client,owner,raw)
+    local r=ns.TournamentRecovery
+    return r and r.Validate(client,owner,raw)
+end
 local function Root(raw,kind,owner,scope)
     local clean={version=VERSION,kind=kind,owner=owner,scope=scope,clients={}}
     if raw==nil then return clean end
@@ -110,9 +115,13 @@ local function Root(raw,kind,owner,scope)
         for field in pairs(v) do
             if field~="probe" and not (not legacy and kind=="character" and field=="runCounter")
                 and not (not legacy and scope=="SIMULATED" and ((kind=="account" and (field=="ledger" or field=="season" or field=="identities"))
-                    or (kind=="character" and field=="history")))
+                    or (kind=="character" and (field=="history" or field=="tournamentJournal"))))
                 and not (not legacy and scope=="LOCAL" and kind=="character" and (field=="localHistory" or field=="sessionStartIndex"))
                 and not (not legacy and scope=="LOCAL" and kind=="account" and (field=="peerEvidence" or field=="peerPopulations")) then return nil end
+        end
+        if scope=="SIMULATED" and not legacy and kind=="character" and v.tournamentJournal~=nil then
+            part.tournamentJournal=TournamentJournal(k,owner,v.tournamentJournal)
+            if not part.tournamentJournal then return nil end
         end
         -- Only private simulation roots can contain simulated records.
         if scope=="SIMULATED" and not legacy then
@@ -255,6 +264,26 @@ local function Build(read,write,client,identity,scope)
         if not a then return false,why end
         if not prepared then write(a,c) end
         return true
+    end
+    -- Injected simulation stores only; no live adapter or new SavedVariables.
+    function D.ReadTournamentJournal()
+        if scope~="SIMULATED" then return nil,"disabled" end
+        local a,c,k,why=Pair();if not a then return nil,why end
+        return TournamentJournal(k,c.owner,c.clients[k] and c.clients[k].tournamentJournal)
+    end
+    function D.CommitTournamentJournal(expected,candidate,action)
+        if scope~="SIMULATED" then return nil,"disabled" end
+        local a,c,k,why=Pair();if not a then return nil,why end
+        local cp=c.clients[k] or {probe=0,runCounter=0}
+        local old=TournamentJournal(k,c.owner,cp.tournamentJournal)
+        if not old or old.revision~=expected then return nil,"stale_revision" end
+        local clean=TournamentJournal(k,c.owner,candidate)
+        if not clean or not ns.TournamentRecovery.Transition(old,clean,action) then return nil,"invalid_transition" end
+        cp.tournamentJournal=clean;c.clients[k]=cp
+        local checked=Root(c,"character",c.owner,scope)
+        if not checked then return nil,"invalid_storage" end
+        write(a,checked)
+        return TournamentJournal(k,c.owner,checked.clients[k].tournamentJournal)
     end
     -- Local observations use the character root only. No shared ledger,
     -- rating, simulated record, or account competitive data is imported.
