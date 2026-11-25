@@ -64,6 +64,18 @@ class TournamentFoundation(unittest.TestCase):
         self.assertIn("W.OpenCalendar(startButton,T,selectedUTC",u)
         self.assertIn("form[key]=selectedUTC",u)
         self.assertNotIn('Field(manage,"startUTC"',u)
+    def test_single_active_tournament(self):
+        c=read("Core/TournamentRegistration.lua")
+        t=read("Core/TournamentState.lua")
+        u=read("UI/TournamentUI.lua")
+        n=read("UI/Navigation.lua")
+        self.assertIn("if BlocksCreation(event) then",c)
+        self.assertIn("if not R.CanCreatePreview() then",c)
+        self.assertIn("not ns.TournamentRegistration.CanCreatePreview()",t)
+        self.assertIn('hosting={overview=true,manage=true,champions=true}',t)
+        self.assertIn('local organizer=Page("manage")',u)
+        self.assertIn('label = "Host Tournament"',n)
+        self.assertIn('label = "Manage Tournament"',n)
     def test_registration_rehearsal_is_isolated(self):
         c=read("Core/TournamentRegistration.lua")
         u=read("UI/TournamentUI.lua")

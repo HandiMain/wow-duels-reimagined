@@ -28,6 +28,10 @@ local function Draft(s,d,now)
     if clean and Equal(d,clean) then return clean end
 end
 local function ID(owner,stamp,serial) return owner..":"..stamp..":"..serial end
+-- The scheduled start is not a terminal outcome. Unknown states fail closed.
+local function BlocksCreation(event)
+    return event~=nil and event.state~="cancelled" and event.state~="completed"
+end
 local function Host(s,h,clock)
     if not P.Key(s) or not Actor(s,h) then return nil end
     s,h=Copy(s),Copy(h)
@@ -39,7 +43,7 @@ local function Host(s,h,clock)
     function D.Publish(sender,d)
         local n=Now(clock)
         if sender~=h.guid or not n then return nil,"Organizer or time unavailable." end
-        if event and event.state=="open" and n<event.draft.startAt then return nil,"Cancel the current event first." end
+        if BlocksCreation(event) then return nil,"Finish or cancel your current tournament first." end
         local clean=Draft(s,d,n)
         if not clean then return nil,"Review the draft and registration deadline." end
         serial=serial+1;roster={}
@@ -84,7 +88,11 @@ end
 local function Cache(s,clock)
     if not P.Key(s) then return nil end
     s=Copy(s);local D,rows={},{}
-    local function Prune(n) for id,r in pairs(rows) do if n>=r.ad.draft.startAt then rows[id]=nil end end end
+    local function Prune(n)
+        for id,r in pairs(rows) do
+            if not BlocksCreation(r.ad) and n>=r.ad.draft.startAt then rows[id]=nil end
+        end
+    end
     function D.Accept(sender,ad)
         local n=Now(clock)
         if not n or type(ad)~="table" or not P.Matches(s,ad) or ad.scope~="SIMULATED" or ad.version~=1
@@ -92,7 +100,10 @@ local function Cache(s,clock)
             or not Whole(ad.serial,1,2147483647) or not Whole(ad.revision,1,2147483647)
             or ad.id~=ID(sender,ad.publishedAt,ad.serial) or (ad.state~="open" and ad.state~="cancelled") then return false end
         local clean=Draft(s,ad.draft,ad.publishedAt)
-        if not clean or n>=clean.startAt or not Whole(ad.count,0,clean.capacity) then return false end
+        if not clean or not Whole(ad.count,0,clean.capacity) then return false end
+        -- Never resurrect an expired advertisement. A known event may still
+        -- receive its owner-authorized cancellation after the scheduled start.
+        if n>=clean.startAt and not (ad.state=="cancelled" and rows[ad.id] and BlocksCreation(rows[ad.id].ad)) then return false end
         local expected={scope="SIMULATED",version=1,id=ad.id,owner=sender,organizer=ad.organizer,client=s.client,region=s.region,
             ruleset=s.ruleset,faction=s.faction,state=ad.state,publishedAt=ad.publishedAt,serial=ad.serial,revision=ad.revision,draft=clean,count=ad.count}
         if not Equal(ad,expected) then return false end
@@ -103,7 +114,11 @@ local function Cache(s,clock)
                 or (old.ad.state=="cancelled" and ad.state~="cancelled")
                 or (ad.revision==old.ad.revision and not Equal(old.ad,expected)) then return false end
         else
-            local count=0;for _ in pairs(rows) do count=count+1 end
+            local count=0
+            for _,r in pairs(rows) do
+                count=count+1
+                if BlocksCreation(ad) and BlocksCreation(r.ad) and r.ad.owner==sender then return false end
+            end
             if count>=64 then return false end
         end
         rows[ad.id]={ad=expected,seen=n};return true
@@ -131,10 +146,11 @@ end
 function R.PreviewState()
     local x=Current();if not x then return nil end
     if x.role=="host" then return "hosting" end
-    return x.joined and "registered" or "idle"
+    return x.joined and "registered" or "preview-browse"
 end
+function R.CanCreatePreview() return Current()==nil end
 function R.StartPreview(d)
-    if Current() then return false,"End the current test first." end
+    if not R.CanCreatePreview() then return false,"End the current test first." end
     local s=P.GetCurrent();local n=Read(GetServerTime);local level=Read(UnitLevel,"player")
     if not P.Key(s) or not Whole(n,1,4102444800) or not Whole(level,1,255) then return false,"Character or time unavailable." end
     local h,a=Copy(s),Copy(s)
@@ -188,6 +204,34 @@ function R.RunSelfTest(emit)
             local x=Fixture();local ad=x.e.Ad();assert(ad.count==0 and not x.e.Publish(x.h.guid,x.d) and not x.e.Publish("Player-1-X",x.d))
             ad.draft.name="changed";assert(x.e.Ad().draft.name=="Test Cup" and not x.e.Roster("Player-1-X"))
         end)
+        Case(client.." one active tournament survives scheduled start",function()
+            local x=Fixture();local a=x.e.Ad();x.time(x.d.startAt+1)
+            local nextDraft=T.DraftDefaults()
+            nextDraft.name="Next Cup";nextDraft.location="Meeting place";nextDraft.startUTC="2026-11-26 18:00"
+            nextDraft=assert(T.ValidateDraft(client,nextDraft,x.d.startAt+1,x.s.region,x.s.ruleset,x.s.faction))
+            assert(not x.e.Publish(x.h.guid,nextDraft))
+            assert(Equal(x.e.Ad(),a))
+            assert(not x.e.Cancel(a.id,"Player-1-X"))
+            assert(not x.e.Publish(x.h.guid,nextDraft))
+            assert(x.e.Cancel(a.id,x.h.guid))
+            local nextEvent=assert(x.e.Publish(x.h.guid,nextDraft))
+            assert(nextEvent.id~=a.id and nextEvent.state=="open")
+            assert(BlocksCreation({state="running"}) and BlocksCreation({state="paused"}))
+            assert(not BlocksCreation({state="completed"}) and not BlocksCreation({state="cancelled"}))
+        end)
+        Case(client.." discovery refuses a second active event from the same owner",function()
+            local x=Fixture();assert(x.c.Accept(x.h.guid,x.ad))
+            local other=Copy(x.ad);other.serial=2;other.id=ID(x.h.guid,other.publishedAt,2)
+            assert(not x.c.Accept(x.h.guid,other) and #x.c.Browse()==1)
+            x.time(x.d.startAt+1);assert(#x.c.Browse()==0)
+            local d=T.DraftDefaults();d.name="Next Cup";d.location="Meeting place";d.startUTC="2026-11-26 18:00"
+            other.draft=assert(T.ValidateDraft(client,d,x.d.startAt+1,x.s.region,x.s.ruleset,x.s.faction))
+            other.publishedAt=x.d.startAt+1;other.id=ID(x.h.guid,other.publishedAt,2)
+            assert(not x.c.Accept(x.h.guid,other))
+            assert(x.e.Cancel(x.ad.id,x.h.guid))
+            assert(x.c.Accept(x.h.guid,x.e.Ad()))
+            assert(x.c.Accept(x.h.guid,other) and #x.c.Browse()==1)
+        end)
         Case(client.." strict sender and population admission",function()
             local x=Fixture();local a=x.a("A");assert(not x.e.Join(x.ad.id,"Player-1-B",a))
             for _,field in ipairs({"client","region","ruleset","faction"}) do local z=Copy(a);z[field]="wrong";assert(not x.e.Join(x.ad.id,z.guid,z)) end
@@ -228,5 +272,5 @@ function R.RunSelfTest(emit)
 end
 if ns.Diagnostics then ns.Diagnostics.Register("Tournament registration / isolated host QA","deep",function()
     local log={};local p,f=R.RunSelfTest(function(line)log[#log+1]=line end)
-    return f==0 and p==13 and "PASS" or "FAIL",string.format("%d passed / %d failed (SIMULATED)\n",p,f)..table.concat(log,"\n")
+    return f==0 and p==17 and "PASS" or "FAIL",string.format("%d passed / %d failed (SIMULATED)\n",p,f)..table.concat(log,"\n")
 end) end

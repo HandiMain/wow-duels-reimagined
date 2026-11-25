@@ -8,7 +8,8 @@ local states={
     registered={overview=true,["my-tournament"]=true,champions=true},
     competing={overview=true,["my-tournament"]=true,brackets=true,champions=true},
     eliminated={overview=true,["my-tournament"]=true,brackets=true,champions=true},
-    hosting={overview=true,host=true,champions=true},
+    hosting={overview=true,manage=true,champions=true},
+    ["preview-browse"]={overview=true,browse=true,champions=true},
     completed={overview=true,browse=true,["my-tournament"]=true,host=true,champions=true},
 }
 function T.Project(state,hasBracket)
@@ -28,6 +29,7 @@ end
 function T.IsPageAvailable(key)
     local snapshot=T.GetSnapshot()
     local test=ns.TournamentRegistration and ns.TournamentRegistration.PreviewState()
+    if key=="host" and ns.TournamentRegistration and not ns.TournamentRegistration.CanCreatePreview() then return false end
     return ns.Client.IsSupported() and T.Project(test or snapshot.state,snapshot.hasBracket)[key]==true
 end
 -- Creation is a local session draft only. Registration and hosting remain closed.
@@ -399,7 +401,9 @@ function T.RunSelfTest()
     check(competing.brackets and competing["my-tournament"] and not competing.browse and not competing.host)
     check(not T.Project("competing",false).brackets)
     check(T.Project("eliminated",true)["my-tournament"] and not T.Project("eliminated",true).host)
-    check(T.Project("hosting",true).host and T.Project("hosting",true).brackets and not T.Project("hosting",true).browse)
+    check(T.Project("hosting",true).manage and T.Project("hosting",true).brackets and not T.Project("hosting",true).browse and not T.Project("hosting",true).host)
+    check(T.Project("preview-browse",false).browse and not T.Project("preview-browse",false).host and not T.Project("preview-browse",false).manage)
+    check(not T.Project("idle",false).manage and not T.Project("completed",false).manage)
     check(T.Project("completed",true).browse and T.Project("completed",true).host and T.Project("completed",true)["my-tournament"])
     idle.browse=nil
     check(T.Project("idle",false).browse)
@@ -434,6 +438,6 @@ if ns.Diagnostics then
     ns.Diagnostics.Register("tournament-ui-policy","deep",function()
         local ok,n=pcall(T.RunSelfTest)
         if not ok then return "FAIL",tostring(n) end
-        return "PASS",n.." isolated navigation checks; discovery and hosting inactive."
+        return n==12 and "PASS" or "FAIL",n.." isolated navigation checks; discovery and hosting inactive."
     end)
 end

@@ -105,7 +105,7 @@ local hero=Panel(overview,"Tournament Hub")
 hero.emblem=hero:CreateTexture(nil,"ARTWORK");U.PaintEmblem(hero.emblem)
 hero.description=Label(hero,"Organize and compete in community 1v1 duel tournaments.",14,C.text,"CENTER")
 hero.browse=Button(hero,"Browse Tournaments","browse",true)
-hero.host=Button(hero,"Host Tournaments","host",false)
+hero.host=Button(hero,"Host Tournament","host",false)
 local open=Panel(overview,"Open Tournaments")
 open.detail=Label(open,"No tournaments discovered. Discovery is not active yet.",14,C.muted,"CENTER")
 open.action=Button(open,"View All","browse",false)
@@ -219,7 +219,7 @@ testStart:SetScript("OnClick",function()
     local record=SaveForm();if not record then return end
     local ok,why=R.StartPreview(record)
     if ok then
-        if not (ns.Navigation and ns.Navigation.SelectKey("tournaments","host")) then U.Show("host") end
+        if not (ns.Navigation and ns.Navigation.SelectKey("tournaments","manage")) then U.Show("manage") end
     else status:SetText(why) end
 end)
 host:HookScript("OnHide",function()
@@ -269,7 +269,8 @@ local brackets=Page("brackets")
 local bracketPanel=Panel(brackets,"Brackets")
 bracketPanel.detail=Label(bracketPanel,"No tournament bracket available.",15,C.muted,"CENTER")
 -- Explicit rehearsal views. Normal browsing never contains test events.
-local hostTest=Panel(host,"Local test - Organizer")
+local organizer=Page("manage")
+local hostTest=Panel(organizer,"Local test - Organizer")
 local hostSummary=Label(hostTest,"",15,C.text)
 local hostRoster=Label(hostTest,"",14,C.pale)
 
@@ -296,14 +297,14 @@ local listRow=CreateFrame("Frame",nil,list)
 S.Skin(listRow,C.body,{corner=8,edge=C.goldDim,shine=.12,shade=.18})
 local listRowText=Label(listRow,"",14,C.pale,"CENTER");listRowText:SetAllPoints(listRow)
 local join=Action(info,"Test Join",function()Run("join","my-tournament")end)
-local browseHost=Action(info,"Organizer View",function()Run("host","host")end)
+local browseHost=Action(info,"Organizer View",function()Run("host","manage")end)
 local check=Action(myPanel,"Test Check-in",function()Run("checkin")end)
 local advance=Action(myPanel,"Test Check-in Time",function()Run("checkin-time")end)
 local leave=Action(myPanel,"Leave Test",function()Run("leave","browse")end)
-local myHost=Action(myPanel,"Organizer View",function()Run("host","host")end)
+local myHost=Action(myPanel,"Organizer View",function()Run("host","manage")end)
 local endTest=Action(hero,"End Local Test",function()R.EndPreview();feedback="";Switch("overview")end)
 local resumeTest=Action(hero,"Resume Local Test",function()
-    local p=R.PreviewSnapshot();if p then Switch(p.role=="host" and "host" or p.member and "my-tournament" or "browse") end
+    local p=R.PreviewSnapshot();if p then Switch(p.role=="host" and "manage" or p.member and "my-tournament" or "browse") end
 end)
 local function Describe(ad)
     local d=ad.draft
@@ -322,7 +323,8 @@ local function RefreshTest()
     local hosting=p and p.role=="host"
     local player=p and p.role=="player"
     hostTest:SetShown(not not hosting)
-    manage:SetShown(not hosting);eventRules:SetShown(not hosting);draftFooter:SetShown(not hosting)
+    local canCreate=R.CanCreatePreview()
+    manage:SetShown(canCreate);eventRules:SetShown(canCreate);draftFooter:SetShown(canCreate)
     if p then subtitle:SetText("LOCAL TEST - Nothing is published online") end
     endTest:SetShown(p~=nil);resumeTest:SetShown(p~=nil)
     hero.browse:SetShown(not p and T.IsPageAvailable("browse"))
@@ -374,7 +376,7 @@ local function Layout()
     local height
     local p=RefreshTest()
     if p then communityNote:SetText("Local test only. Community settings are automatically detected.") end
-    local showCommunity=active=="host" or active=="browse" or active=="my-tournament" or active=="brackets"
+    local showCommunity=active=="host" or active=="manage" or active=="browse" or active=="my-tournament" or active=="brackets"
     community:SetShown(showCommunity)
     local top=showCommunity and LayoutCommunity(w) or 0
     if active and pages[active] then
@@ -437,14 +439,16 @@ local function Layout()
             height=232+infoH
         end
     elseif active=="host" then
+        height=LayoutHost(w)
+    elseif active=="manage" then
         if p and p.role=="host" then
             height=560
-            Place(hostTest,host,0,0,w,height);Header(hostTest,w)
+            Place(hostTest,organizer,0,0,w,height);Header(hostTest,w)
             TextAt(hostSummary,hostTest,12,44,w-24,300)
             TextAt(hostRoster,hostTest,12,350,w-24,120)
             Place(hostPlayer,hostTest,12,484,w-24,28)
             Place(hostCancel,hostTest,12,520,w-24,28)
-        else height=LayoutHost(w) end
+        else height=1 end
     else
         local f=active=="champions" and archive or active=="my-tournament" and myPanel or bracketPanel
         if active and f then

@@ -24,7 +24,8 @@ local sections = {
         { key = "browse", label = "Browse", tournament = true, subtitle = "Discover 1v1 duel tournaments." },
         { key = "my-tournament", label = "My Tournament", tournament = true, subtitle = "Your tournament and next match." },
         { key = "brackets", label = "Brackets", tournament = true, subtitle = "Follow tournament progression." },
-        { key = "host", label = "Host & Manage", tournament = true, subtitle = "Organize a duel tournament." },
+        { key = "host", label = "Host Tournament", tournament = true, subtitle = "Create a duel tournament." },
+        { key = "manage", label = "Manage Tournament", tournament = true, subtitle = "Manage your existing tournament." },
         { key = "champions", label = "Hall of Champions", tournament = true, subtitle = "Tournament champions and results." },
     } },
     { key = "wargames", label = "War Games", icon = "Hall", pages = {
