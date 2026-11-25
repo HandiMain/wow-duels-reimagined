@@ -1,6 +1,11 @@
 -- Isolated creation and navigation QA. No WoW API, persistence or network.
 local ns={Client={Kind=function()return "forever" end,IsSupported=function()return true end}}
 local root=(arg and arg[1] or "addon/DuelsReimagined")
+-- The overview projection is pure; the view is not constructed by QA.
+ns.Style={color={pale={},text={},muted={},gold={}}}
+assert(loadfile(root.."/UI/TournamentOverview.lua"))("DuelsReimagined",ns)
+assert(ns.TournamentOverview.RunSelfTest(),"tournament overview state QA failed")
+ns.Style=nil
 assert(loadfile(root.."/Core/CompetitiveScope.lua"))("DuelsReimagined",ns)
 local sp,sf=ns.CompetitiveScope.RunSelfTest(print)
 assert(sp==7 and sf==0,"population QA failed")

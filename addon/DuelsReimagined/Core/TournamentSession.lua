@@ -630,6 +630,27 @@ function L.GetProjection()
     end
     return p
 end
+-- Same private registration owner; no new data or authority is created
+-- for the Overview before a bracket has been synchronized.
+function L.GetOverviewProjection()
+    if not active or not Store.TournamentTestEnabled() then return nil end
+    local p=L.GetProjection()
+    if p then return p end
+    if active.role=="host" then
+        local snap=active.engine.Snapshot()
+        if snap and snap.ad and snap.ad.state=="open" then
+            return {scope="PRIVATE_TEST",role="host",event=snap.ad,now=Clock()}
+        end
+    else
+        local lock=active.engine.Status()
+        if not lock then return nil end
+        local ad=active.cache and active.cache.Known(lock.id)
+        local confirmed=lock.status=="registered" or lock.status=="checked"
+        return {scope="PRIVATE_TEST",role="player",event=ad,now=Clock(),
+            registrationPending=lock.status=="pending",
+            member=confirmed and {guid=active.actor.guid,checkedIn=lock.status=="checked"} or nil}
+    end
+end
 function L.GetControlModel()
     if not Store.TournamentTestEnabled() or R.PreviewState() or R.TestListings() then return nil end
     local actions={}

@@ -101,17 +101,7 @@ local function Page(key)
     local f=CreateFrame("Frame",nil,canvas);f:SetAllPoints(canvas);f:Hide();pages[key]=f;return f
 end
 local overview=Page("overview")
-local hero=Panel(overview,"Tournament Hub")
-hero.emblem=hero:CreateTexture(nil,"ARTWORK");U.PaintEmblem(hero.emblem)
-hero.description=Label(hero,"Organize and compete in community 1v1 duel tournaments.",14,C.text,"CENTER")
-hero.browse=Button(hero,"Browse Tournaments","browse",true)
-hero.host=Button(hero,"Host Tournament","host",false)
-local open=Panel(overview,"Open Tournaments")
-open.detail=Label(open,"No tournaments discovered. Discovery is not active yet.",14,C.muted,"CENTER")
-open.action=Button(open,"View All","browse",false)
-local champions=Panel(overview,"Recent Champions")
-champions.detail=Label(champions,"No tournament champions recorded.",14,C.muted,"CENTER")
-champions.action=Button(champions,"Hall of Champions","champions",false)
+local overviewView,privateControlsTop
 local browse=Page("browse")
 local list=Panel(browse,"Browse Tournaments")
 list.detail=Label(list,"No tournaments discovered.",17,C.muted,"CENTER")
@@ -360,15 +350,30 @@ local matchNotice=Action(myPanel,"Preview Match Notification",function()
     feedback=ok and "Match notification shown." or why or "Notification unavailable."
     U.Show("my-tournament")
 end)
-local endTest=Action(hero,"End Local Test",function()
+local function EndTest()
     R.EndPreview()
     if ns.DuelResult then ns.DuelResult.ClearTournamentPreview() end
     if ns.Notifications then ns.Notifications.ClearTournamentPreview() end
     feedback="";Switch("overview")
-end)
-local resumeTest=Action(hero,"Resume Local Test",function()
-    local p=R.PreviewSnapshot();if p then Switch(p.role=="host" and "manage" or p.role=="spectator" and "brackets" or p.member and "my-tournament" or "browse") end
-end)
+end
+local function OverviewAction(action)
+    if action=="end-test" then EndTest();return end
+    local private=ns.TournamentSession and ns.TournamentSession.IsActive()
+    if private then
+        if action=="checkin" then
+            local ok,why=ns.TournamentSession.Command("checkin")
+            feedback=why or (ok and "Request submitted." or "Check-in unavailable.")
+        end
+        if action=="details" or action=="manage" or action=="checkin" then
+            U.Show("overview")
+            if privateControlsTop then U.SetPageScroll(nil,privateControlsTop) end
+            return
+        end
+    end
+    if action=="details" then action="my-tournament" end
+    if action=="checkin" then Run("checkin","overview");return end
+    if T.IsPageAvailable(action) then Switch(action) end
+end
 local privatePanel,privateDetail,privateButtons,privateFeedback,privateConfirm
 local privateBack
 local function LayoutPrivate(model,w,y)
@@ -434,9 +439,6 @@ local function RefreshTest()
     local canCreate=R.CanCreatePreview()
     manage:SetShown(canCreate);eventRules:SetShown(canCreate);draftFooter:SetShown(canCreate)
     if p or listings then subtitle:SetText("LOCAL TEST - Nothing is published online") end
-    endTest:SetShown(p~=nil or listings~=nil);resumeTest:SetShown(p~=nil)
-    hero.browse:SetShown(not p and T.IsPageAvailable("browse"))
-    hero.host:SetShown(not p and T.IsPageAvailable("host"))
     listRow:SetShown(not not (player and p.events[1]))
     openCatalog:SetShown(not p and not listings)
     for i,b in ipairs(catalogRows) do
@@ -476,7 +478,7 @@ local function RefreshTest()
     featurePrev:SetShown(not not feature);featureNext:SetShown(not not feature)
     featurePrev:SetEnabled(not busy);featureNext:SetEnabled(not busy)
     myHost:SetShown(not not (player and not p.mode))
-    if not started and bracketView then bracketView.Hide() end
+    if not started and bracketView and not (ns.TournamentSession and ns.TournamentSession.IsActive() and ns.TournamentSession.GetProjection()) then bracketView.Hide() end
     if hosting then
         local model=ns.TournamentHUD.Project(p)
         hostSummary:SetText(Describe(p.event)..(model and model.matchID and "\n\nFeatured: "..model.left.." vs "..model.right or ""))
@@ -574,6 +576,27 @@ local function LayoutBrowse(w,wide,top,p,listings)
         end
     return height
 end
+local function LayoutOverview(w,p,listings,private)
+    local privateActive=private and private.active
+    local projection=p or (privateActive and ns.TournamentSession.GetOverviewProjection()) or nil
+    if privateActive then subtitle:SetText("PRIVATE NETWORK TEST - No rating changes") end
+    if not overviewView then overviewView=ns.TournamentOverview.New(overview,OverviewAction) end
+    local model=ns.TournamentOverview.Project(projection,listings~=nil)
+    local function Can(action)
+        if not action then return false end
+        if privateActive and (action=="details" or action=="manage" or action=="checkin") then return true end
+        if action=="checkin" then return projection and projection.member and not projection.member.checkedIn end
+        if action=="details" then return T.IsPageAvailable("my-tournament") end
+        return T.IsPageAvailable(action)
+    end
+    local height=overviewView.Show(model,w,Can,p~=nil or listings~=nil,U.RefreshActive)
+    privateControlsTop=nil
+    if private then
+        privateControlsTop=height+12
+        height=privateControlsTop+LayoutPrivate(private,w,privateControlsTop)
+    end
+    return height
+end
 local function Layout()
     local w=math.max(1,scroll:GetWidth()-1)
     subtitle:SetWidth(math.max(1,root:GetWidth()-170))
@@ -595,38 +618,9 @@ local function Layout()
         page:SetPoint("TOPLEFT",canvas,"TOPLEFT",0,-top)
         page:SetPoint("BOTTOMRIGHT",canvas,"BOTTOMRIGHT",0,0)
     end
-    if active=="overview" and private and private.active then
-        hero:Hide();open:Hide();champions:Hide()
-        subtitle:SetText("PRIVATE NETWORK TEST - No rating changes")
-        height=LayoutPrivate(private,w,0)
-    elseif active=="overview" then
-        hero:Show();champions:Show();open:SetShown(T.IsPageAvailable("browse"))
-        local heroH=(wide and 184 or 220)+(listings and 38 or 0)
-        Place(hero,overview,0,0,w,heroH);Header(hero,w)
-        local artW=math.min(190,w*.28)
-        Place(hero.emblem,hero,16,48,artW,artW*.70)
-        local x=artW+26;local room=w-x-12
-        TextAt(hero.description,hero,x,48,room,54)
-        local bw=math.max(1,(room-10)/2)
-        if wide then
-            Place(hero.browse,hero,x,110,bw,35);Place(hero.host,hero,x+bw+10,110,bw,35)
-        else
-            Place(hero.browse,hero,x,110,room,34);Place(hero.host,hero,x,150,room,34)
-        end
-        if p then
-            Place(resumeTest,hero,x,110,room,30)
-            Place(endTest,hero,x,146,room,28)
-        elseif listings then
-            Place(endTest,hero,x,wide and 150 or 190,room,28)
-        end
-        Place(open,overview,0,heroH+12,w,132);Header(open,w)
-        TextAt(open.detail,open,12,42,w-24,42)
-        Place(open.action,open,math.max(12,w-132),88,120,28)
-        Place(champions,overview,0,heroH+156,w,132);Header(champions,w)
-        TextAt(champions.detail,champions,12,42,w-24,42)
-        Place(champions.action,champions,math.max(12,w-172),88,160,28)
-        height=heroH+288
-        if private then height=height+12+LayoutPrivate(private,w,height+12) end
+    if active~="overview" and overviewView then overviewView.Hide() end
+    if active=="overview" then
+        height=LayoutOverview(w,p,listings,private)
     elseif active=="brackets" and privateProjection then
         local h=math.max(320,scroll:GetHeight()-top)
         Place(bracketPanel,brackets,0,0,w,h);Header(bracketPanel,w)
@@ -706,6 +700,7 @@ function U.Show(key)
     if active=="host" and key~="host" then W.CloseChoices() end
     if not key then
         if bracketView then bracketView.Hide() end
+        if overviewView then overviewView.Hide() end
         privateConfirm=nil
         active=nil;root:Hide();return
     end
@@ -717,17 +712,11 @@ function U.Show(key)
     for k,f in pairs(pages) do f:SetShown(k==active) end
     local snapshot=T.GetSnapshot()
     local client=snapshot.client
-    hero.browse:SetShown(T.IsPageAvailable("browse"))
-    hero.host:SetShown(T.IsPageAvailable("host"))
-    open:SetShown(T.IsPageAvailable("browse"))
     local modeNames={normal="PvE",pvp="PvP",rp="RP",["rp-pvp"]="RP-PvP",hardcore="Hardcore"}
     local label=client=="retail" and "Retail" or client=="forever" and "Forever" or "Unavailable"
     if snapshot.region then label=label.." "..snapshot.region else label=label.." (region unavailable)" end
     if client=="forever" then label=label.." / "..(modeNames[snapshot.ruleset] or "ruleset unavailable") end
     subtitle:SetText("1v1 world duels  |  "..label)
-    local p=R.PreviewSnapshot()
-    local listings=R.TestListings()
-    open.detail:SetText(p and "Local test active. Resume the rehearsal from the hub." or listings and "Four local test tournaments available. Open Browse to join one." or "No tournaments discovered. Discovery is not active yet.")
     root:Show();SetOffset(0);Layout()
 end
 function U.RefreshActive()
