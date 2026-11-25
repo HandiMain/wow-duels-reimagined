@@ -1154,18 +1154,24 @@ function R.RunRecoverySelfTest(emit)
             x.engine=assert(Host(s,h,clock));x.ad=assert(x.engine.Publish(h.guid,d))
             x.cache=assert(Cache(s,clock));x.wire=WireHost(s,h,x.engine,resolve)
             function x.Player(scope,cache)return WireClient(scope or s,cache or x.cache,clock,resolve,x.Open()) end
+            function x.Session(role,actor,scope)
+                return R.OpenRegistrationSession(scope or s,actor or a,clock,resolve,x.Open(),role)
+            end
             return x
         end
         local function Discover(x,w)
             for _,v in ipairs(assert(x.wire.Receive("player",assert(w.Query(x.h.guid))))) do assert(w.Receive("host",v)) end
         end
         Case(client.." lost join survives storage reopen and exact retry",function()
-            local x=Fixture();local w=assert(x.Player());Discover(x,w)
+            local x=Fixture();local w,cache=x.Session("player")
+            assert(w and cache and not x.Session("player",x.h))
+            Discover(x,w)
             local j=assert(w.Join(x.h.guid,x.ad.id));local ack=assert(x.wire.Receive("player",j))[1]
+            assert(w.PendingOwner()==x.h.guid and not x.Session("host"))
             assert(x.Open().ReadTournamentJournal().pending.op=="J")
-            local next=assert(x.Player());assert(next.Status().status=="pending" and next.Retry()==j)
+            local next=assert(x.Session("player"));assert(next.Status().status=="pending" and next.Retry()==j and next.PendingOwner()==x.h.guid)
             assert(not next.Join(x.h.guid,x.ad.id) and not next.Query(x.h.guid))
-            assert(next.Receive("host",ack) and next.Status().status=="registered")
+            assert(next.Receive("host",ack) and next.Status().status=="registered" and not next.PendingOwner())
             assert(not w.Receive("host",ack) and not w.Retry())
             assert(x.engine.Ad().count==1 and assert(x.Player()).Status().status=="registered")
         end)

@@ -901,6 +901,23 @@ function P.RunSessionSelfTest()
     h.scope="SIMULATED";assert(not SessionStats(h,0));assert(P.ReadSessionStats().state=="disabled" and not P.StartSession(true))
     return true
 end
+function P.RunTournamentTestStorageSelfTest()
+    if TOURNAMENT_TEST_ENABLED then return nil,"Private test gate enabled." end
+    local owner,client="Player-1-TESTSTORAGE","retail"
+    local a,c,writes=nil,nil,0
+    local d=Build(function()return a,c end,function(x,y)a=x;c=y;writes=writes+1 end,
+        function()return client end,function()return owner end)
+    d.MarkLoaded()
+    local journal=assert(TournamentJournal(client,owner,nil))
+    assert(not d.ReadTournamentTestJournal() and not d.CommitTournamentTestJournal(0,journal,"query") and writes==0)
+    c={version=VERSION,kind="character",owner=owner,scope="LOCAL",clients={
+        retail={probe=0,runCounter=0,tournamentTestJournal={scope="PRIVATE_TEST",version=1,journal=journal}}}}
+    assert(d.Snapshot().state=="ready")
+    assert(d.Probe() and writes==1 and c.clients.retail.tournamentTestJournal.scope=="PRIVATE_TEST")
+    c.clients.retail.tournamentTestJournal.scope="SIMULATED"
+    assert(d.Snapshot().state=="unavailable" and not d.Probe() and writes==1)
+    return true
+end
 function P.RunSelfTest(emit)
     emit=type(emit)=="function" and emit or function()end
     local passed,failed=0,0

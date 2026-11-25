@@ -4,7 +4,7 @@ local _,ns=...
 -- transport, identity, registration semantics and persistence respectively.
 local L={};ns.TournamentSession=L
 local Store,Group,Comm,R,P=ns.CompetitiveStorage,ns.Group,ns.Communication,ns.TournamentRegistration,ns.CompetitiveScope
-local active,unsubscribe,unroster,timer,queue
+local active,unsubscribe,unroster,timer,queue,frame
 local function Read(fn,...)
     if type(fn)~="function" then return nil end
     local ok,v=pcall(fn,...)
@@ -71,6 +71,7 @@ local function Stop()
     ClearQueue()
     if unsubscribe then unsubscribe();unsubscribe=nil end
     if unroster then unroster();unroster=nil end
+    if frame then frame:UnregisterAllEvents() end
     active=nil
 end
 local function Pump()
@@ -97,7 +98,7 @@ local function Send(guid,bodies)
     end
     for _,body in ipairs(bodies) do queue[#queue+1]={guid=guid,body=body} end
     if not timer then Pump() end
-    return true,"Request queued; confirmation required."
+    return true,"Request submitted to the transport; check status for confirmation."
 end
 local function Receive(body,channel,sender)
     if not L.CanCommunicate() or channel~="WHISPER" then return end
@@ -129,6 +130,16 @@ local function Open(role)
     unroster=Group.Subscribe(function()
         if not L.CanCommunicate() then ClearQueue() end
     end)
+    if not frame then
+        frame=CreateFrame("Frame")
+        frame:SetScript("OnEvent",function(_,event)
+            if not active then return end
+            if event=="PLAYER_REGEN_DISABLED" then ClearQueue() else Stop() end
+        end)
+    end
+    frame:RegisterEvent("PLAYER_ENTERING_WORLD")
+    frame:RegisterEvent("PLAYER_REGEN_DISABLED")
+    frame:RegisterEvent("PLAYER_LOGOUT")
     return true,"Private "..role.." session opened. Registration only; no rating."
 end
 local function SelectedTarget()
@@ -168,7 +179,11 @@ function L.Command(command)
     elseif active.role=="player" then
         if command=="browse" then
             local rows=active.cache.Browse();local lines={}
-            for i,ad in ipairs(rows) do lines[#lines+1]=i..". "..ad.draft.name.." - "..ad.organizer end
+            active.browseRows={}
+            for i,ad in ipairs(rows) do
+                lines[#lines+1]=i..". "..ad.draft.name.." - "..ad.organizer
+                active.browseRows[i]={id=ad.id,owner=ad.owner}
+            end
             return true,#lines>0 and table.concat(lines,"\n") or "No fresh owner-confirmed tournament."
         end
         local body,owner
@@ -176,10 +191,9 @@ function L.Command(command)
             local a=SelectedTarget();if not a then return false,"Target the organizer in your group." end
             owner=a.guid;body=d.Query(owner)
         elseif command:match("^join %d+$") then
-            local rows=active.cache.Browse()
-            local ad=rows[tonumber(command:match("%d+$"))]
-            if not ad then return false,"Browse and choose a fresh tournament." end
-            owner=ad.owner;body=d.Join(owner,ad.id)
+            local selected=active.browseRows and active.browseRows[tonumber(command:match("%d+$"))]
+            if not selected then return false,"Browse and choose a fresh tournament." end
+            owner=selected.owner;body=d.Join(owner,selected.id)
         elseif command=="leave" or command=="checkin" or command=="refresh" then
             local status=d.Status()
             owner=status and status.owner
@@ -196,17 +210,23 @@ function L.GetDiagnosticResources()
 end
 -- No listeners or timer while disabled/idle. Combat clears unsent packets,
 -- world/logout closes the session; durable pending requests survive.
-local frame=CreateFrame("Frame")
-frame:RegisterEvent("PLAYER_ENTERING_WORLD")
-frame:RegisterEvent("PLAYER_REGEN_DISABLED")
-frame:RegisterEvent("PLAYER_LOGOUT")
-frame:SetScript("OnEvent",function(_,event)
-    if not active then return end
-    if event=="PLAYER_REGEN_DISABLED" then ClearQueue() else Stop() end
-end)
+function L.RunGateSelfTest()
+    -- This diagnostic never opens a live session in an enabled build.
+    if Store.TournamentTestEnabled() then return nil,"Live test gate enabled; no network action attempted." end
+    local before=L.GetDiagnosticResources()
+    assert(not L.CanCommunicate() and not L.IsActive())
+    assert(not L.Command("host") and not L.Command("player") and not L.Command("publish"))
+    assert(not L.Command("query") and not L.Command("join 1") and not L.Command("retry"))
+    local after=L.GetDiagnosticResources()
+    assert(before.subscriptions==after.subscriptions and before.timers==after.timers and before.pending==after.pending)
+    assert(not Store.ReadTournamentTestJournal())
+    assert(not Store.CommitTournamentTestJournal(0,{},"query"))
+    return true
+end
 if ns.Diagnostics then
     ns.Diagnostics.Register("Tournament network / private registration gate","health",function()
-        if not Store.TournamentTestEnabled() then return "SKIP","Private network activation locked; no live tournament messages or writes." end
-        return "SKIP","Private registration adapter enabled; requires consenting group members and live verification."
+        if Store.TournamentTestEnabled() then return "SKIP","Private registration adapter enabled; requires consenting group members and live verification." end
+        local ok,result=pcall(L.RunGateSelfTest)
+        return ok and result==true and "PASS" or "FAIL",ok and "Disabled registration gate; no live messages or writes." or tostring(result)
     end)
 end
