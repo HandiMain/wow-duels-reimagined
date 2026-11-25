@@ -97,7 +97,8 @@ end
 
 local roots={"DuelsReimaginedWindow","DuelsReimaginedDiagnosticsWindow",
     "DuelsReimaginedBlizzardSettingsPanel","DuelsReimaginedMinimapButton","DuelsReimaginedAccessWidget","DuelsReimaginedArenaPicker","DuelsReimaginedPlayerCard"}
-local LIMIT=20000
+-- Retail includes War Games; previous 20k ceiling truncated the audit.
+local LIMIT=32000
 local pageRoots={}
 function A.RegisterUIRoot(label,frame)
     if type(label)=="string" and frame then pageRoots[frame]=label end
@@ -197,6 +198,7 @@ local function FormatAudit(r)
     local detail=string.format("%d frames, %d regions, %d visible frames, %d texture sources, %d unclassified textures, %d unreadable, %d roots absent.",
         r.frames,r.regions,r.visible,r.textureSources,r.unknownTextures,r.unreadable,r.missingRoots)
     detail=detail..table.concat(breakdown,"\n")
+    if r.limited then detail=detail.."\nObject limit reached ("..LIMIT.."); coverage incomplete." end
     if #r.problems>0 then return "WARN",detail.."\n"..table.concat(r.problems,"\n") end
     if r.limited or r.unreadable>0 or r.frames==0 or r.missingRoots>0 then
         return "SKIP",detail.." Partial traversal; visual/pixel validation not performed."

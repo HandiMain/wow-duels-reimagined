@@ -31,10 +31,20 @@ function R.Validate(client,character,raw)
     if raw.pending~=nil then
         local p=raw.pending
         if type(p)~="table" or not l or l.role~="participant" or p.sequence~=raw.sequence
-            or (p.op~="J" and p.op~="L" and p.op~="C") or (p.op=="J")~=(l.status=="pending") then return nil end
+            or (p.op~="J" and p.op~="L" and p.op~="C" and p.op~="S") or (p.op=="J")~=(l.status=="pending") then return nil end
         for k in pairs(p) do if k~="op" and k~="sequence" then return nil end end
         out.pending={op=p.op,sequence=p.sequence}
     elseif l and l.status=="pending" then return nil end
+    if raw.checkpoint~=nil then
+        local domain=ns.TournamentRegistration
+        local cp=domain and domain.ValidateHostCheckpoint(client,character,raw.checkpoint)
+        if not cp then return nil end
+        local a=cp.host.ad
+        if a.state=="open" then
+            if not l or l.role~="host" or l.id~=a.id or l.population~=P.Key(a) then return nil end
+        elseif l and l.role=="host" then return nil end
+        out.checkpoint=cp
+    end
     for k in pairs(raw) do if out[k]==nil then return nil end end
     return out
 end
@@ -44,8 +54,38 @@ local function Same(a,b)
 end
 -- Called only after trusted local fixture adapter has verified the receipt.
 -- Storage checks transitions but cannot establish sender authenticity.
+local function Equal(a,b)
+    if type(a)~=type(b) then return false end
+    if type(a)~="table" then return a==b end
+    for k,v in pairs(a) do if not Equal(v,b[k]) then return false end end
+    for k in pairs(b) do if a[k]==nil then return false end end
+    return true
+end
 function R.Transition(old,new,action)
     if new.revision~=old.revision+1 then return false end
+    local x,y=old.checkpoint,new.checkpoint
+    if action=="host_open" then
+        return not old.commitment and not old.pending and not new.pending and new.commitment
+            and new.commitment.role=="host" and y and y.host.ad.state=="open" and y.host.ad.revision==1
+            and y.host.ad.count==0 and next(y.receipts)==nil and new.sequence==old.sequence+1
+            and (not x or (x.host.ad.state=="cancelled" and y.host.ad.serial==x.host.ad.serial+1))
+    elseif action=="host_checkpoint" or action=="host_cancel" then
+        if not x or not y or not old.commitment or old.commitment.role~="host" or old.pending or new.pending
+            or new.sequence~=old.sequence then return false end
+        local a,b=x.host.ad,y.host.ad
+        if a.state~="open" or a.id~=b.id or a.organizer~=b.organizer or not Equal(a.draft,b.draft)
+            or b.revision<a.revision or b.revision>a.revision+1 then return false end
+        if action=="host_cancel" then
+            return b.state=="cancelled" and not new.commitment and b.revision==a.revision+1
+                and Equal(x.host.roster,y.host.roster) and Equal(x.receipts,y.receipts)
+        end
+        if b.state~="open" or not Same(old.commitment,new.commitment) then return false end
+        for guid,row in pairs(x.receipts) do
+            local other=y.receipts[guid]
+            if not other or other.seq<row.seq or (other.seq==row.seq and not Equal(row,other)) then return false end
+        end
+        return b.revision>a.revision or Equal(x.host.roster,y.host.roster)
+    elseif not Equal(x,y) then return false end
     local a,b=old.commitment,new.commitment
     if action=="query" then
         return not old.pending and not new.pending and (not a or a.role=="participant")
@@ -58,9 +98,9 @@ function R.Transition(old,new,action)
         return old.pending and not new.pending and new.sequence==old.sequence
             and (not b or (Same(a,b) and b.status~="pending"))
     elseif action=="host" then
-        return not a and not old.pending and not new.pending and b and b.role=="host" and new.sequence==old.sequence+1
+        return not x and not a and not old.pending and not new.pending and b and b.role=="host" and new.sequence==old.sequence+1
     elseif action=="host_terminal" then
-        return a and a.role=="host" and not b and not old.pending and not new.pending and new.sequence==old.sequence
+        return not x and a and a.role=="host" and not b and not old.pending and not new.pending and new.sequence==old.sequence
     end
     return false
 end
