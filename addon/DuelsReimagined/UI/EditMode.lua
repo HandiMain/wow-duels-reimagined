@@ -7,6 +7,21 @@ local C=Style.color
 local specs={}
 local root,bar,box,tools,scaleText,slider,gridButton,snapButton,boxTitle
 local gridLines={}
+local scaleFill
+local BAR_W,BAR_H=640,46
+local TOOLS_W,TOOLS_H=444,42
+local TRACK_W=126
+-- The editor is a dark bronze overlay, not a Hall/red destination button.
+-- Existing neutral masks and sculpted copper rim supply the house finish.
+local function Panel(frame,corner)
+    Style.Skin(frame,C.nav,{corner=corner,edge=C.shellEdge,light=C.goldDim,
+        dark=C.window,shine=.25,shade=.36,rim=.72})
+    Style.Plate(frame,"shellCopper",{corner=corner,layer="BORDER",sublevel=4})
+end
+local neutralAction={fill=C.hover,edge=C.shellEdge,light=C.goldDim,dark=C.window,
+    hover=C.goldDim,text=C.buttonText}
+local saveAction={fill=C.button,edge=C.goldDim,light=C.gold,dark=C.window,
+    hover=C.gold,text=C.buttonText}
 local session,drag,painting
 local function Number(n)
     if type(issecretvalue)=="function" then
@@ -41,7 +56,7 @@ local function Clamp(x,y,s,w,h,bw,bh)
     return Settings.ClampVisualLayout(x,y,s,w,h,bw,bh)
 end
 local function GridStep(w,h)
-    return math.max(32,math.ceil(math.max(w,h)/96/8)*8)
+    return math.max(48,math.ceil(math.max(w,h)/80/8)*8)
 end
 -- Snap centers and edges before the optional grid, in UIParent coordinates.
 local function SnapAxis(center,half,total,grid)
@@ -85,13 +100,13 @@ local function DrawGrid(w,h)
         local t=gridLines[count]
         if not t then t=root:CreateTexture(nil,"BACKGROUND");gridLines[count]=t end
         t:ClearAllPoints()
-        t:SetColorTexture(1,.79,.37,major and .54 or .13)
+        t:SetColorTexture(.86,.67,.38,major and .34 or .055)
         if vertical then
             t:SetPoint("CENTER",root,"CENTER",offset,0)
-            t:SetSize(major and 1.5 or 1,h)
+            t:SetSize(1,h)
         else
             t:SetPoint("CENTER",root,"CENTER",0,offset)
-            t:SetSize(w,major and 1.5 or 1)
+            t:SetSize(w,1)
         end
         t:Show()
     end
@@ -109,13 +124,14 @@ local function Paint()
     session.spec.draft(x,y,s)
     box:ClearAllPoints();box:SetPoint("CENTER",root,"CENTER",(x-.5)*w,(y-.5)*h)
     box:SetSize(bw*s,bh*s)
-    local barScale=math.min(1,(w-24)/760)
+    local barScale=math.min(1,math.max(.1,(w-24)/BAR_W))
     bar:SetScale(barScale)
-    tools:SetScale(math.min(1,(w-24)/510))
+    tools:SetScale(math.min(1,math.max(.1,(w-24)/TOOLS_W)))
     tools:ClearAllPoints()
-    if y*h-bh*s/2>66 then tools:SetPoint("TOP",box,"BOTTOM",0,-15)
-    else tools:SetPoint("BOTTOM",box,"TOP",0,15) end
+    if y*h-bh*s/2>TOOLS_H+18 then tools:SetPoint("TOP",box,"BOTTOM",0,-10)
+    else tools:SetPoint("BOTTOM",box,"TOP",0,10) end
     scaleText:SetText(string.format("Scale: %d%%",math.floor(s*100+.5)))
+    scaleFill:SetWidth(math.max(1,TRACK_W*math.max(0,math.min(1,(s-.5)/1.5))))
     painting=true;slider:SetValue(s);painting=false
 end
 function M.RestoreSample()
@@ -162,15 +178,15 @@ local function BeginDrag(resize,button)
     drag={cx=x,cy=y,x=session.x,y=session.y,scale=session.scale,resize=resize}
     root:SetScript("OnUpdate",DragTick)
 end
-local function Button(parent,label,width,fn)
-    local b=Style.Action(parent,label,"footer")
-    b:SetSize(width,32);b:SetScript("OnClick",fn)
+local function Button(parent,label,width,fn,primary)
+    local b=Style.Action(parent,label,"footer",primary and saveAction or neutralAction)
+    b:SetSize(width,28);b:SetScript("OnClick",fn)
     return b
 end
 local function Check(parent,text,x,handler)
     local b=CreateFrame("CheckButton",nil,parent,"UICheckButtonTemplate")
-    b:SetSize(24,24);b:SetPoint("LEFT",parent,"LEFT",x,0)
-    local label=Style.Text(parent,text,14,C.pale)
+    b:SetSize(22,22);b:SetPoint("LEFT",parent,"LEFT",x,0)
+    local label=Style.Text(parent,text,13,C.pale)
     label:SetPoint("LEFT",b,"RIGHT",2,0)
     b:SetScript("OnClick",function(self) if session then handler(self:GetChecked() and true or false) end end)
     return b
@@ -184,17 +200,26 @@ local function Build()
     if ns.DiagnosticAudit then ns.DiagnosticAudit.RegisterUIRoot("Duels Edit Mode",root) end
     box=CreateFrame("Frame",nil,root)
     box:SetFrameLevel(root:GetFrameLevel()+2)
-    local tint=Style.Fill(box,{.68,.42,.13,.045});tint:SetAlpha(.045)
-    Style.Border(box,C.gold,2)
+    local tint=Style.Fill(box,{.68,.42,.13,.055});tint:SetAlpha(.055)
+    Style.Border(box,{.84,.64,.30,.82},1)
+    -- A fine selection rim with four short metallic corner highlights.
+    for _,corner in ipairs({"TOPLEFT","TOPRIGHT","BOTTOMLEFT","BOTTOMRIGHT"}) do
+        for _,horizontal in ipairs({true,false}) do
+            local accent=box:CreateTexture(nil,"OVERLAY")
+            accent:SetColorTexture(1,.79,.40,.95)
+            accent:SetPoint(corner,box,corner)
+            accent:SetSize(horizontal and 15 or 2,horizontal and 2 or 15)
+        end
+    end
     box:EnableMouse(true);box:SetScript("OnMouseDown",function(_,button)BeginDrag(false,button)end)
     box:SetScript("OnMouseUp",StopDrag)
     local titlePlate=CreateFrame("Frame",nil,box)
-    titlePlate:SetSize(214,25);titlePlate:SetPoint("CENTER",box,"TOP",0,0)
-    titlePlate:EnableMouse(false);Style.Plate(titlePlate,"hall",{corner=8})
-    boxTitle=Style.Text(titlePlate,"DUEL COUNTDOWN",13,C.pale,false,"display")
+    titlePlate:SetSize(242,28);titlePlate:SetPoint("CENTER",box,"TOP",0,0)
+    titlePlate:EnableMouse(false);Panel(titlePlate,10)
+    boxTitle=Style.Text(titlePlate,"DUEL COUNTDOWN",15,C.pale,false,"display")
     boxTitle:SetAllPoints(titlePlate);boxTitle:SetJustifyH("CENTER")
     local grip=CreateFrame("Button",nil,box)
-    grip:SetSize(32,32);grip:SetPoint("BOTTOMRIGHT",box,"BOTTOMRIGHT",5,-5)
+    grip:SetSize(34,34);grip:SetPoint("BOTTOMRIGHT",box,"BOTTOMRIGHT",3,-3)
     grip:SetFrameLevel(box:GetFrameLevel()+4)
     local icon=grip:CreateTexture(nil,"ARTWORK")
     icon:SetAllPoints(grip);icon:SetTexture("Interface\\AddOns\\DuelsReimagined\\Media\\Skin\\DuelResizeCopper.png")
@@ -208,53 +233,60 @@ local function Build()
     if ns.Tooltips then ns.Tooltips.Bind(grip,{title="Resize countdown",detail="Drag to resize the entire effect proportionally."}) end
 
     bar=CreateFrame("Frame",nil,root)
-    bar:SetSize(760,56);bar:SetPoint("TOP",root,"TOP",0,-22)
+    bar:SetSize(BAR_W,BAR_H);bar:SetPoint("TOP",root,"TOP",0,-22)
     bar:SetFrameLevel(root:GetFrameLevel()+15);bar:EnableMouse(true)
-    Style.Plate(bar,"hall",{corner=12})
-    local crest=ns.Chrome.Icon(bar,"Hall");crest:SetSize(46,46);crest:SetPoint("LEFT",bar,"LEFT",10,0)
-    local name=Style.Text(bar,"DUELS EDIT MODE",23,C.pale,false,"display")
-    name:SetPoint("LEFT",bar,"LEFT",66,0);name:SetWidth(235)
-    name:SetWordWrap(false);Style.ConstrainText(name,235,38,12)
-    gridButton=Check(bar,"Grid",305,function(v)
+    Panel(bar,15)
+    local crest=ns.Chrome.Icon(bar,"Hall");crest:SetSize(38,38);crest:SetPoint("LEFT",bar,"LEFT",10,0)
+    local name=Style.Text(bar,"DUELS EDIT MODE",19,C.pale,false,"display")
+    name:SetPoint("LEFT",bar,"LEFT",53,0);name:SetWidth(200)
+    name:SetWordWrap(false);Style.ConstrainText(name,200,32,12)
+    gridButton=Check(bar,"Grid",260,function(v)
         session.grid=v;local w,h=Screen();if w then DrawGrid(w,h) end
     end)
-    snapButton=Check(bar,"Snap",386,function(v)session.snap=v end)
-    local cancel=Button(bar,"Cancel",108,function()M.Cancel(true)end)
-    cancel:SetPoint("LEFT",bar,"LEFT",478,0)
-    local save=Button(bar,"Save & Exit",145,function()M.Save()end)
+    snapButton=Check(bar,"Snap",326,function(v)session.snap=v end)
+    local cancel=Button(bar,"Cancel",90,function()M.Cancel(true)end)
+    cancel:SetPoint("LEFT",bar,"LEFT",402,0)
+    local save=Button(bar,"Save & Exit",125,function()M.Save()end,true)
     save:SetPoint("RIGHT",bar,"RIGHT",-12,0)
 
     tools=CreateFrame("Frame",nil,root)
-    tools:SetSize(510,48);tools:SetClampedToScreen(true)
+    tools:SetSize(TOOLS_W,TOOLS_H);tools:SetClampedToScreen(true)
     tools:SetFrameLevel(root:GetFrameLevel()+12);tools:EnableMouse(true)
-    Style.Plate(tools,"hall",{corner=11})
-    scaleText=Style.Text(tools,"Scale: 100%",14,C.pale)
-    scaleText:SetPoint("LEFT",tools,"LEFT",13,0);scaleText:SetWidth(106)
-    scaleText:SetWordWrap(false);Style.ConstrainText(scaleText,106,28,10)
+    Panel(tools,13)
+    scaleText=Style.Text(tools,"Scale: 100%",13,C.pale)
+    scaleText:SetPoint("LEFT",tools,"LEFT",12,0);scaleText:SetWidth(92)
+    scaleText:SetWordWrap(false);Style.ConstrainText(scaleText,92,25,10)
     slider=CreateFrame("Slider",nil,tools)
-    slider:SetSize(148,25);slider:SetPoint("LEFT",tools,"LEFT",124,0)
+    slider:SetSize(TRACK_W,24);slider:SetPoint("LEFT",tools,"LEFT",106,0)
     slider:SetOrientation("HORIZONTAL");slider:SetMinMaxValues(.5,2);slider:SetValueStep(.01)
     if slider.SetObeyStepOnDrag then slider:SetObeyStepOnDrag(true) end
     local track=slider:CreateTexture(nil,"BACKGROUND")
     track:SetPoint("LEFT",slider,"LEFT");track:SetPoint("RIGHT",slider,"RIGHT")
-    track:SetHeight(3);track:SetColorTexture(unpack(C.goldDim))
+    track:SetHeight(5);track:SetColorTexture(.11,.075,.045,1)
+    local rim=slider:CreateTexture(nil,"BACKGROUND",nil,1)
+    rim:SetPoint("LEFT",track,"LEFT",0,0);rim:SetPoint("RIGHT",track,"RIGHT",0,0)
+    rim:SetHeight(3);rim:SetColorTexture(.48,.33,.17,.95)
+    scaleFill=slider:CreateTexture(nil,"ARTWORK")
+    scaleFill:SetPoint("LEFT",track,"LEFT");scaleFill:SetSize(1,3)
+    scaleFill:SetColorTexture(.94,.69,.29,1)
     local thumb=slider:CreateTexture(nil,"OVERLAY")
-    thumb:SetSize(16,16);thumb:SetTexture("Interface\\AddOns\\DuelsReimagined\\Media\\Textures\\SliderThumb.tga")
+    thumb:SetTexture("Interface\\AddOns\\DuelsReimagined\\Media\\Textures\\ToggleThumb.tga")
+    thumb:SetSize(18,18);thumb:SetVertexColor(1,.78,.39,1)
     slider:SetThumbTexture(thumb)
     slider:SetScript("OnValueChanged",function(_,v)
         if painting or not session then return end
         v=Number(v);if not v or not Idle() then return end
         session.scale=v;Paint();M.RestoreSample()
     end)
-    local preview=Button(tools,"Preview",100,function()
+    local preview=Button(tools,"Preview",90,function()
         if session and Idle() then StopDrag();session.spec.preview() end
     end)
-    preview:SetPoint("LEFT",tools,"LEFT",288,0)
-    local reset=Button(tools,"Reset",94,function()
+    preview:SetPoint("LEFT",tools,"LEFT",246,0)
+    local reset=Button(tools,"Reset",82,function()
         if not session then return end
         StopDrag();session.x,session.y,session.scale=.5,.5,1;Paint();M.RestoreSample()
     end)
-    reset:SetPoint("RIGHT",tools,"RIGHT",-12,0)
+    reset:SetPoint("RIGHT",tools,"RIGHT",-10,0)
     root:SetScript("OnHide",function()if session then M.Cancel(true)end end)
     root:SetScript("OnEvent",function(_,event)
         if not session then return end

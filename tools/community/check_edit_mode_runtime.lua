@@ -41,10 +41,10 @@ local draft,committed,samples,previews,finishes= nil,nil,0,0,0
 local ns={Client={IsSupported=function()return true end},DuelDetection={GetSnapshot=function()return state end}}
 assert(loadfile("addon/DuelsReimagined/Core/Settings.lua"))("DuelsReimagined",ns)
 local S=ns.Settings
-local colors={gold={1,1,0},pale={1,1,1},goldDim={.5,.5,0}}
-ns.Style={color=colors,Fill=function(parent)return Frame("Texture",nil,parent) end,Border=noop,Plate=noop,
+local colors={gold={1,1,0},pale={1,1,1},goldDim={.5,.5,0},nav={.1,.1,.1},shellEdge={.7,.5,.3},window={.05,.05,.05},hover={.2,.15,.1},button={.6,0,0},buttonText={1,.9,.7}}
+ns.Style={color=colors,Fill=function(parent)return Frame("Texture",nil,parent) end,Border=noop,Plate=noop,Skin=noop,
     Text=function(parent,txt)local f=Frame("FontString",nil,parent);f:SetText(txt);return f end,ConstrainText=noop,
-    Action=function(parent,txt)local f=Frame("Button",nil,parent);f:SetText(txt);return f end}
+    Action=function(parent,txt,variant,palette)local f=Frame("Button",nil,parent);f:SetText(txt);f.palette=palette;return f end}
 ns.Chrome={Icon=function(parent)return Frame("Texture",nil,parent)end}
 ns.Widgets={CloseChoices=noop}
 ns.Window={frame=Frame()}
@@ -65,6 +65,10 @@ assert(root:IsShown() and not root.scripts.OnUpdate)
 local function Control(text)
     for _,f in ipairs(frames)do if f.text==text and f.scripts.OnClick then return f end end
 end
+assert(Control("Cancel").palette.fill==colors.hover and Control("Save & Exit").palette.fill==colors.button)
+assert(Control("Preview").palette.fill==colors.hover and Control("Reset").palette.fill==colors.hover)
+assert(Control("Save & Exit").parent.w==640 and Control("Save & Exit").parent.h==46)
+assert(Control("Preview").parent.w==444 and Control("Preview").parent.h==42)
 local function Slider()
     for _,f in ipairs(frames)do if f.scripts.OnValueChanged then return f end end
 end
