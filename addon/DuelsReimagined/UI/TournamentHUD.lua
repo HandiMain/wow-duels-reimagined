@@ -7,6 +7,7 @@ local S=ns.Style
 local C=S and S.color
 local Settings=ns.Settings
 local root,fields,draft,editing
+local fixtureTimer
 local function Round(m)
     local remaining=m.roundCount-m.round
     return remaining==0 and "Final" or remaining==1 and "Semifinal" or remaining==2 and "Quarterfinal" or "Round of "..2^(remaining+1)
@@ -50,11 +51,24 @@ function B.Project(p)
     elseif p.role=="host" then status="Featured match ready"
     elseif p.state=="eliminated" then status="Eliminated - watching"
     else status="Waiting for your turn" end
+    local demo=p.demo and p.demo.match==m.id and p.demo
+    local offline=p.offline and p.offline.match==m.id and p.offline
+    local hpA,hpB,elapsed
+    if demo then
+        elapsed=demo.elapsed
+        local progress=math.min(1,elapsed/demo.duration)
+        hpA=math.floor(100-progress*(demo.winner==left and 54 or 100))
+        hpB=math.floor(100-progress*(demo.winner==right and 54 or 100))
+        status="Simulated fight"
+    elseif offline then
+        status="Reconnecting "..string.format("%02d:%02d",math.floor(offline.remaining/60),offline.remaining%60)
+    end
     return {title=p.event.draft.name,round=Round({round=m.round,roundCount=#rows}),bestOf=best,
         game=sa+sb+1,left=names[left] or "Awaiting player",right=names[right] or "Awaiting player",
         score=sa,opponentScore=sb,status=status,key=p.event.id..":"..m.id,scope="SIMULATED",
         own=not not own,matchID=m.id,canPlay=v.state=="running",broadcast=p.broadcast,viewer=p.role,
-        readyCount=p.readyCount or 0,leftGuid=left,rightGuid=right}
+        readyCount=p.readyCount or 0,leftGuid=left,rightGuid=right,
+        demo=not not demo,offline=not not offline,hpA=hpA,hpB=hpB,elapsed=elapsed}
 end
 local function At(f,p,x,y,w,h)
     f:ClearAllPoints();f:SetPoint("TOPLEFT",p,"TOPLEFT",x,-y);f:SetSize(w,h)
@@ -144,7 +158,7 @@ local function Paint(m)
     fields.title:SetText(m.title);fields.format:SetText(m.round.."  -  Best of "..m.bestOf)
     fields.left.name:SetText(m.left);fields.right.name:SetText(m.right)
     fields.score:SetText(tostring(m.score));fields.opponentScore:SetText(tostring(m.opponentScore))
-    fields.game:SetText(m.bestOf==1 and "" or "Game "..m.game)
+    fields.game:SetText(m.elapsed and string.format("%02d:%02d",math.floor(m.elapsed/60),m.elapsed%60) or m.bestOf==1 and "" or "Game "..m.game)
     fields.status:SetText(m.status)
     -- Class icons are illustrative, never a real player/class lookup.
     local classes={"WARRIOR","MAGE","ROGUE","PRIEST","DRUID","SHAMAN","WARLOCK","HUNTER","PALADIN"}
@@ -154,12 +168,16 @@ local function Paint(m)
         if not SetPortraitToTexture or not pcall(SetPortraitToTexture,side.icon,path) then side.icon:SetTexture(path) end
     end
     Icon(fields.left,m.left);Icon(fields.right,m.right)
-    for _,side in ipairs({fields.left,fields.right}) do
-        -- No opponent unit is observed in a local test. Do not show a
-        -- fabricated live health percentage, even when a real target exists.
-        side.hp:SetValue(0);side.hp:Hide();side.health:SetText("Health unavailable")
+    for i,side in ipairs({fields.left,fields.right}) do
+        local hp=i==1 and m.hpA or m.hpB
+        if hp~=nil then
+            side.hp:SetValue(hp);side.hp:Show();side.health:SetText(hp.."% (test)")
+        else
+            side.hp:SetValue(0);side.hp:Hide();side.health:SetText("Health unavailable")
+        end
     end
     fields.sim:SetShown(not editing and m.canPlay==true and not m.broadcast)
+    fields.sim:SetEnabled(not m.demo and not m.offline)
 end
 local function SafeIdle()
     local ok,v=pcall(InCombatLockdown)
@@ -174,17 +192,40 @@ local function SafeIdle()
 end
 -- The existing countdown timer owns completion; no second timer or
 -- fabricated detector events. Revalidate the assignment before scoring.
+local function StopFixtureTimer()
+    if fixtureTimer then fixtureTimer:Cancel();fixtureTimer=nil end
+end
+local function PresentResult(result)
+    if result and ns.DuelResult then ns.DuelResult.ShowTournamentPreview(result) end
+end
+local function RefreshFixtureTimer(m)
+    if not m or not (m.demo or m.offline) or editing then StopFixtureTimer();return end
+    if fixtureTimer or not C_Timer or type(C_Timer.NewTimer)~="function" then return end
+    local action=m.demo and "tick-demo" or "tick-grace"
+    fixtureTimer=C_Timer.NewTimer(1,function()
+        fixtureTimer=nil
+        if not ns.DuelHUD.IsTournamentHUDActive() or not SafeIdle() then
+            ns.TournamentRegistration.CancelBroadcastFixture();ns.DuelHUD.Refresh();return
+        end
+        local ok,why,result,notice=ns.TournamentRegistration.PreviewAction(action)
+        if ns.TournamentUI.RefreshActive then ns.TournamentUI.RefreshActive() end
+        if notice and ns.Notifications and ns.Notifications.OnTournamentGrace then ns.Notifications.OnTournamentGrace(notice) end
+        if ok then PresentResult(result) else
+            ns.TournamentRegistration.CancelBroadcastFixture();ns.DuelHUD.Refresh()
+        end
+    end)
+end
+function B.GetDiagnosticResources() return {subscriptions=0,timers=fixtureTimer and 1 or 0} end
 function B.RequestGame()
     if editing or not ns.DuelHUD.IsTournamentHUDActive() or not SafeIdle() then return false,"No assigned test match." end
     local R=ns.TournamentRegistration
     local m=B.Project(R.PreviewSnapshot())
-    if not m or not m.canPlay then return false,"No ready test match." end
+    if not m or not m.canPlay or m.demo or m.offline then return false,"No ready test match." end
     local function Finish()
         local current=B.Project(R.PreviewSnapshot())
         if not ns.DuelHUD.IsTournamentHUDActive() or not current or not current.canPlay or current.key~=m.key or current.game~=m.game or not SafeIdle() then return false,"Test match changed." end
-        local ok,why,outcome=R.PreviewAction("simulate-game")
+        local ok,why=R.PreviewAction("start-demo")
         if ns.TournamentUI.RefreshActive then ns.TournamentUI.RefreshActive() end
-        if ok and outcome then ns.DuelResult.ShowTournamentPreview(outcome) end
         return ok,why
     end
     if ns.DuelCountdown.IsTournamentPreviewRunning() then return false,"Countdown already running." end
@@ -195,12 +236,14 @@ end
 function B.Frame() return root end
 function B.Show(m)
     Build()
-    if not editing then Layout();Paint(m) end
+    if not editing then Layout();Paint(m);RefreshFixtureTimer(m) end
     root:Show()
     return root
 end
 function B.Hide()
     if root and not editing then root:Hide() end
+    StopFixtureTimer()
+    if ns.TournamentRegistration then ns.TournamentRegistration.CancelBroadcastFixture() end
     if ns.DuelCountdown then ns.DuelCountdown.CancelTournamentPreview() end
 end
 function B.Relayout()
@@ -209,6 +252,11 @@ end
 function B.IsEditing() return editing==true end
 function B.LayoutSize() return W,H end
 function B.SetLayoutDraft(x,y,scale)
+    if not editing then
+        StopFixtureTimer()
+        ns.TournamentRegistration.CancelBroadcastFixture()
+        ns.DuelCountdown.CancelTournamentPreview()
+    end
     editing=true;draft={x,y,scale};Layout()
 end
 function B.ShowLayoutSample()

@@ -291,7 +291,12 @@ local function Run(action,key)
     if p and p.bracket and p.bracket.state=="running" and ns.DuelHUD.IsTournamentHUDActive() then
         ok,why=ns.TournamentHUD.RequestGame()
     elseif p and p.bracket and p.bracket.state=="running" then ok,why=false,"Show the tournament HUD and finish combat first."
-    else ok,why=R.PreviewAction(action) end
+    else
+        local result,notice
+        ok,why,result,notice=R.PreviewAction(action)
+        if notice and ns.Notifications and ns.Notifications.OnTournamentGrace then ns.Notifications.OnTournamentGrace(notice) end
+        if result and ns.DuelResult then ns.DuelResult.ShowTournamentPreview(result) end
+    end
     feedback=why or ""
     if ok and action=="cancel" and ns.Notifications then ns.Notifications.ClearTournamentPreview() end
     if ok and key then Switch(key) else U.Show(active or "overview") end
@@ -340,6 +345,9 @@ local sampleStart=Action(myPanel,"Simulate Tournament Start",function()Run("star
 local sampleGame=Action(myPanel,"Simulate Next Game",function()Run("simulate-game","brackets")end)
 local bracketGame=Action(bracketPanel,"Simulate Next Game",function()Run("simulate-game")end)
 local broadcast=Action(bracketPanel,"Broadcast view",function()Run("broadcast")end)
+local testDisconnect=Action(bracketPanel,"Test disconnect",function()Run("disconnect")end)
+local testAdvance=Action(bracketPanel,"Advance test 1 min",function()Run("advance-grace")end)
+local testReconnect=Action(bracketPanel,"Test reconnect",function()Run("reconnect")end)
 local matchNotice=Action(myPanel,"Preview Match Notification",function()
     local ok,why=ns.Notifications.PreviewTournamentReady()
     feedback=ok and "Match notification shown." or why or "Notification unavailable."
@@ -404,6 +412,11 @@ local function RefreshTest()
     sampleGame:SetShown(not not (player and started and p.bracket.state=="running"))
     bracketGame:SetShown(not not (started and p.bracket.state=="running"))
     broadcast:SetShown(not not (started and p.bracket.state=="running"))
+    local fixtureReady=started and p.bracket.state=="running" and p.selected
+    testDisconnect:SetShown(not not (fixtureReady and not p.demo and not p.offline))
+    testAdvance:SetShown(not not (fixtureReady and p.offline))
+    testReconnect:SetShown(not not (fixtureReady and p.offline))
+    bracketGame:SetEnabled(not not (fixtureReady and not p.demo and not p.offline))
     if started then broadcast.label:SetText(p.broadcast and "Exit broadcast" or "Broadcast view") end
     local feature=hosting and started and p.bracket.state=="running" and p.readyCount>1
     featurePrev:SetShown(not not feature);featureNext:SetShown(not not feature)
@@ -582,11 +595,16 @@ local function Layout()
                 Place(leave,f,12,h-72,w-24,28)
                 Place(myHost,f,12,h-36,w-24,28)
             elseif active=="brackets" and p and p.bracket then
-                h=math.max(h,260);Place(f,pages[active],0,0,w,h)
-                Place(bracketGame,bracketPanel,math.max(12,w-194),6,182,27)
-                Place(broadcast,bracketPanel,math.max(12,w-354),6,150,27)
+                h=math.max(h,320);Place(f,pages[active],0,0,w,h)
+                -- Board remains above the separate fixture controls.
+                local bw=math.max(1,(w-36)/3)
+                Place(bracketGame,bracketPanel,12,h-34,bw,26)
+                Place(broadcast,bracketPanel,18+bw,h-34,bw,26)
+                Place(testDisconnect,bracketPanel,24+2*bw,h-34,bw,26)
+                Place(testAdvance,bracketPanel,12,h-64,bw,26)
+                Place(testReconnect,bracketPanel,18+bw,h-64,bw,26)
                 if not bracketView then bracketView=ns.BracketView.New(bracketPanel) end
-                f.detail:SetShown(not bracketView.Show(p,w,h))
+                f.detail:SetShown(not bracketView.Show(p,w,h-68))
                 f.detail:SetText("Bracket unavailable.")
                 TextAt(f.detail,f,20,54,w-40,h-68)
             else

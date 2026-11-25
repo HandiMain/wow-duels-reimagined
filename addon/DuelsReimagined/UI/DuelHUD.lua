@@ -908,7 +908,7 @@ function H.ResetSession()
     sessionPreview=false;H.Refresh();return true
 end
 function H.GetDiagnosticResources()
-    return {subscriptions=(unsubscribe and 1 or 0)+(unsubscribeDiscovery and 1 or 0)+(tournamentUnsubscribe and 1 or 0)+(previewUnsubscribe and 1 or 0),timers=(root:GetScript("OnUpdate") and 1 or 0)+(collapseTimer and 1 or 0)+(retryTimer and 1 or 0)+(tournamentRetry and 1 or 0)}
+    return {subscriptions=(unsubscribe and 1 or 0)+(unsubscribeDiscovery and 1 or 0)+(tournamentUnsubscribe and 1 or 0)+(previewUnsubscribe and 1 or 0),timers=(root:GetScript("OnUpdate") and 1 or 0)+(collapseTimer and 1 or 0)+(retryTimer and 1 or 0)+(tournamentRetry and 1 or 0)+(ns.TournamentHUD.GetDiagnosticResources().timers or 0)}
 end
 local PREVIEW_ENABLED=true
 function H.TogglePreview()

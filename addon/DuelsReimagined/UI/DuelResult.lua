@@ -121,18 +121,20 @@ local function Show(data)
     if not S.Get("duelResultVisual") or not Idle() then return false end
     Clear();Build();current=data;Layout()
     local win=data.outcome=="won" or data.outcome=="they_fled"
-    heading:SetText(win and "VICTORY" or "DEFEAT")
+    heading:SetText(data.champion and "CHAMPION" or data.spectated and "MATCH WINNER" or win and "VICTORY" or "DEFEAT")
     if win then heading:SetTextColor(1,.79,.37);edge.texture:SetVertexColor(.95,.58,.14)
     else heading:SetTextColor(1,.53,.42);edge.texture:SetVertexColor(.66,.09,.07) end
     local opponent=data.opponent or "your opponent"
-    if data.outcome=="they_fled" then subtitle:SetText(opponent.." retreated")
+    if data.champion then subtitle:SetText(data.champion.." wins the tournament")
+    elseif data.spectated then subtitle:SetText((data.winnerName or "Winner").." defeated "..opponent)
+    elseif data.outcome=="they_fled" then subtitle:SetText(opponent.." retreated")
     elseif data.outcome=="fled" then subtitle:SetText("You retreated from "..opponent)
     else subtitle:SetText(win and "You defeated "..opponent or "You were defeated by "..opponent) end
     local duration=data.duration
     meta:SetText(duration and string.format("Duel duration: %02d:%02d",math.floor(duration/60),math.floor(duration%60)) or "Duration not observed")
     if data.tournament then
         rank.label:SetText("Series: "..data.score.." - "..data.opponentScore)
-        detail:SetText("LOCAL TEST  •  "..(data.complete and (data.advanced and "Series won" or "Series lost") or "Tournament game"))
+        detail:SetText("LOCAL TEST  •  "..(data.champion and "Tournament complete" or data.spectated and (data.complete and "Series complete" or "Tournament game") or data.complete and (data.advanced and "Series won" or "Series lost") or "Tournament game"))
     else
         rank.label:SetText(data.preview and (win and "+10 Rating" or "-9 Rating") or "Rating not confirmed")
         detail:SetText(data.preview and "PREVIEW  •  SAMPLE DATA" or "Locally observed result")
@@ -212,7 +214,10 @@ function R.ShowTournamentPreview(data)
     if (data.outcome~="won" and data.outcome~="lost") or type(data.opponent)~="string" or
         not Number(data.score) or not Number(data.opponentScore) or data.score<0 or data.opponentScore<0 or data.score>3 or data.opponentScore>3 then return false end
     return Show({tournament=true,outcome=data.outcome,opponent=data.opponent,score=data.score,opponentScore=data.opponentScore,
-        complete=data.complete==true,advanced=data.advanced==true})
+        complete=data.complete==true,advanced=data.advanced==true,spectated=data.spectated==true,
+        winnerName=type(data.winnerName)=="string" and data.winnerName or nil,
+        champion=type(data.champion)=="string" and data.champion or nil,
+        duration=Number(data.duration) and data.duration>=0 and data.duration<=60 and data.duration or nil})
 end
 function R.Refresh()
     if not S.Get("duelResultVisual") then Clear();return end

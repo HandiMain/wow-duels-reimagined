@@ -703,6 +703,40 @@ local function RosterReply(s,actor,snap,body)
     end
     return result
 end
+-- Shared observation policy. The caller supplies verified observations in
+-- its own scope and owns atomic result persistence. Unknown never means offline.
+local function ObserveGrace(observed,view,match,states,term,now,commit)
+    if not view or view.state~="running" or type(match)~="string" then return nil end
+    if type(states)~="table" then observed[match]=nil;return nil end
+    local m
+    for _,round in ipairs(view.rounds) do for _,v in ipairs(round) do if v.id==match then m=v end end end
+    if not m or m.state~="ready" then return nil end
+    local a,z=states[m.a],states[m.b]
+    local function valid(v)return v=="online" or v=="offline" or v=="unknown" end
+    if not valid(a) or not valid(z) then observed[match]=nil;return nil end
+    for guid in pairs(states) do if guid~=m.a and guid~=m.b then observed[match]=nil;return nil end end
+    local old=observed[match]
+    if old and (old.term~=term or now<old.last or now-old.last>15) then old=nil;observed[match]=nil end
+    local loser=a=="offline" and z=="online" and m.a or z=="offline" and a=="online" and m.b or nil
+    local out={scope="SIMULATED",event=view.event,match=match,players=Copy(states),grace=300}
+    if not loser then
+        if old and states[old.loser]=="online" then out.notice="reconnected";out.player=old.loser
+        elseif old then out.notice="interrupted";out.player=old.loser end
+        observed[match]=nil;return out
+    end
+    if not old or old.loser~=loser then
+        old={loser=loser,since=now,last=now,term=term};observed[match]=old
+        out.notice="started";out.player=loser
+    end
+    old.last=now
+    out.player=loser;out.remaining=math.max(0,300-(now-old.since))
+    if out.remaining==0 then
+        local ok=commit({kind="offline",event=view.event,match=match,revision=view.revision,loser=loser,since=old.since,at=now})
+        if not ok then return nil end
+        observed[match]=nil;out.notice="forfeited"
+    end
+    return out
+end
 local function DurableHost(s,h,clock,resolve,store)
     local D={}
     local assignments={}
@@ -854,36 +888,11 @@ local function DurableHost(s,h,clock,resolve,store)
         local c=journal.control;local now=Now(clock)
         if not Fresh() or not c or c.paused or c.term~=term or c.coordinator~=coordinator or not now then return nil end
         local b=OpenBracket();local view=b and b.Snapshot()
-        if not view or view.state~="running" or type(match)~="string" then return nil end
-        if type(states)~="table" then observed[match]=nil;return nil end
-        local m
-        for _,round in ipairs(view.rounds) do for _,v in ipairs(round) do if v.id==match then m=v end end end
-        if not m or m.state~="ready" then return nil end
-        local a,z=states[m.a],states[m.b]
-        local function valid(v)return v=="online" or v=="offline" or v=="unknown" end
-        if not valid(a) or not valid(z) then observed[match]=nil;return nil end
-        for guid in pairs(states) do if guid~=m.a and guid~=m.b then observed[match]=nil;return nil end end
-        local old=observed[match]
-        if old and (old.term~=term or now<old.last or now-old.last>15) then old=nil;observed[match]=nil end
-        local loser=a=="offline" and z=="online" and m.a or z=="offline" and a=="online" and m.b or nil
-        local out={scope="SIMULATED",event=view.event,match=match,players=Copy(states),grace=300}
-        if not loser then
-            if old and states[old.loser]=="online" then out.notice="reconnected";out.player=old.loser
-            elseif old then out.notice="interrupted";out.player=old.loser end
-            observed[match]=nil;return out
-        end
-        if not old or old.loser~=loser then
-            old={loser=loser,since=now,last=now,term=term};observed[match]=old
-            out.notice="started";out.player=loser
-        end
-        old.last=now
-        out.player=loser;out.remaining=math.max(0,300-(now-old.since))
-        if out.remaining==0 then
-            local ok=b.ForfeitOffline({kind="offline",event=view.event,match=match,revision=view.revision,loser=loser,since=old.since,at=now})
-            if not ok or not SaveBracket(b,"bracket_report") then return nil end
-            observed[match]=nil;CloseMatch(match);out.notice="forfeited"
-        end
-        return out
+        return ObserveGrace(observed,view,match,states,term,now,function(record)
+            local ok=b.ForfeitOffline(record)
+            if not ok or not SaveBracket(b,"bracket_report") then return false end
+            CloseMatch(match);return true
+        end)
     end
     function D.WithdrawBracket(sender,request,term,coordinator)
         local c=journal.control
@@ -2101,6 +2110,8 @@ local function FeaturedMatch(x,view)
     return ready[1],ready
 end
 local function SelectedMatch(x,view)
+    local pinned=x.demo and x.demo.match or x.offline and x.offline.match
+    if pinned then for _,m in ipairs(ReadyMatches(view)) do if m.id==pinned then return m end end end
     if x.role=="player" and not x.broadcast then
         local own=PreviewMatch(x,view)
         if own then
@@ -2222,7 +2233,12 @@ function R.PreviewSnapshot()
     return {scope="SIMULATED",role=x.role,state=R.PreviewState(),event=ad,events=bracket and {} or x.cache.Browse(),
         roster=x.role=="host" and rows or nil,member=member,now=x.now,bracket=bracket,
         match=PreviewMatch(x,bracket),names=names,mode=x.mode,broadcast=x.broadcast==true,
-        featured=featured and featured.id,selected=chosen and chosen.id,readyCount=#ready}
+        featured=featured and featured.id,selected=chosen and chosen.id,readyCount=#ready,
+        demo=Copy(x.demo),offline=Copy(x.offline)}
+end
+local function FixtureWinner(x,v,m)
+    local game=m.wins[1]+m.wins[2]+1
+    return (v.revision+game+x.seed)%3==0 and m.b or m.a
 end
 local function SimulatePreviewGame(x)
     local v=x.bracket.Snapshot()
@@ -2231,7 +2247,7 @@ local function SimulatePreviewGame(x)
     local match=SelectedMatch(x,v)
     if not match then return false,"No test match is ready." end
     local game=match.wins[1]+match.wins[2]+1
-    local winner=(v.revision+game+x.seed)%3==0 and match.b or match.a
+    local winner=FixtureWinner(x,v,match)
     local candidate=ns.TournamentBracket.OpenSimulated(x.scope,x.host.guid,x.bracket.Save())
     if not candidate then return false,"Test bracket unavailable." end
     local report={event=v.event,match=match.id,game=game,winner=winner,evidence="TEST:"..match.id..":"..game}
@@ -2241,23 +2257,104 @@ local function SimulatePreviewGame(x)
     if not ok or why~="confirmed" then return false,"Test result unavailable." end
     x.bracket=candidate
     local result
-    if own and match.id==own.id and x.role=="player" then
-        local nextView=candidate.Snapshot()
-        for _,round in ipairs(nextView.rounds) do
-            for _,m in ipairs(round) do
-                if m.id==match.id then
-                    local first=m.a==x.player.guid
-                    result={scope="SIMULATED",outcome=winner==x.player.guid and "won" or "lost",
-                        opponent=own.opponent,score=m.wins[first and 1 or 2],opponentScore=m.wins[first and 2 or 1],
-                        complete=m.state=="done",advanced=m.state=="done" and m.winner==x.player.guid}
-                end
+    local nextView=candidate.Snapshot()
+    local names={}
+    for _,row in ipairs(x.engine.Roster(x.host.guid)) do names[row.guid]=row.name end
+    for _,round in ipairs(nextView.rounds) do
+        for _,m in ipairs(round) do
+            if m.id==match.id then
+                local personal=own and match.id==own.id and x.role=="player" and not x.broadcast
+                local first=personal and m.a==x.player.guid or not personal and m.a==winner
+                result={scope="SIMULATED",outcome=personal and winner~=x.player.guid and "lost" or "won",
+                    opponent=personal and own.opponent or names[winner==m.a and m.b or m.a] or "Unknown player",
+                    winnerName=names[winner] or "Unknown player",
+                    score=m.wins[first and 1 or 2],opponentScore=m.wins[first and 2 or 1],
+                    complete=m.state=="done",advanced=m.state=="done" and (not personal or m.winner==x.player.guid),
+                    spectated=not personal,champion=nextView.champion and names[nextView.champion] or nil}
             end
         end
     end
     return true,"Simulated game confirmed. No rating changes.",result
 end
+-- Only explicit local fixture data. No health, damage or presence claim
+-- about an actual character. A bounded UI driver advances the test clock.
+local function StartDemo(x)
+    if not x.bracket or x.demo or x.offline then return false,"A test match is already active." end
+    local v=x.bracket.Snapshot();local m=SelectedMatch(x,v)
+    if not m then return false,"No test match ready." end
+    x.demo={match=m.id,elapsed=0,duration=8,winner=FixtureWinner(x,v,m)}
+    return true,"Simulated match started."
+end
+local function AdvanceDemo(x)
+    if not x.demo then return false,"No simulated match." end
+    x.demo.elapsed=x.demo.elapsed+1
+    if x.demo.elapsed<x.demo.duration then return true end
+    local ok,why,result=SimulatePreviewGame(x)
+    x.demo=nil
+    if result then result.duration=8 end
+    return ok,why,result
+end
+local function ObservePreview(x,states)
+    local d=x.offline
+    if not d or not x.bracket then return nil end
+    local v=x.bracket.Snapshot()
+    x.observed=x.observed or {}
+    return ObserveGrace(x.observed,v,d.match,states,1,x.now,function(record)
+        local b=ns.TournamentBracket.OpenSimulated(x.scope,x.host.guid,x.bracket.Save())
+        if not b or not b.ForfeitOffline(record) then return false end
+        x.bracket=b;return true
+    end)
+end
+local function StartOffline(x)
+    if not x.bracket or x.demo or x.offline then return false,"Finish the current test first." end
+    local v=x.bracket.Snapshot();local m=SelectedMatch(x,v)
+    if not m then return false,"No ready test match." end
+    local loser=m.a==x.player.guid and m.b or m.b==x.player.guid and m.a or m.b
+    local other=loser==m.a and m.b or m.a
+    x.offline={match=m.id,player=loser,other=other,remaining=300}
+    local o=ObservePreview(x,{[loser]="offline",[other]="online"})
+    if not o then x.offline=nil;return false,"Test disconnect unavailable." end
+    x.offline.remaining=o.remaining
+    return true,"Simulated disconnect - five minute grace started.",nil,o
+end
+local function AdvanceOffline(x,seconds)
+    local d=x.offline
+    if not d then return false,"No disconnect test." end
+    -- Explicit simulated time advance, with contiguous observations no
+    -- more than ten seconds apart, through the same grace policy.
+    while seconds>0 and x.offline do
+        local step=math.min(10,seconds);seconds=seconds-step;x.now=x.now+step
+        local o=ObservePreview(x,{[d.player]="offline",[d.other]="online"})
+        if not o then x.offline=nil;return false,"Test observation interrupted." end
+        d.remaining=o.remaining
+        if o.notice=="forfeited" then
+            x.offline=nil;return true,"Simulated disconnect forfeit confirmed.",nil,o
+        end
+    end
+    return true
+end
+local function StopOffline(x,connected)
+    local d=x.offline
+    if not d then return false,"No disconnect test." end
+    local o=ObservePreview(x,{[d.player]=connected and "online" or "unknown",[d.other]="online"})
+    x.offline=nil
+    return true,connected and "Simulated player reconnected." or "Test observation interrupted.",nil,o
+end
+function R.CancelBroadcastFixture()
+    local x=Current()
+    if not x then return end
+    x.demo=nil
+    if x.offline then StopOffline(x,false) end
+end
 local function PreviewAction(action)
     local x=Current();if not x then return false,"No local test tournament." end
+    if action=="start-demo" then return StartDemo(x) end
+    if action=="tick-demo" then return AdvanceDemo(x) end
+    if action=="disconnect" then return StartOffline(x) end
+    if action=="tick-grace" then return AdvanceOffline(x,1) end
+    if action=="advance-grace" then return AdvanceOffline(x,60) end
+    if action=="reconnect" then return StopOffline(x,true) end
+    if x.demo or x.offline then return false,"Finish the current test first." end
     if action=="host" or action=="player" then
         if x.mode then return false,"This local test keeps your tournament role." end
         x.role=action;return true
@@ -2292,9 +2389,9 @@ local function PreviewAction(action)
     return false,"Action unavailable."
 end
 function R.PreviewAction(action)
-    local ok,why,result=PreviewAction(action)
+    local ok,why,result,notice=PreviewAction(action)
     if ok and preview then PreviewChanged() end
-    return ok,why,result
+    return ok,why,result,notice
 end
 function R.RunPlayerPreviewSelfTest(emit)
     emit=type(emit)=="function" and emit or function()end
@@ -2353,7 +2450,7 @@ function R.RunShowcaseSelfTest(emit)
                 own=PreviewMatch(y,y.bracket.Snapshot())
                 if own then break end
                 local ok,why,result=SimulatePreviewGame(y)
-                assert(ok and not result,why)
+                assert(ok and result and result.spectated,why)
             end
             assert(own,"Expected an assigned local player match")
             local ok,why,result=SimulatePreviewGame(y)
@@ -2374,6 +2471,21 @@ function R.RunShowcaseSelfTest(emit)
             end
             assert(games==7 and x.bracket.Snapshot().champion)
             assert(not SimulatePreviewGame(x))
+            local z=assert(PreparePreview(s,h,a,d,n,"host",4))
+            assert(StartPreviewBracket(z))
+            assert(StartDemo(z))
+            for i=1,7 do assert(AdvanceDemo(z)) end
+            local ok2,why2,outcome2=AdvanceDemo(z)
+            assert(ok2 and outcome2 and outcome2.spectated and outcome2.duration==8,why2)
+            assert(not z.demo)
+            local good,_,_,notice=StartOffline(z)
+            assert(good and notice.notice=="started" and z.offline.remaining==300)
+            assert(AdvanceOffline(z,60) and z.offline.remaining==240)
+            local ok3,_,_,notice2=StopOffline(z,true)
+            assert(ok3 and notice2.notice=="reconnected" and not z.offline)
+            assert(StartOffline(z))
+            local ok4,_,_,notice3=AdvanceOffline(z,300)
+            assert(ok4 and notice3.notice=="forfeited" and not z.offline)
         end)
         if ok then p=p+1 else f=f+1 end
         emit("DR | SIMULATED | "..(ok and "PASS " or "FAIL ")..client.." hosted and joined showcase draw"..(ok and "" or ": "..tostring(err)))
