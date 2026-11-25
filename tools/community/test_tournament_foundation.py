@@ -36,4 +36,16 @@ class TournamentFoundation(unittest.TestCase):
         d=read("Core/Diagnostics.lua")
         check=d.split('Check("Competitive storage / isolated lifecycle QA"',1)[1].split('Check("Competitive storage / isolated record roundtrip QA"',1)[0]
         self.assertIn('f==0 and p==22',check)
+    def test_creation_stays_local(self):
+        c=read("Core/TournamentState.lua")
+        u=read("UI/TournamentUI.lua")
+        self.assertIn("function T.ValidateDraft",c)
+        self.assertIn("function T.SaveDraft",c)
+        self.assertIn('state="draft"',c)
+        self.assertIn("discovery=false,hosting=false",c)
+        self.assertIn("T.SaveDraft(form)",u)
+        self.assertIn("W.ChoiceControl",u)
+        self.assertIn("W.OpenChoices",u)
+        self.assertIn("SetAutoFocus(false)",u)
+        self.assertIn("Draft saved for this session. Not published.",u)
 if __name__=="__main__": unittest.main()
