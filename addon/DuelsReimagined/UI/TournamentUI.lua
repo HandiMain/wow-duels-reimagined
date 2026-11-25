@@ -288,6 +288,9 @@ end
 local function Run(action,key)
     local p=action=="simulate-game" and R.PreviewSnapshot()
     local ok,why
+    if (action=="disconnect" or action=="advance-grace" or action=="reconnect") and not ns.DuelHUD.IsTournamentHUDActive() then
+        feedback="Show the tournament HUD and finish combat first.";U.Show(active or "overview");return
+    end
     if p and p.bracket and p.bracket.state=="running" and ns.DuelHUD.IsTournamentHUDActive() then
         ok,why=ns.TournamentHUD.RequestGame()
     elseif p and p.bracket and p.bracket.state=="running" then ok,why=false,"Show the tournament HUD and finish combat first."
@@ -413,6 +416,9 @@ local function RefreshTest()
     bracketGame:SetShown(not not (started and p.bracket.state=="running"))
     broadcast:SetShown(not not (started and p.bracket.state=="running"))
     local fixtureReady=started and p.bracket.state=="running" and p.selected
+    local busy=started and (p.demo or p.offline)
+    hostSim:SetEnabled(not busy);sampleGame:SetEnabled(not busy)
+    broadcast:SetEnabled(not busy)
     testDisconnect:SetShown(not not (fixtureReady and not p.demo and not p.offline))
     testAdvance:SetShown(not not (fixtureReady and p.offline))
     testReconnect:SetShown(not not (fixtureReady and p.offline))
@@ -420,6 +426,7 @@ local function RefreshTest()
     if started then broadcast.label:SetText(p.broadcast and "Exit broadcast" or "Broadcast view") end
     local feature=hosting and started and p.bracket.state=="running" and p.readyCount>1
     featurePrev:SetShown(not not feature);featureNext:SetShown(not not feature)
+    featurePrev:SetEnabled(not busy);featureNext:SetEnabled(not busy)
     myHost:SetShown(not not (player and not p.mode))
     if not started and bracketView then bracketView.Hide() end
     if hosting then

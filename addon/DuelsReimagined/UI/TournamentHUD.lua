@@ -50,6 +50,7 @@ function B.Project(p)
     elseif own then status="It's your turn!"
     elseif p.role=="host" then status="Featured match ready"
     elseif p.state=="eliminated" then status="Eliminated - watching"
+    elseif p.upcoming then status="Get ready for next round"
     else status="Waiting for your turn" end
     local demo=p.demo and p.demo.match==m.id and p.demo
     local offline=p.offline and p.offline.match==m.id and p.offline
@@ -59,7 +60,9 @@ function B.Project(p)
         local progress=math.min(1,elapsed/demo.duration)
         hpA=math.floor(100-progress*(demo.winner==left and 54 or 100))
         hpB=math.floor(100-progress*(demo.winner==right and 54 or 100))
-        status="Simulated fight"
+        if not p.broadcast and p.role=="player" and not own then
+            status=p.state=="eliminated" and "Eliminated - watching" or p.upcoming and "Get ready for next round" or "Waiting for your turn"
+        else status="Simulated fight" end
     elseif offline then
         status="Reconnecting "..string.format("%02d:%02d",math.floor(offline.remaining/60),offline.remaining%60)
     end
@@ -208,7 +211,7 @@ local function RefreshFixtureTimer(m)
             ns.TournamentRegistration.CancelBroadcastFixture();ns.DuelHUD.Refresh();return
         end
         local ok,why,result,notice=ns.TournamentRegistration.PreviewAction(action)
-        if ns.TournamentUI.RefreshActive then ns.TournamentUI.RefreshActive() end
+        if (result or notice or not ok) and ns.TournamentUI.RefreshActive then ns.TournamentUI.RefreshActive() end
         if notice and ns.Notifications and ns.Notifications.OnTournamentGrace then ns.Notifications.OnTournamentGrace(notice) end
         if ok then PresentResult(result) else
             ns.TournamentRegistration.CancelBroadcastFixture();ns.DuelHUD.Refresh()
@@ -218,6 +221,7 @@ end
 function B.GetDiagnosticResources() return {subscriptions=0,timers=fixtureTimer and 1 or 0} end
 function B.RequestGame()
     if editing or not ns.DuelHUD.IsTournamentHUDActive() or not SafeIdle() then return false,"No assigned test match." end
+    if not C_Timer or type(C_Timer.NewTimer)~="function" then return false,"Test clock unavailable." end
     local R=ns.TournamentRegistration
     local m=B.Project(R.PreviewSnapshot())
     if not m or not m.canPlay or m.demo or m.offline then return false,"No ready test match." end
@@ -304,6 +308,13 @@ function B.RunSelfTest(emit)
     return pass,fail
 end
 if ns.Diagnostics then
+    ns.Diagnostics.Register("Tournament combat information / capability inventory","deep",function()
+        local available={}
+        for _,name in ipairs({"UnitGUID","UnitHealth","UnitHealthMax","UnitHealthPercent","UnitIsConnected"}) do
+            available[#available+1]=name..": "..(type(_G[name])=="function" and "present" or "unavailable")
+        end
+        return "SKIP",table.concat(available,"\n").."\nNo verified remote combat observation or transport. Local test samples only."
+    end)
     ns.Diagnostics.Register("Tournament scoreboard / isolated projection QA","deep",function()
         local log={};local p,f=B.RunSelfTest(function(line)log[#log+1]=line end)
         return f==0 and p==2 and "PASS" or "FAIL",string.format("%d passed / %d failed (SIMULATED)\n",p,f)..table.concat(log,"\n")

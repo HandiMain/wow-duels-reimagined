@@ -511,22 +511,58 @@ function N.PreviewAchievement()
 end
 -- Preview-only warning catalogue. No automatic producer until actual duel
 -- result/recording evidence is verified. Never warn for merely targeting.
-function N.ClearTournamentPreview()
-    for i=#queue,1,-1 do if queue[i].kind=="tournament" then table.remove(queue,i) end end
-    if current and current.kind=="tournament" then Clear();Pump() end
+local tournamentEvent,tournamentAnnouncements=nil,{}
+local function TournamentMessage(m)
+    return m and (m.kind=="tournament" or m.tournamentPreview==true)
 end
-local announcedTournamentMatch
-function N.OnTournamentMatchReady(key)
-    if type(key)~="string" or announcedTournamentMatch==key then return false end
-    local p=ns.TournamentRegistration.PreviewSnapshot()
-    if not p or p.role~="player" or not p.match or p.scope~="SIMULATED" then return false end
-    -- Clear only stale tournament messages; preserve any unrelated current
-    -- notification, including its motion, expiry and sound.
-    N.ClearTournamentPreview()
-    local ok=Enqueue({id="preview:tournament-ready:"..key,kind="tournament",preview=true,
-        title="Your match is ready",body=p.match.opponent.."\nBest of "..p.match.bestOf.." - Local test only"})
-    if ok then announcedTournamentMatch=key end
+function N.ClearTournamentPreview()
+    for i=#queue,1,-1 do if TournamentMessage(queue[i]) then table.remove(queue,i) end end
+    if TournamentMessage(current) then Clear();Pump() end
+end
+local function Announce(event,key,title,body,warning)
+    if type(event)~="string" or type(key)~="string" then return false end
+    if tournamentEvent~=event then
+        tournamentEvent=event;tournamentAnnouncements={}
+        N.ClearTournamentPreview()
+    end
+    if tournamentAnnouncements[key] then return false end
+    local ok=Enqueue({id="preview:tournament:"..event..":"..key,kind=warning and "warning" or "tournament",
+        tournamentPreview=true,preview=true,title=title,body=body.."\nLocal test only"})
+    if ok then tournamentAnnouncements[key]=true end
     return ok
+end
+function N.OnTournamentProgress(p,visible)
+    if not p or p.scope~="SIMULATED" or not p.bracket then
+        if tournamentEvent then tournamentEvent=nil;tournamentAnnouncements={};N.ClearTournamentPreview() end
+        return
+    end
+    if not visible or not p.event then return end
+    local id=p.event.id
+    if p.bracket.state=="completed" and p.bracket.champion then
+        Announce(id,"champion","Tournament complete",(p.names[p.bracket.champion] or "Winner").." is champion")
+    elseif p.role=="player" and not p.broadcast then
+        if p.state=="eliminated" then
+            Announce(id,"eliminated","Tournament result","You are eliminated. Keep watching the remaining matches.")
+        elseif p.match then
+            Announce(id,"ready:"..p.match.id,"Your match is ready",p.match.opponent.."\nBest of "..p.match.bestOf)
+        elseif p.upcoming then
+            Announce(id,"upcoming:"..p.upcoming.id,"Get ready for the next round","Your opponent is being decided.")
+        end
+    end
+end
+function N.OnTournamentGrace(o)
+    if type(o)~="table" or o.scope~="SIMULATED" or not o.notice then return end
+    local p=ns.TournamentRegistration.PreviewSnapshot()
+    if not p or p.event.id~=o.event then return end
+    local name=p.names[o.player] or "Test player"
+    local key="grace:"..o.match..":"..tostring(o.sequence or 0)..":"..o.notice
+    if o.notice=="started" then
+        Announce(o.event,key,"Player disconnected",name.." has five minutes to reconnect.",true)
+    elseif o.notice=="reconnected" then
+        Announce(o.event,key,"Player reconnected",name.." is back.",false)
+    elseif o.notice=="forfeited" then
+        Announce(o.event,key,"Match forfeited",name.." did not reconnect in time.",true)
+    end
 end
 function N.PreviewTournamentReady()
     if not ready or Blocked() then return false,"Finish your duel or combat first." end

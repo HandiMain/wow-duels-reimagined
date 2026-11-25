@@ -844,15 +844,14 @@ function H.Refresh()
     sessionCache=nil
     local enabled=Settings.Get("duelHUDEnabled") and ns.Client.IsSupported()
     local d=ns.DuelDetection.GetSnapshot()
-    local p=enabled and ns.TournamentRegistration.PreviewHasBracket() and ns.TournamentRegistration.PreviewSnapshot()
-    local model=B.Project(p)
+    local p=ns.TournamentRegistration.PreviewHasBracket() and ns.TournamentRegistration.PreviewSnapshot() or nil
+    local model=enabled and B.Project(p)
     local want=model and d.state=="idle" and not d.active and not d.challenge and not Combat()
     tournamentSuspended=not not (model and not want)
     local regularWasShown=root:IsShown()
     switchingAnchor=true
-    local changed=false;local newMatch=false
+    local changed=false
     if want then
-        newMatch=model.own and tournamentKey~=model.key
         local f=B.Show(model)
         if not tournamentActive then
             tournamentActive=true;changed=true
@@ -868,7 +867,7 @@ function H.Refresh()
                 else H.Refresh() end
             end)
         end
-        tournamentKey=model.own and model.key or nil
+        tournamentKey=model.key
     else
         if tournamentActive then changed=true;StopTournament() end
         if not enabled then root:Hide()
@@ -882,11 +881,11 @@ function H.Refresh()
     end
     switchingAnchor=false
     if ns.Notifications then
-        if changed and not tournamentActive then ns.Notifications.ClearTournamentPreview() end
+        if changed and not tournamentActive and (not p or not p.bracket or p.bracket.state~="completed") then ns.Notifications.ClearTournamentPreview() end
         if changed or regularWasShown~=root:IsShown() then
             ns.Notifications.Reanchor();ns.Notifications.Refresh()
         end
-        if newMatch then ns.Notifications.OnTournamentMatchReady(model.key) end
+        ns.Notifications.OnTournamentProgress(p,enabled and (tournamentActive or p and p.bracket and p.bracket.state=="completed"))
     end
 end
 function H.InvalidateRank()

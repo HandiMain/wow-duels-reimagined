@@ -2095,6 +2095,20 @@ local function PreviewMatch(x,view)
         end
     end
 end
+local function UpcomingRound(x,view)
+    if x.role~="player" or not view or view.state~="running" or PreviewMatch(x,view) then return nil end
+    for r=#view.rounds-1,1,-1 do
+        for i,m in ipairs(view.rounds[r]) do
+            if m.state=="done" and m.winner==x.player.guid then
+                local nextMatch=view.rounds[r+1][math.ceil(i/2)]
+                if nextMatch and nextMatch.state=="waiting" then
+                    return {id=nextMatch.id,round=r+1,roundCount=#view.rounds}
+                end
+                return nil
+            end
+        end
+    end
+end
 local function ReadyMatches(view)
     local rows={}
     if view and view.state=="running" then
@@ -2234,7 +2248,7 @@ function R.PreviewSnapshot()
         roster=x.role=="host" and rows or nil,member=member,now=x.now,bracket=bracket,
         match=PreviewMatch(x,bracket),names=names,mode=x.mode,broadcast=x.broadcast==true,
         featured=featured and featured.id,selected=chosen and chosen.id,readyCount=#ready,
-        demo=Copy(x.demo),offline=Copy(x.offline)}
+        demo=Copy(x.demo),offline=Copy(x.offline),upcoming=UpcomingRound(x,bracket)}
 end
 local function FixtureWinner(x,v,m)
     local game=m.wins[1]+m.wins[2]+1
@@ -2311,10 +2325,12 @@ local function StartOffline(x)
     if not m then return false,"No ready test match." end
     local loser=m.a==x.player.guid and m.b or m.b==x.player.guid and m.a or m.b
     local other=loser==m.a and m.b or m.a
-    x.offline={match=m.id,player=loser,other=other,remaining=300}
+    x.graceSequence=(x.graceSequence or 0)+1
+    x.offline={match=m.id,player=loser,other=other,remaining=300,sequence=x.graceSequence}
     local o=ObservePreview(x,{[loser]="offline",[other]="online"})
     if not o then x.offline=nil;return false,"Test disconnect unavailable." end
     x.offline.remaining=o.remaining
+    o.sequence=x.offline.sequence
     return true,"Simulated disconnect - five minute grace started.",nil,o
 end
 local function AdvanceOffline(x,seconds)
@@ -2328,6 +2344,7 @@ local function AdvanceOffline(x,seconds)
         if not o then x.offline=nil;return false,"Test observation interrupted." end
         d.remaining=o.remaining
         if o.notice=="forfeited" then
+            o.sequence=d.sequence
             x.offline=nil;return true,"Simulated disconnect forfeit confirmed.",nil,o
         end
     end
@@ -2337,6 +2354,7 @@ local function StopOffline(x,connected)
     local d=x.offline
     if not d then return false,"No disconnect test." end
     local o=ObservePreview(x,{[d.player]=connected and "online" or "unknown",[d.other]="online"})
+    if o then o.sequence=d.sequence end
     x.offline=nil
     return true,connected and "Simulated player reconnected." or "Test observation interrupted.",nil,o
 end
