@@ -83,6 +83,7 @@ end
 
 function Settings.GetDefault(key)
     if key=="duelCountdownStyle" then return "impact" end
+    if key=="duelCountdownFont" then return "builtin:Morpheus" end
     if key == "duelHUDScale" or key == "duelHUDOpacity" then return 1 end
     if key == "menuScale" then return 1 end
     if key == "fontChoice" then return "default" end
@@ -369,8 +370,16 @@ function Settings.SetWorkspace(section, page, scroll)
     db.lastWorkspace = { section = section, page = page, scroll = offset }
 end
 
+local function ValidCountdownFont(value)
+    return type(value)=="string" and #value<=128 and
+        (value:match("^builtin:.+") or value:match("^lsm:.+"))~=nil
+end
 function Settings.Get(key)
     local db = ReadDB()
+    if key=="duelCountdownFont" then
+        local v=db and db[key]
+        return ValidCountdownFont(v) and v or Settings.GetDefault(key)
+    end
     if key=="duelCountdownStyle" then
         local v=db and db[key]
         return type(v)=="string" and allowedCountdownStyles[v] and v or "impact"
@@ -494,6 +503,14 @@ function Settings.ResetAccessPositions()
 end
 
 function Settings.Set(key, value)
+    if key=="duelCountdownFont" then
+        if not ValidCountdownFont(value) then return end
+        local db=WriteDB();if db[key]==value then return end
+        db[key]=value
+        if ns.DuelCountdown then ns.DuelCountdown.Refresh() end
+        if ns.Options and ns.Options.Refresh then ns.Options.Refresh() end
+        return
+    end
     if key=="duelCountdownStyle" then
         if type(value)~="string" or not allowedCountdownStyles[value] then return end
         local db=WriteDB();if db[key]==value then return end
@@ -674,6 +691,7 @@ loader:SetScript("OnEvent", function(self, _, loadedName)
     db.fontScale = Settings.Get("fontScale")
     db.fontOutline = Settings.Get("fontOutline")
     db.duelCountdownStyle = Settings.Get("duelCountdownStyle")
+    db.duelCountdownFont = Settings.Get("duelCountdownFont")
     for key in pairs(accessDefaults) do db[key] = Settings.Get(key) end
     if type(db.patchNotesSeenId) ~= "string" or
         #db.patchNotesSeenId > 128 then

@@ -34,11 +34,13 @@ function Fonts.Resolve(key)
     return nil
 end
 
-function Fonts.GetChoices()
+function Fonts.GetChoices(selected, omitDefault)
     local list, seen = {}, {}
     for _, entry in ipairs(builtins) do
-        list[#list + 1] = { key = entry.key, label = entry.label }
-        seen[entry.key] = true
+        if not omitDefault or entry.key~="default" then
+            list[#list + 1] = { key = entry.key, label = entry.label }
+            seen[entry.key] = true
+        end
     end
     local lib = Library()
     if lib and type(lib.List) == "function" then
@@ -59,7 +61,7 @@ function Fonts.GetChoices()
         return a.label:lower() < b.label:lower()
     end)
     -- Keep stored third-party selections visible when their addon is absent.
-    local selected = ns.Settings and ns.Settings.Get("fontChoice") or "default"
+    selected = selected or (ns.Settings and ns.Settings.Get("fontChoice")) or "default"
     if not seen[selected] then
         list[#list + 1] = { key = selected, label = selected:gsub("^lsm:", "") ..
             " (unavailable)" }

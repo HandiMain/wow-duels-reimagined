@@ -13,7 +13,7 @@ local function Frame(parent)
     function f:SetShown(v)self.shown=v end
     function f:IsShown()return self.shown end
     function f:SetText(v)self.text=v end
-    function f:SetFont()return true end
+    function f:SetFont(path,size)if path=="bad-font" then return false end;self.font=path;self.fontSize=size;return true end
     function f:SetScale(v)self.scale=v end
     function f:SetAlpha(v)self.alpha=v end
     function f:SetPoint(...)self.point={...} end
@@ -48,6 +48,15 @@ local snap={scope="LOCAL",state="idle"}
 local callback
 local ns={Settings={Get=function(k)return prefs[k] end},Client={IsSupported=function()return true end},
     DuelDetection={GetSnapshot=function()return snap end,Subscribe=function(fn)callback=fn;return noop end}}
+local available=true
+LibStub=function(name,silent)
+    assert(name=="LibSharedMedia-3.0" and silent==true)
+    if available then return {
+        Fetch=function(_,kind,name) if kind=="font" then return ({["Shared Face"]="shared-face",["Bad Font"]="bad-font"})[name] end end,
+        List=function()return {"Shared Face","Bad Font"} end,
+    } end
+end
+assert(loadfile("addon/DuelsReimagined/UI/Fonts.lua"))("DuelsReimagined",ns)
 assert(loadfile("addon/DuelsReimagined/UI/Motion.lua"))("DuelsReimagined",ns)
 local driver=frames[#frames]
 assert(loadfile("addon/DuelsReimagined/UI/DuelCountdown.lua"))("DuelsReimagined",ns)
@@ -115,3 +124,34 @@ for _,id in ipairs({"impact","slash","forge","arcane","thunder","cinematic","sha
 end
 assert(#frames==count,"styles must not allocate new frames")
 print("Countdown presets: PASS (nine distinct palettes and entrances, stage timing, reduced motion, no frame growth)")
+
+-- Direct scoped lookup: no theme calls, shared font fallback, and the
+-- interface's unavailable selection does not leak into the countdown list.
+prefs.fontChoice="lsm:Interface Only";prefs.matchFont=true
+prefs.duelCountdownStyle="impact";prefs.duelCountdownFont="lsm:Shared Face"
+ns.Theme={Font=function()error("theme should never resolve countdown glyphs")end}
+STANDARD_TEXT_FONT="unwanted-global-override"
+local choices=ns.Fonts.GetChoices(prefs.duelCountdownFont,true)
+local shared=false
+for _,choice in ipairs(choices) do
+    assert(choice.key~="default" and choice.key~=prefs.fontChoice)
+    if choice.key=="lsm:Shared Face" then shared=true end
+end
+assert(shared)
+assert(V.Preview() and front.font=="shared-face" and front.fontSize==156)
+prefs.fontChoice="builtin:Skurri"
+Advance(now+3.01);assert(front.font=="shared-face" and front.fontSize==100)
+V.Refresh()
+available=false
+local missing=false
+for _,choice in ipairs(ns.Fonts.GetChoices(prefs.duelCountdownFont,true)) do
+    if choice.key=="lsm:Shared Face" then missing=choice.label:find("unavailable",1,true)~=nil end
+end
+assert(missing and V.Preview() and front.font=="Fonts\\MORPHEUS.TTF")
+V.Refresh()
+available=true;prefs.duelCountdownFont="lsm:Bad Font"
+assert(V.Preview() and front.font=="Fonts\\MORPHEUS.TTF");V.Refresh()
+prefs.duelCountdownFont="builtin:Skurri"
+assert(V.Preview() and front.font=="Fonts\\SKURRI.TTF");V.Refresh()
+assert(#frames==count and not ns.Motion.GetRuntimeState().driver)
+print("Countdown font: PASS (independent selection, shared discovery, missing/rejected media fallback, no theme override)")

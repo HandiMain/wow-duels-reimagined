@@ -185,6 +185,17 @@ Settings.Reset("duelCountdownStyle")
 Check(not Settings.IsModified("duelCountdownStyle") and Settings.Get("duelCountdownStyle")=="impact","style reset")
 _G.DuelsReimaginedDB.duelCountdownStyle="invalid"
 Check(Settings.Get("duelCountdownStyle")=="impact","invalid saved style fallback")
+Check(Settings.Get("duelCountdownFont")=="builtin:Morpheus","countdown font default")
+local priorInterfaceFont=Settings.Get("fontChoice")
+Settings.Set("duelCountdownFont","lsm:Other font")
+Check(Settings.Get("duelCountdownFont")=="lsm:Other font" and Settings.IsModified("duelCountdownFont"),"separate font choice")
+Check(Settings.Get("fontChoice")==priorInterfaceFont,"interface choice unaffected")
+Settings.Set("duelCountdownFont","not-a-font-key")
+Check(Settings.Get("duelCountdownFont")=="lsm:Other font","invalid font choice rejected")
+Settings.Reset("duelCountdownFont")
+Check(Settings.Get("duelCountdownFont")=="builtin:Morpheus" and not Settings.IsModified("duelCountdownFont"),"countdown font reset")
+_G.DuelsReimaginedDB.duelCountdownFont={}
+Check(Settings.Get("duelCountdownFont")=="builtin:Morpheus","invalid saved font fallback")
 _G.DuelsReimaginedDB=originalDB
 ns.AccessIcons, ns.Options, ns.Header = nil,nil,nil
 print("Independent access settings and default-on Peek: PASS")

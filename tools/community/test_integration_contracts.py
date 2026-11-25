@@ -75,7 +75,7 @@ class IntegrationContracts(unittest.TestCase):
         self.assertIn('Settings.Set("practiceDuels",practice)',read("UI/DuelHUD.lua"))
         for key in ("iconMode", "widgetSize", "widgetTransparency",
                     "fontChoice", "fontScale", "fontOutline", "minimapButton",
-                    "resetIconPositions", "duelHUDScale", "duelHUDOpacity", "resetDuelHUDPosition", "duelCountdownStyle"):
+                    "resetIconPositions", "duelHUDScale", "duelHUDOpacity", "resetDuelHUDPosition", "duelCountdownStyle", "duelCountdownFont"):
             self.assertIn('RegisterOption("' + key + '"', options)
         self.assertIn('RegisterOption(key, name, detail, pageKey, row)', options)
         self.assertIn('ns.Search.Register("page:" .. section.key', read("UI/Navigation.lua"))

@@ -350,9 +350,15 @@ local countdownChoice=Widgets.ChoiceRow(countdownCard,"Animation style",
     function() Settings.Reset("duelCountdownStyle") end,false)
 MarkPosition(countdownChoice,countdownCard,-125)
 RegisterOption("duelCountdownStyle","Animation style","Choose a cinematic countdown style","combatvisuals",countdownChoice)
+local countdownFont=Widgets.ChoiceRow(countdownCard,"Countdown font",
+    "Choose a Blizzard or shared font for the countdown only. Interface font matching never overrides it.",
+    function(key) Settings.Set("duelCountdownFont",key) end,
+    function() Settings.Reset("duelCountdownFont") end,false)
+MarkPosition(countdownFont,countdownCard,-196)
+RegisterOption("duelCountdownFont","Countdown font","Choose a separate Blizzard or shared font for combat visuals","combatvisuals",countdownFont)
 local countdownPreview=Style.Action(countdownCard,"Preview countdown","footer")
 countdownPreview:SetHeight(30)
-MarkPosition(countdownPreview,countdownCard,-196)
+MarkPosition(countdownPreview,countdownCard,-267)
 countdownPreview:SetScript("OnClick",function()
     local ok,why=ns.DuelCountdown.Preview()
     if not ok and ns.Feedback then ns.Feedback.Toast(why,countdownPreview) end
@@ -765,7 +771,7 @@ if warConsentRow then interfaceGroups[1].entries[#interfaceGroups[1].entries+1]=
 function appearance:Relayout(width) LayoutPage(self, appearanceGroups, width) end
 function interface:Relayout(width) LayoutPage(self, interfaceGroups, width) end
 function widgetPage:Relayout(width) LayoutPage(self, widgetGroups, width) end
-local combatGroups={{card=countdownCard,entries={{widget=countdownRow},{widget=countdownChoice},{widget=countdownPreview,height=30}}}}
+local combatGroups={{card=countdownCard,entries={{widget=countdownRow},{widget=countdownChoice},{widget=countdownFont},{widget=countdownPreview,height=30}}}}
 function combatVisuals:Relayout(width) LayoutPage(self,combatGroups,width) end
 appearance:Relayout(appearance:GetWidth())
 interface:Relayout(interface:GetWidth())
@@ -820,6 +826,10 @@ function Options.Refresh()
     countdownChoice:SetAvailable(true)
     countdownChoice:SetModified(Settings.IsModified("duelCountdownStyle"))
     countdownChoice.resetIcon:SetVertexColor(unpack(C.gold))
+    countdownFont:SetChoices(Fonts.GetChoices(Settings.Get("duelCountdownFont"),true),Settings.Get("duelCountdownFont"))
+    countdownFont:SetAvailable(true)
+    countdownFont:SetModified(Settings.IsModified("duelCountdownFont"))
+    countdownFont.resetIcon:SetVertexColor(unpack(C.gold))
     local matching = ready and Settings.Get("matchFont")
     fontChoice:SetChoices(Fonts.GetChoices(), Settings.Get("fontChoice"),
         matching and "Managed by EllesmereUI" or nil)

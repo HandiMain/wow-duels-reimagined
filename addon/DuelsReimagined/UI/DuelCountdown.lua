@@ -73,11 +73,31 @@ local function Live(s,id)
 end
 local function Font(value)
     local size=value=="FIGHT!" and 100 or 156
-    for _,f in ipairs(layers) do
-        if not f:SetFont("Fonts\\MORPHEUS.TTF",size,"OUTLINE") then
-            f:SetFont(STANDARD_TEXT_FONT or "Fonts\\FRIZQT__.TTF",size,"OUTLINE")
+    -- These private display glyphs are not registered with Style/Theme.
+    -- Resolve the player's explicit choice directly; never use the global
+    -- theme or a provider's automatic font override (even as fallback).
+    local key=Settings.Get("duelCountdownFont") or "builtin:Morpheus"
+    local original="Fonts\\MORPHEUS.TTF"
+    local path=ns.Fonts.Resolve(key) or original
+    local function Apply(face,pt)
+        for _,f in ipairs(layers) do
+            local ok,result=pcall(f.SetFont,f,face,pt,"OUTLINE")
+            if not ok or not result then return false end
         end
-        f:SetText(value)
+        return true
+    end
+    if not Apply(path,size) then
+        path=original
+        if not Apply(path,size) then path="Fonts\\FRIZQT__.TTF";Apply(path,size) end
+    end
+    for _,f in ipairs(layers) do f:SetText(value) end
+    -- Preserve the approved Morpheus dimensions. Exceptionally wide
+    -- alternate fonts fit within the original 440-unit lettering region.
+    if path~=original then
+        local width=Read(front.GetStringWidth,front)
+        if type(width)=="number" and width>420 and width<math.huge then
+            Apply(path,math.max(12,math.floor(size*420/width)))
+        end
     end
 end
 local function Lerp(a,b,p) return a+(b-a)*math.max(0,math.min(1,p)) end
