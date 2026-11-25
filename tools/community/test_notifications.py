@@ -80,13 +80,17 @@ class NotificationTests(unittest.TestCase):
 
     def test_warning_compact_art_and_preview(self):
         import hashlib,struct
+        sound=(ROOT/"Media/Sounds/Notifications/Warning.mp3").read_bytes()
+        self.assertEqual(len(sound),39288)
+        self.assertEqual(hashlib.sha1(b"blob "+str(len(sound)).encode()+b"\0"+sound).hexdigest(),
+                         "11bf2980e268ab6d738878d92a28429ae11f030e")
         art=(ROOT/"Media/Skin/WarningNotificationArt.png").read_bytes()
         self.assertEqual(struct.unpack(">II",art[16:24]),(1024,256))
         self.assertEqual(hashlib.sha1(b"blob "+str(len(art)).encode()+b"\0"+art).hexdigest(),"d40e0f76abfdc885ea5fb71321cc625611f18003")
         u=read("UI/Notifications.lua")
         for token in ('WARN_WIDTH,WARN_BODY,WARN_EXTENSION=320,72,14',
                       'pcall(PlaySoundFile,WARNING_SOUND,"SFX")',
-                      'local WARNING_SOUND_SECONDS=nil','function N.PreviewWarning()',
+                      'local WARNING_SOUND_SECONDS=1.227750','WARNING_SOUND_SECONDS+2','function N.PreviewWarning()',
                       'id="preview:warning",kind="warning",preview=true',
                       'Visible(warning,warned);Visible(warningConnector,warned);Visible(warningClose,warned)'):
             self.assertIn(token,u)

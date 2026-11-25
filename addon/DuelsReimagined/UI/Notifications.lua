@@ -16,8 +16,8 @@ local ACHIEVEMENT_SOUND_SECONDS=6.426094
 local ACH_BODY,ACH_CONNECTOR,ACH_OVERLAP=140,51,19
 local WARNING_ART="Interface\\AddOns\\DuelsReimagined\\Media\\Skin\\WarningNotificationArt.png"
 local WARNING_SOUND="Interface\\AddOns\\DuelsReimagined\\Media\\Sounds\\Notifications\\Warning.mp3"
--- Original sound bytes are not available yet. Do not play a substitute.
-local WARNING_SOUND_SECONDS=nil
+-- Original MP3 measured with ffprobe: 1.227750 seconds.
+local WARNING_SOUND_SECONDS=1.227750
 local WARN_WIDTH,WARN_BODY,WARN_EXTENSION=320,72,14
 local card=CreateFrame("Frame","DuelsReimaginedNotificationCard",UIParent)
 card:SetSize(WIDTH,BODY+CONNECTOR);card:SetFrameStrata("HIGH")
@@ -179,7 +179,6 @@ local function Play()
     local now=Plain(GetTime)
     -- Prevent overlap even when the client does not return a sound handle.
     if type(now)~="number" or now-lastSound<4.1 or type(PlaySoundFile)~="function" then return end
-    if current and current.kind=="warning" and not WARNING_SOUND_SECONDS then return end
     local path=current and (current.kind=="promotion" and PROMOTION_SOUND or current.kind=="achievement" and ACHIEVEMENT_SOUND or current.kind=="warning" and WARNING_SOUND) or SOUND
     local ok,played,id
     if path==SOUND then ok,played,id=pcall(PlaySoundFile,SOUND,"SFX")
@@ -355,7 +354,7 @@ local function Paint(m)
 end
 local function StartExpiry()
     if not current or (current.kind~="promotion" and current.kind~="achievement" and current.kind~="warning") or not C_Timer or not C_Timer.NewTimer then return end
-    local seconds=expiryRemaining or (current.kind=="warning" and ((WARNING_SOUND_SECONDS or 4)+2) or current.kind=="achievement" and ACHIEVEMENT_SOUND_SECONDS+2 or PROMOTION_SOUND_SECONDS+2)
+    local seconds=expiryRemaining or (current.kind=="warning" and (WARNING_SOUND_SECONDS+2) or current.kind=="achievement" and ACHIEVEMENT_SOUND_SECONDS+2 or PROMOTION_SOUND_SECONDS+2)
     local now=Plain(GetTime)
     expiryAt=type(now)=="number" and now+seconds or nil
     local m=current

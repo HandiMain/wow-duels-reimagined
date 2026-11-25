@@ -46,7 +46,7 @@ _G.C_Timer={After=function(_,fn)timers[#timers+1]=fn end,NewTimer=function(secon
 end}
 local played,stopped,lastPlayedPath=0,0,nil
 _G.PlaySoundFile=function(path,channel)
-    assert((path:find("General.mp3",1,true) or path:find("RankPromotion.mp3",1,true) or path:find("Achievement.mp3",1,true)) and channel=="SFX")
+    assert((path:find("General.mp3",1,true) or path:find("RankPromotion.mp3",1,true) or path:find("Achievement.mp3",1,true) or path:find("Warning.mp3",1,true)) and channel=="SFX")
     lastPlayedPath=path;played=played+1;return true,played
 end
 _G.StopSound=function()stopped=stopped+1 end
@@ -190,16 +190,21 @@ prefs.notificationEnabled=true;now=250;local beforeWarningSound=played
 assert(N.PreviewWarning() and card:IsShown())
 assert(card:GetWidth()==320 and card:GetHeight()==86 and card.point[2]==hud)
 assert(not buttons["Got it"]:IsShown() and not buttons["What's new"]:IsShown())
-assert(played==beforeWarningSound,"missing original warning audio must not play a substitute")
-assert(expiry[#expiry].seconds==6 and not N.PreviewWarning())
+assert(played==beforeWarningSound+1 and lastPlayedPath:find("Warning.mp3",1,true))
+assert(math.abs(expiry[#expiry].seconds-3.227750)<.001 and not N.PreviewWarning())
 now=252;combat=true;fire("PLAYER_REGEN_DISABLED")
 assert(not card:IsShown() and expiry[#expiry].cancelled)
 combat=false;fire("PLAYER_REGEN_ENABLED")
-assert(card:IsShown() and expiry[#expiry].seconds==4)
+assert(card:IsShown() and played==beforeWarningSound+1 and math.abs(expiry[#expiry].seconds-1.227750)<.001)
 hud:Hide();hud.scripts.OnHide();assert(not card:IsShown() and not N.PreviewWarning())
 hud:Show();hud.scripts.OnShow()
 now=260;assert(N.PreviewWarning() and card:IsShown())
+assert(played==beforeWarningSound+2 and lastPlayedPath:find("Warning.mp3",1,true))
 expiry[#expiry].fn();flush();assert(not card:IsShown())
+now=264;prefs.notificationSounds=false;assert(N.PreviewWarning() and card:IsShown())
+assert(played==beforeWarningSound+2 and math.abs(expiry[#expiry].seconds-3.227750)<.001)
+expiry[#expiry].fn();flush();assert(not card:IsShown())
+prefs.notificationSounds=true
 now=270;assert(N.PreviewAchievement() and card:GetWidth()==410 and card:GetHeight()==172)
 prefs.notificationEnabled=false;N.Refresh();assert(not card:IsShown() and N.GetDiagnosticResources().timers==0)
-print("Warning notification mock: PASS (compact layout, quiet placeholder, expiry, pause, visibility, shared size restore)")
+print("Warning notification mock: PASS (compact layout, original SFX, sound preference, expiry, no replay on resume, visibility, shared size restore)")
