@@ -132,6 +132,301 @@ local function Cache(s,clock)
     end
     return D
 end
+-- Stage 5B1: isolated, bounded request/reply protocol. The registration
+-- engine and cache above remain the sole owners. Resolvers are fixture
+-- observations, NOT identity authentication from live addon messages.
+local MAX_BODY,MAX_PARTS,CHUNK=237,12,120
+local function Split(s)
+    local out={}
+    for v in (s.."|"):gmatch("(.-)|") do out[#out+1]=v end
+    return out
+end
+local function Packet(s)
+    return type(s)=="string" and #s>0 and #s<=MAX_BODY and not s:find("[%c]")
+end
+local function Number(s,lo,hi)
+    local n=tonumber(s)
+    if Whole(n,lo,hi) and tostring(n)==s then return n end
+end
+local function Hex(s)
+    return (s:gsub(".",function(c)return string.format("%02x",c:byte())end))
+end
+local function Unhex(s)
+    if #s%2~=0 or s:find("[^0-9a-f]") then return nil end
+    return (s:gsub("..",function(c)return string.char(tonumber(c,16))end))
+end
+local function EncodeAd(ad)
+    if not ad then return "-" end
+    local d=ad.draft
+    return table.concat({ad.organizer,ad.publishedAt,ad.serial,ad.revision,ad.state,ad.count,
+        d.name,d.location,d.startUTC,d.capacity,d.bestOf,d.closeBefore,d.minLevel,d.maxLevel,d.rules},"|")
+end
+local function DecodeAd(scope,owner,body)
+    local a=Split(body)
+    if #a~=15 then return nil end
+    local stamp=Number(a[2],1,4102444800)
+    local serial=Number(a[3],1,2147483647)
+    local rev=Number(a[4],1,2147483647)
+    local count=Number(a[6],0,32)
+    local capacity,best,lead=Number(a[10],4,32),Number(a[11],1,5),Number(a[12],0,60)
+    local lo,hi=Number(a[13],0,255),Number(a[14],0,255)
+    if not stamp or not serial or not rev or not count or not capacity or not best or not lead or not lo or not hi then return nil end
+    local draft=T.ValidateDraft(scope.client,{name=a[7],location=a[8],startUTC=a[9],capacity=capacity,bestOf=best,
+        closeBefore=lead,minLevel=lo==0 and "" or a[13],maxLevel=hi==0 and "" or a[14],rules=a[15]},
+        stamp,scope.region,scope.ruleset,scope.faction)
+    if not draft then return nil end
+    local ad={scope="SIMULATED",version=1,id=ID(owner,stamp,serial),owner=owner,organizer=a[1],client=scope.client,
+        region=scope.region,ruleset=scope.ruleset,faction=scope.faction,state=a[5],publishedAt=stamp,
+        serial=serial,revision=rev,count=count,draft=draft}
+    if EncodeAd(ad)==body then return ad end
+end
+local function Fragments(key,seq,body)
+    local encoded=Hex(body)
+    local total=math.ceil(#encoded/CHUNK)
+    if total<1 or total>MAX_PARTS then return nil end
+    local out={}
+    for i=1,total do
+        local packet=table.concat({"F",key,seq,i,total,encoded:sub((i-1)*CHUNK+1,i*CHUNK)},"|")
+        if not Packet(packet) then return nil end
+        out[i]=packet
+    end
+    return out
+end
+-- Only a verified adapter may supply the mapping sender -> observed actor.
+-- No caller may turn an untrusted packet GUID/name/level into this mapping.
+local function WireHost(scope,host,engine,resolve)
+    local key=P.Key(scope)
+    local receipts,n={},0
+    local D={}
+    function D.Receive(sender,body)
+        if not Packet(body) then return nil end
+        local actor=resolve(sender)
+        if not Actor(scope,actor) or actor.guid==host.guid then return nil end
+        local a=Split(body)
+        local seq=Number(a[3],1,2147483647)
+        if a[2]~=key or not seq then return nil end
+        local query=a[1]=="Q" and #a==3
+        local mutation=a[1]=="M" and #a==5 and (a[4]=="J" or a[4]=="L" or a[4]=="C")
+        if not query and not mutation then return nil end
+        local old=receipts[actor.guid]
+        if old then
+            if seq<old.seq then return nil end
+            if seq==old.seq then
+                if old.body==body then return Copy(old.reply) end
+                return nil
+            end
+        elseif n>=64 then return nil end
+        local ad=engine.Ad()
+        local reply
+        if query then
+            reply=Fragments(key,seq,EncodeAd(ad))
+        else
+            if not ad or ad.id~=a[5] or ad.state~="open" then return nil end
+            local ok
+            if a[4]=="J" then ok=engine.Join(ad.id,actor.guid,actor)
+            elseif a[4]=="L" then ok=engine.Leave(ad.id,actor.guid)
+            else ok=engine.CheckIn(ad.id,actor.guid) end
+            local status="none"
+            for _,member in ipairs(engine.Roster(host.guid)) do
+                if member.guid==actor.guid then status=member.checkedIn and "checked" or "registered";break end
+            end
+            reply={table.concat({"A",key,seq,a[4],ad.id,engine.Ad().revision,ok and "1" or "0",status},"|")}
+            if not Packet(reply[1]) then return nil end
+        end
+        if not reply then return nil end
+        if not old then n=n+1 end
+        receipts[actor.guid]={seq=seq,body=body,reply=Copy(reply)}
+        return reply
+    end
+    return D
+end
+-- One outstanding request and one commitment across all known organizers.
+-- A lost mutation acknowledgement is not a rejection or permission to rejoin.
+local function WireClient(scope,cache,clock,resolve)
+    local key=P.Key(scope)
+    local D,pending,commitment,seq={},nil,nil,0
+    local function Expire()
+        local now=Now(clock)
+        if pending and pending.op=="Q" and now and now>=pending.deadline then pending=nil end
+        return now
+    end
+    local function Begin(owner,op,id)
+        local now=Expire()
+        if pending or not now or not Guid(owner) or seq>=2147483647 then return nil end
+        seq=seq+1
+        local body=op=="Q" and table.concat({"Q",key,seq},"|") or table.concat({"M",key,seq,op,id},"|")
+        if not Packet(body) then return nil end
+        pending={owner=owner,op=op,id=id,seq=seq,body=body,deadline=now+30,parts={},count=0}
+        return body
+    end
+    function D.Query(owner) return Begin(owner,"Q") end
+    function D.Join(owner,id)
+        if commitment then return nil end
+        local found
+        for _,ad in ipairs(cache.Browse()) do if ad.owner==owner and ad.id==id then found=true;break end end
+        if not found then return nil end
+        local body=Begin(owner,"J",id)
+        if body then commitment={owner=owner,id=id,status="pending"} end
+        return body
+    end
+    function D.Action(op)
+        if not commitment or commitment.status=="pending" or (op~="L" and op~="C") then return nil end
+        return Begin(commitment.owner,op,commitment.id)
+    end
+    function D.Retry()
+        Expire()
+        return pending and pending.body
+    end
+    function D.Status() return Copy(commitment) end
+    function D.Receive(sender,body)
+        local now=Expire()
+        if not pending or not now or not Packet(body) then return false end
+        local actor=resolve(sender)
+        if not Actor(scope,actor) or actor.guid~=pending.owner then return false end
+        local a=Split(body)
+        if a[2]~=key or Number(a[3],1,2147483647)~=pending.seq then return false end
+        if pending.op=="Q" then
+            if a[1]~="F" or #a~=6 then return false end
+            local i,total=Number(a[4],1,MAX_PARTS),Number(a[5],1,MAX_PARTS)
+            local fragment=a[6]
+            if not i or not total or i>total or #fragment<2 or #fragment>CHUNK
+                or (i<total and #fragment~=CHUNK) or not Unhex(fragment) then return false end
+            if pending.total and pending.total~=total then pending=nil;return false end
+            pending.total=total
+            local old=pending.parts[i]
+            if old and old~=fragment then pending=nil;return false end
+            if not old then pending.parts[i]=fragment;pending.count=pending.count+1 end
+            if pending.count<total then return true,"partial" end
+            local decoded=Unhex(table.concat(pending.parts))
+            local owner=pending.owner;pending=nil
+            if decoded=="-" then return true,"no_event" end
+            local ad=decoded and DecodeAd(scope,owner,decoded)
+            if not ad or not cache.Accept(owner,ad) then return false end
+            return true,"advertisement"
+        end
+        if a[1]~="A" or #a~=8 or a[4]~=pending.op or a[5]~=pending.id
+            or not Number(a[6],1,2147483647) or (a[7]~="1" and a[7]~="0")
+            or (a[8]~="none" and a[8]~="registered" and a[8]~="checked") then return false end
+        if not commitment or commitment.owner~=actor.guid or commitment.id~=pending.id then return false end
+        local op,status,ok=pending.op,a[8],a[7]=="1"
+        if ok and ((op=="J" and status=="none") or (op=="L" and status~="none") or (op=="C" and status~="checked")) then return false end
+        pending=nil
+        if status=="none" then commitment=nil else commitment.status=status end
+        return true,ok and "confirmed" or "refused"
+    end
+    return D
+end
+function R.RunExchangeSelfTest(emit)
+    emit=type(emit)=="function" and emit or function()end
+    local p,f=0,0
+    local function Case(label,fn)
+        local ok,err=pcall(fn);if ok then p=p+1 else f=f+1 end
+        emit("DR | SIMULATED | "..(ok and "PASS " or "FAIL ")..label..(ok and "" or ": "..tostring(err)))
+    end
+    for _,client in ipairs({"forever","retail"}) do
+        local function Fixture()
+            local s={client=client,region="EU",ruleset=client=="forever" and "pvp" or "retail",faction="Alliance"}
+            local n=1795622400
+            local function A(id) local a=Copy(s);a.guid="Player-1-"..id;a.name="Test "..id;a.level=30;return a end
+            local h,a,other=A("HOST"),A("PLAYER"),A("OTHER")
+            h.name=string.rep("H",160)
+            local foreign=A("FOREIGN");foreign.region="US"
+            local observed={host=h,player=a,other=other,foreign=foreign}
+            local function Resolve(sender)return observed[sender] end
+            local clock=function()return n end
+            local d=T.DraftDefaults();d.name="Test Cup";d.location="Meeting place";d.startUTC="2026-11-25 18:00"
+            d.name=string.rep("N",60);d.location=string.rep("L",100)
+            d.rules=string.rep("a",160);d.capacity=4
+            d=assert(T.ValidateDraft(client,d,n,s.region,s.ruleset,s.faction))
+            local e=assert(Host(s,h,clock));local ad=assert(e.Publish(h.guid,d))
+            local e2=assert(Host(s,other,clock));local ad2=assert(e2.Publish(other.guid,d))
+            local c=assert(Cache(s,clock))
+            return {s=s,h=h,a=a,other=other,ad=ad,ad2=ad2,e=e,e2=e2,c=c,
+                hwire=WireHost(s,h,e,Resolve),otherWire=WireHost(s,other,e2,Resolve),
+                player=WireClient(s,c,clock,Resolve),time=function(v)n=v end}
+        end
+        local function Deliver(x,wire,owner,sender,request)
+            local frames=assert(wire.Receive("player",request))
+            for _,packet in ipairs(frames) do assert(#packet+3<=240);assert(x.player.Receive(sender,packet)) end
+        end
+        local function Discover(x)
+            Deliver(x,x.hwire,x.h.guid,"host",assert(x.player.Query(x.h.guid)))
+            Deliver(x,x.otherWire,x.other.guid,"other",assert(x.player.Query(x.other.guid)))
+            assert(#x.c.Browse()==2)
+        end
+        Case(client.." bounded discovery assembles reverse fragments and rejects wrong sender",function()
+            local x=Fixture();local q=assert(x.player.Query(x.h.guid))
+            assert(not x.hwire.Receive("unknown",q) and not x.hwire.Receive("foreign",q))
+            assert(not x.hwire.Receive("player",q:gsub(":EU:",":US:")))
+            local frames=assert(x.hwire.Receive("player",q));assert(#frames>1)
+            assert(not x.player.Receive("other",frames[1]) and #x.c.Browse()==0)
+            for i=#frames,1,-1 do
+                assert(#frames[i]+3<=240 and x.player.Receive("host",frames[i]))
+                if i>1 then assert(#x.c.Browse()==0 and x.player.Receive("host",frames[i])) end
+            end
+            assert(#x.c.Browse()==1 and Equal(x.c.Browse()[1],x.ad))
+            assert(not x.player.Receive("host",frames[1]))
+        end)
+        Case(client.." conflicting and expired discovery cannot populate cache",function()
+            local x=Fixture();local q=assert(x.player.Query(x.h.guid));local frames=assert(x.hwire.Receive("player",q))
+            assert(x.player.Receive("host",frames[1]))
+            local last=frames[1]:sub(-1);local changed=frames[1]:sub(1,-2)..(last=="0" and "1" or "0")
+            assert(not x.player.Receive("host",changed) and #x.c.Browse()==0)
+            local q2=assert(x.player.Query(x.h.guid));local f2=assert(x.hwire.Receive("player",q2))
+            x.time(x.ad.publishedAt+31)
+            assert(not x.player.Receive("host",f2[1]) and #x.c.Browse()==0)
+            assert(not x.hwire.Receive("player",q))
+        end)
+        Case(client.." lost join acknowledgement blocks a second commitment",function()
+            local x=Fixture();Discover(x)
+            local j=assert(x.player.Join(x.h.guid,x.ad.id))
+            local ack=assert(x.hwire.Receive("player",j))[1]
+            assert(x.e.Ad().count==1 and x.player.Status().status=="pending")
+            x.time(x.ad.publishedAt+31)
+            assert(not x.player.Join(x.other.guid,x.ad2.id) and not x.player.Action("L"))
+            assert(x.player.Retry()==j)
+            local retry=assert(x.hwire.Receive("player",j))[1];assert(ack==retry and x.e.Ad().count==1)
+            assert(not x.player.Receive("other",retry) and x.player.Receive("host",retry))
+            assert(x.player.Status().status=="registered" and not x.player.Join(x.other.guid,x.ad2.id))
+            local leave=assert(x.player.Action("L"))
+            local gone=assert(x.hwire.Receive("player",leave))[1]
+            assert(x.e.Ad().count==0 and x.player.Status().status=="registered")
+            assert(not x.player.Join(x.other.guid,x.ad2.id) and x.player.Retry()==leave)
+            assert(assert(x.hwire.Receive("player",leave))[1]==gone and x.player.Receive("host",gone))
+            assert(not x.player.Status() and x.e.Ad().count==0)
+            assert(not x.hwire.Receive("player",j))
+            Deliver(x,x.otherWire,x.other.guid,"other",assert(x.player.Join(x.other.guid,x.ad2.id)))
+            assert(x.player.Status().owner==x.other.guid and x.e2.Ad().count==1)
+        end)
+        Case(client.." altered requests, wrong event and out-of-order receipts cannot mutate",function()
+            local x=Fixture();Discover(x)
+            local j=assert(x.player.Join(x.h.guid,x.ad.id));local ack=assert(x.hwire.Receive("player",j))[1]
+            local altered=j:gsub("|J|","|L|")
+            assert(not x.hwire.Receive("player",altered))
+            assert(not x.otherWire.Receive("player",j))
+            assert(not x.player.Receive("host",ack:gsub("|J|","|L|")))
+            assert(x.player.Status().status=="pending" and x.player.Receive("host",ack))
+            assert(not x.player.Receive("host",ack) and x.e.Ad().count==1)
+            local check=assert(x.player.Action("C"));Deliver(x,x.hwire,x.h.guid,"host",check)
+            assert(x.player.Status().status=="registered")
+            x.time(x.ad.draft.startAt-1800)
+            Deliver(x,x.hwire,x.h.guid,"host",assert(x.player.Action("C")))
+            assert(x.player.Status().status=="checked" and x.e.Roster(x.h.guid)[1].checkedIn)
+        end)
+        Case(client.." oversized and malformed frames are rejected without mutation",function()
+            local x=Fixture();local q=assert(x.player.Query(x.h.guid))
+            assert(not x.hwire.Receive("player",string.rep("x",238)))
+            assert(not x.hwire.Receive("player",q.."|extra"))
+            assert(not x.hwire.Receive("player",q:gsub("|1$","|01")))
+            local frames=assert(x.hwire.Receive("player",q))
+            assert(not x.player.Receive("host",string.rep("x",238)))
+            assert(not x.player.Receive("host",frames[1]:sub(1,-2).."z"))
+            assert(#x.c.Browse()==0 and x.e.Ad().count==0)
+        end)
+    end
+    return p,f
+end
+
 local preview
 local function Read(fn,...)
     if type(fn)~="function" then return nil end
@@ -270,7 +565,12 @@ function R.RunSelfTest(emit)
     Case("live publication remains disabled",function()local s=T.GetSnapshot();assert(not s.discovery and not s.hosting and s.state=="idle")end)
     return p,f
 end
-if ns.Diagnostics then ns.Diagnostics.Register("Tournament registration / isolated host QA","deep",function()
+if ns.Diagnostics then
+ns.Diagnostics.Register("Tournament exchange / isolated wire QA","deep",function()
+    local log={};local p,f=R.RunExchangeSelfTest(function(line)log[#log+1]=line end)
+    return f==0 and p==10 and "PASS" or "FAIL",string.format("%d passed / %d failed (SIMULATED)\n",p,f)..table.concat(log,"\n")
+end)
+ns.Diagnostics.Register("Tournament registration / isolated host QA","deep",function()
     local log={};local p,f=R.RunSelfTest(function(line)log[#log+1]=line end)
     return f==0 and p==17 and "PASS" or "FAIL",string.format("%d passed / %d failed (SIMULATED)\n",p,f)..table.concat(log,"\n")
 end) end

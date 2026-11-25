@@ -76,6 +76,15 @@ class TournamentFoundation(unittest.TestCase):
         self.assertIn('local organizer=Page("manage")',u)
         self.assertIn('label = "Host Tournament"',n)
         self.assertIn('label = "Manage Tournament"',n)
+    def test_exchange_is_bounded_and_isolated(self):
+        c=read("Core/TournamentRegistration.lua")
+        self.assertIn("MAX_BODY,MAX_PARTS,CHUNK=237,12,120",c)
+        self.assertIn("local function WireHost",c)
+        self.assertIn("local function WireClient",c)
+        self.assertIn("if commitment then return nil end",c)
+        self.assertIn("R.RunExchangeSelfTest",c)
+        self.assertNotIn("SendAddonMessage",c)
+        self.assertNotIn("C_ChatInfo",c)
     def test_registration_rehearsal_is_isolated(self):
         c=read("Core/TournamentRegistration.lua")
         u=read("UI/TournamentUI.lua")

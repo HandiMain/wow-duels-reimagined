@@ -16,6 +16,8 @@ local cp,cf=ns.TournamentState.RunCalendarSelfTest(print)
 assert(cp==5 and cf==0,"calendar scheduling QA")
 local tp,tf=ns.TournamentRegistration.RunSelfTest(print)
 assert(tp==17 and tf==0,"tournament registration QA")
+local ep,ef=ns.TournamentRegistration.RunExchangeSelfTest(print)
+assert(ep==10 and ef==0,"tournament exchange QA")
 local function Equal(a,b)
     if type(a)~=type(b) then return false end
     if type(a)~="table" then return a==b end
