@@ -852,7 +852,7 @@ function H.Refresh()
     switchingAnchor=true
     local changed=false;local newMatch=false
     if want then
-        newMatch=tournamentKey~=model.key
+        newMatch=model.own and tournamentKey~=model.key
         local f=B.Show(model)
         if not tournamentActive then
             tournamentActive=true;changed=true
@@ -868,7 +868,7 @@ function H.Refresh()
                 else H.Refresh() end
             end)
         end
-        tournamentKey=model.key
+        tournamentKey=model.own and model.key or nil
     else
         if tournamentActive then changed=true;StopTournament() end
         if not enabled then root:Hide()

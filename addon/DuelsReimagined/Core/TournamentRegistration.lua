@@ -2051,11 +2051,11 @@ local function PreparePreview(s,h,a,d,n,mode,count)
 end
 local function StartPreviewBracket(x)
     if x.bracket then return false,"The test bracket has already started." end
-    if x.mode~="host" and not x.joined then return false,"Join and check in as the test player first." end
+    if x.mode~="host" and x.mode~="watch" and not x.joined then return false,"Join and check in as the test player first." end
     local cp=x.engine.Save()
     local checked=false
     for _,r in ipairs(cp.roster) do if r.guid==x.player.guid and r.checkedIn then checked=true end end
-    if x.mode~="host" and not checked then return false,"Check in as the test player first." end
+    if x.mode~="host" and x.mode~="watch" and not checked then return false,"Check in as the test player first." end
     local checkTime=math.max(x.now,cp.ad.draft.startAt-1800)
     local clock=function()return checkTime end
     local candidate=Host(x.scope,x.host,clock,cp)
@@ -2085,6 +2085,29 @@ local function PreviewMatch(x,view)
             end
         end
     end
+end
+local function ReadyMatches(view)
+    local rows={}
+    if view and view.state=="running" then
+        for _,round in ipairs(view.rounds) do
+            for _,m in ipairs(round) do if m.state=="ready" and m.a and m.b then rows[#rows+1]=m end end
+        end
+    end
+    return rows
+end
+local function FeaturedMatch(x,view)
+    local ready=ReadyMatches(view)
+    for _,m in ipairs(ready) do if m.id==x.featured then return m,ready end end
+    return ready[1],ready
+end
+local function SelectedMatch(x,view)
+    if x.role=="player" and not x.broadcast then
+        local own=PreviewMatch(x,view)
+        if own then
+            for _,m in ipairs(ReadyMatches(view)) do if m.id==own.id then return m end end
+        end
+    end
+    return FeaturedMatch(x,view)
 end
 local function Read(fn,...)
     if type(fn)~="function" then return nil end
@@ -2139,9 +2162,19 @@ function R.JoinTestListing(index)
     x.joined=true;preview=x;catalog=nil
     return true,why
 end
+function R.WatchTestListing(index)
+    if Current() or not catalog or not Whole(index,1,#catalog.entries) then return false,"Choose a test tournament." end
+    local x=catalog.entries[index]
+    x.role,x.mode,x.broadcast="spectator","watch",true
+    local ok,why=StartPreviewBracket(x)
+    if not ok then x.role,x.mode,x.broadcast="player","join",nil;return false,why end
+    preview=x;catalog=nil;PreviewChanged()
+    return true,"Watching local test tournament."
+end
 function R.PreviewState()
     local x=Current();if not x then return nil end
     if x.role=="host" then return "hosting" end
+    if x.role=="spectator" then return "watching" end
     if x.bracket then
         local v=x.bracket.Snapshot()
         for _,round in ipairs(v.rounds) do
@@ -2184,20 +2217,18 @@ function R.PreviewSnapshot()
         if r.guid==x.player.guid then member=r end
     end
     local bracket=x.bracket and x.bracket.Snapshot()
+    local featured,ready=FeaturedMatch(x,bracket)
+    local chosen=SelectedMatch(x,bracket)
     return {scope="SIMULATED",role=x.role,state=R.PreviewState(),event=ad,events=bracket and {} or x.cache.Browse(),
         roster=x.role=="host" and rows or nil,member=member,now=x.now,bracket=bracket,
-        match=PreviewMatch(x,bracket),names=names,mode=x.mode}
+        match=PreviewMatch(x,bracket),names=names,mode=x.mode,broadcast=x.broadcast==true,
+        featured=featured and featured.id,selected=chosen and chosen.id,readyCount=#ready}
 end
 local function SimulatePreviewGame(x)
     local v=x.bracket.Snapshot()
     if v.state~="running" then return false,"The test bracket is not running." end
-    local match
     local own=PreviewMatch(x,v)
-    for _,round in ipairs(v.rounds) do
-        for _,m in ipairs(round) do
-            if m.state=="ready" and (not match or own and m.id==own.id) then match=m end
-        end
-    end
+    local match=SelectedMatch(x,v)
     if not match then return false,"No test match is ready." end
     local game=match.wins[1]+match.wins[2]+1
     local winner=(v.revision+game+x.seed)%3==0 and match.b or match.a
@@ -2230,6 +2261,18 @@ local function PreviewAction(action)
     if action=="host" or action=="player" then
         if x.mode then return false,"This local test keeps your tournament role." end
         x.role=action;return true
+    end
+    if action=="broadcast" and x.bracket then
+        x.broadcast=not x.broadcast;return true,x.broadcast and "Broadcast view." or "Personal view."
+    end
+    if (action=="feature-next" or action=="feature-prev") and x.role=="host" and x.bracket then
+        local featured,ready=FeaturedMatch(x,x.bracket.Snapshot())
+        if not featured or #ready<2 then return false,"Only one match is ready." end
+        for i,m in ipairs(ready) do if m.id==featured.id then
+            local offset=action=="feature-next" and 1 or -1
+            x.featured=ready[(i-1+offset)%#ready+1].id
+            return true,"Featured match changed."
+        end end
     end
     if action=="fill" and x.mode=="host" and not x.bracket then return FillPreview(x,x.engine.Ad().draft.capacity) end
     if action=="start-bracket" and x.mode=="join" and x.role=="player" then return StartPreviewBracket(x) end

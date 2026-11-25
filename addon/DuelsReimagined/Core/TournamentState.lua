@@ -9,6 +9,7 @@ local states={
     competing={overview=true,["my-tournament"]=true,brackets=true,champions=true},
     eliminated={overview=true,["my-tournament"]=true,brackets=true,champions=true},
     hosting={overview=true,manage=true,champions=true},
+    watching={overview=true,brackets=true,champions=true},
     ["preview-browse"]={overview=true,browse=true,champions=true},
     completed={overview=true,browse=true,["my-tournament"]=true,host=true,champions=true},
 }

@@ -288,9 +288,9 @@ end
 local function Run(action,key)
     local p=action=="simulate-game" and R.PreviewSnapshot()
     local ok,why
-    if p and p.role=="player" and p.match then
-        if ns.DuelHUD.IsTournamentHUDActive() then ok,why=ns.TournamentHUD.RequestGame()
-        else ok,why=false,"Show the tournament HUD and finish combat first." end
+    if p and p.bracket and p.bracket.state=="running" and ns.DuelHUD.IsTournamentHUDActive() then
+        ok,why=ns.TournamentHUD.RequestGame()
+    elseif p and p.bracket and p.bracket.state=="running" then ok,why=false,"Show the tournament HUD and finish combat first."
     else ok,why=R.PreviewAction(action) end
     feedback=why or ""
     if ok and action=="cancel" and ns.Notifications then ns.Notifications.ClearTournamentPreview() end
@@ -304,6 +304,8 @@ local hostStart=Action(hostTest,"Start Test Bracket",function()Run("start-bracke
 local hostFill=Action(hostTest,"Fill Remaining Slots",function()Run("fill")end)
 local hostSim=Action(hostTest,"Simulate Next Game",function()Run("simulate-game","brackets")end)
 local hostCancel=Action(hostTest,"Cancel Test",function()Run("cancel","host")end)
+local featurePrev=Action(hostTest,"Previous featured match",function()Run("feature-prev")end)
+local featureNext=Action(hostTest,"Next featured match",function()Run("feature-next")end)
 local listRow=CreateFrame("Frame",nil,list)
 S.Skin(listRow,C.body,{corner=8,edge=C.goldDim,shine=.12,shade=.18})
 local listRowText=Label(listRow,"",14,C.pale,"CENTER");listRowText:SetAllPoints(listRow)
@@ -325,6 +327,10 @@ local join=Action(info,"Test Join",function()
         if ok then Switch("my-tournament") else U.Show("browse") end
     else Run("join","my-tournament") end
 end)
+local watch=Action(info,"Watch Test Tournament",function()
+    local ok,why=R.WatchTestListing(selectedListing);feedback=why or ""
+    if ok then Switch("brackets") else U.Show("browse") end
+end)
 local browseHost=Action(info,"Organizer View",function()Run("host","manage")end)
 local check=Action(myPanel,"Test Check-in",function()Run("checkin")end)
 local advance=Action(myPanel,"Test Check-in Time",function()Run("checkin-time")end)
@@ -333,6 +339,7 @@ local myHost=Action(myPanel,"Organizer View",function()Run("host","manage")end)
 local sampleStart=Action(myPanel,"Simulate Tournament Start",function()Run("start-bracket","brackets")end)
 local sampleGame=Action(myPanel,"Simulate Next Game",function()Run("simulate-game","brackets")end)
 local bracketGame=Action(bracketPanel,"Simulate Next Game",function()Run("simulate-game")end)
+local broadcast=Action(bracketPanel,"Broadcast view",function()Run("broadcast")end)
 local matchNotice=Action(myPanel,"Preview Match Notification",function()
     local ok,why=ns.Notifications.PreviewTournamentReady()
     feedback=ok and "Match notification shown." or why or "Notification unavailable."
@@ -345,7 +352,7 @@ local endTest=Action(hero,"End Local Test",function()
     feedback="";Switch("overview")
 end)
 local resumeTest=Action(hero,"Resume Local Test",function()
-    local p=R.PreviewSnapshot();if p then Switch(p.role=="host" and "manage" or p.member and "my-tournament" or "browse") end
+    local p=R.PreviewSnapshot();if p then Switch(p.role=="host" and "manage" or p.role=="spectator" and "brackets" or p.member and "my-tournament" or "browse") end
 end)
 local function Describe(ad)
     local d=ad.draft
@@ -382,6 +389,7 @@ local function RefreshTest()
     end
     join:SetShown(not not (listings and listings[selectedListing] or player and p.events[1] and not p.member))
     browseHost:SetShown(not not (player and not p.mode))
+    watch:SetShown(not not listings)
     local started=p and p.bracket~=nil
     check:SetShown(not not (player and p.member and not started and not p.member.checkedIn))
     advance:SetShown(not not (player and p.member and not started and p.now<p.event.draft.startAt-1800))
@@ -395,10 +403,15 @@ local function RefreshTest()
     sampleStart:SetShown(not not (player and p.mode=="join" and not started and p.member and p.member.checkedIn))
     sampleGame:SetShown(not not (player and started and p.bracket.state=="running"))
     bracketGame:SetShown(not not (started and p.bracket.state=="running"))
+    broadcast:SetShown(not not (started and p.bracket.state=="running"))
+    if started then broadcast.label:SetText(p.broadcast and "Exit broadcast" or "Broadcast view") end
+    local feature=hosting and started and p.bracket.state=="running" and p.readyCount>1
+    featurePrev:SetShown(not not feature);featureNext:SetShown(not not feature)
     myHost:SetShown(not not (player and not p.mode))
     if not started and bracketView then bracketView.Hide() end
     if hosting then
-        hostSummary:SetText(Describe(p.event))
+        local model=ns.TournamentHUD.Project(p)
+        hostSummary:SetText(Describe(p.event)..(model and model.matchID and "\n\nFeatured: "..model.left.." vs "..model.right or ""))
         local lines={"Registered participants"}
         for _,r in ipairs(p.roster) do lines[#lines+1]=r.name.." - Level "..r.level..(r.checkedIn and " - Checked in" or " - Registered") end
         if #p.roster==0 then lines[#lines+1]="No registered participants." end
@@ -420,7 +433,7 @@ local function RefreshTest()
             myPanel.detail:SetText("LOCAL TEST - No real duel or rating changes\n\n"..p.event.draft.name.."\n"..
                 (m.round==m.roundCount and "Final" or "Round "..m.round).." - Best of "..m.bestOf.."\n\n"..
                 "Your next opponent\n"..m.opponent.."\n\nSeries score: "..m.score.." - "..m.opponentScore..
-                "\n\nMatch ready - gameplay preview not connected yet.\n"..feedback)
+                "\n\nMatch ready - local rehearsal only.\n"..feedback)
         elseif p.member then
             local summary=p.bracket and (p.bracket.champion and "Simulated champion: "..(p.names[p.bracket.champion] or "Unknown") or p.state=="eliminated" and "Eliminated - follow the remaining matches." or "Waiting for the next match.") or (p.member.checkedIn and "Checked in" or "Registered")
             myPanel.detail:SetText(Describe(p.event).."\n"..summary.."\n"..feedback)
@@ -504,7 +517,8 @@ local function Layout()
                 for i,b in ipairs(catalogRows) do Place(b,list,12,48+(i-1)*40,left-24,34) end
                 TextAt(list.note,list,12,216,left-24,58)
                 TextAt(info.detail,info,12,48,w-left-36,h-100)
-                Place(join,info,12,h-40,w-left-36,28)
+                Place(join,info,12,h-76,w-left-36,28)
+                Place(watch,info,12,h-40,w-left-36,28)
             elseif p then
                 Place(listRow,list,12,48,left-24,46)
                 TextAt(info.detail,info,12,48,w-left-36,h-132)
@@ -523,7 +537,8 @@ local function Layout()
             if listings then
                 for i,b in ipairs(catalogRows) do Place(b,list,12,48+(i-1)*40,w-24,34) end
                 TextAt(list.note,list,12,216,w-24,58)
-                Place(join,info,12,infoH-40,w-24,28)
+                Place(join,info,12,infoH-76,w-24,28)
+                Place(watch,info,12,infoH-40,w-24,28)
             elseif p then
                 Place(listRow,list,12,48,w-24,46)
                 Place(join,info,12,infoH-76,w-24,28)
@@ -537,7 +552,7 @@ local function Layout()
         if p and p.role=="host" then
             local rosterH=math.max(120,24*(#p.roster+2))
             local y=340+rosterH
-            height=y+122
+            height=y+(p.bracket and p.readyCount>1 and 158 or 122)
             Place(hostTest,organizer,0,0,w,height);Header(hostTest,w)
             TextAt(hostSummary,hostTest,12,44,w-24,280)
             hostRoster:SetJustifyV("TOP")
@@ -547,6 +562,9 @@ local function Layout()
             Place(hostFill,hostTest,12,y+36,w-24,28)
             Place(hostPlayer,hostTest,12,y+36,w-24,28)
             Place(hostCancel,hostTest,12,y+72,w-24,28)
+            local half=math.max(1,(w-30)/2)
+            Place(featurePrev,hostTest,12,y+108,half,28)
+            Place(featureNext,hostTest,18+half,y+108,half,28)
         else height=1 end
     else
         local f=active=="champions" and archive or active=="my-tournament" and myPanel or bracketPanel
@@ -566,6 +584,7 @@ local function Layout()
             elseif active=="brackets" and p and p.bracket then
                 h=math.max(h,260);Place(f,pages[active],0,0,w,h)
                 Place(bracketGame,bracketPanel,math.max(12,w-194),6,182,27)
+                Place(broadcast,bracketPanel,math.max(12,w-354),6,150,27)
                 if not bracketView then bracketView=ns.BracketView.New(bracketPanel) end
                 f.detail:SetShown(not bracketView.Show(p,w,h))
                 f.detail:SetText("Bracket unavailable.")

@@ -12,18 +12,49 @@ local function Round(m)
     return remaining==0 and "Final" or remaining==1 and "Semifinal" or remaining==2 and "Quarterfinal" or "Round of "..2^(remaining+1)
 end
 function B.Project(p)
-    if type(p)~="table" or p.scope~="SIMULATED" or p.role~="player" or type(p.match)~="table" or type(p.bracket)~="table" or p.bracket.state~="running" then return nil end
-    local m=p.match
+    if type(p)~="table" or p.scope~="SIMULATED" or (p.role~="player" and p.role~="host" and p.role~="spectator")
+        or type(p.bracket)~="table" or type(p.event)~="table" or type(p.event.id)~="string"
+        or type(p.event.draft)~="table" or type(p.event.draft.name)~="string" then return nil end
+    local v=p.bracket
+    if v.state~="running" and v.state~="disputed" then return nil end
+    local rows=v.rounds
+    if type(rows)~="table" or #rows<1 or #rows>6 then return nil end
+    local m
+    for _,round in ipairs(rows) do
+        for _,row in ipairs(round) do
+            if row.id==p.selected and row.state=="ready" then m=row;break end
+        end
+    end
+    if not m and v.dispute then
+        for _,round in ipairs(rows) do for _,row in ipairs(round) do if row.id==v.dispute.match then m=row end end end
+    end
+    if not m then
+        return {title=p.event.draft.name,round="Tournament",left="Awaiting match",right="Awaiting match",
+            bestOf=v.bestOf,score=0,opponentScore=0,game=1,status="Waiting for next match",key=p.event.id..":waiting",
+            scope="SIMULATED",broadcast=p.broadcast,canPlay=false,viewer=p.role}
+    end
     local function Whole(n,lo,hi) return type(n)=="number" and n>=lo and n<=hi and n==math.floor(n) end
-    if not Whole(m.roundCount,1,6) or not Whole(m.round,1,m.roundCount) or
-        not (m.bestOf==1 or m.bestOf==3 or m.bestOf==5) then return nil end
-    local needed=math.floor(m.bestOf/2)+1
-    if not Whole(m.score,0,needed-1) or not Whole(m.opponentScore,0,needed-1) or
-        type(m.id)~="string" or type(m.opponent)~="string" or type(p.event)~="table" or type(p.event.id)~="string" or type(p.event.draft)~="table" or type(p.event.draft.name)~="string" then return nil end
-    return {title=p.event.draft.name,round=Round(m),bestOf=m.bestOf,
-        game=m.score+m.opponentScore+1,left=p.member and p.member.name or "You (local test)",
-        right=m.opponent,score=m.score,opponentScore=m.opponentScore,status="Match ready",
-        key=p.event.id..":"..m.id,scope="SIMULATED"}
+    local best=v.bestOf
+    if not (best==1 or best==3 or best==5) or not Whole(m.round,1,#rows) or type(m.wins)~="table" then return nil end
+    local needed=math.floor(best/2)+1
+    if not Whole(m.wins[1],0,needed) or not Whole(m.wins[2],0,needed) then return nil end
+    local names=p.names or {}
+    local own=p.role=="player" and p.match and p.match.id==m.id
+    local swap=own and p.member and m.b==p.member.guid and not p.broadcast
+    local left,right=swap and m.b or m.a,swap and m.a or m.b
+    local sa,sb=m.wins[swap and 2 or 1],m.wins[swap and 1 or 2]
+    local status
+    if v.state=="disputed" then status="Match on hold"
+    elseif p.broadcast or p.role=="spectator" then status="Featured match ready"
+    elseif own then status="It's your turn!"
+    elseif p.role=="host" then status="Featured match ready"
+    elseif p.state=="eliminated" then status="Eliminated - watching"
+    else status="Waiting for your turn" end
+    return {title=p.event.draft.name,round=Round({round=m.round,roundCount=#rows}),bestOf=best,
+        game=sa+sb+1,left=names[left] or "Awaiting player",right=names[right] or "Awaiting player",
+        score=sa,opponentScore=sb,status=status,key=p.event.id..":"..m.id,scope="SIMULATED",
+        own=not not own,matchID=m.id,canPlay=v.state=="running",broadcast=p.broadcast,viewer=p.role,
+        readyCount=p.readyCount or 0,leftGuid=left,rightGuid=right}
 end
 local function At(f,p,x,y,w,h)
     f:ClearAllPoints();f:SetPoint("TOPLEFT",p,"TOPLEFT",x,-y);f:SetSize(w,h)
@@ -128,7 +159,7 @@ local function Paint(m)
         -- fabricated live health percentage, even when a real target exists.
         side.hp:SetValue(0);side.hp:Hide();side.health:SetText("Health unavailable")
     end
-    fields.sim:SetShown(not editing)
+    fields.sim:SetShown(not editing and m.canPlay==true and not m.broadcast)
 end
 local function SafeIdle()
     local ok,v=pcall(InCombatLockdown)
@@ -147,10 +178,10 @@ function B.RequestGame()
     if editing or not ns.DuelHUD.IsTournamentHUDActive() or not SafeIdle() then return false,"No assigned test match." end
     local R=ns.TournamentRegistration
     local m=B.Project(R.PreviewSnapshot())
-    if not m then return false,"No assigned test match." end
+    if not m or not m.canPlay then return false,"No ready test match." end
     local function Finish()
         local current=B.Project(R.PreviewSnapshot())
-        if not ns.DuelHUD.IsTournamentHUDActive() or not current or current.key~=m.key or current.game~=m.game or not SafeIdle() then return false,"Test match changed." end
+        if not ns.DuelHUD.IsTournamentHUDActive() or not current or not current.canPlay or current.key~=m.key or current.game~=m.game or not SafeIdle() then return false,"Test match changed." end
         local ok,why,outcome=R.PreviewAction("simulate-game")
         if ns.TournamentUI.RefreshActive then ns.TournamentUI.RefreshActive() end
         if ok and outcome then ns.DuelResult.ShowTournamentPreview(outcome) end
@@ -201,21 +232,26 @@ function B.RunSelfTest(emit)
         emit("DR | SIMULATED | "..(ok and "PASS " or "FAIL ")..name..(ok and "" or ": "..tostring(err)))
     end
     local function Fixture()
-        return {scope="SIMULATED",role="player",event={id="test",draft={name="Test Cup"}},member={name="You"},
-            bracket={state="running"},match={id="m1",round=2,roundCount=3,opponent="Other",score=1,opponentScore=0,bestOf=3}}
+        return {scope="SIMULATED",role="player",state="competing",event={id="test",draft={name="Test Cup"}},
+            member={name="You",guid="A"},names={A="You",B="Other",C="Third",D="Fourth"},
+            bracket={state="running",bestOf=3,rounds={{},{ {id="m1",round=2,state="ready",a="B",b="A",wins={0,1}} },{}}},
+            match={id="m1"},selected="m1",readyCount=1}
     end
-    Case("scoreboard only for assigned player match",function()
-        local p=Fixture();assert(B.Project(p))
-        p.role="host";assert(not B.Project(p));p.role="player";p.match=nil;assert(not B.Project(p))
-        p=Fixture();p.bracket.state="completed";assert(not B.Project(p))
+    Case("persistent competitor, organizer and spectator projection",function()
+        local p=Fixture();assert(B.Project(p).own)
+        p.role="host";p.match=nil;assert(B.Project(p).viewer=="host")
+        p.role="spectator";p.broadcast=true;assert(B.Project(p).broadcast)
+        p.role="player";p.broadcast=false;p.state="eliminated";assert(B.Project(p).status=="Eliminated - watching")
+        p.bracket.state="completed";assert(not B.Project(p))
         p=Fixture();p.scope="LOCAL";assert(not B.Project(p))
     end)
-    Case("series score, game and round are derived",function()
+    Case("series score, game, round and viewing priority",function()
         local p=Fixture();local m=B.Project(p)
-        assert(m.game==2 and m.round=="Semifinal" and m.score==1 and m.opponentScore==0)
-        p.match.round=3;p.match.bestOf=1;p.match.score=0;m=B.Project(p)
-        assert(m.game==1 and m.round=="Final" and m.bestOf==1)
-        p.match.score=1;assert(not B.Project(p))
+        assert(m.game==2 and m.round=="Semifinal" and m.score==1 and m.opponentScore==0 and m.left=="You")
+        p.broadcast=true;m=B.Project(p);assert(m.left=="Other" and m.score==0)
+        p.bracket.rounds={{ {id="m1",round=1,state="ready",a="A",b="B",wins={0,0}} }}
+        p.bracket.bestOf=1;m=B.Project(p);assert(m.game==1 and m.round=="Final" and m.bestOf==1)
+        p.selected=nil;p.match=nil;m=B.Project(p);assert(m and not m.canPlay)
     end)
     return pass,fail
 end
