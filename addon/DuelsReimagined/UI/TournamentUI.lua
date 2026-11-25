@@ -3,6 +3,7 @@ local _,ns=...
 local U={};ns.TournamentUI=U
 local S,C,W=ns.Style,ns.Style.color,ns.Widgets
 local T=ns.TournamentState
+local R=ns.TournamentRegistration
 local Population=ns.CompetitiveScope
 local root=CreateFrame("Frame",nil,ns.Window.content)
 root:SetAllPoints(ns.Window.content);root:Hide()
@@ -182,10 +183,11 @@ Choice(eventRules,"bestOf","Match series",{
 Field(eventRules,"minLevel","Minimum level (optional)",3,"Leave blank for no minimum. Eligibility checks come with registration.")
 Field(eventRules,"maxLevel","Maximum level (optional)",3,"Leave blank for no maximum. Eligibility checks come with registration.")
 Field(eventRules,"rules","Additional rules (optional)",160,"Plain text rules for the organizer to enforce; not automatically detected.")
-local ruleHint=Label(eventRules,"Level limits and additional rules will be reviewed by the organizer. No automatic enforcement yet.",12,C.muted)
+local ruleHint=Label(eventRules,"Level limits are checked in the local test. Additional rules are reviewed by the organizer.",12,C.muted)
+local testStart=S.Action(draftFooter,"Test Publishing","footer",{plate="dark",text=C.pale,edge=C.goldDim,hover=C.gold,tooltip=false})
 local save=S.Action(draftFooter,"Save Draft","footer",{plate="hall",text=C.pale,edge=C.goldDim,hover=C.gold,tooltip=false})
 ns.Tooltips.Bind(save,{title="Save Draft",detail="Validate and keep this draft in your current session. It will not be published."})
-save:SetScript("OnClick",function()
+local function SaveForm()
     for key,control in pairs(controls) do
         if control.choice then form[key]=choices[key]
         else form[key]=control.box:GetText();control.box:ClearFocus() end
@@ -194,6 +196,16 @@ save:SetScript("OnClick",function()
     local record,why=T.SaveDraft(form,displayedKey)
     RefreshCommunity()
     status:SetText(record and "Draft saved for this session. Not published." or why)
+    return record
+end
+save:SetScript("OnClick",SaveForm)
+ns.Tooltips.Bind(testStart,{title="Test Publishing",detail="Rehearse a local tournament. No other players will see it."})
+testStart:SetScript("OnClick",function()
+    local record=SaveForm();if not record then return end
+    local ok,why=R.StartPreview(record)
+    if ok then
+        if not (ns.Navigation and ns.Navigation.SelectKey("tournaments","host")) then U.Show("host") end
+    else status:SetText(why) end
 end)
 host:HookScript("OnHide",function()
     W.CloseChoices()
@@ -229,6 +241,7 @@ local function LayoutHost(w)
     Place(draftFooter,host,0,footerY,w,138);Header(draftFooter,w)
     TextAt(status,draftFooter,12,42,w-24,48)
     Place(save,draftFooter,math.max(12,w-152),96,140,30)
+    Place(testStart,draftFooter,12,96,math.max(1,math.min(160,w-178)),30)
     return footerY+138
 end
 local championPage=Page("champions")
@@ -240,7 +253,96 @@ myPanel.detail=Label(myPanel,"No active tournament.",15,C.muted,"CENTER")
 local brackets=Page("brackets")
 local bracketPanel=Panel(brackets,"Brackets")
 bracketPanel.detail=Label(bracketPanel,"No tournament bracket available.",15,C.muted,"CENTER")
+-- Explicit rehearsal views. Normal browsing never contains test events.
+local hostTest=Panel(host,"Local test - Organizer")
+local hostSummary=Label(hostTest,"",15,C.text)
+local hostRoster=Label(hostTest,"",14,C.pale)
+
+local function Action(parent,label,fn)
+    local b=S.Action(parent,label,"footer",{plate="dark",text=C.pale,edge=C.goldDim,hover=C.gold,tooltip=false})
+    b:SetScript("OnClick",fn);return b
+end
+local feedback=""
+local lastTestID
 local active
+local function Switch(key)
+    if not (ns.Navigation and ns.Navigation.SelectKey("tournaments",key)) then U.Show(key) end
+end
+local function Run(action,key)
+    local ok,why=R.PreviewAction(action);feedback=why or ""
+    if ok and key then Switch(key) else U.Show(active or "overview") end
+end
+local hostPlayer=Action(hostTest,"Player Preview",function()
+    local p=R.PreviewSnapshot()
+    if p then Run("player",p.member and "my-tournament" or "browse") else Switch("overview") end
+end)
+local hostCancel=Action(hostTest,"Cancel Test",function()Run("cancel","host")end)
+local listRow=CreateFrame("Frame",nil,list)
+S.Skin(listRow,C.body,{corner=8,edge=C.goldDim,shine=.12,shade=.18})
+local listRowText=Label(listRow,"",14,C.pale,"CENTER");listRowText:SetAllPoints(listRow)
+local join=Action(info,"Test Join",function()Run("join","my-tournament")end)
+local browseHost=Action(info,"Organizer View",function()Run("host","host")end)
+local check=Action(myPanel,"Test Check-in",function()Run("checkin")end)
+local advance=Action(myPanel,"Test Check-in Time",function()Run("checkin-time")end)
+local leave=Action(myPanel,"Leave Test",function()Run("leave","browse")end)
+local myHost=Action(myPanel,"Organizer View",function()Run("host","host")end)
+local endTest=Action(hero,"End Local Test",function()R.EndPreview();feedback="";Switch("overview")end)
+local resumeTest=Action(hero,"Resume Local Test",function()
+    local p=R.PreviewSnapshot();if p then Switch(p.role=="host" and "host" or p.member and "my-tournament" or "browse") end
+end)
+local function Describe(ad)
+    local d=ad.draft
+    local times=T.GetSchedulePreview(d.startUTC,d.closeBefore)
+    local schedule=times and times.starts.." (your local time)" or d.startUTC.." UTC"
+    local deadline=times and times.closes or (d.closeBefore==0 and "At start (UTC)" or d.closeBefore.." minutes before start")
+    local levels=(d.minLevel>0 and tostring(d.minLevel) or "Any").." - "..(d.maxLevel>0 and tostring(d.maxLevel) or "Any")
+    return d.name.."\n"..d.location.."\n"..schedule.."\nRegistration closes: "..deadline..
+        "\nSingle elimination - Best of "..d.bestOf.."\nPlayers: "..ad.count.." / "..d.capacity..
+        "\nLevels: "..levels.."\nRules: "..(d.rules~="" and d.rules or "None specified")
+end
+local function RefreshTest()
+    local p=R.PreviewSnapshot()
+    local id=p and p.event.id
+    if id~=lastTestID then feedback="";lastTestID=id end
+    local hosting=p and p.role=="host"
+    local player=p and p.role=="player"
+    hostTest:SetShown(not not hosting)
+    manage:SetShown(not hosting);eventRules:SetShown(not hosting);draftFooter:SetShown(not hosting)
+    if p then subtitle:SetText("LOCAL TEST - Nothing is published online") end
+    endTest:SetShown(p~=nil);resumeTest:SetShown(p~=nil)
+    hero.browse:SetShown(not p and T.IsPageAvailable("browse"))
+    hero.host:SetShown(not p and T.IsPageAvailable("host"))
+    listRow:SetShown(not not (player and p.events[1]))
+    join:SetShown(not not (player and p.events[1] and not p.member))
+    browseHost:SetShown(not not player)
+    check:SetShown(not not (player and p.member and not p.member.checkedIn))
+    advance:SetShown(not not (player and p.member and p.now<p.event.draft.startAt-1800))
+    leave:SetShown(not not (player and p.member))
+    myHost:SetShown(not not player)
+    if hosting then
+        hostSummary:SetText(Describe(p.event))
+        local lines={"Registered participants"}
+        for _,r in ipairs(p.roster) do lines[#lines+1]=r.name.." - Level "..r.level..(r.checkedIn and " - Checked in" or " - Registered") end
+        if #p.roster==0 then lines[#lines+1]="No registered participants." end
+        hostRoster:SetText(table.concat(lines,"\n"))
+    end
+    if player then
+        local ad=p.events[1]
+        list.detail:SetText(ad and "" or "No open test tournaments.")
+        list.note:SetText("Local rehearsal only. Real discovery is not active.")
+        if ad then
+            listRowText:SetText(ad.draft.name.."  -  "..ad.count.." / "..ad.draft.capacity)
+            info.detail:SetText(Describe(ad).."\nOrganizer: "..ad.organizer.."\n"..feedback)
+        else info.detail:SetText("Registration is closed for this test event. Return to the organizer.") end
+        if p.member then myPanel.detail:SetText(Describe(p.event).."\n"..(p.member.checkedIn and "Checked in" or "Registered").."\n"..feedback) end
+    else
+        list.detail:SetText("No tournaments discovered.")
+        list.note:SetText("Tournament discovery is not active yet.")
+        info.detail:SetText("Select a tournament to view its details and rules.")
+        myPanel.detail:SetText("No active tournament.")
+    end
+    return p
+end
 local function MaxScroll() return math.max(0,canvas:GetHeight()-scroll:GetHeight()) end
 local function SetOffset(v)
     scroll:SetVerticalScroll(math.max(0,math.min(MaxScroll(),tonumber(v) or 0)))
@@ -255,6 +357,8 @@ local function Layout()
     subtitle:SetWidth(math.max(1,root:GetWidth()-170))
     local wide=w>=640
     local height
+    local p=RefreshTest()
+    if p then communityNote:SetText("Local test only. Community settings are automatically detected.") end
     local showCommunity=active=="host" or active=="browse" or active=="my-tournament" or active=="brackets"
     community:SetShown(showCommunity)
     local top=showCommunity and LayoutCommunity(w) or 0
@@ -277,6 +381,10 @@ local function Layout()
         else
             Place(hero.browse,hero,x,110,room,34);Place(hero.host,hero,x,150,room,34)
         end
+        if p then
+            Place(resumeTest,hero,x,110,room,30)
+            Place(endTest,hero,x,146,room,28)
+        end
         Place(open,overview,0,heroH+12,w,132);Header(open,w)
         TextAt(open.detail,open,12,42,w-24,42)
         Place(open.action,open,math.max(12,w-132),88,120,28)
@@ -285,7 +393,7 @@ local function Layout()
         Place(champions.action,champions,math.max(12,w-172),88,160,28)
         height=heroH+288
     elseif active=="browse" then
-        local h=math.max(250,scroll:GetHeight()-top)
+        local h=math.max(p and 490 or 250,scroll:GetHeight()-top)
         if wide then
             local left=math.floor((w-12)*.53)
             Place(list,browse,0,0,left,h);Header(list,left)
@@ -293,22 +401,48 @@ local function Layout()
             TextAt(list.detail,list,12,60,left-24,60)
             TextAt(list.note,list,12,122,left-24,52)
             TextAt(info.detail,info,12,60,w-left-36,90)
+            if p then
+                Place(listRow,list,12,48,left-24,46)
+                TextAt(info.detail,info,12,48,w-left-36,h-132)
+                Place(join,info,12,h-76,w-left-36,28)
+                Place(browseHost,info,12,h-40,w-left-36,28)
+            end
             height=h
         else
             Place(list,browse,0,0,w,220);Header(list,w)
             TextAt(list.detail,list,12,60,w-24,60);TextAt(list.note,list,12,122,w-24,52)
-            Place(info,browse,0,232,w,190);Header(info,w)
-            TextAt(info.detail,info,12,48,w-24,100)
-            height=422
+            local infoH=p and 490 or 190
+            Place(info,browse,0,232,w,infoH);Header(info,w)
+            TextAt(info.detail,info,12,48,w-24,p and 350 or 100)
+            if p then
+                Place(listRow,list,12,48,w-24,46)
+                Place(join,info,12,infoH-76,w-24,28)
+                Place(browseHost,info,12,infoH-40,w-24,28)
+            end
+            height=232+infoH
         end
     elseif active=="host" then
-        height=LayoutHost(w)
+        if p and p.role=="host" then
+            height=560
+            Place(hostTest,host,0,0,w,height);Header(hostTest,w)
+            TextAt(hostSummary,hostTest,12,44,w-24,300)
+            TextAt(hostRoster,hostTest,12,350,w-24,120)
+            Place(hostPlayer,hostTest,12,484,w-24,28)
+            Place(hostCancel,hostTest,12,520,w-24,28)
+        else height=LayoutHost(w) end
     else
         local f=active=="champions" and archive or active=="my-tournament" and myPanel or bracketPanel
         if active and f then
             local h=math.max(200,scroll:GetHeight()-top)
             Place(f,pages[active],0,0,w,h);Header(f,w)
-            TextAt(f.detail,f,20,54,w-40,100)
+            if p and active=="my-tournament" then
+                h=math.max(h,550);Place(f,pages[active],0,0,w,h)
+                TextAt(f.detail,f,12,44,w-24,h-196)
+                Place(advance,f,12,h-144,w-24,28)
+                Place(check,f,12,h-108,w-24,28)
+                Place(leave,f,12,h-72,w-24,28)
+                Place(myHost,f,12,h-36,w-24,28)
+            else TextAt(f.detail,f,20,54,w-40,100) end
             height=h
         end
     end
@@ -333,6 +467,8 @@ function U.Show(key)
     if snapshot.region then label=label.." "..snapshot.region else label=label.." (region unavailable)" end
     if client=="forever" then label=label.." / "..(modeNames[snapshot.ruleset] or "ruleset unavailable") end
     subtitle:SetText("1v1 world duels  |  "..label)
+    local p=R.PreviewSnapshot()
+    open.detail:SetText(p and "Local test active. Resume the rehearsal from the hub." or "No tournaments discovered. Discovery is not active yet.")
     root:Show();SetOffset(0);Layout()
 end
 function U.GetPageScroll() return scroll:GetVerticalScroll() end

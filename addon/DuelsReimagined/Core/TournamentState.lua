@@ -27,7 +27,8 @@ function T.GetSnapshot()
 end
 function T.IsPageAvailable(key)
     local snapshot=T.GetSnapshot()
-    return ns.Client.IsSupported() and T.Project(snapshot.state,snapshot.hasBracket)[key]==true
+    local test=ns.TournamentRegistration and ns.TournamentRegistration.PreviewState()
+    return ns.Client.IsSupported() and T.Project(test or snapshot.state,snapshot.hasBracket)[key]==true
 end
 -- Creation is a local session draft only. Registration and hosting remain closed.
 local function Copy(row)
@@ -155,6 +156,7 @@ local function ServerNow()
 end
 local draft,draftKey
 function T.SaveDraft(input,displayedKey)
+    if ns.TournamentRegistration and ns.TournamentRegistration.PreviewState() then return nil,"End the local test before editing the draft." end
     if not T.IsPageAvailable("host") then return nil,"You cannot host right now." end
     local s=T.GetWorldScope()
     local key=Population.Key(s)

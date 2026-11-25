@@ -194,3 +194,9 @@ Offline test evidence: exact prepared review block (9119 bytes, FNV-1a 679973287
 
 ### Stage 4B — scoped ranked storage and exchanges
 - [ ] Run new Competitive storage / isolated population QA 9/9, scope 7/7, existing competitive storage 22/22, recovery and all other regression checks on both clients and CI. Confirm old unscoped records preserved and excluded, matching scope only in storage/replay, mismatched scope rejected even if page metadata is altered; no test fixtures saved. RankedReady stays false pending separate activation decision and real multi-account evidence. Confirm faction policy for ranked vs local unranked, switching populations and actual sender reachability.
+
+### Stage 5A — registration rehearsal
+- [ ] T10 — Valid future UTC draft, Test Publishing, Local Test label, empty roster. Player Preview, Test Join, Test Check-in Time, Test Check-in, Organizer View shows checked-in participant, Player Preview, Leave Test, Cancel Test. Normal Browse empty afterward. Verify invalid level/deadline, resize, scroll, navigation, reload discards. No real player or records affected.
+- [ ] T11 — Full Scan registration / isolated host QA 13/13 and existing regression checks. Real discovery, delivery, acknowledgments, commitment and recovery still required in Stage 5B; release blocked.
+
+- [ ] T12 — Creator/coordinator separation: reject cancellation or rule edit by any replacement coordinator or ordinary participant. Verify owner disconnect/reconnect, acknowledged replication, eligible deterministic succession with mutually exclusive terms, late packets and partition conflicts; pause safely when authority is ambiguous. Verify owner returning, all peers offline, persistence/recovery, no duplicate advancement, owner-only cancellation relay, and exact community separation in real two/multi-account trials before enabling live tournament hosting. No solo simulation certifies failover.

@@ -8,6 +8,12 @@ local sp,sf=ns.CompetitiveScope.RunSelfTest(print)
 assert(sp==7 and sf==0,"competitive population QA")
 local pp,pf=ns.CompetitiveStorage.RunPopulationSelfTest(print)
 assert(pp==9 and pf==0,"scoped ranked storage and wire QA")
+-- Reuse the isolated tournament model in the existing CI runner.
+ns.Client={Kind=function()return "forever" end,IsSupported=function()return true end}
+assert(loadfile(root.."TournamentState.lua"))("DuelsReimagined",ns)
+assert(loadfile(root.."TournamentRegistration.lua"))("DuelsReimagined",ns)
+local tp,tf=ns.TournamentRegistration.RunSelfTest(print)
+assert(tp==13 and tf==0,"tournament registration QA")
 local function Equal(a,b)
     if type(a)~=type(b) then return false end
     if type(a)~="table" then return a==b end
