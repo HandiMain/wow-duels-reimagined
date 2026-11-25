@@ -42,6 +42,7 @@ previewLabel:SetText("COUNTDOWN PREVIEW");previewLabel:Hide()
 local animKey={}
 local timer,cycle,deadline,shown,preview,ready,unsubscribe
 local selectedStyle="impact"
+local fightUntil
 local layoutDraft
 local BASE_W,BASE_H=480,240
 local function Read(fn,...)
@@ -78,7 +79,7 @@ end
 local function Clear()
     StopTimer();Hide()
     if ns.CountdownAudio then ns.CountdownAudio.Stop() end
-    cycle,deadline,shown,preview=nil,nil,nil,nil
+    cycle,deadline,shown,preview,fightUntil=nil,nil,nil,nil,nil
 end
 local function Live(s,id)
     return s and s.scope=="LOCAL" and s.state=="accepted" and s.active and
@@ -299,6 +300,9 @@ Tick=function()
     local remaining=deadline-now
     if remaining<=.012 then
         if shown=="FIGHT!" then
+            -- The visual finishes at its original time. Let a longer voice
+            -- or sword tail finish on the same bounded stage timer.
+            if fightUntil and now<fightUntil then Hide();Arm(fightUntil-now);return end
             local editing=preview and layoutDraft
             Clear()
             if editing and ns.EditMode and ns.EditMode.IsActive() then ns.EditMode.RestoreSample() end
@@ -306,8 +310,10 @@ Tick=function()
         end
         -- Don't play an old fight cue after a long frame stall or reload.
         if remaining<-.5 then Clear();return end
-        if ns.CountdownAudio then ns.CountdownAudio.Stop() end
-        shown="FIGHT!";ShowStage(shown,.90);Arm(.94)
+        shown="FIGHT!";ShowStage(shown,.90)
+        local duration=ns.CountdownAudio and ns.CountdownAudio.PlayFight()
+        fightUntil=duration and now+duration+.05 or nil
+        Arm(.94)
         return
     end
     local stage=math.ceil(remaining-.012)

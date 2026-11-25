@@ -201,7 +201,8 @@ StopSound=function(id)stopped[#stopped+1]=id end
 DuelsReimaginedCountdownSoundPacks={version=1,groups={
     {label="Overwatch",packs={{key="Overwatch/Ana",label="Ana"},{key="../bad",label="Bad"}}},
     {label="Unreal Tournament",packs={{key="Unreal Tournament - 99",label="99"}}},
-}}
+},fight={{key="mortal_kombat",label="Mortal Kombat",category="Voices",duration=1.358},
+    {key="sword_slice1",label="Sword Slice 1",category="Sword effects",duration=.74}}}
 assert(loadfile("addon/DuelsReimagined/Core/CountdownAudio.lua"))("DuelsReimagined",ns)
 local A=ns.CountdownAudio
 prefs.duelCountdownVisual=true;prefs.duelCountdownSounds=true
@@ -226,3 +227,26 @@ V.Refresh();assert(A.GetDiagnosticResources().handles==0)
 local n=#played
 V.SetLayoutDraft(.5,.5,1);V.ShowLayoutSample();assert(#played==n);V.EndLayoutDraft()
 print("Countdown audio: PASS (3/2/1 only, category grouping, channel, disabled gates, fallback, cleanup, silent edit sample)")
+
+-- FIGHT cue is independent of the three number sounds and uses the same handle.
+prefs.duelCountdownVisual=true;prefs.duelCountdownSounds=false
+prefs.duelFightSounds=true;prefs.duelFightSoundPack="fight:mortal_kombat";prefs.duelFightAudioChannel="Master"
+local c=A.GetFightChoices("fight:mortal_kombat")
+assert(#c==5 and c[2].heading and c[3].key=="fight:mortal_kombat")
+local before=#played
+local start=now
+assert(V.Preview() and #played==before)
+Advance(start+3.01)
+assert(#played==before+1 and played[#played][1]:find("Fight\\mortal_kombat.ogg",1,true) and played[#played][2]=="Master")
+Advance(start+3.96);assert(A.GetDiagnosticResources().handles==1 and not root:IsShown())
+A.Stop("countdown");assert(A.GetDiagnosticResources().handles==1)
+Advance(start+4.5);assert(A.GetDiagnosticResources().handles==0)
+prefs.duelFightSounds=false;prefs.duelCountdownSounds=true;prefs.duelCountdownSoundPack="pack:Overwatch/Ana"
+before=#played;assert(V.Preview());Advance(now+4);assert(#played==before+3)
+prefs.duelCountdownSounds=false;prefs.duelFightSounds=true;prefs.duelCountdownVisual=false
+before=#played;assert(V.Preview());Advance(now+4);assert(#played==before)
+prefs.duelCountdownVisual=true;prefs.duelFightSoundPack="fight:sword_slice1"
+start=now;assert(V.Preview());Advance(start+3.01)
+assert(played[#played][1]:find("Fight\\sword_slice1.ogg",1,true))
+V.Refresh();assert(A.GetDiagnosticResources().handles==0)
+print("FIGHT audio: PASS (independent gates/channel, grouped choices, one handle, full tail, cleanup)")

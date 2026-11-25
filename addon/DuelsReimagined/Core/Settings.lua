@@ -47,6 +47,10 @@ local function ValidCountdownPack(value)
     return type(value)=="string" and #value<=128 and
         (value=="builtin:tick" or value:match("^pack:[%w _%-%/]+$")~=nil)
 end
+local function ValidFightPack(value)
+    return type(value)=="string" and #value<=128 and
+        (value=="builtin:tick" or value:match("^fight:[%w_%-]+$")~=nil)
+end
 local allowedCountdownStyles={}
 for _,choice in ipairs(countdownStyles) do allowedCountdownStyles[choice.key]=true end
 function Settings.GetCountdownStyles()
@@ -68,6 +72,7 @@ local boolDefaults = {
     duelHUDSessionStats = false,
     duelCountdownVisual = true,
     duelCountdownSounds = true,
+    duelFightSounds = true,
     warGamesConsent = false,
     showTooltips = true,
     patchNotesReminder = true,
@@ -98,7 +103,8 @@ end
 function Settings.GetDefault(key)
     if key=="duelCountdownStyle" then return "impact" end
     if key=="duelCountdownSoundPack" then return "builtin:tick" end
-    if key=="duelCountdownAudioChannel" then return "SFX" end
+    if key=="duelCountdownAudioChannel" or key=="duelFightAudioChannel" then return "SFX" end
+    if key=="duelFightSoundPack" then return "fight:mortal_kombat" end
     if key=="duelCountdownFont" then return "builtin:Morpheus" end
     if key == "duelHUDScale" or key == "duelHUDOpacity" then return 1 end
     if key == "menuScale" then return 1 end
@@ -396,7 +402,11 @@ function Settings.Get(key)
         local v=db and db[key]
         return ValidCountdownPack(v) and v or "builtin:tick"
     end
-    if key=="duelCountdownAudioChannel" then
+    if key=="duelFightSoundPack" then
+        local v=db and db[key]
+        return ValidFightPack(v) and v or "fight:mortal_kombat"
+    end
+    if key=="duelCountdownAudioChannel" or key=="duelFightAudioChannel" then
         local v=db and db[key]
         return type(v)=="string" and allowedCountdownChannels[v] and v or "SFX"
     end
@@ -564,14 +574,18 @@ function Settings.ResetAccessPositions()
 end
 
 function Settings.Set(key, value)
-    if key=="duelCountdownSoundPack" or key=="duelCountdownAudioChannel" then
+    if key=="duelCountdownSoundPack" or key=="duelCountdownAudioChannel" or
+        key=="duelFightSoundPack" or key=="duelFightAudioChannel" then
         if key=="duelCountdownSoundPack" then
             if not ValidCountdownPack(value) or value~="builtin:tick" and
                 (not ns.CountdownAudio or not ns.CountdownAudio.IsAvailable(value)) then return end
+        elseif key=="duelFightSoundPack" then
+            if not ValidFightPack(value) or value~="fight:mortal_kombat" and value~="builtin:tick" and
+                (not ns.CountdownAudio or not ns.CountdownAudio.IsFightAvailable(value)) then return end
         elseif type(value)~="string" or not allowedCountdownChannels[value] then return end
         local db=WriteDB();if db[key]==value then return end
         db[key]=value
-        if ns.CountdownAudio then ns.CountdownAudio.Stop() end
+        if ns.CountdownAudio then ns.CountdownAudio.Stop(key:find("duelFight",1,true) and "fight" or "countdown") end
         if ns.Options and ns.Options.Refresh then ns.Options.Refresh() end
         return
     end
@@ -682,8 +696,8 @@ function Settings.Set(key, value)
         if ns.PatchNotes and ns.PatchNotes.RefreshReminder then
             ns.PatchNotes.RefreshReminder()
         end
-    elseif key == "duelCountdownSounds" then
-        if ns.CountdownAudio then ns.CountdownAudio.Stop() end
+    elseif key == "duelCountdownSounds" or key=="duelFightSounds" then
+        if ns.CountdownAudio then ns.CountdownAudio.Stop(key=="duelFightSounds" and "fight" or "countdown") end
         if ns.Options and ns.Options.Refresh then ns.Options.Refresh() end
     elseif key == "duelCountdownVisual" then
         if ns.DuelCountdown then ns.DuelCountdown.Refresh() end
@@ -769,6 +783,8 @@ loader:SetScript("OnEvent", function(self, _, loadedName)
     db.duelCountdownFont = Settings.Get("duelCountdownFont")
     db.duelCountdownSoundPack = Settings.Get("duelCountdownSoundPack")
     db.duelCountdownAudioChannel = Settings.Get("duelCountdownAudioChannel")
+    db.duelFightSoundPack = Settings.Get("duelFightSoundPack")
+    db.duelFightAudioChannel = Settings.Get("duelFightAudioChannel")
     for key in pairs(accessDefaults) do db[key] = Settings.Get(key) end
     if type(db.patchNotesSeenId) ~= "string" or
         #db.patchNotesSeenId > 128 then
