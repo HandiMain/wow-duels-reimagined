@@ -6,34 +6,63 @@ local Settings=ns.Settings
 local BASE="Interface\\AddOns\\DuelsReimagined_CountdownSounds\\Sounds\\"
 local TICK="Interface\\AddOns\\DuelsReimagined\\Media\\Sounds\\CountdownTick.mp3"
 local DEFAULT="builtin:tick"
-local groups,available={},{}
-local manifest=DuelsReimaginedCountdownSoundPacks
-if type(manifest)=="table" and manifest.version==1 and type(manifest.groups)=="table" then
-    local count=0
-    for i,g in ipairs(manifest.groups) do
-        if i>24 or count>=512 then break end
-        if type(g)=="table" and type(g.label)=="string" and #g.label<=64 and type(g.packs)=="table" then
-            local group={label=g.label,key="group:"..i,packs={}}
-            for _,p in ipairs(g.packs) do
-                if count>=512 then break end
-                if type(p)=="table" and type(p.key)=="string" and #p.key<=120 and
-                    p.key:match("^[%w _%-]+/?[%w _%-]*$") and type(p.label)=="string" and #p.label<=80 then
-                    local key="pack:"..p.key
-                    if not available[key] then
-                        local entry={key=key,label=p.label,displayLabel=g.label.." / "..p.label,group=group.key,
-                            folder=BASE..p.key:gsub("/","\\").."\\"}
-                        available[key]=entry;group.packs[#group.packs+1]=entry;count=count+1
+local PACK_ADDON="DuelsReimagined_CountdownSounds"
+local FIGHT_BASE="Interface\\AddOns\\DuelsReimagined_CountdownSounds\\Fight\\"
+local groups,available,fightPacks,fightOrder={},{},{},{}
+local previous,previousGroups,previousFight=false
+-- Media-only addon can finish loading after this file. Rebuild only when
+-- its manifest or section tables actually change, never on a frame tick.
+local function RefreshCatalog()
+    local manifest=DuelsReimaginedCountdownSoundPacks
+    local g=type(manifest)=="table" and manifest.groups
+    local f=type(manifest)=="table" and manifest.fight
+    if manifest==previous and g==previousGroups and f==previousFight then return false end
+    previous,previousGroups,previousFight=manifest,g,f
+    groups,available,fightPacks,fightOrder={},{},{},{}
+    if type(manifest)=="table" and manifest.version==1 and type(manifest.groups)=="table" then
+        local count=0
+        for i,g in ipairs(manifest.groups) do
+            if i>24 or count>=512 then break end
+            if type(g)=="table" and type(g.label)=="string" and #g.label<=64 and type(g.packs)=="table" then
+                local group={label=g.label,key="group:"..i,packs={}}
+                for _,p in ipairs(g.packs) do
+                    if count>=512 then break end
+                    if type(p)=="table" and type(p.key)=="string" and #p.key<=120 and
+                        p.key:match("^[%w _%-]+/?[%w _%-]*$") and type(p.label)=="string" and #p.label<=80 then
+                        local key="pack:"..p.key
+                        if not available[key] then
+                            local entry={key=key,label=p.label,displayLabel=g.label.." / "..p.label,group=group.key,
+                                folder=BASE..p.key:gsub("/","\\").."\\"}
+                            available[key]=entry;group.packs[#group.packs+1]=entry;count=count+1
+                        end
                     end
                 end
+                if #group.packs>0 then groups[#groups+1]=group end
             end
-            if #group.packs>0 then groups[#groups+1]=group end
         end
     end
+    if type(manifest)=="table" and manifest.version==1 and type(manifest.fight)=="table" then
+        for i,p in ipairs(manifest.fight) do
+            if i>128 then break end
+            if type(p)=="table" and type(p.key)=="string" and #p.key<=80 and p.key:match("^[%w_%-]+$") and
+                type(p.label)=="string" and #p.label<=80 and type(p.category)=="string" and #p.category<=64 and
+                type(p.duration)=="number" and p.duration>=.05 and p.duration<=5 then
+                local key="fight:"..p.key
+                if not fightPacks[key] then
+                    local entry={key=key,label=p.label,category=p.category,duration=p.duration,path=FIGHT_BASE..p.key..".ogg"}
+                    fightPacks[key]=entry;fightOrder[#fightOrder+1]=entry
+                end
+            end
+        end
+    end
+    return true
 end
 function A.IsAvailable(key)
+    RefreshCatalog()
     return key==DEFAULT or available[key]~=nil
 end
 function A.GetChoices(selected)
+    RefreshCatalog()
     local out={{key=DEFAULT,label="Duels - Metallic Tick"}}
     for _,g in ipairs(groups) do
         out[#out+1]={key=g.key,label=g.label.." ("..#g.packs..")",heading=true}
@@ -46,25 +75,12 @@ function A.GetChoices(selected)
     end
     return out
 end
--- Same optional media manifest, independent selection and a single handle.
-local fightPacks,fightOrder={},{}
-local FIGHT_BASE="Interface\\AddOns\\DuelsReimagined_CountdownSounds\\Fight\\"
-if type(manifest)=="table" and manifest.version==1 and type(manifest.fight)=="table" then
-    for i,p in ipairs(manifest.fight) do
-        if i>128 then break end
-        if type(p)=="table" and type(p.key)=="string" and #p.key<=80 and p.key:match("^[%w_%-]+$") and
-            type(p.label)=="string" and #p.label<=80 and type(p.category)=="string" and #p.category<=64 and
-            type(p.duration)=="number" and p.duration>=.05 and p.duration<=5 then
-            local key="fight:"..p.key
-            if not fightPacks[key] then
-                local entry={key=key,label=p.label,category=p.category,duration=p.duration,path=FIGHT_BASE..p.key..".ogg"}
-                fightPacks[key]=entry;fightOrder[#fightOrder+1]=entry
-            end
-        end
-    end
+function A.IsFightAvailable(key)
+    RefreshCatalog()
+    return key==DEFAULT or fightPacks[key]~=nil
 end
-function A.IsFightAvailable(key) return key==DEFAULT or fightPacks[key]~=nil end
 function A.GetFightChoices(selected)
+    RefreshCatalog()
     local out={{key=DEFAULT,label="Duels - Metallic Tick"}}
     local cats,order={},{}
     for _,p in ipairs(fightOrder) do
@@ -109,12 +125,14 @@ function A.Play(stage)
     A.Stop()
     if stage~=1 and stage~=2 and stage~=3 then return false end
     if not Settings.Get("duelCountdownVisual") or not Settings.Get("duelCountdownSounds") then return false end
+    RefreshCatalog()
     local choice=available[Settings.Get("duelCountdownSoundPack")]
     return PlayPath(choice and choice.folder..stage..".ogg" or TICK,Settings.Get("duelCountdownAudioChannel") or "SFX","countdown")
 end
 function A.PlayFight()
     A.Stop()
     if not Settings.Get("duelCountdownVisual") or not Settings.Get("duelFightSounds") then return nil end
+    RefreshCatalog()
     local choice=fightPacks[Settings.Get("duelFightSoundPack")]
     if PlayPath(choice and choice.path or TICK,Settings.Get("duelFightAudioChannel") or "SFX","fight") then
         return choice and choice.duration or .5
@@ -123,3 +141,42 @@ end
 function A.GetDiagnosticResources()
     return {handles=handle and 1 or 0,timers=0}
 end
+
+-- Inspect the actual catalogue, not inferred file availability. Optional
+-- media never blocks the main addon or causes an automatic enable.
+function A.GetPackStatus()
+    RefreshCatalog()
+    local countdown=0
+    for _,group in ipairs(groups) do countdown=countdown+#group.packs end
+    local fight=#fightOrder
+    if countdown>0 and fight>0 then return "ready",countdown,fight,"Sound pack manifest detected" end
+    if countdown>0 then return "older",countdown,fight,"Countdown pack detected; install the updated pack for FIGHT! sounds" end
+    if fight>0 then return "partial",countdown,fight,"FIGHT! pack detected; countdown packs unavailable" end
+    local api=C_AddOns
+    if api and type(api.IsAddOnLoaded)=="function" then
+        local ok,loaded=pcall(api.IsAddOnLoaded,PACK_ADDON)
+        if ok and loaded==true then return "invalid",0,0,"Sound pack loaded but manifest missing or invalid" end
+    end
+    if api and type(api.GetAddOnInfo)=="function" then
+        local ok,name,_,_,_,reason=pcall(api.GetAddOnInfo,PACK_ADDON)
+        if ok and type(reason)=="string" and reason=="DISABLED" then
+            return "disabled",0,0,"Enable Duels Reimagined - Local Sound Packs in AddOns"
+        elseif ok and type(reason)=="string" and reason=="INTERFACE_VERSION" then
+            return "not_loaded",0,0,"Sound pack interface version is outdated; check AddOns"
+        elseif ok and type(name)=="string" and name==PACK_ADDON then
+            return "not_loaded",0,0,"Sound pack installed but not loaded; enable it and restart WoW"
+        end
+    end
+    return "missing",0,0,"Sound pack not detected; check AddOns and folder installation"
+end
+-- AddOn dependencies normally load first. On clients with a different
+-- sequence, refresh the existing Options controls once the pack registers.
+local events=CreateFrame("Frame")
+events:RegisterEvent("ADDON_LOADED")
+events:RegisterEvent("PLAYER_LOGIN")
+events:SetScript("OnEvent",function(self,event,name)
+    if event=="ADDON_LOADED" and name~=PACK_ADDON then return end
+    if event=="PLAYER_LOGIN" then self:UnregisterEvent("PLAYER_LOGIN") end
+    local changed=RefreshCatalog()
+    if changed and ns.Options and ns.Options.Refresh then ns.Options.Refresh() end
+end)

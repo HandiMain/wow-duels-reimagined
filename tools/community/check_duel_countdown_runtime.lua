@@ -250,3 +250,33 @@ start=now;assert(V.Preview());Advance(start+3.01)
 assert(played[#played][1]:find("Fight\\sword_slice1.ogg",1,true))
 V.Refresh();assert(A.GetDiagnosticResources().handles==0)
 print("FIGHT audio: PASS (independent gates/channel, grouped choices, one handle, full tail, cleanup)")
+
+-- Late media registration must refresh both dropdowns without a reload or
+-- an additional playback owner. A v1 countdown-only archive stays usable.
+local originalManifest=DuelsReimaginedCountdownSoundPacks
+DuelsReimaginedCountdownSoundPacks=nil
+local state,number,finish=A.GetPackStatus()
+assert(state=="missing" and number==0 and finish==0)
+assert(not A.IsFightAvailable("fight:mortal_kombat"))
+DuelsReimaginedCountdownSoundPacks={version=1,groups=originalManifest.groups}
+state,number,finish=A.GetPackStatus()
+assert(state=="older" and number==2 and finish==0)
+local refreshes=0
+ns.Options={Refresh=function()refreshes=refreshes+1 end}
+local mediaEvents=frames[#frames]
+assert(mediaEvents.events.ADDON_LOADED and mediaEvents.events.PLAYER_LOGIN)
+DuelsReimaginedCountdownSoundPacks=originalManifest
+mediaEvents.scripts.OnEvent(mediaEvents,"ADDON_LOADED","DuelsReimagined_CountdownSounds")
+assert(refreshes==1 and A.IsFightAvailable("fight:mortal_kombat"))
+state,number,finish=A.GetPackStatus()
+assert(state=="ready" and number==2 and finish==2)
+mediaEvents.scripts.OnEvent(mediaEvents,"PLAYER_LOGIN")
+assert(refreshes==1 and not mediaEvents.events.PLAYER_LOGIN)
+DuelsReimaginedCountdownSoundPacks=nil
+C_AddOns={IsAddOnLoaded=function()return false end,GetAddOnInfo=function()return "DuelsReimagined_CountdownSounds","Sound Packs",nil,false,"DISABLED" end}
+assert(A.GetPackStatus()=="disabled")
+C_AddOns.IsAddOnLoaded=function()return true end
+assert(A.GetPackStatus()=="invalid")
+C_AddOns=nil;DuelsReimaginedCountdownSoundPacks=originalManifest
+ns.Options=nil
+print("Optional media discovery: PASS (absent, old, late registration, disabled, invalid, no polling)")

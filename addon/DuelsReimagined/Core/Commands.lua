@@ -10,6 +10,11 @@ SlashCmdList.DUELSREIMAGINED = function(message)
         end
         return
     end
+    if message=="sounds" or message=="sounds status" then
+        local _,countdown,fight,detail=ns.CountdownAudio.GetPackStatus()
+        print("DR | "..detail.." | "..countdown.." countdown packs / "..fight.." FIGHT! sounds")
+        return
+    end
     if message=="countdown preview" then
         local ok,why=ns.DuelCountdown.Preview()
         if not ok then print("DR | "..tostring(why)) end
