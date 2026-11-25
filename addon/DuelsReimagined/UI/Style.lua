@@ -309,6 +309,14 @@ end
 local PLATE_ROOT = "Interface\\AddOns\\DuelsReimagined\\Media\\Skin\\"
 local PLATE_ATLAS = PLATE_ROOT .. "DuelAtlas.png"
 local PLATES = {
+    organizerHero = { path=PLATE_ROOT .. "TournamentOrganizerArt.tga", w=256, h=128, cutX=20, cutY=20, atlasX=0, atlasY=0, atlasW=512, atlasH=512 },
+    organizerPanel = { path=PLATE_ROOT .. "TournamentOrganizerArt.tga", w=256, h=128, cutX=20, cutY=20, atlasX=256, atlasY=0, atlasW=512, atlasH=512 },
+    organizerClockGreen = { path=PLATE_ROOT .. "TournamentOrganizerArt.tga", w=256, h=128, cutX=20, cutY=20, atlasX=0, atlasY=128, atlasW=512, atlasH=512 },
+    organizerClockNeutral = { path=PLATE_ROOT .. "TournamentOrganizerArt.tga", w=256, h=128, cutX=20, cutY=20, atlasX=256, atlasY=128, atlasW=512, atlasH=512 },
+    organizerStageIdle = { path=PLATE_ROOT .. "TournamentOrganizerArt.tga", w=256, h=128, cutX=34, cutY=34, atlasX=0, atlasY=256, atlasW=512, atlasH=512 },
+    organizerStageActive = { path=PLATE_ROOT .. "TournamentOrganizerArt.tga", w=256, h=128, cutX=34, cutY=34, atlasX=256, atlasY=256, atlasW=512, atlasH=512 },
+    organizerStageDone = { path=PLATE_ROOT .. "TournamentOrganizerArt.tga", w=256, h=128, cutX=34, cutY=34, atlasX=0, atlasY=384, atlasW=512, atlasH=512 },
+    organizerStageWarning = { path=PLATE_ROOT .. "TournamentOrganizerArt.tga", w=256, h=128, cutX=34, cutY=34, atlasX=256, atlasY=384, atlasW=512, atlasH=512 },
     -- A dedicated, power-of-two copper rim with a transparent center:
     -- 9-sliced on ONE non-interactive frame, not repeated corner stamps.
     shellCopper = { path=PLATE_ROOT .. "DuelFrameRim.png",

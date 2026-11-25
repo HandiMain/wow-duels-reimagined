@@ -415,6 +415,7 @@ local function Layout()
         if p and p.role=="host" then
             if not organizerView then
                 organizerView=ns.TournamentOrganizer.New(organizer,{
+                    refresh=U.RefreshActive,
                     action=function(command)
                         if command=="brackets" then Switch("brackets")
                         elseif command=="player" then

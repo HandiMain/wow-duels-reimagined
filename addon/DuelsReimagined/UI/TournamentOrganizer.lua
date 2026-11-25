@@ -12,13 +12,14 @@ function O.Project(p,query,filter)
     local d=p.event.draft;local now=p.now
     local bracket=p.bracket
     local complete=bracket and bracket.state=="completed"
-    local checking=now>=d.startAt-1800
+    local checking=not bracket and now>=d.startAt-1800 and now<d.startAt
     local registration=not bracket and now<d.registrationClosesAt
-    local stage=complete and 5 or bracket and 4 or checking and 2 or 1
-    local m={stage=stage,registration=registration,checking=checking,rows={},checked=0,notices={},actions={},complete=complete}
-    m.state=complete and "Tournament complete" or bracket and (bracket.state=="disputed" and "Result disputed" or "Matches in progress") or checking and "Check-in open" or registration and "Registration open" or "Registration closed"
-    m.timerLabel=bracket and (complete and "FINAL RESULTS" or "READY MATCHES") or checking and "TOURNAMENT STARTS IN" or registration and "REGISTRATION CLOSES IN" or "TOURNAMENT STARTS IN"
-    m.timer=bracket and (complete and "Completed" or tostring(p.readyCount or 0)) or Clock((checking and d.startAt or registration and d.registrationClosesAt or d.startAt)-now)
+    local ready=not bracket and now>=d.startAt
+    local stage=complete and 5 or bracket and 4 or ready and 3 or checking and 2 or 1
+    local m={stage=stage,registration=registration,checking=checking,ready=ready,rows={},checked=0,notices={},actions={},complete=complete}
+    m.state=complete and "Tournament complete" or bracket and (bracket.state=="disputed" and "Result disputed" or "Matches in progress") or ready and "Ready to start" or registration and (checking and "Registration & check-in open" or "Registration open") or checking and "Check-in open" or "Registration closed"
+    m.timerLabel=bracket and (complete and "FINAL RESULTS" or "READY MATCHES") or ready and "SCHEDULED START REACHED" or registration and "REGISTRATION CLOSES IN" or "TOURNAMENT STARTS IN"
+    m.timer=bracket and (complete and "Completed" or tostring(p.readyCount or 0)) or ready and "Ready" or Clock((registration and d.registrationClosesAt or d.startAt)-now)
     query=(query or ""):lower()
     for _,r in ipairs(p.roster or {}) do
         if r.checkedIn then m.checked=m.checked+1 end
@@ -38,7 +39,7 @@ function O.Project(p,query,filter)
         if featured then m.notices[#m.notices+1]={text="Featured: "..(p.names[featured.a] or "Unknown").." vs "..(p.names[featured.b] or "Unknown"),kind="info"} end
         m.notices[#m.notices+1]={text=tostring(p.readyCount or 0).." matches ready.",kind="info"}
     else
-        m.notices[#m.notices+1]={text=checking and "Check-in is open." or "Check-in opens in "..Clock(d.startAt-1800-now)..".",kind="info"}
+        m.notices[#m.notices+1]={text=ready and "Scheduled start reached. Start the test bracket when ready." or checking and "Check-in is open." or "Check-in opens in "..Clock(d.startAt-1800-now)..".",kind="info"}
         m.notices[#m.notices+1]={text=math.max(0,d.capacity-p.event.count).." slots remaining ("..p.event.count.." / "..d.capacity..").",kind="info"}
     end
     local function Add(key,label,enabled,reason,primary,test)
@@ -48,7 +49,7 @@ function O.Project(p,query,filter)
     local busy=p.demo or p.offline
     if not bracket then
         Add("start-bracket","Start Test Bracket",(p.mode=="host" and p.event.count>=2) or (p.member and p.member.checkedIn==true),"At least two participants or the required check-in are needed.",false,true)
-        if p.mode=="host" and p.event.count<d.capacity then Add("fill","Fill Remaining Slots",true,nil,false,true) end
+        if p.mode=="host" and p.event.count<d.capacity then Add("fill","Fill Remaining Slots",registration,"Registration has closed.",false,true) end
     elseif bracket.state=="running" then
         Add("simulate-game","Simulate Next Game",not busy and p.selected~=nil,"Finish the current test first.",false,true)
         if (p.readyCount or 0)>1 then
@@ -71,8 +72,13 @@ local function Text(t,p,x,y,w,h,value,color,min)
     At(t,p,x,y,w,h);if S.ConstrainText then S.ConstrainText(t,w,h,min or 13) end
     t:SetText(value or "");if color then t:SetTextColor(unpack(color)) end
 end
+local function RichPanel(p,kind,corner)
+    local f=CreateFrame("Frame",nil,p)
+    f.plate=S.Plate(f,kind or "organizerPanel",{corner=corner or 12,layer="BACKGROUND",sublevel=0})
+    return f
+end
 local function Panel(p,title,icon)
-    local f=chrome.Panel(p,false)
+    local f=RichPanel(p,"organizerPanel",12)
     f.heading=Label(f,23,C.pale);f.heading:SetText(title)
     f.icon=chrome.Art(f,icon)
     f.line=S.Fill(f,C.goldDim,"BORDER");f.line:SetAlpha(.48)
@@ -87,20 +93,24 @@ function O.New(parent,callbacks)
     local f=CreateFrame("Frame",nil,parent);f:Hide()
     local community=chrome.NewCommunity(f)
     local heading=Label(f,29,C.pale);local headingIcon=chrome.Art(f,"swords")
-    local hero=chrome.Panel(f,true);local logo=chrome.Art(hero,"logo")
+    local hero=RichPanel(f,"organizerHero",13);local logo=chrome.Art(hero,"logo")
+    local heroLaurel=chrome.Art(hero,"laurelR");heroLaurel:SetAlpha(.12)
+    local heroLaurel2=chrome.Art(hero,"laurelL");heroLaurel2:SetAlpha(.12)
     local title=Label(hero,32,C.pale)
     local detail={}
     for i,icon in ipairs({"location","swords","players",1,2}) do detail[i]={icon=chrome.Art(hero,icon),text=Label(hero,19,C.text)} end
-    local clock=chrome.Panel(hero,true)
+    local clock=RichPanel(hero,"organizerClockNeutral",13)
+    local clockRule=S.Fill(clock,C.goldDim,"BORDER");clockRule:SetAlpha(.52)
     local state=Label(clock,24,green,"CENTER");local timerLabel=Label(clock,16,C.muted,"CENTER")
     local timer=Label(clock,35,C.pale,"CENTER")
     local l=chrome.Art(clock,"laurelL");local r=chrome.Art(clock,"laurelR")
-    local stages=chrome.Panel(f,false);local stageTitle=Label(stages,22,C.pale)
-    local stageRows={}
+    local stages=RichPanel(f,"organizerPanel",12);local stageTitle=Label(stages,22,C.pale)
+    local stageRows,links={},{}
+    for i=1,3 do links[i]=S.Fill(stages,C.goldDim,"ARTWORK");links[i]:SetAlpha(.6) end
     for i,name in ipairs({"Registration","Check-in","Bracket","Live Matches"}) do
-        local frame=chrome.Panel(stages,false)
+        local frame=RichPanel(stages,"organizerStageIdle",16)
         stageRows[i]={frame=frame,title=Label(frame,19,C.pale,"CENTER"),status=Label(frame,14,C.muted,"CENTER"),name=name,
-            glow=S.FeedbackOverlay(frame,{corner=9,inset=2,fill=C.gold,edge=C.gold,shine=.25,rim=.95})}
+            light=chrome.Art(frame,"statusLight")}
     end
     local roster=Panel(f,"Participant Roster","players")
     local filter=chrome.Action(roster,false,17,true)
@@ -119,6 +129,7 @@ function O.New(parent,callbacks)
     local rowCount=7
     for i=1,rowCount do
         local b=CreateFrame("Button",nil,list);b:RegisterForClicks("LeftButtonUp")
+        local stripe=S.Fill(b,C.goldDim,"BACKGROUND");stripe:SetAlpha(i%2==0 and .10 or .025)
         local hover=S.Fill(b,C.selected);hover:SetAlpha(0)
         b:SetScript("OnEnter",function()ns.Motion.Fade(hover,.5,.12)end)
         b:SetScript("OnLeave",function()ns.Motion.Fade(hover,0,.12)end)
@@ -131,12 +142,17 @@ function O.New(parent,callbacks)
     local summary=Label(roster,16,C.muted)
     local actions=Panel(f,"Organizer Actions","flag")
     local buttons={}
-    for i=1,7 do buttons[i]=chrome.Action(actions,false,18) end
+    for i=1,7 do
+        buttons[i]=chrome.Action(actions,i==1,18)
+        if i==1 then buttons[i].plate:SetStyle("gold") end
+    end
     local notices=Panel(f,"Alerts & Notices",2)
     local noticeRows={}
     for i=1,4 do noticeRows[i]={dot=chrome.Art(notices,"statusLight"),label=Label(notices,17,C.text)} end
     local footer=Label(f,17,C.muted,"CENTER")
     local model,current,offset,filterKey,query={rows={}},nil,0,"all",""
+    local clockTimer
+    local function StopClock() if clockTimer then clockTimer:Cancel();clockTimer=nil end end
     local listW=650
     local eventId,confirm
     local renderRows
@@ -188,13 +204,38 @@ function O.New(parent,callbacks)
     end)
     filter.label:SetText("All Participants")
     local function Cleanup()
+        StopClock()
         search:ClearFocus();W.CloseChoices()
         if ns.CompetitiveUI then ns.CompetitiveUI.CloseTournamentPlayerCard() end
         confirm=nil
     end
     f:HookScript("OnHide",Cleanup)
     local D={}
-    function D.Hide() if f:IsShown() then f:Hide() end;current=nil end
+    function D.Hide() StopClock();if f:IsShown() then f:Hide() end;current=nil end
+    local function ArmClock()
+        if clockTimer or not current or current.bracket or model.ready or current.mode~="host" or
+            not f:IsVisible() or not C_Timer or type(C_Timer.NewTimer)~="function" then return end
+        clockTimer=C_Timer.NewTimer(1,function()
+            clockTimer=nil
+            if not f:IsVisible() or not current or current.bracket then return end
+            local now=ns.TournamentRegistration.SyncHostPreviewClock(current.event.id)
+            if not now then return end
+            if now~=current.now then
+                current.now=now
+                local nextModel=O.Project(current,query,filterKey)
+                if nextModel.stage~=model.stage or nextModel.registration~=model.registration or nextModel.checking~=model.checking then
+                    if callbacks.refresh then callbacks.refresh() end
+                    return
+                end
+                model=nextModel
+                timer:SetText(model.timer)
+                for i,item in ipairs(model.notices) do
+                    if noticeRows[i] then noticeRows[i].label:SetText(item.text) end
+                end
+            end
+            ArmClock()
+        end)
+    end
     function D.Show(p,width,scope,feedback)
         if eventId~=p.event.id then
             eventId=p.event.id;offset=0;filterKey="all";query="";confirm=nil;search:SetText("");filter.label:SetText("All Participants")
@@ -216,6 +257,7 @@ function O.New(parent,callbacks)
         chrome.PaintCommunity(community,scope or {},base,wide)
         At(headingIcon,f,3,top+4,36,32);Text(heading,f,49,top,base-55,42,"Organizer Control Center",C.pale,20)
         At(hero,f,0,heroY,base,heroH);At(logo,hero,16,15,124,112)
+        At(heroLaurel,hero,4,12,52,heroH-24);At(heroLaurel2,hero,101,12,52,heroH-24)
         local d=p.event.draft;local times=ns.TournamentState.GetSchedulePreview(d.startUTC,d.closeBefore)
         local detailsW=wide and base-520 or base-160
         Text(title,hero,155,3,detailsW,42,d.name,C.pale,21)
@@ -230,8 +272,10 @@ function O.New(parent,callbacks)
         end
         local cx=wide and base-375 or 16;local cy=wide and 18 or 170;local cw=wide and 356 or base-32;local ch=wide and 130 or 64
         At(clock,hero,cx,cy,cw,ch)
+        clock.plate:SetStyle((model.registration or model.checking) and "organizerClockGreen" or "organizerClockNeutral")
+        At(clockRule,clock,14,42,cw-28,1);clockRule:SetShown(wide)
         if wide then
-            Text(state,clock,10,4,cw-20,38,model.state,(model.registration or model.checking and not p.bracket) and green or C.pale)
+            Text(state,clock,10,4,cw-20,38,model.state,(model.registration or model.checking) and green or C.pale,17)
             Text(timerLabel,clock,15,45,cw-30,27,model.timerLabel)
             Text(timer,clock,40,70,cw-80,52,model.timer,C.pale,22)
             At(l,clock,12,76,28,38);At(r,clock,cw-40,76,28,38)
@@ -245,24 +289,36 @@ function O.New(parent,callbacks)
         At(stages,f,0,stageY,base,stageH)
         Text(stageTitle,stages,12,8,wide and 174 or base-24,wide and 52 or 31,"Tournament Stage",C.pale,16)
         local start=wide and 192 or 12;local sw=(base-start-12-3*10)/4
-        local labels={model.registration and "Open" or "Closed",p.bracket and "Complete" or model.checking and "Open" or "Not open",p.bracket and "Drawn" or "Not drawn",model.complete and "Complete" or p.bracket and "In progress" or "Not started"}
+        local labels={model.registration and "Open" or "Closed",p.bracket and "Complete" or model.ready and "Closed" or model.checking and "Open" or "Not open",p.bracket and "Drawn" or model.ready and "Ready to draw" or "Not drawn",model.complete and "Complete" or p.bracket and "In progress" or "Not started"}
         for i,row in ipairs(stageRows) do
-            At(row.frame,stages,start+(i-1)*(sw+10),wide and 8 or 42,sw,wide and 52 or 72)
-            row.glow:SetAlpha(model.stage==i and .9 or model.stage>i and .32 or 0)
-            Text(row.title,row.frame,3,1,sw-6,28,row.name,model.stage==i and C.gold or C.pale,13)
-            Text(row.status,row.frame,3,28,sw-6,22,labels[i],model.stage==i and green or C.muted,12)
+            local active=(i==1 and model.registration) or (i==2 and model.checking) or model.stage==i
+            local done=not active and model.stage>i
+            local style=active and "organizerStageActive" or done and "organizerStageDone" or "organizerStageIdle"
+            local y=wide and 8 or 42
+            At(row.frame,stages,start+(i-1)*(sw+10),y,sw,wide and 52 or 72)
+            row.frame.plate:SetStyle(style)
+            At(row.light,row.frame,5,16,19,19);row.light:SetVertexColor(unpack(active and green or done and C.gold or C.muted))
+            Text(row.title,row.frame,23,1,sw-28,28,row.name,active and green or C.pale,13)
+            Text(row.status,row.frame,23,28,sw-28,22,labels[i],active and green or C.muted,12)
+            if i<4 then At(links[i],stages,start+i*sw+(i-1)*10,y+25,10,2);links[i]:SetAlpha((done or active) and .9 or .35) end
         end
         At(roster,f,0,bodyY,left,373);Heading(roster,left,"Participant Roster ("..p.event.count.." / "..d.capacity..")")
-        -- Title and filters occupy separate rows to avoid overlapping labels.
-        At(filter,roster,12,54,math.floor(left*.43),34)
-        At(arrow,filter,math.floor(left*.43)-24,9,16,16)
-        At(searchHousing,roster,math.floor(left*.43)+22,54,left-math.floor(left*.43)-34,34)
-        At(placeholder,searchHousing,9,0,left-math.floor(left*.43)-52,34);placeholder:SetShown(query=="")
+        local compact=wide and width>=900
+        local filterW=compact and 162 or math.floor(left*.43)
+        local filterX=compact and left-358 or 12
+        local filterY=compact and 8 or 54
+        local searchW=left-filterX-filterW-22
+        if compact then Text(roster.heading,roster,49,4,filterX-57,39,"Participant Roster ("..p.event.count.." / "..d.capacity..")",C.pale,15) end
+        At(filter,roster,filterX,filterY,filterW,34)
+        At(arrow,filter,filterW-24,9,16,16)
+        At(searchHousing,roster,filterX+filterW+10,filterY,searchW,34)
+        At(placeholder,searchHousing,9,0,searchW-18,34);placeholder:SetShown(query=="")
         listW=left-24
-        Text(headers[1],roster,22,90,listW*.52-10,22,"Player")
-        Text(headers[2],roster,12+listW*.52,90,listW*.13,22,"Level")
-        Text(headers[3],roster,12+listW*.69,90,listW*.29,22,"Status")
-        At(list,roster,12,112,listW,rowCount*rowHeight)
+        local headerY=compact and 52 or 90
+        Text(headers[1],roster,22,headerY,listW*.52-10,22,"Player")
+        Text(headers[2],roster,12+listW*.52,headerY,listW*.13,22,"Level")
+        Text(headers[3],roster,12+listW*.69,headerY,listW*.29,22,"Status")
+        At(list,roster,12,headerY+22,listW,rowCount*rowHeight)
         SetOffset(offset);bar:Refresh()
         -- Keep the roster count in the heading; all 32 rows are reachable.
         At(actions,f,ax,ay,right,actionH);Heading(actions,right)
@@ -297,7 +353,8 @@ function O.New(parent,callbacks)
                 Text(row.label,notices,40,48+(i-1)*29,right-52,29,item.text,C.text,13)
             end
         end
-        Text(footer,f,0,bottom+6,base,36,"LOCAL TEST  ·  Test controls are temporary. The rehearsal clock advances through test actions.",C.muted,13)
+        Text(footer,f,0,bottom+6,base,36,"LOCAL TEST  ·  Test controls are temporary. The schedule follows server time until the start.",C.muted,13)
+        if current.bracket or model.ready then StopClock() else ArmClock() end
         return total*scale
     end
     return D
@@ -309,6 +366,10 @@ function O.RunSelfTest()
     local m=O.Project(p,"","all");assert(m.registration and m.stage==1 and m.checked==1 and #m.rows==2)
     assert(#O.Project(p,"moon","all").rows==1 and #O.Project(p,"","checked").rows==1)
     p.now=2300;assert(O.Project(p).registration and O.Project(p).checking)
+    assert(O.Project(p).timer=="00:13:20")
+    p.now=3100;assert(not O.Project(p).registration and O.Project(p).checking and O.Project(p).timer=="00:15:00")
+    p.now=4000;assert(O.Project(p).ready and O.Project(p).timer=="Ready")
+    p.now=2300
     p.bracket={state="running",rounds={}};p.offline={player="b",remaining=120}
     m=O.Project(p,"","offline");assert(#m.rows==1 and m.rows[1].guid=="b" and m.stage==4)
     p.bracket={state="completed",champion="a"};p.offline=nil;assert(O.Project(p).complete)

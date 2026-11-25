@@ -2582,6 +2582,9 @@ local function StartPreviewBracket(x)
     for _,r in ipairs(cp.roster) do if r.guid==x.player.guid and r.checkedIn then checked=true end end
     if x.mode~="host" and x.mode~="watch" and not checked then return false,"Check in as the test player first." end
     local checkTime=math.max(x.now,cp.ad.draft.startAt-1800)
+    -- The local host rehearsal may be started manually at/after the
+    -- scheduled start. Its fixture check-ins still occur before the draw.
+    if x.mode=="host" then checkTime=math.min(checkTime,cp.ad.draft.startAt-1) end
     local clock=function()return checkTime end
     local candidate=Host(x.scope,x.host,clock,cp)
     if not candidate then return false,"Test check-in is unavailable." end
@@ -2661,6 +2664,18 @@ local function Current()
     if preview and key~=preview.key then preview=nil end
     if catalog and key~=catalog.key then catalog=nil end
     return preview
+end
+local function SyncHostedSchedule(x,server)
+    if not x or x.mode~="host" or x.role~="host" or x.bracket then return nil end
+    local ad=x.engine.Ad()
+    if not ad or not Whole(server,1,4102444800) then return x.now end
+    x.now=math.max(x.now,math.min(server,ad.draft.startAt))
+    return x.now
+end
+function R.SyncHostPreviewClock(id)
+    local x=Current()
+    if not x or x.id~=id then return nil end
+    return SyncHostedSchedule(x,Read(GetServerTime))
 end
 local function MakeCatalog(s,a,n,formatter)
     local data={key=P.Key(s),entries={}}
@@ -2757,6 +2772,7 @@ function R.EndPreview()
 end
 function R.PreviewSnapshot()
     local x=Current();if not x then return nil end
+    SyncHostedSchedule(x,Read(GetServerTime))
     local ad=x.engine.Ad();x.cache.Accept(x.host.guid,ad)
     local rows=x.engine.Roster(x.host.guid);local member
     local names={}
@@ -2889,6 +2905,7 @@ function R.CancelBroadcastFixture()
 end
 local function PreviewAction(action)
     local x=Current();if not x then return false,"No local test tournament." end
+    SyncHostedSchedule(x,Read(GetServerTime))
     if action=="start-demo" then return StartDemo(x) end
     if action=="tick-demo" then return AdvanceDemo(x) end
     if action=="disconnect" then return StartOffline(x) end
