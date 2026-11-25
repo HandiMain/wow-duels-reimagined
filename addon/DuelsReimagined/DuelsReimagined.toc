@@ -65,6 +65,7 @@ UI\AchievementUI.lua
 UI\BracketView.lua
 UI\TournamentOverview.lua
 UI\TournamentBrowse.lua
+UI\TournamentHost.lua
 UI\TournamentUI.lua
 UI\TournamentHUD.lua
 UI\DuelHUD.lua

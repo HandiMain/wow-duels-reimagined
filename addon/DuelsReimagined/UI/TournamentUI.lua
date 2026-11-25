@@ -105,145 +105,16 @@ local overviewView,privateControlsTop
 local browse=Page("browse")
 local browseView
 local host=Page("host")
-local manage=Panel(host,"Tournament details")
-local eventRules=Panel(host,"Format & rules")
-local draftFooter=Panel(host,"Save your draft")
-local defaults=T.DraftDefaults()
-local form,controls,choices={}, {}, {}
-local status=Label(draftFooter,"Drafts are kept until you reload or log out. Publishing is not available yet.",13,C.muted)
-local refreshSchedule
-local function Dirty()
-    status:SetText("Unsaved changes. Drafts stay in this session only.")
-    if refreshSchedule then refreshSchedule() end
-end
-local function Field(parent,key,caption,limit,help)
-    local label=Label(parent,caption,13,C.pale)
-    local box=CreateFrame("EditBox",nil,parent)
-    box:SetAutoFocus(false);box:SetMultiLine(false);box:SetMaxLetters(limit)
-    box:SetTextInsets(9,9,0,0)
-    S.BindFont(box,13,false,C.text)
-    S.Skin(box,C.body,{corner=8,edge=C.border,shine=.15,shade=.2})
-    box:SetScript("OnEnterPressed",function(self) self:ClearFocus() end)
-    box:SetScript("OnEscapePressed",function(self) self:ClearFocus() end)
-    box:SetScript("OnHide",function(self) self:ClearFocus() end)
-    box:SetScript("OnTextChanged",function(self,userInput) if userInput then Dirty() end end)
-    box:SetText(defaults[key] or "")
-    controls[key]={label=label,box=box,parent=parent}
-    ns.Tooltips.Bind(box,{title=caption,detail=help})
-    return box
-end
-local function Choice(parent,key,caption,options)
-    local label=Label(parent,caption,13,C.pale)
-    local box,value=W.ChoiceControl(parent,226)
-    local selected=defaults[key]
-    local function Select(k)
-        selected=k;choices[key]=k
-        for _,o in ipairs(options) do if o.key==k then value:SetText(o.label);break end end
-    end
-    Select(selected)
-    box:SetScript("OnClick",function()
-        W.OpenChoices(box,options,selected,function(k) Select(k);Dirty() end)
-    end)
-    controls[key]={label=label,box=box,parent=parent,choice=true}
-    return box
-end
-Field(manage,"name","Tournament name",60,"Name shown to participants. Plain text only; no links.")
-Field(manage,"location","World duel location",100,"Describe the meeting place. No automatic teleport or arena.")
-local startLabel=Label(manage,"Start date & time (local)",13,C.pale)
-local startButton,startText=W.ChoiceControl(manage,226)
-local selectedUTC=""
-startText:SetText("Select date & time")
-controls.startUTC={label=startLabel,box=startButton,parent=manage,calendar=true}
-startButton:SetScript("OnClick",function()
-    for _,control in pairs(controls) do
-        if not control.choice and not control.calendar then control.box:ClearFocus() end
-    end
-    if not W.OpenCalendar(startButton,T,selectedUTC,choices.closeBefore,function(utc)
-        selectedUTC=utc;Dirty()
-    end) then status:SetText("Your local calendar is unavailable. Try again later.") end
-end)
-ns.Tooltips.Bind(startButton,{title="Start date & time",detail="Choose the start in your local time. Registration deadline updates automatically."})
-Choice(manage,"closeBefore","Registration closes",{
-    {key=0,label="At start"},{key=15,label="15 min before"},{key=30,label="30 min before"},{key=60,label="60 min before"}})
-local localSchedule=Label(manage,"Select the tournament start date and time.",12,C.muted)
-refreshSchedule=function()
-    local result=T.GetSchedulePreview(selectedUTC,choices.closeBefore)
-    startText:SetText(result and result.starts or "Select date & time")
-    if result then
-        localSchedule:SetText("Start: "..result.starts.." (local)\nRegistration closes: "..result.closes.." (local)")
-    else
-        localSchedule:SetText("Select a date and time to see the registration deadline.")
-    end
-end
-local format=Label(eventRules,"Single elimination · 1v1 world duels",14,C.text)
-Choice(eventRules,"capacity","Maximum players",{
-    {key=4,label="4 players"},{key=8,label="8 players"},{key=16,label="16 players"},{key=32,label="32 players"}})
-Choice(eventRules,"bestOf","Match series",{
-    {key=1,label="Best of 1"},{key=3,label="Best of 3"},{key=5,label="Best of 5"}})
-Field(eventRules,"minLevel","Minimum level (optional)",3,"Leave blank for no minimum. Eligibility checks come with registration.")
-Field(eventRules,"maxLevel","Maximum level (optional)",3,"Leave blank for no maximum. Eligibility checks come with registration.")
-Field(eventRules,"rules","Additional rules (optional)",160,"Plain text rules for the organizer to enforce; not automatically detected.")
-local ruleHint=Label(eventRules,"Level limits are checked in the local test. Additional rules are reviewed by the organizer.",12,C.muted)
-local testStart=S.Action(draftFooter,"Test Publishing","footer",{plate="dark",text=C.pale,edge=C.goldDim,hover=C.gold,tooltip=false})
-local save=S.Action(draftFooter,"Save Draft","footer",{plate="hall",text=C.pale,edge=C.goldDim,hover=C.gold,tooltip=false})
-ns.Tooltips.Bind(save,{title="Save Draft",detail="Validate and keep this draft in your current session. It will not be published."})
-local function SaveForm()
-    for key,control in pairs(controls) do
-        if control.calendar then form[key]=selectedUTC
-        elseif control.choice then form[key]=choices[key]
-        else form[key]=control.box:GetText();control.box:ClearFocus() end
-    end
-    W.CloseChoices()
-    local record,why=T.SaveDraft(form,displayedKey)
-    RefreshCommunity()
-    status:SetText(record and "Draft saved for this session. Not published." or why)
-    return record
-end
-save:SetScript("OnClick",SaveForm)
-ns.Tooltips.Bind(testStart,{title="Test Publishing",detail="Rehearse a local tournament. No other players will see it."})
-testStart:SetScript("OnClick",function()
-    local record=SaveForm();if not record then return end
-    local ok,why=R.StartPreview(record)
-    if ok then
-        if not (ns.Navigation and ns.Navigation.SelectKey("tournaments","manage")) then U.Show("manage") end
-    else status:SetText(why) end
-end)
-host:HookScript("OnHide",function()
-    W.CloseChoices()
-    for _,control in pairs(controls) do if not control.choice and not control.calendar then control.box:ClearFocus() end end
-end)
-local function FieldAt(key,x,y,width)
-    local v=controls[key]
-    Place(v.label,v.parent,x,y,width,22)
-    Place(v.box,v.parent,x,y+24,width,30)
-end
+local hostView
 local function LayoutHost(w)
-    local wide=w>=700
-    local a=wide and math.floor((w-12)*.49) or w
-    local b=wide and w-a-12 or w
-    local h1,h2=365,350
-    local x2,y2=wide and a+12 or 0,wide and 0 or h1+12
-    Place(manage,host,0,0,a,h1);Header(manage,a)
-    FieldAt("name",12,45,a-24)
-    FieldAt("location",12,105,a-24)
-    FieldAt("startUTC",12,165,a-24)
-    FieldAt("closeBefore",12,225,a-24)
-    TextAt(localSchedule,manage,12,283,a-24,66)
-    Place(eventRules,host,x2,y2,b,h2);Header(eventRules,b)
-    TextAt(format,eventRules,12,43,b-24,28)
-    local half=math.floor((b-34)/2)
-    FieldAt("capacity",12,80,half)
-    FieldAt("bestOf",22+half,80,b-half-34)
-    FieldAt("minLevel",12,140,half)
-    FieldAt("maxLevel",22+half,140,b-half-34)
-    FieldAt("rules",12,200,b-24)
-    TextAt(ruleHint,eventRules,12,264,b-24,80)
-    local footerY=math.max(h1,y2+h2)+12
-    Place(draftFooter,host,0,footerY,w,138);Header(draftFooter,w)
-    TextAt(status,draftFooter,12,42,w-24,48)
-    Place(save,draftFooter,math.max(12,w-152),96,140,30)
-    Place(testStart,draftFooter,12,96,math.max(1,math.min(160,w-178)),30)
-    return footerY+138
+    if not hostView then
+        hostView=ns.TournamentHost.New(host,{
+            refreshCommunity=RefreshCommunity,
+            published=function()
+                if not (ns.Navigation and ns.Navigation.SelectKey("tournaments","manage")) then U.Show("manage") end
+            end})
+    end
+    return hostView.Show(w,Population.GetCurrent(),displayedKey)
 end
 local championPage=Page("champions")
 local archive=Panel(championPage,"Hall of Champions")
@@ -407,7 +278,7 @@ local function RefreshTest()
     local player=p and p.role=="player"
     hostTest:SetShown(not not hosting)
     local canCreate=R.CanCreatePreview()
-    manage:SetShown(canCreate);eventRules:SetShown(canCreate);draftFooter:SetShown(canCreate)
+    if hostView and not canCreate then hostView.Hide() end
     if p or listings then subtitle:SetText("LOCAL TEST - Nothing is published online") end
     local started=p and p.bracket~=nil
     check:SetShown(not not (player and p.member and not started and not p.member.checkedIn))
@@ -538,7 +409,7 @@ local function Layout()
     if privatePanel then privatePanel:Hide() end
     if privateBack then privateBack:Hide() end
     if p or listings then communityNote:SetText("Local test only. Community settings are automatically detected.") end
-    local showCommunity=active=="host" or active=="manage" or active=="my-tournament" or active=="brackets"
+    local showCommunity=active=="manage" or active=="my-tournament" or active=="brackets"
     community:SetShown(showCommunity)
     local top=showCommunity and LayoutCommunity(w) or 0
     if active and pages[active] then
@@ -549,6 +420,7 @@ local function Layout()
     end
     if active~="overview" and overviewView then overviewView.Hide() end
     if active~="browse" and browseView then browseView.Hide() end
+    if active~="host" and hostView then hostView.Hide() end
     if active=="overview" then
         height=LayoutOverview(w,p,listings,private)
     elseif active=="brackets" and privateProjection then
@@ -632,6 +504,7 @@ function U.Show(key)
         if bracketView then bracketView.Hide() end
         if overviewView then overviewView.Hide() end
         if browseView then browseView.Hide() end
+        if hostView then hostView.Hide() end
         privateConfirm=nil
         active=nil;root:Hide();return
     end
@@ -639,7 +512,6 @@ function U.Show(key)
     if key~="brackets" and bracketView then bracketView.Hide() end
     active=key
     RefreshCommunity()
-    if key=="host" then refreshSchedule() end
     for k,f in pairs(pages) do f:SetShown(k==active) end
     local snapshot=T.GetSnapshot()
     local client=snapshot.client

@@ -292,14 +292,15 @@ end
 
 -- Reuse the exact Options dropdown plate, arrow and motion in War Games
 -- without adding another style or a second scrolling engine.
-function Widgets.ChoiceControl(parent, width)
+function Widgets.ChoiceControl(parent, width, opts)
+    opts = opts or {}
     local control = CreateFrame("Button", nil, parent)
     control:SetSize(width or 226, 30)
     control:RegisterForClicks("LeftButtonUp")
     Style.Skin(control, C.body, {
         corner=9, edge=C.border, shine=0.22, shade=0.22,
     })
-    local valueText = Style.Text(control, "", 12, C.text)
+    local valueText = Style.Text(control, "", opts.fontSize or 12, C.text)
     valueText:SetPoint("LEFT", control, "LEFT", 9, 0)
     valueText:SetPoint("RIGHT", control, "RIGHT", -25, 0)
     valueText:SetJustifyH("LEFT")
@@ -312,12 +313,14 @@ function Widgets.ChoiceControl(parent, width)
     local hover = Style.Fill(control, C.goldDim)
     hover:SetAlpha(0)
     control:SetScript("OnEnter", function()
-        Motion.Fade(hover, 0.18, Motion.Duration("quick"))
+        if not opts.feedback or control:IsEnabled() then
+            Motion.Fade(hover, opts.feedback and opts.feedback.hoverAlpha or 0.18, Motion.Duration("quick"))
+        end
     end)
     control:SetScript("OnLeave", function()
         Motion.Fade(hover, 0, Motion.Duration("quick"))
     end)
-    Widgets.PressFeedback(control, hover)
+    Widgets.PressFeedback(control, hover, opts.feedback)
     control.label, control.arrow = valueText, arrow
     return control, valueText
 end

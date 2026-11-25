@@ -128,6 +128,9 @@ local function PaintCommunity(d,scope,base,wide)
     end
     return h
 end
+-- Shared tournament presentation primitives. Host and Browse use the
+-- same art, native action skin and compact community strip.
+B.Chrome={Art=Art,Panel=Panel,Action=Action,NewCommunity=Community,PaintCommunity=PaintCommunity}
 local detailNames={"Start Time:","Registration Closes:","Format:","Players:","Levels:","Rules:","Organizer:"}
 local function Detail(parent)
     local f=Panel(parent,true);local d={frame=f,title=Label(f,25,C.pale,"CENTER"),la=Art(f,"laurelL"),ra=Art(f,"laurelR"),
