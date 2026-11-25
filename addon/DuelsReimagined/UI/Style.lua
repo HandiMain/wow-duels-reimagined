@@ -484,7 +484,7 @@ end
 -- Footer, action, and category labels share one source of truth for their
 -- live font bounds. A font change refits; an on-size event refits. Selected,
 -- hover, disabled, and click behavior remain owned by the original Button.
-function Style.ConstrainButtonLabel(button, label, left, right, minimum)
+function Style.ConstrainButtonLabel(button, label, left, right, minimum, refitOnText)
     left, right = left or 8, right or 8
     label:SetWordWrap(false)
     local function Anchor(y)
@@ -498,12 +498,16 @@ function Style.ConstrainButtonLabel(button, label, left, right, minimum)
             entry.fit = { button=button, left=left, right=right,
                 minimum=minimum or 9 }
             FitLabelFont(entry)
-            button:HookScript("OnSizeChanged", function()
+            local function Refit()
                 local path, _, flags = label:GetFont()
                 local scale = ns.Settings and ns.Settings.Get("fontScale") or 1
                 if path then label:SetFont(path, entry.size * scale, flags or "") end
                 FitLabelFont(entry)
-            end)
+            end
+            button:HookScript("OnSizeChanged", Refit)
+            if refitOnText and type(hooksecurefunc)=="function" then
+                pcall(hooksecurefunc,label,"SetText",Refit)
+            end
             break
         end
     end
@@ -537,8 +541,8 @@ function Style.Action(parent, caption, variant, palette)
         button.plate = Style.Plate(button, palette.plate, { corner=footer and 9 or 11 })
     elseif palette then
         Style.Skin(button, palette.fill, {
-            corner=11, edge=palette.edge, light=palette.light,
-            dark=palette.dark, shine=0.28, shade=0.20, rim=0.88,
+            corner=palette.corner or 11, edge=palette.edge, light=palette.light,
+            dark=palette.dark, shine=palette.shine or 0.28, shade=palette.shade or 0.20, rim=palette.rim or 0.88,
         })
     elseif footer then
         Style.Plate(button, "hall", { corner=9 })
@@ -555,22 +559,39 @@ function Style.Action(parent, caption, variant, palette)
             shine=0.58, rim=0.78,
         })
     end
-    local label = Style.Text(button, caption, 15,
+    local feedback=palette and palette.feedback
+    local label = Style.Text(button, caption, palette and palette.fontSize or 15,
         palette and palette.text or C.buttonText)
-    local placeLabel = Style.ConstrainButtonLabel(button, label, 9, 9, 9)
+    local placeLabel = Style.ConstrainButtonLabel(button, label, 9, 9,
+        palette and palette.minimumFont or 9,palette and palette.refitOnText)
     label:SetJustifyH("CENTER")
     if not landingArt then
         button:SetScript("OnEnter", function()
-            ns.Motion.Fade(hover, 0.20, 0.16)
+            if not feedback or button:IsEnabled() then
+                ns.Motion.Fade(hover, feedback and feedback.hoverAlpha or 0.20, 0.16)
+            end
         end)
         button:SetScript("OnLeave", function()
             ns.Motion.Fade(hover, 0, 0.18)
         end)
     end
-    button:SetScript("OnMouseDown", function() placeLabel(-1) end)
+    button:SetScript("OnMouseDown", function(_,mouse)
+        if not feedback or (mouse=="LeftButton" and button:IsEnabled()) then
+            placeLabel(feedback and -2 or -1)
+        end
+    end)
     button:SetScript("OnMouseUp", function() placeLabel(0) end)
+    if feedback then
+        button:HookScript("OnHide",function() placeLabel(0) end)
+        button:HookScript("OnLeave",function() placeLabel(0) end)
+        button:HookScript("OnDisable",function()
+            placeLabel(0)
+            if hover then ns.Motion.Stop(hover,0) end
+            if button._duelsPressFlash then ns.Motion.Stop(button._duelsPressFlash,0) end
+        end)
+    end
     if not landingArt and ns.Widgets and ns.Widgets.PressFeedback then
-        ns.Widgets.PressFeedback(button, hover)
+        ns.Widgets.PressFeedback(button, hover, feedback)
     end
     -- The fixed landing calls-to-action already identify themselves; avoid
     -- the boxed help tooltip obscuring their illustration on hover.

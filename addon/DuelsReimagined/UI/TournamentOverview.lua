@@ -196,9 +196,20 @@ local function Panel(p,bright)
     S.Skin(f,C.body,{corner=13,edge=bright and C.gold or C.goldDim,light=C.goldDim,dark=C.window,shine=.12,shade=.16,rim=.96})
     return f
 end
-local function Button(p,primary)
-    local b=S.Action(p,"","footer",{plate=primary and "hall" or "dark",text=C.pale,edge=C.goldDim,hover=C.gold,tooltip=false})
-    if ns.Tooltips then ns.Tooltips.Bind(b,function(owner) return {title=owner.overviewCaption,disabled=owner.overviewReason} end) end
+local function Button(p,primary,small)
+    local palette={text=C.pale,edge=primary and C.gold or C.goldDim,hover=C.gold,tooltip=false,
+        fontSize=small and 18 or primary and 23 or 21,minimumFont=13,refitOnText=true,
+        feedback={hoverAlpha=.55,downAlpha=.82,downHover=.88,clickAlpha=.86,corner=9}}
+    if primary then
+        -- Rounded native relief eliminates the old opaque black atlas fringe.
+        palette.fill=C.button;palette.light=C.red;palette.dark=C.header
+        palette.corner=9;palette.shine=.60;palette.shade=.25;palette.rim=1
+    else palette.plate="dark" end
+    local b=S.Action(p,"","footer",palette)
+    if ns.Tooltips then ns.Tooltips.Bind(b,function(owner)
+        if owner:IsEnabled() then return nil end
+        return {title=owner.overviewCaption,disabled=owner.overviewReason}
+    end) end
     return b
 end
 local function Bind(b,caption,enabled,action,cb)
@@ -228,7 +239,7 @@ local function PaintSide(d,x,y,w,h,caption,enabled,action,cb)
     At(d.art,f,19,(h-125)/2,151,125)
     Text(d.title,f,190,15,w-205,36,d.name)
     Text(d.desc,f,190,52,w-212,55,d.description)
-    At(d.button,f,190,h-54,w-217,36);Bind(d.button,caption,enabled,action,cb)
+    At(d.button,f,190,h-56,w-217,40);Bind(d.button,caption,enabled,action,cb)
 end
 local steps={{"Browse","Discover available\ntournaments.","browse"},{"Register","Sign up for a\ntournament.","register"},
     {"Check In","Confirm your\nparticipation.","checkin"},{"Compete","Fight through the\nbracket and climb!","compete"}}
@@ -255,7 +266,7 @@ function O.New(parent,cb)
     local summary,event,scope=Label(bottom,20,C.pale),Label(bottom,23,C.text),Label(bottom,14,C.muted)
     local blank=Label(bottom,16,C.muted);local cells={};for i=1,5 do cells[i]=Cell(bottom) end
     local bottomButton=Button(bottom,true)
-    local localEnd=Button(f,false)
+    local localEnd=Button(f,false,true)
     local D={};local clockTimer
     local function StopClock() if clockTimer then clockTimer:Cancel();clockTimer=nil end end
     f:HookScript("OnHide",StopClock)
@@ -269,13 +280,28 @@ function O.New(parent,cb)
         local total=bottomY+bottomH+(localTest and 43 or 0)
         f:SetScale(scale);At(f,parent,0,0,base,total);f:Show()
         At(banner,f,0,0,base,bannerH)
-        local bw=base*.36;At(l,banner,4,4,bw,bannerH-8);At(r,banner,base-bw-4,4,bw,bannerH-8)
-        -- Keep the text above, not baked into the backdrop, with room for longer event names.
-        local titleW=wide and base*.50 or base*.70
-        local icon="info"
-        if m.state=="registered" or m.state=="checked" or m.state=="upnext" then icon="tick" else icon="info" end
-        SetArt(bannerIcon,icon);At(bannerIcon,banner,(base-titleW)/2-26,22,28,28);bannerIcon:SetShown(m.state~="champion" and m.state~="eliminated")
-        Text(bannerTitle,banner,(base-titleW)/2,12,titleW,52,m.title,GOLD)
+        local bw=base*(wide and .36 or .29);At(l,banner,4,4,bw,bannerH-8);At(r,banner,base-bw-4,4,bw,bannerH-8)
+        -- Center the visible title and icon together, not the icon at the
+        -- edge of an oversized invisible label box.
+        local showIcon=m.state~="champion" and m.state~="eliminated"
+        local icon=(m.state=="registered" or m.state=="checked" or m.state=="upnext") and "tick" or "info"
+        local titleW=wide and base*.40 or base*.50
+        local shift=showIcon and 19 or 0
+        Text(bannerTitle,banner,(base-titleW)/2+shift,12,titleW,52,m.title,GOLD)
+        if S.ConstrainText then S.ConstrainText(bannerTitle,titleW,52,18) end
+        local width
+        if bannerTitle.GetStringWidth then
+            local ok,value=pcall(bannerTitle.GetStringWidth,bannerTitle)
+            local readable=ok
+            if readable and type(issecretvalue)=="function" then
+                local checked,secret=pcall(issecretvalue,value);readable=checked and not secret
+            end
+            if readable and type(value)=="number" and value>0 then width=math.min(value,titleW) end
+        end
+        width=width or math.min(titleW,#m.title*14)
+        SetArt(bannerIcon,icon)
+        At(bannerIcon,banner,base/2+shift-width/2-36,24,27,27)
+        bannerIcon:SetShown(showIcon)
         Text(bannerText,banner,base*.20,60,base*.60,33,m.banner,m.state=="upnext" and GREEN or C.text)
         At(main,f,0,bodyY,mainW,midH);At(mainIcon,main,20,15,59,52)
         Text(heading,main,91,9,mainW-104,37,m.heading)
@@ -300,7 +326,7 @@ function O.New(parent,cb)
             for i,c in ipairs(matchCells) do local cw=(mainW-32)/4;PaintCell(c,match,(i-1)*cw,4,cw,65,m.match[i],i>1) end
         end
         local actionY=m.match and 292 or 225
-        At(primary,main,mainW*.19,actionY,mainW*.62,43)
+        At(primary,main,mainW*.19,actionY,mainW*.62,46)
         Bind(primary,m.primary,m.primaryAction and can(m.primaryAction),m.primaryAction,cb)
         rule:SetShown(not m.art and not m.match);At(rule,main,mainW*.08,285,mainW*.84,12)
         note:SetShown(not m.art);subnote:SetShown(not m.art and m.hint~="")
@@ -322,11 +348,11 @@ function O.New(parent,cb)
         if wide then
             local x=310;local endX=base-(showAction and 200 or 12);local cw=metricCount>0 and (endX-x)/metricCount or 0
             for i,c in ipairs(cells) do PaintCell(c,bottom,x+(i-1)*cw,42,cw,63,m.metrics[i],true) end
-            At(bottomButton,bottom,base-191,57,177,38)
+            At(bottomButton,bottom,base-191,55,177,42)
         else
             local cw=(base-24)/math.max(1,metricCount)
             for i,c in ipairs(cells) do PaintCell(c,bottom,12+(i-1)*cw,114,cw,58,m.metrics[i],i>1) end
-            At(bottomButton,bottom,base*.25,178,base*.50,33)
+            At(bottomButton,bottom,base*.25,177,base*.50,37)
         end
         Bind(bottomButton,showAction and m.bottomButton or nil,showAction and not m.bottomDisabled and can(m.bottomAction),m.bottomAction,cb)
         At(localEnd,f,base-184,total-33,184,29);Bind(localEnd,localTest and "End Local Test" or nil,localTest,"end-test",cb)
