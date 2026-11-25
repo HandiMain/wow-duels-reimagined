@@ -35,6 +35,11 @@ function P.SeasonDescriptor(client,epoch)
         return table.concat({"2",client,policy.BALANCED_ID,tostring(epoch),build},"|")
     end
 end
+function P.ScopedSeasonDescriptor(client,epoch,population)
+    local base=P.SeasonDescriptor(client,epoch)
+    local code=ns.CompetitiveScope and ns.CompetitiveScope.Code(population,client)
+    if base and code then return base.."|"..code end
+end
 function P.CompareSeasonSimulated(client,epoch,body)
     local function Result(state)
         return {scope="SIMULATED",state=state,compatible=state=="compatible",rankEligible=false,originVerified=false}

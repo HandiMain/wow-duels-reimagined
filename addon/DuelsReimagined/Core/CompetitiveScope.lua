@@ -58,8 +58,30 @@ function P.Matches(expected,record)
     local key=P.Key(expected)
     return key~=nil and key==P.Key(record)
 end
--- Existing ranked evidence and protocol are client-only. Do not activate
--- them until the scoped schema, identity and wire compatibility are migrated.
+-- Compact, reversible population code for the existing bounded wire tokens.
+local regionCodes={EU="e",US="u"}
+local modeCodes={retail="s",normal="n",pvp="p",rp="r",["rp-pvp"]="b"}
+local factionCodes={Alliance="a",Horde="h"}
+function P.Code(key,client)
+    if type(key)~="string" then return nil end
+    local c,r,m,f=key:match("^([%a]+):([%a]+):([%a%-]+):([%a]+)$")
+    if c~=client or P.Key({client=c,region=r,ruleset=m,faction=f})~=key then return nil end
+    return regionCodes[r]..modeCodes[m]..factionCodes[f]
+end
+function P.TokenPrefix(key,client)
+    local code=P.Code(key,client);return code and code.."-"
+end
+function P.TokenMatches(key,client,token)
+    local prefix=P.TokenPrefix(key,client)
+    return prefix~=nil and type(token)=="string" and #token<=32 and #token>#prefix
+        and token:match("^[%w%-]+$")~=nil and token:sub(1,#prefix)==prefix
+end
+function P.SessionMatches(key,client,session)
+    if type(session)~="string" then return false end
+    local a,b=session:match("^([%w%-]+):([%w%-]+)$")
+    return P.TokenMatches(key,client,a) and P.TokenMatches(key,client,b)
+end
+-- A separate release gate; scoped implementation is NOT multiplayer evidence.
 function P.RankedReady() return false end
 function P.RunSelfTest(emit)
     emit=type(emit)=="function" and emit or function() end
@@ -81,7 +103,18 @@ function P.RunSelfTest(emit)
             end
         end
         assert(#all==20)
-        for i,a in ipairs(all) do for j,b in ipairs(all) do assert(P.Matches(a,b)==(i==j)) end end
+        for i,a in ipairs(all) do
+            local key=P.Key(a);local prefix=assert(P.TokenPrefix(key,a.client))
+            assert(P.SessionMatches(key,a.client,prefix.."r1-1:"..prefix.."r2-1"))
+            assert(not P.SessionMatches(key,a.client,"r1-1:r2-1"))
+            for j,b in ipairs(all) do
+                assert(P.Matches(a,b)==(i==j))
+                if a.client==b.client then
+                    local other=assert(P.TokenPrefix(P.Key(b),b.client))
+                    assert(P.SessionMatches(key,a.client,prefix.."x:"..other.."y")== (i==j))
+                end
+            end
+        end
     end)
     Case("unknown regions, unsupported modes and neutral factions fail closed",function()
         local s={client="forever",region="EU",ruleset="pvp",faction="Neutral"}
@@ -120,7 +153,7 @@ function P.RunSelfTest(emit)
         local t=Detect("retail",function()return 3 end,nil,nil,function()error("unavailable")end)
         assert(t.region=="EU" and not t.faction and not P.Key(t))
     end)
-    Case("ranked activation remains locked pending scoped storage and wire format",function()
+    Case("ranked activation remains locked pending release verification",function()
         assert(not P.RankedReady())
     end)
     return pass,fail

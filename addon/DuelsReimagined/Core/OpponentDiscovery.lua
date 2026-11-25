@@ -173,9 +173,11 @@ local function Build(api)
         local kind,nonce,client,rev,from,to=body:match("^([HA])|([%w%-]+)|(%a+)|(%d+)|([^|]+)|([^|]+)$")
         local offer
         if not kind then
-            kind,nonce,client,rev,from,to,offer=body:match("^(A)|([%w%-]+)|(%a+)|(%d+)|([^|]+)|([^|]+)|([RU]|%d+|[0-9a-f]+)$")
+            kind,nonce,client,rev,from,to,offer=body:match("^(A)|([%w%-]+)|(%a+)|(%d+)|([^|]+)|([^|]+)|([RU]|%d+|[0-9a-f]+|[eu][snprb][ah])$")
+            if not kind then kind,nonce,client,rev,from,to,offer=body:match("^(A)|([%w%-]+)|(%a+)|(%d+)|([^|]+)|([^|]+)|([RU]|%d+|[0-9a-f]+)$") end
             if offer then
-                local mode,epoch,fp=offer:match("^([RU])|(%d+)|([0-9a-f]+)$")
+                local mode,epoch,fp=offer:match("^([RU])|(%d+)|([0-9a-f]+)|[eu][snprb][ah]$")
+                if not mode then mode,epoch,fp=offer:match("^([RU])|(%d+)|([0-9a-f]+)$") end
                 if not mode or #fp~=64 or #epoch>10 then return end
             end
         end

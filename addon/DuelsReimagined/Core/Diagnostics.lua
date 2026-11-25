@@ -307,6 +307,12 @@ Check("Competitive storage / isolated lifecycle QA","deep",function()
     return f==0 and p==22 and "PASS" or "FAIL",
         string.format("%d passed / %d failed (SIMULATED)\n",p,f)..table.concat(log,"\n")
 end)
+Check("Competitive storage / isolated population QA","deep",function()
+    local log={}
+    local p,f=ns.CompetitiveStorage.RunPopulationSelfTest(function(line) log[#log+1]=line end)
+    return f==0 and p==9 and "PASS" or "FAIL",
+        string.format("%d passed / %d failed (SIMULATED)\n",p,f)..table.concat(log,"\n")
+end)
 Check("Competitive storage / isolated record roundtrip QA","deep",function()
     local log={}
     local p,f=ns.CompetitiveStorage.RunRecordSelfTest(function(line) log[#log+1]=line end)

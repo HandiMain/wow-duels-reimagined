@@ -31,8 +31,8 @@ local function Encode(page)
     end
     return #rows==0 and '-' or table.concat(rows,'/')
 end
-local function Decode(body,client,token,page,total,scope)
-    local p={version=1,scope=scope,client=client,rule='elo-trial-2',token=token,index=page,total=total,entries={}}
+local function Decode(body,client,token,page,total,scope,population)
+    local p={version=1,scope=scope,client=client,rule='elo-trial-2',token=token,index=page,total=total,entries={},population=population}
     if body=='-' then return p end
     local rows=Split(body,'/');if #rows>16 then return nil end
     for _,row in ipairs(rows) do
@@ -55,7 +55,10 @@ end
 local function Context(client,node)
     local epoch=node.GetSeasonEpoch()
     if epoch==nil then return '1','' end
-    local descriptor=ns.CompetitiveIntegrity.SeasonDescriptor(client,epoch)
+    local descriptor
+    if Scope(node)=="PEER" then
+        descriptor=ns.CompetitiveIntegrity.ScopedSeasonDescriptor(client,epoch,node.GetPopulation and node.GetPopulation())
+    else descriptor=ns.CompetitiveIntegrity.SeasonDescriptor(client,epoch) end
     if descriptor then
         return '2','|'..descriptor..(Scope(node)=="PEER" and '|P' or '')
     end
@@ -250,7 +253,7 @@ function P.NewRequester(client,node,prefix)
             if payload:sub(1,#header)~=header then return false,'delta_context' end
             payload=payload:sub(#header+1)
         end
-        local page=Decode(payload,client,q.token,q.page,total,scope)
+        local page=Decode(payload,client,q.token,q.page,total,scope,node.GetPopulation and node.GetPopulation())
         if not page then return false,'decode' end
         if q.mode=='delta' and not ns.LeaderboardSync.ValidateDeltaPage(q.group,q.expected,page) then
             return false,'delta_page'
@@ -310,7 +313,7 @@ local function NewCatchup(client,node,prefix,peer,mode)
     function D.GetStatus()
         return {scope=Scope(node),state=state,mode=mode,requests=requests,restarts=restarts,
             rounds=rounds,pages=pages,completeness='unknown',rankEligible=false,
-            client=client,domain='ranked',context=tostring(node.GetSeasonEpoch()),peer=peer,
+            client=client,domain='ranked',context=(node.GetPopulation and node.GetPopulation() and node.GetPopulation()..':' or '')..tostring(node.GetSeasonEpoch()),peer=peer,
             comparedRevision=comparedRevision}
     end
     function D.Cancel() q.Cancel();state='cancelled';plan=nil;audit=nil end

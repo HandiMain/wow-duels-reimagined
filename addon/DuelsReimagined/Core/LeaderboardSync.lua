@@ -88,35 +88,39 @@ local function PeerClocks(variants)
     for _,r in ipairs(variants) do out=MergeClocks(out,{{r.time1,r.time2}}) end
     return out
 end
-local function Validate(client,saved,scope)
+local function Validate(client,saved,scope,population)
     if type(saved)~="table" or saved.version~=VERSION or saved.scope~=scope or saved.client~=client
         or saved.rule~=RULE or type(saved.clocks)~="table" or type(saved.ledger)~="table" then return nil end
     local open=scope=="PEER" and ns.MatchLedger.OpenPeer or ns.MatchLedger.OpenSimulated
     local ledger=open(client,saved.ledger)
     if not ledger then return nil end
-    local clean={version=VERSION,scope=scope,client=client,rule=RULE,ledger=ledger.Save(),clocks={}}
+    local clean={version=VERSION,scope=scope,client=client,rule=RULE,ledger=ledger.Save(),clocks={},population=population}
     for id,v in pairs(saved.clocks) do
         if not clean.ledger.entries[id] then return nil end
         local c=Clocks(v);if not c then return nil end;clean.clocks[id]=c
     end
     if scope=="PEER" then
         for id,variants in pairs(clean.ledger.entries) do
+            if population then
+                for _,r in ipairs(variants) do if not ns.CompetitiveScope.SessionMatches(population,client,r.session) then return nil end end
+            end
             if not Equal(clean.clocks[id],PeerClocks(variants)) then return nil end
         end
     end
     if not Equal(clean,saved) then return nil end
     return clean
 end
-local function Open(client,saved,epoch,scope)
+local function Open(client,saved,epoch,scope,population)
     scope=scope or "SIMULATED"
     local open=scope=="PEER" and ns.MatchLedger.OpenPeer or ns.MatchLedger.OpenSimulated
     if client~="forever" and client~="retail" then return nil,"client" end
     if epoch~=nil and not ns.SeasonRules.Schedule(epoch,epoch) then return nil,"invalid_schedule" end
+    if population~=nil and (scope~="PEER" or not ns.CompetitiveScope or not ns.CompetitiveScope.Code(population,client)) then return nil,"population" end
     local data
     if saved==nil then
         data={version=VERSION,scope=scope,client=client,rule=RULE,
-            ledger=assert(open(client)).Save(),clocks={}}
-    else data=Validate(client,saved,scope) end
+            ledger=assert(open(client)).Save(),clocks={},population=population}
+    else data=Validate(client,saved,scope,population) end
     if not data then return nil,"invalid_store" end
     -- The ledger owns canonical records. Only incoming evidence is validated
     -- during a merge; the existing ledger is opened once per isolated node.
@@ -167,6 +171,7 @@ local function Open(client,saved,epoch,scope)
         local validate=scope=="PEER" and ns.ResultConfirmation.ValidatePeerRecord or ns.ResultConfirmation.ValidateSimulatedRecord
         local clean=validate(record)
         if not clean or clean.client~=client then return false,"invalid_record" end
+        if population and not ns.CompetitiveScope.SessionMatches(population,client,clean.session) then return false,"population_mismatch" end
         local clocks={}
         if scope=="PEER" then
             if t1~=clean.time1 or t2~=clean.time2 then return false,"invalid_time" end
@@ -179,7 +184,7 @@ local function Open(client,saved,epoch,scope)
     end
     function D.Save() local saved=Copy(data);saved.ledger=ledger.Save();return saved end
     function D.MergeSaved(saved)
-        local clean=Validate(client,saved,scope)
+        local clean=Validate(client,saved,scope,population)
         if not clean then return false,"invalid_evidence" end
         return Merge(clean)
     end
@@ -191,7 +196,7 @@ local function Open(client,saved,epoch,scope)
         return sortedIDs
     end
     local function Page(token,index,ids,total)
-        local page={version=VERSION,scope=scope,client=client,rule=RULE,token=token,index=index,total=total,entries={}}
+        local page={version=VERSION,scope=scope,client=client,rule=RULE,token=token,index=index,total=total,entries={},population=population}
         for j=(index-1)*PAGE+1,math.min(index*PAGE,#ids) do
             local id=ids[j];page.entries[#page.entries+1]={id=id,records=ledger.ReadVariants(id),
                 clocks=data.clocks[id] and Copy(data.clocks[id]) or nil}
@@ -285,7 +290,9 @@ local function Open(client,saved,epoch,scope)
     function D.GetDeltaWork() return Copy(work) end
     local function Context()
         if epoch then
-            local descriptor=ns.CompetitiveIntegrity.SeasonDescriptor(client,epoch)
+            local descriptor
+            if scope=="PEER" then descriptor=ns.CompetitiveIntegrity.ScopedSeasonDescriptor(client,epoch,population)
+            else descriptor=ns.CompetitiveIntegrity.SeasonDescriptor(client,epoch) end
             return descriptor and descriptor..(scope=="PEER" and "|P" or "")
         end
     end
@@ -331,12 +338,12 @@ local function Open(client,saved,epoch,scope)
     -- WoW events. Accept only bounded pages; validate all before a merge.
     function D.Receive(page,sender,expected,token)
         if not Guid(sender) or sender~=expected or not Token(token) or type(page)~="table"
-            or page.version~=VERSION or page.scope~=scope or page.client~=client or page.rule~=RULE or page.token~=token
+            or page.version~=VERSION or page.scope~=scope or page.client~=client or page.rule~=RULE or page.token~=token or page.population~=population
             or not Int(page.total,1,math.ceil(LIMIT/PAGE)) or not Int(page.index,1,page.total) then return false,"invalid_page" end
         local n=Array(page.entries,PAGE)
         if not n or (page.index<page.total and n~=PAGE) or (n==0 and page.total~=1) then return false,"invalid_page" end
         local incoming={version=VERSION,scope=scope,client=client,rule=RULE,
-            ledger={version=1,scope=scope,client=client,entries={}},clocks={}}
+            ledger={version=1,scope=scope,client=client,entries={}},clocks={},population=population}
         local prior
         for _,e in ipairs(page.entries) do
             if type(e)~="table" or type(e.id)~="string" or #e.id>220 or (prior and e.id<=prior)
@@ -346,9 +353,9 @@ local function Open(client,saved,epoch,scope)
         end
         for k in pairs(page) do
             if k~="version" and k~="scope" and k~="client" and k~="rule" and k~="token"
-                and k~="index" and k~="total" and k~="entries" then return false,"invalid_page" end
+                and k~="index" and k~="total" and k~="entries" and k~="population" then return false,"invalid_page" end
         end
-        local clean=Validate(client,incoming,scope);if not clean then return false,"invalid_evidence" end
+        local clean=Validate(client,incoming,scope,population);if not clean then return false,"invalid_evidence" end
         return Merge(clean)
     end
     local function Replay(rule,options)
@@ -364,10 +371,11 @@ local function Open(client,saved,epoch,scope)
         local result,why=replay(client,eligible,times,rule,options)
         if not result then return nil,why end
         result.knownMatched=#s.matched;result.missingTime=missing;result.timeDisputed=conflict
-        result.completeness="unknown";return result
+        result.completeness="unknown";result.population=population;return result
     end
     function D.GetSeasonEpoch() return epoch end
     function D.GetScope() return scope end
+    function D.GetPopulation() return population end
     function D.Replay()
         if epoch then return nil,"season_context_required" end
         return Replay(RULE)
@@ -391,9 +399,9 @@ function P.OpenSeasonSimulated(client,epoch,saved)
     if epoch==nil then return nil,"invalid_schedule" end
     return Open(client,saved,epoch,"SIMULATED")
 end
-function P.OpenSeasonPeer(client,epoch,saved)
+function P.OpenSeasonPeer(client,epoch,saved,population)
     if epoch==nil then return nil,"invalid_schedule" end
-    return Open(client,saved,epoch,"PEER")
+    return Open(client,saved,epoch,"PEER",population)
 end
 function P.GetSnapshot() return {scope="LOCAL",state="disabled",rankEligible=false,version=VERSION} end
 function P.GetDiagnosticResources() return {pending=0,subscriptions=0,timers=0} end

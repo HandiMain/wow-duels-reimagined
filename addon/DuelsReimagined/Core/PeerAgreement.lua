@@ -14,7 +14,7 @@ end
 local function Guid(v)
     return type(v)=="string" and #v<=64 and v:match("^Player%-%w[%w%-]*$")~=nil
 end
-local function Build(client,prefix,now,available,send,scope)
+local function Build(client,prefix,now,available,send,scope,population)
     scope=scope or "SIMULATED"
     local D,s,seq={},nil,0
     local wire=scope=="PEER" and "2" or VERSION
@@ -46,7 +46,7 @@ local function Build(client,prefix,now,available,send,scope)
             or d.guid~=c.peer or type(d.key)~="string" or d.key=="" or d.expiresAt<=now() then return false end
         seq=seq+1
         local token=prefix.."-"..seq
-        if not Token(token) then return false end
+        if not Token(token) or (population and not ns.CompetitiveScope.TokenMatches(population,client,token)) then return false end
         s={state=outgoing and "offer" or "waiting",me=c.me,peer=c.peer,key=d.key,
             token=token,mode=mode or "R",deadline=math.min(now()+WAIT,d.expiresAt)}
         if outgoing and not Send("O",token,"-") then s.state="unranked";return false end
@@ -63,6 +63,7 @@ local function Build(client,prefix,now,available,send,scope)
             mode="R"
         end
         if rev~=wire or kind~=client or from~=s.peer or to~=s.me or not Token(a) or not Token(b) then return end
+        if population and (not ns.CompetitiveScope.TokenMatches(population,client,a) or (b~="-" and not ns.CompetitiveScope.TokenMatches(population,client,b))) then return end
         if op=="O" and s.state=="waiting" and b=="-" and a~="-" then
             s.remote=a;s.remoteMode=mode;s.state="ack"
             if not Send("A",a,s.token) then s.state="unranked" end
@@ -88,8 +89,8 @@ function P.NewSimulated(client,prefix,now,available,send)
     return Build(client,prefix,now,available,send,"SIMULATED")
 end
 -- Candidate only; the live adapter owns consent and actual sender checks.
-function P.NewPeer(client,prefix,now,available,send)
-    return Build(client,prefix,now,available,send,"PEER")
+function P.NewPeer(client,prefix,now,available,send,population)
+    return Build(client,prefix,now,available,send,"PEER",population)
 end
 function P.RunSelfTest(emit)
     emit=type(emit)=="function" and emit or function() end

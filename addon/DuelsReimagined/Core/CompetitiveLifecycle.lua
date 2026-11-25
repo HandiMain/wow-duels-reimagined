@@ -72,9 +72,14 @@ local function Refresh()
         if not ok then Note("Achievement view refresh failed") end
     end
 end
+local function PopulationKey()
+    local scope=ns.CompetitiveScope
+    return scope and scope.Key(scope.GetCurrent())
+end
 function P.CanCommunicate()
-    return initialized and Store.PeerEpoch()~=nil and
-        ns.Settings.Get("competitiveConsent")==true
+    if not initialized or not Store.PeerEpoch() or ns.Settings.Get("competitiveConsent")~=true then return false end
+    local key=PopulationKey()
+    return key~=nil and (not node or node.GetPopulation()==key) and (not match or match.population==key)
 end
 local function Available()
     return P.CanCommunicate() and ns.Communication.IsAvailable()
@@ -139,7 +144,7 @@ local function EnsureNode()
     local why
     node,why=Store.OpenPeerNode()
     if not node then Note("Peer store unavailable: "..tostring(why))
-    else integrityReview=ns.CompetitiveIntegrity.NewReview(ns.Client.Kind(),"ranked",tostring(node.GetSeasonEpoch()),"PEER") end
+    else integrityReview=ns.CompetitiveIntegrity.NewReview(ns.Client.Kind(),"ranked",node.GetPopulation()..":"..tostring(node.GetSeasonEpoch()),"PEER") end
     return node
 end
 local Tick
@@ -183,7 +188,8 @@ end
 function P.GetRankOffer()
     local ok,_,epoch,fp=LocalRankReady()
     if not ok then return nil end
-    return (PreferredMode()=="R" and "R" or "U").."|"..epoch.."|"..fp
+    local code=ns.CompetitiveScope.Code(PopulationKey(),ns.Client.Kind())
+    if code then return (PreferredMode()=="R" and "R" or "U").."|"..epoch.."|"..fp.."|"..code end
 end
 function P.RankedAvailability(guid)
     if not Guid(guid) then return false,"Select a player",false end
@@ -191,19 +197,20 @@ function P.RankedAvailability(guid)
     if not me or me.guid==guid then return false,"Select another player",false end
     local ok,why,epoch,fp=LocalRankReady()
     if not ok then return false,why,false end
-    return P.EvaluateRankOffer(ns.OpponentDiscovery.GetSnapshot(),guid,epoch,fp)
+    return P.EvaluateRankOffer(ns.OpponentDiscovery.GetSnapshot(),guid,epoch,fp,ns.CompetitiveScope.Code(PopulationKey(),ns.Client.Kind()))
 end
 -- Pure UI eligibility projection. A compatible U response permits changing
 -- preference, but never a ranked launch. This prevents two U players deadlocking.
-function P.EvaluateRankOffer(d,guid,epoch,fp)
+function P.EvaluateRankOffer(d,guid,epoch,fp,code)
     if not d or not d.opponent or d.opponent.guid~=guid or d.state=="checking" then
         return false,"Checking opponent",false
     end
     if d.state~="compatible" then
         return false,d.state=="incompatible" and "Incompatible addon" or "Addon not confirmed",false
     end
-    if d.rankOffer=="U|"..epoch.."|"..fp then return false,"Opponent prefers Unranked",true end
-    if d.rankOffer~="R|"..epoch.."|"..fp then return false,"Ranked compatibility not confirmed",false end
+    local suffix="|"..epoch.."|"..fp..(code and "|"..code or "")
+    if d.rankOffer=="U"..suffix then return false,"Opponent prefers Unranked",true end
+    if d.rankOffer~="R"..suffix then return false,"Ranked compatibility not confirmed",false end
     return true,"Ranked available",true
 end
 local function StartChallenge(s)
@@ -218,12 +225,16 @@ local function StartChallenge(s)
         or c.direction=="incoming" and c.kind=="standard") then return end
     local me=ns.Group.ReadPlayerIdentity("player")
     local now,epoch,prefix=Now(),EpochNow(),Prefix()
+    local population=PopulationKey()
+    local populationPrefix=ns.CompetitiveScope.TokenPrefix(population,ns.Client.Kind())
+    if not populationPrefix or not prefix then return end
+    prefix=populationPrefix..prefix
     local key=ns.OpponentDiscovery.NormalizeSender(c.opponent.display)
     if not me or not Guid(me.guid) or me.guid==c.opponent.guid or not now or not epoch
         or epoch<Store.PeerEpoch() or not prefix or not key then return end
     match={phase="challenge",challengeAt=c.time,deadline=now+8,me=me.guid,
         peer={guid=c.opponent.guid,key=key},direction=c.direction,kind=c.kind,
-        prefix=prefix,helloAt=now,hellos=0,mode=intent and intent.mode or "R"}
+        prefix=prefix,population=population,helloAt=now,hellos=0,mode=intent and intent.mode or "R"}
     status="checking";Arm()
 end
 local function TryAgreement(x,now)
@@ -231,7 +242,7 @@ local function TryAgreement(x,now)
     if d.state~="compatible" or not d.opponent or d.opponent.guid~=x.peer.guid
         or d.opponent.key~=x.peer.key or not d.expiresAt or d.expiresAt<=now then return end
     x.peer.route=d.opponent.route
-    local desc=ns.CompetitiveIntegrity.SeasonDescriptor(ns.Client.Kind(),Store.PeerEpoch())
+    local desc=ns.CompetitiveIntegrity.ScopedSeasonDescriptor(ns.Client.Kind(),Store.PeerEpoch(),x.population)
     if not desc then return end
     if now>=x.helloAt and x.hellos<4 then
         Send("A1","V|"..desc,x.peer)
@@ -239,7 +250,7 @@ local function TryAgreement(x,now)
     end
     if not x.compatible or x.agreement then return end
     local agreement=ns.PeerAgreement.NewPeer(ns.Client.Kind(),x.prefix,Now,Available,
-        function(body) return Send("A1",body,x.peer) end)
+        function(body) return Send("A1",body,x.peer) end,x.population)
     if not agreement.Begin({state="challenge",me=x.me,peer=x.peer.guid,direction=x.direction,kind=x.kind},
         {state=d.state,protocol=d.protocol,guid=d.opponent.guid,key=d.opponent.key,expiresAt=d.expiresAt},true,x.mode) then
         x.phase="unranked";return
@@ -264,7 +275,7 @@ local function Freeze(s)
         if intent then intent.practice=true;intent.reason="practice_agreed" end
         match=nil;status="practice";return
     end
-    if not candidate.candidate then
+    if not candidate.candidate or not ns.CompetitiveScope.SessionMatches(x.population,ns.Client.Kind(),candidate.session) then
         if intent then intent.reason="not_agreed" end
         match=nil;status="unranked";return
     end
@@ -411,8 +422,8 @@ local function OnAgreement(body,_,sender)
     local x=match
     if not P.CanCommunicate() or not x or x.phase~="challenge" or not ValidPeer(sender,x.peer) then return end
     if body:sub(1,2)=="V|" then
-        local result=ns.CompetitiveIntegrity.CompareSeasonSimulated(ns.Client.Kind(),Store.PeerEpoch(),body:sub(3))
-        x.compatible=result.compatible
+        local expected=ns.CompetitiveIntegrity.ScopedSeasonDescriptor(ns.Client.Kind(),Store.PeerEpoch(),x.population)
+        x.compatible=expected~=nil and body:sub(3)==expected
         if not x.compatible then x.agreement=nil;x.offer=nil end
     elseif x.agreement then x.agreement.Receive(body,x.peer.key)
     elseif body:sub(1,2)=="O|" and not x.offer then x.offer=body end
