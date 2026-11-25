@@ -61,6 +61,7 @@ UI\WarGames.lua [AllowLoadGameType standard]
 UI\CompetitivePreview.lua
 UI\CompetitiveUI.lua
 UI\AchievementUI.lua
+UI\BracketView.lua
 UI\TournamentUI.lua
 UI\DuelHUD.lua
 UI\DuelCountdown.lua

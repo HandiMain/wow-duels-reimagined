@@ -268,6 +268,7 @@ myPanel.detail=Label(myPanel,"No active tournament.",15,C.muted,"CENTER")
 local brackets=Page("brackets")
 local bracketPanel=Panel(brackets,"Brackets")
 bracketPanel.detail=Label(bracketPanel,"No tournament bracket available.",15,C.muted,"CENTER")
+local bracketView
 -- Explicit rehearsal views. Normal browsing never contains test events.
 local organizer=Page("manage")
 local hostTest=Panel(organizer,"Local test - Organizer")
@@ -351,19 +352,7 @@ local function RefreshTest()
     hostStart:SetShown(not not (hosting and not started))
     hostStart:SetEnabled(not not (hosting and not started and p.member and p.member.checkedIn))
     myHost:SetShown(not not player)
-    if started then
-        local lines={"LOCAL TEST - Simulated bracket"}
-        for i,round in ipairs(p.bracket.rounds) do
-            for _,m in ipairs(round) do
-                if m.a and m.b then
-                    lines[#lines+1]=(i==#p.bracket.rounds and "Final" or "Round "..i)..": "..(p.names[m.a] or "Unknown")..
-                        "  "..m.wins[1].." - "..m.wins[2].."  "..(p.names[m.b] or "Unknown")
-                    lines[#lines+1]=m.state=="ready" and "Match ready" or m.state=="done" and "Match complete" or "Waiting"
-                end
-            end
-        end
-        bracketPanel.detail:SetText(table.concat(lines,"\n"))
-    else bracketPanel.detail:SetText("No tournament bracket available.") end
+    if not started and bracketView then bracketView.Hide() end
     if hosting then
         hostSummary:SetText(Describe(p.event))
         local lines={"Registered participants"}
@@ -499,8 +488,17 @@ local function Layout()
                 Place(myHost,f,12,h-36,w-24,28)
             elseif active=="brackets" and p and p.bracket then
                 h=math.max(h,260);Place(f,pages[active],0,0,w,h)
+                if not bracketView then bracketView=ns.BracketView.New(bracketPanel) end
+                f.detail:SetShown(not bracketView.Show(p,w,h))
+                f.detail:SetText("Bracket unavailable.")
                 TextAt(f.detail,f,20,54,w-40,h-68)
-            else TextAt(f.detail,f,20,54,w-40,100) end
+            else
+                if active=="brackets" then
+                    if bracketView then bracketView.Hide() end
+                    f.detail:SetText("No tournament bracket available.");f.detail:Show()
+                end
+                TextAt(f.detail,f,20,54,w-40,100)
+            end
             height=h
         end
     end
@@ -510,8 +508,12 @@ local function Layout()
 end
 function U.Show(key)
     if active=="host" and key~="host" then W.CloseChoices() end
-    if not key then active=nil;root:Hide();return end
+    if not key then
+        if bracketView then bracketView.Hide() end
+        active=nil;root:Hide();return
+    end
     if not T.IsPageAvailable(key) then key="overview" end
+    if key~="brackets" and bracketView then bracketView.Hide() end
     active=key
     RefreshCommunity()
     if key=="host" then refreshSchedule() end
