@@ -39,7 +39,7 @@ local function Checkpoint(s,h,saved)
     if not Actor(s,h) or not P.Matches(s,a) or a.scope~="SIMULATED" or a.version~=1 or a.owner~=h.guid
         or a.organizer~=h.name or not Whole(a.publishedAt,1,4102444800) or not Whole(a.serial,1,2147483647)
         or not Whole(a.revision,1,2147483647) or a.id~=ID(h.guid,a.publishedAt,a.serial)
-        or (a.state~="open" and a.state~="cancelled") then return nil end
+        or (a.state~="open" and a.state~="cancelled" and a.state~="completed") then return nil end
     local d=Draft(s,a.draft,a.publishedAt)
     if not d or not Whole(a.count,0,d.capacity) then return nil end
     local rows,seen,n={},{},0
@@ -116,6 +116,11 @@ local function Host(s,h,clock,saved)
         if sender~=h.guid or not event or id~=event.id or event.state~="open" then return false,"Only the organizer can cancel." end
         event.state="cancelled";Bump();return true,"Cancelled."
     end
+    -- Only the durable completion transition may persist this projection.
+    function D.Complete(id,sender)
+        if sender~=h.guid or not event or id~=event.id or event.state~="open" then return false end
+        event.state="completed";Bump();return true
+    end
     return D
 end
 -- Only complete, sender-bound, exact-community advertisements enter the cache.
@@ -151,7 +156,7 @@ local function Cache(s,clock)
         local old=rows[ad.id]
         if old then
             if ad.revision<old.ad.revision or not Equal(old.ad.draft,clean) or old.ad.organizer~=ad.organizer
-                or (old.ad.state=="cancelled" and ad.state~="cancelled")
+                or (not BlocksCreation(old.ad) and old.ad.state~=ad.state)
                 or (ad.revision==old.ad.revision and not Equal(old.ad,expected)) then return false end
         else
             local count=0
@@ -162,6 +167,23 @@ local function Cache(s,clock)
             if count>=64 then return false end
         end
         rows[ad.id]={ad=expected,seen=n};hints[ad.id]=nil
+        return true
+    end
+    -- The owner-bound terminal receipt may retire a known advertisement.
+    -- Check before persisting the participant acknowledgement, then apply.
+    function D.Terminal(owner,id,rev,state,apply)
+        local n=Now(clock)
+        if not n or not Guid(owner) or not Whole(rev,2,2147483647)
+            or (state~="cancelled" and state~="completed") then return false end
+        local row=rows[id]
+        if row then
+            local a=row.ad
+            if a.owner~=owner or rev<a.revision
+                or (a.state=="open" and rev==a.revision)
+                or (a.state~="open" and (state~=a.state or rev~=a.revision)) then return false end
+            if apply then a.state=state;a.revision=rev;row.seen=n end
+        end
+        if apply then hints[id]=nil end
         return true
     end
     -- Owner-observed data may be shared for discovery even after its fresh
@@ -202,7 +224,7 @@ local function Cache(s,clock)
         if not n then return out end
         for id,hint in pairs(hints) do
             local known=rows[id]
-            if n>=hint.draft.registrationClosesAt or (known and known.ad.state=="cancelled") then hints[id]=nil
+            if n>=hint.draft.registrationClosesAt or (known and not BlocksCreation(known.ad)) then hints[id]=nil
             else out[#out+1]={status="unconfirmed",ad=Copy(hint)} end
         end
         table.sort(out,function(a,b)return a.ad.id<b.ad.id end)
@@ -314,7 +336,7 @@ local function WireHost(scope,host,engine,resolve,saved)
         local ad=engine.Ad()
         local reply
         if query then
-            reply=Fragments(key,seq,EncodeAd(ad))
+            reply=Fragments(key,seq,EncodeAd(ad and ad.state~="completed" and ad or nil))
         else
             if not ad or ad.id~=a[5] or ad.state~="open" then return nil end
             local ok
@@ -486,12 +508,16 @@ local function WireClient(scope,cache,clock,resolve,store)
             if not ad or not cache.Accept(owner,ad) then return false end
             return true,"advertisement"
         end
-        if a[1]=="X" then
+        if a[1]=="X" or a[1]=="Y" then
             if #a~=5 or a[4]~=pending.id or not Number(a[5],2,2147483647)
                 or not commitment or commitment.owner~=actor.guid or commitment.id~=pending.id then return false end
+            local state=a[1]=="Y" and "completed" or "cancelled"
+            local rev=Number(a[5],2,2147483647)
+            if not cache.Terminal(actor.guid,pending.id,rev,state,false) then return false end
             if not Persist(seq,nil,nil,"ack") then return false end
+            cache.Terminal(actor.guid,pending.id,rev,state,true)
             pending=nil;commitment=nil
-            return true,"cancelled"
+            return true,state
         end
         if a[1]~="A" or #a~=8 or a[4]~=pending.op or a[5]~=pending.id
             or not Number(a[6],1,2147483647) or (a[7]~="1" and a[7]~="0")
@@ -750,6 +776,10 @@ local function DurableHost(s,h,clock,resolve,store)
             if terminal and terminal.population==key then
                 return {table.concat({"X",key,seq,a[5],terminal.revision},"|")}
             end
+            local finished=journal.completed and journal.completed[a[5]]
+            if finished and finished.population==key then
+                return {table.concat({"Y",key,seq,a[5],finished.revision},"|")}
+            end
         end
         local e=Open();if not e then return nil end
         if a[1]=="G" then return RosterReply(s,actor,e.Save(),body) end
@@ -816,6 +846,37 @@ local function DurableHost(s,h,clock,resolve,store)
         local c=ns.TournamentRecovery.ReconcileControl(journal.bracket,journal.control,connections,copies)
         if not c then return false end
         local candidate=Copy(journal);candidate.revision=candidate.revision+1;candidate.control=c
+        local saved=store.CommitTournamentJournal(journal.revision,candidate,"control_change")
+        if not saved then return false end
+        journal=saved;return true
+    end
+    function D.Finalize(sender,id,term,copies)
+        if not Fresh() or sender~=h.guid or not journal.commitment or journal.commitment.id~=id
+            or not journal.bracket or not journal.control or journal.control.term~=term then return false end
+        local now=Now(clock)
+        local record=now and ns.TournamentRecovery.FinalRecord(s.client,h.guid,journal.bracket,journal.control,now,copies)
+        if not record then return false end
+        local e=Open()
+        if not e or not e.Complete(id,sender) then return false end
+        local candidate=Copy(journal);candidate.revision=candidate.revision+1
+        candidate.checkpoint={host=e.Save(),receipts=Copy(journal.checkpoint.receipts)}
+        candidate.completed=candidate.completed or {}
+        candidate.completed[id]=record
+        candidate.bracket=nil;candidate.control=nil;candidate.commitment=nil
+        local saved=store.CommitTournamentJournal(journal.revision,candidate,"host_complete")
+        if not saved then return false end
+        journal=saved;return true
+    end
+    function D.Completed(id)
+        if Fresh() and journal.completed then return Copy(journal.completed[id]) end
+    end
+    -- Explicit owner hold; no fabricated result, no roster removal.
+    function D.Hold(sender,id,term)
+        local c=journal.control
+        if not Fresh() or sender~=h.guid or not journal.commitment or journal.commitment.id~=id
+            or not c or c.coordinator~=sender or c.paused or c.term~=term or term>=2147483647 then return false end
+        local candidate=Copy(journal);candidate.revision=candidate.revision+1
+        candidate.control={term=term+1,coordinator=sender,paused=true}
         local saved=store.CommitTournamentJournal(journal.revision,candidate,"control_change")
         if not saved then return false end
         journal=saved;return true
@@ -1489,6 +1550,106 @@ function R.RunHostRecoverySelfTest(emit)
             copy.reports[1].winner=x.other.guid
             assert(Equal(replica.Snapshot(),final))
         end)
+        Case(client.." completion requires undisputed final and all checked-in matching copies",function()
+            local x,w,Req,m=StartCompetition()
+            local owner=x.h.guid;local id=x.ad.id
+            local store=x.Store("hostRoot")
+            local saved=store.ReadTournamentJournal().bracket
+            local copies={[x.a.guid]=saved,[x.other.guid]=saved}
+            assert(not x.engine.Finalize(owner,id,1,copies))
+            local report={event=id,match=m.id,game=1,winner=x.a.guid,evidence="final-game"}
+            x.Advance();assert(x.engine.ReportBracket("player",report,1,owner))
+            assert(x.engine.ReportBracket("other",report,1,owner))
+            local final=store.ReadTournamentJournal().bracket
+            local exact={[x.a.guid]=final,[x.other.guid]=final}
+            assert(not x.engine.Finalize(owner,id,1,copies))
+            assert(not x.engine.Finalize(owner,id,1,{[x.a.guid]=final}))
+            assert(not x.engine.Finalize(x.a.guid,id,1,exact))
+            assert(not x.engine.Finalize(owner,id,2,exact))
+            assert(not x.engine.Finalize(owner,id.."x",1,exact))
+            assert(not x.engine.Publish(x.draft))
+            local old=assert(x.Open());assert(x.engine.Finalize(owner,id,1,exact))
+            assert(not old.Finalize(owner,id,1,exact))
+            local record=x.engine.Completed(id)
+            assert(record.champion==x.a.guid and Equal(record.bracket,final))
+            assert(x.engine.Snapshot().ad.state=="completed")
+            assert(not store.ReadTournamentJournal().commitment and not x.engine.BracketSnapshot())
+            assert(not x.engine.Cancel(owner,id) and not x.engine.ReportBracket("player",report,1,owner))
+            assert(Equal(assert(x.Open()).Completed(id),record))
+            record.champion=owner;assert(x.engine.Completed(id).champion==x.a.guid)
+        end)
+        Case(client.." completion acknowledgement releases pending commitment across new publication",function()
+            local x,w,Req,m=StartCompetition()
+            local owner,id=x.h.guid,x.ad.id
+            local store=x.Store("hostRoot")
+            local report={event=id,match=m.id,game=1,winner=x.other.guid,evidence="terminal-game"}
+            x.Advance();assert(x.engine.ReportBracket("player",report,1,owner))
+            assert(x.engine.ReportBracket("other",report,1,owner))
+            local final=store.ReadTournamentJournal().bracket
+            local copies={[x.a.guid]=final,[x.other.guid]=final}
+            assert(x.engine.Finalize(owner,id,1,copies))
+            local request=assert(w.Action("S"))
+            x.Advance()
+            local ack=assert(x.engine.Receive("player",request))[1]
+            assert(ack:sub(1,2)=="Y|" and w.Status().status=="checked")
+            local d=T.DraftDefaults();d.name="Next Cup";d.location="Meeting place";d.startUTC="2026-11-26 18:00";d.capacity=4
+            d=assert(T.ValidateDraft(client,d,x.clock(),x.s.region,x.s.ruleset,x.s.faction))
+            local next=assert(x.engine.Publish(d))
+            assert(next.id~=id and next.serial==x.ad.serial+1)
+            local reopened=assert(x.Open());local recovered=assert(x.Player())
+            assert(recovered.Retry()==request and not recovered.Receive("other",ack))
+            assert(assert(reopened.Receive("player",request))[1]==ack)
+            local ok,why=recovered.Receive("host",ack)
+            assert(ok and why=="completed" and not recovered.Status())
+            assert(not recovered.Receive("host",ack))
+            x.Advance()
+            for _,p in ipairs(assert(reopened.Receive("player",assert(recovered.Query(owner))))) do assert(recovered.Receive("host",p)) end
+            assert(#x.cache.Browse()==1 and x.cache.Browse()[1].id==next.id)
+            assert(recovered.Join(owner,next.id))
+            assert(reopened.Completed(id).champion==x.other.guid)
+        end)
+        Case(client.." organizer hold blocks stale progress; dispute cannot finalize",function()
+            local x,w,Req,m=StartCompetition()
+            local owner,id=x.h.guid,x.ad.id
+            local store=x.Store("hostRoot")
+            local initial=store.ReadTournamentJournal().bracket
+            local copies={[x.a.guid]=initial,[x.other.guid]=initial,[owner]=initial}
+            assert(not x.engine.Hold(x.a.guid,id,1))
+            assert(x.engine.Hold(owner,id,1) and not x.engine.Hold(owner,id,1))
+            local report={event=id,match=m.id,game=1,winner=x.a.guid,evidence="held-game"}
+            assert(not x.engine.ReportBracket("player",report,1,owner))
+            assert(not x.engine.ReportBracket("player",report,2,owner))
+            assert(x.engine.ReconcileControl(2,{[owner]="online",[x.a.guid]="online",[x.other.guid]="online"},copies))
+            assert(x.engine.ControlSnapshot().term==3)
+            x.Advance();assert(x.engine.ReportBracket("player",report,3,owner))
+            local other=Copy(report);other.winner=x.other.guid
+            assert(x.engine.ReportBracket("other",other,3,owner))
+            local disputed=store.ReadTournamentJournal().bracket
+            assert(x.engine.BracketSnapshot().state=="disputed")
+            assert(not x.engine.Finalize(owner,id,3,{[x.a.guid]=disputed,[x.other.guid]=disputed}))
+            assert(not x.engine.Publish(x.draft))
+            assert(store.ReadTournamentJournal().commitment.id==id)
+        end)
+        Case(client.." completed history cannot be erased or falsified by later journal edits",function()
+            local x,w,Req,m=StartCompetition()
+            local owner,id=x.h.guid,x.ad.id
+            local store=x.Store("hostRoot")
+            local report={event=id,match=m.id,game=1,winner=x.a.guid,evidence="archive-game"}
+            x.Advance();assert(x.engine.ReportBracket("player",report,1,owner))
+            assert(x.engine.ReportBracket("other",report,1,owner))
+            local final=store.ReadTournamentJournal().bracket
+            assert(x.engine.Finalize(owner,id,1,{[x.a.guid]=final,[x.other.guid]=final}))
+            local old=assert(store.ReadTournamentJournal())
+            local bad=Copy(old);bad.revision=bad.revision+1;bad.completed=nil
+            assert(not store.CommitTournamentJournal(old.revision,bad,"host_checkpoint"))
+            bad=Copy(old);bad.revision=bad.revision+1;bad.completed[id].champion=x.other.guid
+            assert(not store.CommitTournamentJournal(old.revision,bad,"host_checkpoint"))
+            bad=Copy(old);bad.revision=bad.revision+1;bad.completed[id].term=2
+            assert(not store.CommitTournamentJournal(old.revision,bad,"host_checkpoint"))
+            assert(Equal(store.ReadTournamentJournal(),old))
+            x.hostRoot.clients[client].tournamentJournal.completed[id].champion=owner
+            assert(not x.Open() and not x.engine.Completed(id))
+        end)
         Case(client.." rate limit and corrupt checkpoint cannot emit mutation acknowledgement",function()
             local x=Fixture();local w=assert(x.Player());local q=assert(w.Query(x.h.guid))
             assert(x.engine.Receive("player",q) and x.engine.Receive("player",q) and not x.engine.Receive("player",q))
@@ -1645,7 +1806,7 @@ end
 if ns.Diagnostics then
 ns.Diagnostics.Register("Tournament host recovery / isolated checkpoint QA","deep",function()
     local log={};local p,f=R.RunHostRecoverySelfTest(function(line)log[#log+1]=line end)
-    return f==0 and p==42 and "PASS" or "FAIL",string.format("%d passed / %d failed (SIMULATED)\n",p,f)..table.concat(log,"\n")
+    return f==0 and p==50 and "PASS" or "FAIL",string.format("%d passed / %d failed (SIMULATED)\n",p,f)..table.concat(log,"\n")
 end)
 ns.Diagnostics.Register("Tournament recovery / isolated journal QA","deep",function()
     local log={};local p,f=R.RunRecoverySelfTest(function(line)log[#log+1]=line end)

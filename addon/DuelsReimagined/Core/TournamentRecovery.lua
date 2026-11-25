@@ -66,6 +66,51 @@ function R.ReconcileControl(bracket,control,connections,copies)
     if total<2 or matching<math.floor(total/2)+1 or not Equal(copies[preferred],bracket) then return nil end
     return {term=c.term+1,coordinator=preferred,paused=false}
 end
+-- Completion is deliberately stricter than temporary coordination.
+-- Each checked-in participant must acknowledge the exact final log.
+-- This is a simulated receipt, not cryptographic proof or a live award.
+local function FinalRecord(client,owner,raw)
+    if type(raw)~="table" or type(raw.bracket)~="table" or type(raw.bracket.checkpoint)~="table"
+        or type(raw.bracket.checkpoint.ad)~="table" then return nil end
+    local a=raw.bracket.checkpoint.ad
+    local scope={client=client,region=a.region,ruleset=a.ruleset,faction=a.faction}
+    local domain=ns.TournamentBracket
+    local engine=domain and domain.OpenSimulated(scope,owner,raw.bracket)
+    if not engine then return nil end
+    local b=engine.Save();local v=engine.Snapshot()
+    if v.state~="completed" or not Guid(v.champion) or v.champion==owner
+        or not Whole(raw.finishedAt,b.startedAt,4102444800) or not Whole(raw.term,1,2147483647)
+        or not Whole(a.revision,1,2147483646) then return nil end
+    local clean={bracket=b,champion=v.champion,term=raw.term,finishedAt=raw.finishedAt,
+        population=P.Key(a),revision=a.revision+1}
+    if Equal(clean,raw) then return clean end
+end
+function R.FinalRecord(client,owner,bracket,control,now,copies)
+    local c=Control(bracket,control)
+    if not c or c.paused or c.coordinator~=owner or type(copies)~="table" then return nil end
+    local eligible={}
+    for _,m in ipairs(bracket.checkpoint.roster) do
+        if m.checkedIn then eligible[m.guid]=true;if not Equal(copies[m.guid],bracket) then return nil end end
+    end
+    for guid in pairs(copies) do if not eligible[guid] then return nil end end
+    local a=bracket.checkpoint.ad
+    local domain=ns.TournamentBracket
+    local engine=domain and domain.OpenSimulated({client=client,region=a.region,ruleset=a.ruleset,faction=a.faction},owner,bracket)
+    if not engine then return nil end
+    local v=engine.Snapshot()
+    if v.state~="completed" then return nil end
+    return FinalRecord(client,owner,{bracket=engine.Save(),champion=v.champion,term=c.term,finishedAt=now,
+        population=P.Key(a),revision=a.revision+1})
+end
+local function CompletedCheckpoint(record,cp)
+    if not record or not cp then return false end
+    local a,b=record.bracket.checkpoint.ad,cp.host.ad
+    if b.state~="completed" or b.revision~=record.revision or b.id~=a.id then return false end
+    local restored={}
+    for k,v in pairs(b) do restored[k]=v end
+    restored.state="open";restored.revision=a.revision
+    return Equal(a,restored) and Equal(record.bracket.checkpoint.roster,cp.host.roster)
+end
 function R.Validate(client,character,raw)
     if not Guid(character) or (client~="retail" and client~="forever") then return nil end
     if raw==nil then return {version=1,scope="SIMULATED",client=client,character=character,revision=0,sequence=0} end
@@ -141,6 +186,21 @@ function R.Validate(client,character,raw)
         end
         out.cancelled=archive
     end
+    if raw.completed~=nil then
+        if type(raw.completed)~="table" then return nil end
+        local archive,n={},0
+        for id,record in pairs(raw.completed) do
+            n=n+1
+            if n>16 or (out.cancelled and out.cancelled[id]) then return nil end
+            local clean=FinalRecord(client,character,record)
+            if not clean or clean.bracket.checkpoint.ad.id~=id then return nil end
+            if out.checkpoint and out.checkpoint.host.ad.id==id and not CompletedCheckpoint(clean,out.checkpoint) then return nil end
+            archive[id]=clean
+        end
+        out.completed=archive
+    end
+    if out.checkpoint and out.checkpoint.host.ad.state=="completed"
+        and not (out.completed and out.completed[out.checkpoint.host.ad.id]) then return nil end
     for k in pairs(raw) do if out[k]==nil then return nil end end
     return out
 end
@@ -165,6 +225,20 @@ function R.Transition(old,new,action)
     if not Equal(expected,new.cancelled or {}) then return false end
     local before,after=old.bracket,new.bracket
     local oc,nc=old.control,new.control
+    local finished={}
+    for id,record in pairs(old.completed or {}) do finished[id]=record end
+    if action=="host_complete" then
+        if not before or after or not oc or oc.paused or oc.coordinator~=old.character or nc
+            or not x or not y or not old.commitment or old.commitment.role~="host"
+            or new.commitment or old.pending or new.pending or new.sequence~=old.sequence then return false end
+        local id=x.host.ad.id
+        local record=new.completed and new.completed[id]
+        if finished[id] or not record or not Equal(record.bracket,before) or record.term~=oc.term
+            or not CompletedCheckpoint(record,y) or not Equal(x.receipts,y.receipts) then return false end
+        finished[id]=record
+        return Equal(finished,new.completed)
+    end
+    if not Equal(finished,new.completed or {}) then return false end
     if action=="control_change" then
         if not before or not after or not oc or not nc or nc.term~=oc.term+1 or oc.paused==nc.paused
             or not Equal(before,after) or not Equal(x,y) or not Same(old.commitment,new.commitment)
@@ -190,10 +264,12 @@ function R.Transition(old,new,action)
     if action=="host_open" then
         local n=0;for _ in pairs(expected) do n=n+1 end
         if n>=128 then return false end
+        local completed=0;for _ in pairs(finished) do completed=completed+1 end
+        if completed>=16 then return false end
         return not old.commitment and not old.pending and not new.pending and new.commitment
             and new.commitment.role=="host" and y and y.host.ad.state=="open" and y.host.ad.revision==1
             and y.host.ad.count==0 and next(y.receipts)==nil and new.sequence==old.sequence+1
-            and (not x or (x.host.ad.state=="cancelled" and y.host.ad.serial==x.host.ad.serial+1))
+            and (not x or ((x.host.ad.state=="cancelled" or x.host.ad.state=="completed") and y.host.ad.serial==x.host.ad.serial+1))
     elseif action=="host_checkpoint" or action=="host_cancel" then
         if not x or not y or not old.commitment or old.commitment.role~="host" or old.pending or new.pending
             or new.sequence~=old.sequence then return false end
