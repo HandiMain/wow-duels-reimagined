@@ -12,7 +12,7 @@ local PEER_TEST_ENABLED=false
 local PEER_EPOCH=nil
 function P.LocalRecordingEnabled() return LOCAL_RECORDING_ENABLED end
 function P.PeerEpoch()
-    if LOCAL_RECORDING_ENABLED and PEER_TEST_ENABLED then return PEER_EPOCH end
+    if LOCAL_RECORDING_ENABLED and PEER_TEST_ENABLED and ns.CompetitiveScope and ns.CompetitiveScope.RankedReady() then return PEER_EPOCH end
 end
 local function Client(k) return k=="forever" or k=="retail" end
 local function Guid(v)
@@ -347,6 +347,7 @@ local function Build(read,write,client,identity,scope)
     end
     function D.ReadPeerView(asOf)
         if scope~="LOCAL" then return nil,"wrong_scope" end
+        if not ns.CompetitiveScope or not ns.CompetitiveScope.RankedReady() then return nil,"population_migration_required" end
         local a,c,k,why=Pair();if not a then return nil,why end
         local raw=a.clients[k] and a.clients[k].peerEvidence
         if not raw then return nil,"no_evidence" end

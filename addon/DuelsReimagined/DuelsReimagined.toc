@@ -10,6 +10,7 @@
 
 # Shared client detection loads before any gameplay or settings module.
 Core\Client.lua
+Core\CompetitiveScope.lua
 Core\Settings.lua
 Core\CountdownAudio.lua
 Core\Group.lua

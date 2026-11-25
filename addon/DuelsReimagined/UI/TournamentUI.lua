@@ -3,6 +3,7 @@ local _,ns=...
 local U={};ns.TournamentUI=U
 local S,C,W=ns.Style,ns.Style.color,ns.Widgets
 local T=ns.TournamentState
+local Population=ns.CompetitiveScope
 local root=CreateFrame("Frame",nil,ns.Window.content)
 root:SetAllPoints(ns.Window.content);root:Hide()
 if ns.DiagnosticAudit then ns.DiagnosticAudit.RegisterUIRoot("Tournaments",root) end
@@ -54,6 +55,46 @@ scroll:SetPoint("TOPLEFT",root,"TOPLEFT",24,-133)
 scroll:SetPoint("BOTTOMRIGHT",root,"BOTTOMRIGHT",-28,15)
 scroll:EnableMouseWheel(true)
 local canvas=CreateFrame("Frame",nil,scroll);canvas:SetSize(800,500);scroll:SetScrollChild(canvas)
+-- One read-only community strip for host, browsing, and future event details.
+local community=Panel(canvas,"Tournament community")
+community:Hide()
+local labels,values={},{}
+local titles={"Game client","Region","Ruleset","Faction"}
+for index,caption in ipairs(titles) do
+    labels[index]=Label(community,caption,11,C.muted)
+    values[index]=Label(community,"Unavailable",15,C.pale)
+end
+local communityNote=Label(community,"Automatically detected. These settings cannot be changed.",12,C.muted)
+local displayedKey
+local function RefreshCommunity()
+    local s=Population.GetCurrent()
+    local modes={normal="PvE",pvp="PvP",rp="RP",["rp-pvp"]="RP-PvP",hardcore="Hardcore",retail="Standard"}
+    values[1]:SetText(s.client=="retail" and "Retail" or s.client=="forever" and "Forever" or "Unavailable")
+    values[2]:SetText(s.region=="EU" and "Europe (EU)" or s.region=="US" and "Americas (US)" or "Unavailable")
+    values[3]:SetText(modes[s.ruleset] or "Unavailable")
+    values[4]:SetText(s.faction or "Unavailable")
+    local color=s.faction=="Alliance" and {0.40,0.67,1,1} or s.faction=="Horde" and {1,0.39,0.32,1} or C.pale
+    values[4]:SetTextColor(unpack(color))
+    displayedKey=Population.Key(s)
+    communityNote:SetText(displayedKey and "Automatically detected. Only this community can participate." or
+        "Community unavailable or unsupported. Hosting and joining are unavailable.")
+    return displayedKey
+end
+local function LayoutCommunity(w)
+    local cols=w>=600 and 4 or 2
+    local rows=4/cols
+    local h=80+rows*44
+    Place(community,canvas,0,0,w,h);Header(community,w)
+    local cell=(w-24)/cols
+    for index=1,4 do
+        local x=12+((index-1)%cols)*cell
+        local y=43+math.floor((index-1)/cols)*44
+        TextAt(labels[index],community,x,y,cell-6,16)
+        TextAt(values[index],community,x,y+16,cell-6,25)
+    end
+    TextAt(communityNote,community,12,43+rows*44,w-24,32)
+    return h+12
+end
 local pages={}
 local function Page(key)
     local f=CreateFrame("Frame",nil,canvas);f:SetAllPoints(canvas);f:Hide();pages[key]=f;return f
@@ -150,7 +191,8 @@ save:SetScript("OnClick",function()
         else form[key]=control.box:GetText();control.box:ClearFocus() end
     end
     W.CloseChoices()
-    local record,why=T.SaveDraft(form)
+    local record,why=T.SaveDraft(form,displayedKey)
+    RefreshCommunity()
     status:SetText(record and "Draft saved for this session. Not published." or why)
 end)
 host:HookScript("OnHide",function()
@@ -213,6 +255,15 @@ local function Layout()
     subtitle:SetWidth(math.max(1,root:GetWidth()-170))
     local wide=w>=640
     local height
+    local showCommunity=active=="host" or active=="browse" or active=="my-tournament" or active=="brackets"
+    community:SetShown(showCommunity)
+    local top=showCommunity and LayoutCommunity(w) or 0
+    if active and pages[active] then
+        local page=pages[active]
+        page:ClearAllPoints()
+        page:SetPoint("TOPLEFT",canvas,"TOPLEFT",0,-top)
+        page:SetPoint("BOTTOMRIGHT",canvas,"BOTTOMRIGHT",0,0)
+    end
     if active=="overview" then
         local heroH=wide and 184 or 220
         Place(hero,overview,0,0,w,heroH);Header(hero,w)
@@ -234,7 +285,7 @@ local function Layout()
         Place(champions.action,champions,math.max(12,w-172),88,160,28)
         height=heroH+288
     elseif active=="browse" then
-        local h=math.max(250,scroll:GetHeight())
+        local h=math.max(250,scroll:GetHeight()-top)
         if wide then
             local left=math.floor((w-12)*.53)
             Place(list,browse,0,0,left,h);Header(list,left)
@@ -255,13 +306,13 @@ local function Layout()
     else
         local f=active=="champions" and archive or active=="my-tournament" and myPanel or bracketPanel
         if active and f then
-            local h=math.max(200,scroll:GetHeight())
+            local h=math.max(200,scroll:GetHeight()-top)
             Place(f,pages[active],0,0,w,h);Header(f,w)
             TextAt(f.detail,f,20,54,w-40,100)
             height=h
         end
     end
-    canvas:SetSize(w,math.max(1,height or 1))
+    canvas:SetSize(w,math.max(1,(height or 1)+top))
     SetOffset(scroll:GetVerticalScroll())
     bar:Refresh()
 end
@@ -269,6 +320,7 @@ function U.Show(key)
     if not key then active=nil;root:Hide();return end
     if not T.IsPageAvailable(key) then key="overview" end
     active=key
+    RefreshCommunity()
     if key=="host" then refreshSchedule() end
     for k,f in pairs(pages) do f:SetShown(k==active) end
     local snapshot=T.GetSnapshot()
@@ -290,4 +342,4 @@ scroll:SetScript("OnMouseWheel",function(_,d)
     SetOffset(scroll:GetVerticalScroll()-d*42);bar:Refresh()
 end)
 scroll:HookScript("OnSizeChanged",function() if active then Layout() end end)
-root:HookScript("OnShow",function() if active then Layout() end end)
+root:HookScript("OnShow",function() if active then RefreshCommunity();Layout() end end)

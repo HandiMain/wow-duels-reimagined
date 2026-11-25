@@ -8,7 +8,7 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[2] / "addon" / "DuelsReimagined"
 FILES = tuple(sorted("""Client Communication CompetitiveIntegrity CompetitiveLifecycle CompetitiveRules
-CompetitiveStorage DuelDetection Group LeaderboardSync MatchLedger OpponentDiscovery
+CompetitiveScope CompetitiveStorage DuelDetection Group LeaderboardSync MatchLedger OpponentDiscovery
 PeerAgreement PersonalHistory Presence RatingEngine ResultConfirmation SeasonRules Settings SyncProtocol""".split()))
 
 def fingerprint(root=ROOT):

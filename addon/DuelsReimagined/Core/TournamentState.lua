@@ -2,6 +2,7 @@ local _,ns=...
 -- Tournament navigation policy, separate from arena and ranked systems.
 -- Session-only drafts; no live tournament records or communication.
 local T={};ns.TournamentState=T
+local Population=ns.CompetitiveScope
 local states={
     idle={overview=true,browse=true,host=true,champions=true},
     registered={overview=true,["my-tournament"]=true,champions=true},
@@ -22,7 +23,7 @@ function T.Project(state,hasBracket)
 end
 function T.GetSnapshot()
     local scope=T.GetWorldScope()
-    return {client=ns.Client.Kind(),region=scope and scope.region,ruleset=scope and scope.ruleset,state="idle",hasBracket=false,discovery=false,hosting=false}
+    return {client=ns.Client.Kind(),region=scope and scope.region,ruleset=scope and scope.ruleset,faction=scope and scope.faction,state="idle",hasBracket=false,discovery=false,hosting=false}
 end
 function T.IsPageAvailable(key)
     local snapshot=T.GetSnapshot()
@@ -47,48 +48,12 @@ local function Whole(v,lo,hi)
     return v>=lo and v<=hi and v==math.floor(v)
 end
 local function Supported(client) return client=="forever" or client=="retail" end
--- Portal IDs are a provisional region boundary; actual reachability is separate.
--- Use only documented 1 (Americas/Oceania) and 3 (Europe) until observed otherwise.
-local function RegionFor(id)
-    id=Plain(id)
-    if id==1 then return "US" elseif id==3 then return "EU" end
+function T.GetWorldScope() return Population.GetCurrent() end
+local function World(client,region,ruleset,faction)
+    return {client=client,region=region,ruleset=ruleset,faction=faction}
 end
-local function Read(fn,...)
-    if type(fn)~="function" then return nil end
-    local ok,v=pcall(fn,...)
-    if ok then return Plain(v) end
-end
-local function RulesetFor(pvp,rp,hardcore)
-    if type(pvp)~="boolean" or type(rp)~="boolean" or type(hardcore)~="boolean" then return nil end
-    if hardcore then return "hardcore" end
-    if rp then return pvp and "rp-pvp" or "rp" end
-    return pvp and "pvp" or "normal"
-end
-local function ReadRuleset(client,api,flags)
-    if client=="retail" then return "retail" end
-    if client~="forever" or type(api)~="table" or type(flags)~="table" then return nil end
-    local function Flag(key)
-        local id=flags[key]
-        if not Whole(id,1,100000) then return nil end
-        return Read(api.IsGameRuleActive,id)
-    end
-    return RulesetFor(Flag("PvPRuleset"),Flag("RPRuleset"),Flag("HardcoreRuleset"))
-end
-local function ValidScope(client,region,ruleset)
-    return (region=="EU" or region=="US") and
-        ((client=="retail" and ruleset=="retail") or (client=="forever" and
-            (ruleset=="normal" or ruleset=="pvp" or ruleset=="rp" or ruleset=="rp-pvp")))
-end
-function T.GetWorldScope()
-    local client=ns.Client.Kind()
-    local region=RegionFor(Read(GetCurrentRegion))
-    local ruleset=ReadRuleset(client,C_GameRules,Enum and Enum.GameRule)
-    if not region or not ruleset then return nil end
-    return {client=client,region=region,ruleset=ruleset}
-end
-function T.ScopeMatches(client,region,ruleset,record)
-    return ValidScope(client,region,ruleset) and type(record)=="table"
-        and record.client==client and record.region==region and record.ruleset==ruleset
+function T.ScopeMatches(client,region,ruleset,faction,record)
+    return Population.Matches(World(client,region,ruleset,faction),record)
 end
 local function Text(v,max,required)
     v=Plain(v)
@@ -146,9 +111,9 @@ end
 function T.DraftDefaults()
     return {name="",location="",startUTC="",capacity=16,bestOf=1,closeBefore=15,minLevel="",maxLevel="",rules=""}
 end
-function T.ValidateDraft(client,input,now,region,ruleset)
+function T.ValidateDraft(client,input,now,region,ruleset,faction)
     if not Supported(client) then return nil,"This client does not support tournaments." end
-    if not ValidScope(client,region,ruleset) then return nil,"Your tournament community is unavailable or not supported yet." end
+    if not Population.Key(World(client,region,ruleset,faction)) then return nil,"Your tournament community is unavailable or not supported yet." end
     if not Whole(now,1,4102444800) then return nil,"Server time is unavailable. Try again later." end
     if type(input)~="table" then return nil,"Tournament details are missing." end
     for k in pairs(input) do if not fields[k] then return nil,"Invalid tournament details." end end
@@ -168,15 +133,15 @@ function T.ValidateDraft(client,input,now,region,ruleset)
     if lo==nil or hi==nil or (lo>0 and hi>0 and lo>hi) then return nil,"Enter a valid level range, or leave either field blank." end
     local rules=Text(input.rules,160,false)
     if rules==nil then return nil,"Rules must be plain text, up to 160 bytes." end
-    return {scope="LOCAL",version=1,client=client,region=region,ruleset=ruleset,state="draft",name=name,location=location,startUTC=startUTC,
+    return {scope="LOCAL",version=1,client=client,region=region,ruleset=ruleset,faction=faction,state="draft",name=name,location=location,startUTC=startUTC,
         startAt=start,registrationClosesAt=closes,capacity=size,bestOf=best,closeBefore=lead,
         format="single_elimination",minLevel=lo,maxLevel=hi,rules=rules}
 end
-local function DraftStore(client,region,ruleset,clock)
+local function DraftStore(client,region,ruleset,faction,clock)
     local saved
     local D={}
     function D.Save(input)
-        local record,why=T.ValidateDraft(client,input,clock(),region,ruleset)
+        local record,why=T.ValidateDraft(client,input,clock(),region,ruleset,faction)
         if not record then return nil,why end
         saved=record;return Copy(saved)
     end
@@ -189,22 +154,18 @@ local function ServerNow()
     if ok then return Plain(v) end
 end
 local draft,draftKey
-local function WorldKey(s)
-    if s and ValidScope(s.client,s.region,s.ruleset) then
-        return s.client..":"..s.region..":"..s.ruleset
-    end
-end
-function T.SaveDraft(input)
+function T.SaveDraft(input,displayedKey)
     if not T.IsPageAvailable("host") then return nil,"You cannot host right now." end
     local s=T.GetWorldScope()
-    local key=WorldKey(s)
+    local key=Population.Key(s)
     if not key then return nil,"Your tournament community is unavailable or not supported yet." end
+    if key~=displayedKey then return nil,"Your community changed. Review the new details and save again." end
     if draftKey~=key then draft=nil;draftKey=key end
-    draft=draft or DraftStore(s.client,s.region,s.ruleset,ServerNow)
+    draft=draft or DraftStore(s.client,s.region,s.ruleset,s.faction,ServerNow)
     return draft.Save(input)
 end
 function T.GetDraft()
-    if draft and draftKey==WorldKey(T.GetWorldScope()) then return draft.Read() end
+    if draft and draftKey==Population.Key(T.GetWorldScope()) then return draft.Read() end
 end
 function T.RunCreationSelfTest(emit)
     emit=type(emit)=="function" and emit or function()end
@@ -221,22 +182,28 @@ function T.RunCreationSelfTest(emit)
     end
     for _,client in ipairs({"forever","retail"}) do
         local mode=client=="retail" and "retail" or "pvp"
-        local function Valid(a) return T.ValidateDraft(client,a,now,"EU",mode) end
+        local function Valid(a) return T.ValidateDraft(client,a,now,"EU",mode,"Horde") end
         Case(client.." canonical UTC draft and registration cutoff",function()
             local a=Form();local d=assert(Valid(a))
-            assert(d.name=="Duel Cup" and d.client==client and d.region=="EU" and d.ruleset==mode and d.scope=="LOCAL" and d.state=="draft")
-            assert(T.ScopeMatches(client,"EU",mode,d) and not T.ScopeMatches(client,"US",mode,d))
-            assert(not T.ScopeMatches(client=="retail" and "forever" or "retail","EU",mode,d))
-            local us=assert(T.ValidateDraft(client,a,now,"US",mode))
-            assert(T.ScopeMatches(client,"US",mode,us) and not T.ScopeMatches(client,"EU",mode,us))
-            assert(not T.ValidateDraft(client,a,now,nil,mode) and not T.ValidateDraft(client,a,now,"EU",nil))
+            assert(d.name=="Duel Cup" and d.client==client and d.region=="EU" and d.ruleset==mode and d.faction=="Horde" and d.scope=="LOCAL" and d.state=="draft")
+            assert(T.ScopeMatches(client,"EU",mode,"Horde",d) and not T.ScopeMatches(client,"US",mode,"Horde",d))
+            assert(not T.ScopeMatches(client=="retail" and "forever" or "retail","EU",mode,"Horde",d))
+            local us=assert(T.ValidateDraft(client,a,now,"US",mode,"Horde"))
+            assert(T.ScopeMatches(client,"US",mode,"Horde",us) and not T.ScopeMatches(client,"EU",mode,"Horde",us))
+            assert(not T.ValidateDraft(client,a,now,nil,mode,"Horde") and not T.ValidateDraft(client,a,now,"EU",nil,"Horde"))
             if client=="forever" then
                 for _,other in ipairs({"normal","rp","rp-pvp"}) do
-                    local x=assert(T.ValidateDraft(client,a,now,"EU",other))
-                    assert(not T.ScopeMatches(client,"EU",mode,x) and T.ScopeMatches(client,"EU",other,x))
+                    local x=assert(T.ValidateDraft(client,a,now,"EU",other,"Horde"))
+                    assert(not T.ScopeMatches(client,"EU",mode,"Horde",x) and T.ScopeMatches(client,"EU",other,"Horde",x))
                 end
-                assert(not T.ValidateDraft(client,a,now,"EU","hardcore"))
+                assert(not T.ValidateDraft(client,a,now,"EU","hardcore","Horde"))
             end
+            local alliance=assert(T.ValidateDraft(client,a,now,"EU",mode,"Alliance"))
+            assert(not T.ScopeMatches(client,"EU",mode,"Horde",alliance))
+            assert(T.ScopeMatches(client,"EU",mode,"Alliance",alliance))
+            assert(not T.ValidateDraft(client,a,now,"EU",mode,"Neutral"))
+            assert(not T.ValidateDraft(client,a,now,"EU",mode,nil))
+            a.faction="Alliance";assert(not Valid(a));a.faction=nil
             assert(d.startAt==now+7200 and d.registrationClosesAt==now+6300 and d.format=="single_elimination")
             assert(d.capacity==16 and d.bestOf==1 and d.minLevel==0 and d.maxLevel==0)
             local called=0
@@ -259,7 +226,7 @@ function T.RunCreationSelfTest(emit)
         Case(client.." elapsed registration and unavailable clock rejected",function()
             local a=Form();a.startUTC="2026-11-25 16:15";assert(not Valid(a))
             a.closeBefore=0;assert(Valid(a));a.startUTC="2026-11-25 16:00";assert(not Valid(a))
-            assert(not T.ValidateDraft(client,Form(),nil,"EU",mode));assert(not T.ValidateDraft(client,Form(),0/0,"EU",mode))
+            assert(not T.ValidateDraft(client,Form(),nil,"EU",mode,"Horde"));assert(not T.ValidateDraft(client,Form(),0/0,"EU",mode,"Horde"))
         end)
         Case(client.." supported capacity and series options only",function()
             for _,size in ipairs({4,8,16,32}) do
@@ -282,8 +249,8 @@ function T.RunCreationSelfTest(emit)
             a.minLevel="1.5";assert(not Valid(a));a.minLevel="999";assert(not Valid(a))
         end)
         Case(client.." session draft copies, rejected edit and client isolation",function()
-            local d=DraftStore(client,"EU",mode,function()return now end)
-            local other=DraftStore(client,"US",mode,function()return now end)
+            local d=DraftStore(client,"EU",mode,"Horde",function()return now end)
+            local other=DraftStore(client,"EU",mode,"Alliance",function()return now end)
             assert(not d.Read() and not other.Read())
             local a=Form();local r=assert(d.Save(a));r.name="changed";a.name=""
             assert(not d.Save(a));assert(d.Read().name=="Duel Cup" and not other.Read())
@@ -291,15 +258,7 @@ function T.RunCreationSelfTest(emit)
         end)
     end
     Case("creation remains local; unsupported client and publication gate",function()
-        assert(not T.ValidateDraft("unsupported",Form(),now,"EU","retail"))
-        assert(RegionFor(1)=="US" and RegionFor(3)=="EU" and not RegionFor(0) and not RegionFor(nil))
-        assert(RulesetFor(false,false,false)=="normal" and RulesetFor(true,false,false)=="pvp")
-        assert(RulesetFor(false,true,false)=="rp" and RulesetFor(true,true,false)=="rp-pvp")
-        assert(RulesetFor(false,false,true)=="hardcore" and not RulesetFor(nil,false,false))
-        local flags={PvPRuleset=213,RPRuleset=214,HardcoreRuleset=10}
-        assert(ReadRuleset("forever",{IsGameRuleActive=function(id)return id==213 or id==214 end},flags)=="rp-pvp")
-        assert(not ReadRuleset("forever",{IsGameRuleActive=function()error("unavailable")end},flags))
-        assert(not ReadRuleset("forever",{},flags) and not ReadRuleset("forever",{IsGameRuleActive=function()return false end},{}))
+        assert(not T.ValidateDraft("unsupported",Form(),now,"EU","retail","Horde"))
         local a,b=T.GetDraft(),T.GetSnapshot()
         assert(not b.discovery and not b.hosting and b.state=="idle")
         if a then assert(a.scope=="LOCAL" and a.state=="draft") end
@@ -330,9 +289,14 @@ end
 if ns.Diagnostics then
     ns.Diagnostics.Register("Tournament community / current client","health",function()
         local s=T.GetWorldScope()
-        if not s then return "SKIP","Region or ruleset unavailable; hosting and discovery inactive." end
-        if not ValidScope(s.client,s.region,s.ruleset) then return "SKIP","Community not supported yet." end
-        return "PASS",s.client.." / "..s.region.." / "..s.ruleset.."; actual duel reachability not verified."
+        if not Population.Key(s) then return "SKIP","Region, ruleset or faction unavailable/unsupported; hosting and discovery inactive." end
+        return "PASS",s.client.." / "..s.region.." / "..s.ruleset.." / "..s.faction.."; actual duel reachability not verified."
+    end)
+    ns.Diagnostics.Register("Competitive population / isolated scope QA","deep",function()
+        local log={}
+        local p,f=Population.RunSelfTest(function(line) log[#log+1]=line end)
+        return f==0 and p==7 and "PASS" or "FAIL",
+            string.format("%d passed / %d failed (SIMULATED)\n",p,f)..table.concat(log,"\n")
     end)
     ns.Diagnostics.Register("Tournament creation / isolated draft QA","deep",function()
         local log={}

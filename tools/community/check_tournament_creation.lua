@@ -1,6 +1,9 @@
 -- Isolated creation and navigation QA. No WoW API, persistence or network.
 local ns={Client={Kind=function()return "forever" end,IsSupported=function()return true end}}
 local root=(arg and arg[1] or "addon/DuelsReimagined")
+assert(loadfile(root.."/Core/CompetitiveScope.lua"))("DuelsReimagined",ns)
+local sp,sf=ns.CompetitiveScope.RunSelfTest(print)
+assert(sp==7 and sf==0,"population QA failed")
 assert(loadfile(root.."/Core/TournamentState.lua"))("DuelsReimagined",ns)
 local T=ns.TournamentState
 assert(T.RunSelfTest()==10)
