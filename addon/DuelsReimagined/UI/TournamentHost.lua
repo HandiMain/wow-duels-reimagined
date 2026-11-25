@@ -32,7 +32,7 @@ function H.Project(form,times)
 end
 -- Base units match Browse. Stack whole panels at narrow widths rather than
 -- shrinking three columns to unreadable text. At the default width the
--- 570-unit composition fits within the usual content viewport.
+-- 582-unit composition targets the usual content viewport.
 function H.Geometry(width)
     local wide=width>=850
     local base=wide and 1170 or 610
@@ -169,7 +169,7 @@ function H.New(parent,callbacks)
     Field(rules,"rules","Additional rules (optional)",160,"Plain text rules for the organizer to enforce; not automatically detected.",6)
     local ruleHint=Label(rules,15,C.muted)
     local scheduleHint=Label(details,15,C.muted)
-    local backdrop=chrome.Art(summary,"landscape","BACKGROUND")
+    local backdrop=chrome.Art(summary,"landscape","ARTWORK")
     backdrop:SetAlpha(.24)
     local summaryRows={}
     local summaryKeys={"name","location","format","capacity","series","levels","starts","closes","rules"}
@@ -209,7 +209,10 @@ function H.New(parent,callbacks)
         local record,why=T.SaveDraft(form,displayedKey)
         displayedKey=callbacks.refreshCommunity()
         scope=ns.CompetitiveScope.GetCurrent()
-        if geometry then chrome.PaintCommunity(community,scope or {},geometry.base,geometry.wide) end
+        if geometry then
+            chrome.PaintCommunity(community,scope or {},geometry.base,geometry.wide)
+            refreshSummary()
+        end
         SetStatus(record and "Draft saved for this session. Not published." or why or "Unable to save draft.")
         return record
     end

@@ -107,6 +107,10 @@ local browseView
 local host=Page("host")
 local hostView
 local function LayoutHost(w)
+    if not R.CanCreatePreview() then
+        if hostView then hostView.Hide() end
+        return 1
+    end
     if not hostView then
         hostView=ns.TournamentHost.New(host,{
             refreshCommunity=RefreshCommunity,
