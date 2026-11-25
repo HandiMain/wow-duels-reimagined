@@ -39,6 +39,7 @@ local boolDefaults = {
     duelHUDLocked = false,
     duelHUDAdaptive = true,
     duelHUDSessionStats = false,
+    duelCountdownVisual = true,
     warGamesConsent = false,
     showTooltips = true,
     patchNotesReminder = true,
@@ -565,6 +566,9 @@ function Settings.Set(key, value)
         if ns.PatchNotes and ns.PatchNotes.RefreshReminder then
             ns.PatchNotes.RefreshReminder()
         end
+    elseif key == "duelCountdownVisual" then
+        if ns.DuelCountdown then ns.DuelCountdown.Refresh() end
+        if ns.Options and ns.Options.Refresh then ns.Options.Refresh() end
     elseif key == "notificationEnabled" or key == "notificationSounds" then
         if ns.Notifications then ns.Notifications.Refresh() end
         if ns.Options and ns.Options.Refresh then ns.Options.Refresh() end
@@ -603,6 +607,7 @@ function Settings.Set(key, value)
     elseif ns.Theme then
         ns.Theme.Refresh()
     end
+    if key == "reduceMotion" and ns.DuelCountdown then ns.DuelCountdown.Refresh() end
     if key == "reduceMotion" and ns.PatchNotes and
         ns.PatchNotes.RefreshReminder then
         ns.PatchNotes.RefreshReminder()

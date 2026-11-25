@@ -64,7 +64,7 @@ class IntegrationContracts(unittest.TestCase):
         # Extract actual AddToggle argument lists, not a greedy match spanning
         # unrelated lines that could hide an unregistered new setting.
         registered = set(re.findall(
-            r'\bAddToggle\(\s*\w+\s*,\s*"(?:options|interface|widget)"\s*,\s*"([^"]+)"',
+            r'\bAddToggle\(\s*\w+\s*,\s*"(?:options|interface|widget|combatvisuals)"\s*,\s*"([^"]+)"',
             options, re.S))
         # Mode is an immediate gameplay choice, not a general option.
         gameplay = {"practiceDuels"}

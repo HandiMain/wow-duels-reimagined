@@ -52,6 +52,8 @@ local sections = {
           subtitle = "Control how the window behaves while you play." },
         { key = "widget", label = "Widget", title = "Widget",
           subtitle = "Customize your duel companion and notifications." },
+        { key = "combatvisuals", label = "Combat Visuals", title = "Combat Visuals",
+          subtitle = "Customize the effects you see during duels." },
     } },
 }
 
@@ -87,7 +89,7 @@ local workspaceReady = false
 local scrollMemory = {}
 local function ScrollOwner(page)
     if not page then return nil end
-    if page.key == "options" or page.key == "interface" or page.key == "widget" then return ns.Options end
+    if page.key == "options" or page.key == "interface" or page.key == "widget" or page.key == "combatvisuals" then return ns.Options end
     if page.competitive then return ns.CompetitiveUI end
     if page.achievements then return ns.AchievementUI end
     if page.warGames then return ns.WarGamesUI end
@@ -469,8 +471,8 @@ for index, section in ipairs(sections) do
             end
             Style.ConstrainButtonLabel(sub, text, 46, 10, 10)
             text:SetJustifyH("LEFT")
-        elseif page.key == "widget" then
-            local glyph=Chrome.WidgetGlyph(sub,"widget",25)
+        elseif page.key == "widget" or page.key == "combatvisuals" then
+            local glyph=Chrome.WidgetGlyph(sub,page.key=="combatvisuals" and "countdown" or "widget",25)
             glyph:SetPoint("LEFT",sub,"LEFT",12,0)
             Style.ConstrainButtonLabel(sub,text,46,10,10)
             text:SetJustifyH("LEFT")

@@ -77,6 +77,7 @@ local bannerIndices = {
     notifications = 5,
     widget = 0,
     widgetNotifications = 0,
+    countdown = 0,
 }
 local bannerSubtitles = {
     appearance="FONT MATCHING & VISUAL IDENTITY",
@@ -87,6 +88,7 @@ local bannerSubtitles = {
     notifications="TOOLTIPS, REMINDERS & GUIDANCE",
     widget="POSITION, SIZE & BEHAVIOR",
     widgetNotifications="ALERTS, SOUNDS & PREVIEWS",
+    countdown="DUEL START & COUNTDOWN",
 }
 
 local function Card(page, y, height)
@@ -135,10 +137,11 @@ end
 local appearance = Page(130)
 local interface = Page(740)
 local widgetPage = Page(480)
+local combatVisuals = Page(180)
 if ns.DiagnosticAudit then ns.DiagnosticAudit.RegisterUIRoot("Options / Appearance",appearance.scrollOwner) end
 if ns.DiagnosticAudit then ns.DiagnosticAudit.RegisterUIRoot("Options / Interface",interface.scrollOwner) end
 
--- Three subcategories, one Options owner and one responsive layout.
+-- Four subcategories, one Options owner and one responsive layout.
 local appearanceCard = Card(appearance, 0, 165)
 local behaviorCard = Card(interface, 0, 100)
 local gameAccessCard = Card(interface, 108, 100)
@@ -147,6 +150,8 @@ local typographyCard = Card(interface, 398, 143)
 local notificationsCard = Card(interface, 549, 100)
 local hudCard = Card(widgetPage, 0, 290)
 local hudNotificationsCard = Card(widgetPage, 298, 340)
+local countdownCard = Card(combatVisuals, 0, 180)
+if ns.DiagnosticAudit then ns.DiagnosticAudit.RegisterUIRoot("Options / Combat Visuals",combatVisuals.scrollOwner) end
 if ns.DiagnosticAudit then ns.DiagnosticAudit.RegisterUIRoot("Options / Widget",widgetPage.scrollOwner) end
 
 -- One header renderer for all Options pages: live font labels, gold icon
@@ -176,7 +181,7 @@ local function Section(card, key, title, help, extra)
     local left = Slice(0, BANNER_LEFT)
     local right = Slice(BANNER_CELL_W - BANNER_RIGHT, BANNER_CELL_W)
     local isAppearance = key == "appearance"
-    local nativeWidget = key == "widget" or key == "widgetNotifications" or key == "minimap"
+    local nativeWidget = key == "widget" or key == "widgetNotifications" or key == "minimap" or key == "countdown"
     local nativeMotif
     if isAppearance then
         left:Hide()
@@ -192,7 +197,7 @@ local function Section(card, key, title, help, extra)
         card.appearancePalette, card.appearanceMotifPalette = palette, motifPalette
     elseif nativeWidget then
         left:Hide();right:Hide()
-        local kind=key=="widgetNotifications" and "notifications" or key=="minimap" and "launcher" or "widget"
+        local kind=key=="widgetNotifications" and "notifications" or key=="minimap" and "launcher" or key=="countdown" and "countdown" or "widget"
         local nativeIcon=ns.Chrome.WidgetGlyph(header,kind,34)
         nativeIcon:SetPoint("CENTER",header,"LEFT",50,0)
         nativeMotif=ns.Chrome.WidgetGlyph(header,kind,46)
@@ -270,6 +275,9 @@ Section(hudCard, "widget", "Duel Widget",
 Section(hudNotificationsCard, "widgetNotifications", "Notifications",
     "Choose the notifications attached to your duel companion.",
     "Notification audio follows Blizzard's Effects volume.")
+Section(countdownCard,"countdown","Duel Countdown",
+    "Show a cinematic countdown when a duel begins.",
+    "The fight cue follows the observed Blizzard countdown; reduced motion is respected.")
 
 local unavailable = "Enable EllesmereUI and its third-party skinning support to use this setting."
 local rows = {}
@@ -283,7 +291,7 @@ end
 -- while the relevant row remains below the viewport.
 local function RegisterOption(key, name, detail, pageKey, widget, available)
     ns.Search.Register("setting:" .. key, name,
-        "Options / " .. (pageKey == "options" and "Appearance" or pageKey == "widget" and "Widget" or "Interface"),
+        "Options / " .. (pageKey == "options" and "Appearance" or pageKey == "widget" and "Widget" or pageKey == "combatvisuals" and "Combat Visuals" or "Interface"),
         detail, function()
             if ns.Navigation and ns.Navigation.SelectKey then
                 ns.Navigation.SelectKey("options", pageKey)
@@ -334,6 +342,16 @@ local hudAdaptiveRow=AddToggle(hudCard,"widget","duelHUDAdaptive","Adaptive layo
     "Automatically resize as the duel state changes. Off keeps a fixed height.",-148,false)
 local hudStatsRow=AddToggle(hudCard,"widget","duelHUDSessionStats","Show session statistics",
     "Show recorded duels, wins, losses and confirmed rating changes. Live recording must be enabled.",-178,false)
+local countdownRow=AddToggle(countdownCard,"combatvisuals","duelCountdownVisual","Show duel countdown",
+    "Animate the numbers and FIGHT! when a duel starts. Works independently of the Duel Widget.",-90,false)
+local countdownPreview=Style.Action(countdownCard,"Preview countdown","footer")
+countdownPreview:SetHeight(30)
+MarkPosition(countdownPreview,countdownCard,-125)
+countdownPreview:SetScript("OnClick",function()
+    local ok,why=ns.DuelCountdown.Preview()
+    if not ok and ns.Feedback then ns.Feedback.Toast(why,countdownPreview) end
+end)
+RegisterOption("previewDuelCountdown","Preview countdown","Play the countdown animation without starting a duel","combatvisuals",countdownPreview)
 local consentRow
 if ns.CompetitiveStorage and ns.CompetitiveStorage.PeerEpoch() then
     consentRow = AddToggle(behaviorCard,"interface","competitiveConsent","Allow competitive duel exchange",
@@ -741,9 +759,12 @@ if warConsentRow then interfaceGroups[1].entries[#interfaceGroups[1].entries+1]=
 function appearance:Relayout(width) LayoutPage(self, appearanceGroups, width) end
 function interface:Relayout(width) LayoutPage(self, interfaceGroups, width) end
 function widgetPage:Relayout(width) LayoutPage(self, widgetGroups, width) end
+local combatGroups={{card=countdownCard,entries={{widget=countdownRow},{widget=countdownPreview,height=30}}}}
+function combatVisuals:Relayout(width) LayoutPage(self,combatGroups,width) end
 appearance:Relayout(appearance:GetWidth())
 interface:Relayout(interface:GetWidth())
 widgetPage:Relayout(widgetPage:GetWidth())
+    combatVisuals:Relayout(combatVisuals:GetWidth())
 
 -- During a live slider drag repaint only its reset/modified indicator.
 -- A full Refresh would programmatically reassign the active thumb.
@@ -840,9 +861,11 @@ function Options.Refresh()
     appearance:Relayout(appearance:GetWidth())
     interface:Relayout(interface:GetWidth())
     widgetPage:Relayout(widgetPage:GetWidth())
+    combatVisuals:Relayout(combatVisuals:GetWidth())
     appearance.scrollBar:Refresh()
     interface.scrollBar:Refresh()
     widgetPage.scrollBar:Refresh()
+    combatVisuals.scrollBar:Refresh()
 end
 
 -- Navigation only requests positions; this module remains the single owner
@@ -851,6 +874,7 @@ local function ScrollPage(key)
     if key == "options" then return appearance end
     if key == "interface" then return interface end
     if key == "widget" then return widgetPage end
+    if key == "combatvisuals" then return combatVisuals end
 end
 function Options.GetPageScroll(pageKey)
     local page = ScrollPage(pageKey)
@@ -871,6 +895,7 @@ function Options.Show(pageKey)
     appearance.scrollOwner:SetShown(pageKey == "options")
     interface.scrollOwner:SetShown(pageKey == "interface")
     widgetPage.scrollOwner:SetShown(pageKey == "widget")
+    combatVisuals.scrollOwner:SetShown(pageKey == "combatvisuals")
     local page=ScrollPage(pageKey)
     if page then page:Relayout(page:GetWidth());Options.Refresh() end
 end

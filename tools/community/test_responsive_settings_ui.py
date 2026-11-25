@@ -225,7 +225,7 @@ class ResponsiveSettingsTests(unittest.TestCase):
         self.assertNotIn('AddToggle(accessCard,"interface","duelHUDEnabled"',o)
         self.assertIn('Chrome.WidgetGlyph',o)
         self.assertIn('key = "widget", label = "Widget"',n)
-        self.assertIn('or page.key == "widget" then return ns.Options end',n)
+        self.assertIn('or page.key == "widget" or page.key == "combatvisuals" then return ns.Options end',n)
         self.assertIn('or page.key == "widget"',w)
         self.assertIn('ns.Navigation.SelectKey("options","widget")',h)
 

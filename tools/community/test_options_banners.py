@@ -43,7 +43,7 @@ class ApprovedOptionsBannersTests(unittest.TestCase):
         self.assertNotIn('Style.Plate(headingBand, "cardHeading"',src)
         self.assertNotIn('local heading = Style.Text(header, title',src)
         self.assertNotIn('local detail = Style.Text(header',src)
-        self.assertEqual(src.count('Section('),9)
+        self.assertEqual(src.count('Section('),10)
         self.assertIn('local isAppearance = key == "appearance"',src)
         self.assertIn('DuelPaletteMarks.tga',src)
         self.assertIn('motifPalette:SetTexture(COMPLETE_PALETTE)',src)
