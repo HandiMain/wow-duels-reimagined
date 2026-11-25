@@ -3,7 +3,7 @@
 ## Notes: A dueling companion for World of Warcraft.
 ## Author: Handi
 ## Category: PvP
-## OptionalDeps: EllesmereUI, LibSharedMedia-3.0, SharedMedia
+## OptionalDeps: EllesmereUI, LibSharedMedia-3.0, SharedMedia, DuelsReimagined_CountdownSounds
 ## SavedVariables: DuelsReimaginedDB, DuelsReimaginedCompetitiveDB
 ## SavedVariablesPerCharacter: DuelsReimaginedCharacterDB
 ## IconTexture: Interface\AddOns\DuelsReimagined\Media\Icons\DuelsDRIcon.png
@@ -11,6 +11,7 @@
 # Shared client detection loads before any gameplay or settings module.
 Core\Client.lua
 Core\Settings.lua
+Core\CountdownAudio.lua
 Core\Group.lua
 Core\DuelDetection.lua
 Core\DuelSelfTest.lua

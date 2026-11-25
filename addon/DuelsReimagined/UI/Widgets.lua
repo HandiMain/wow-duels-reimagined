@@ -486,7 +486,7 @@ end
 
 -- Reusable compact picker for SharedMedia fonts, outlines, and later Options.
 -- Popup rows scroll rather than opening hundreds of Blizzard dropdown frames.
-function Widgets.ChoiceRow(parent, caption, detail, onChoose, onReset, above, fontSamples)
+function Widgets.ChoiceRow(parent, caption, detail, onChoose, onReset, above, fontSamples, grouped)
     local row = CreateFrame("Frame", nil, parent)
     row:SetHeight(66)
     row.available = true
@@ -516,11 +516,20 @@ function Widgets.ChoiceRow(parent, caption, detail, onChoose, onReset, above, fo
     end
     local valueText = ChoiceLabel(control)
     local valueWidth=192
+    local expanded={}
+    local function RebuildChoices()
+        if not grouped then return end
+        local visible={}
+        for _,choice in ipairs(row.allChoices or {}) do
+            if choice.heading or not choice.group or expanded[choice.group] then visible[#visible+1]=choice end
+        end
+        row.choices=visible
+    end
     local function PaintValue()
         local label=row.displayOverride
         if not label then
-            for _,choice in ipairs(row.choices or {}) do
-                if choice.key==row.selected then label=choice.label;break end
+            for _,choice in ipairs(row.allChoices or row.choices or {}) do
+                if choice.key==row.selected and not choice.heading then label=choice.displayLabel or choice.label;break end
             end
         end
         label=label or "Blizzard Default"
@@ -580,8 +589,11 @@ function Widgets.ChoiceRow(parent, caption, detail, onChoose, onReset, above, fo
             entry.button:SetShown(opt ~= nil)
             if opt then
                 if fontSamples then ns.Fonts.PaintSample(entry.label,opt.key,opt.label,16,194)
-                else entry.label:SetText(opt.label) end
-                entry.label:SetTextColor(unpack(opt.key == row.selected and C.gold or C.text))
+                else
+                    entry.label:SetText(opt.heading and ((expanded[opt.key] and "- " or "+ ")..opt.label)
+                        or opt.group and ("    "..opt.label) or opt.label)
+                end
+                entry.label:SetTextColor(unpack((opt.heading or opt.key==row.selected) and C.gold or C.text))
             end
         end
         popup:SetHeight(12 + math.min(pageSize, #choices) * 31)
@@ -602,6 +614,10 @@ function Widgets.ChoiceRow(parent, caption, detail, onChoose, onReset, above, fo
         b:SetScript("OnLeave", function() Motion.Fade(glow, 0, 0.12) end)
         b:SetScript("OnClick", function()
             local option = (row.choices or {})[offset + i]
+            if option and option.heading then
+                expanded[option.key]=not expanded[option.key]
+                RebuildChoices();Render();return
+            end
             Widgets.CloseChoices()
             if option and onChoose then onChoose(option.key) end
         end)
@@ -610,7 +626,8 @@ function Widgets.ChoiceRow(parent, caption, detail, onChoose, onReset, above, fo
             local choice = (row.choices or {})[offset + i]
             if not choice then return end
             return { title = choice.label,
-                detail = "Choose this value for " .. caption .. ".",
+                detail = choice.heading and "Expand or collapse this sound category." or
+                    ("Choose this value for " .. caption .. "."),
                 anchor = "LEFT" }
         end)
         b:EnableMouseWheel(true)
@@ -664,7 +681,9 @@ function Widgets.ChoiceRow(parent, caption, detail, onChoose, onReset, above, fo
         popup:Show()
     end)
     function row:SetChoices(choices, selected, displayOverride)
+        self.allChoices=grouped and (choices or {}) or nil
         self.choices = choices or {}
+        if grouped then RebuildChoices() end
         self.selected = selected
         self.displayOverride=displayOverride
         PaintValue()

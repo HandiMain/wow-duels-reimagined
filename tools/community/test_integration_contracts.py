@@ -97,7 +97,7 @@ class IntegrationContracts(unittest.TestCase):
     def test_font_preview_is_opt_in_and_not_theme_registered(self):
         widgets = read("UI/Widgets.lua")
         options = read("UI/Options.lua")
-        self.assertIn('above, fontSamples)', widgets)
+        self.assertIn('above, fontSamples, grouped)', widgets)
         self.assertIn('if not fontSamples then return Style.Text(owner,"",12,C.text) end', widgets)
         self.assertIn('local fs=owner:CreateFontString(nil,"OVERLAY")', widgets)
         self.assertIn('ns.Fonts.PaintSample(entry.label,opt.key,opt.label,16,194)', widgets)

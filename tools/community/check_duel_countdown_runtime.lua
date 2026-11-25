@@ -193,3 +193,36 @@ assert(restored==1 and root:IsShown() and Text("3") and root.scale==1.5)
 V.EndLayoutDraft();assert(not root:IsShown() and root.scale==1 and root.point[4]==0 and root.point[5]==0)
 assert(#frames==count+1) -- only the earlier font sample test created a frame
 print("Countdown layout: PASS (actual sample, scaled anchor, preview restore, saved layout restoration)")
+
+-- Real sound owner driven solely by countdown stage transitions.
+local played,stopped={},{}
+PlaySoundFile=function(path,channel)played[#played+1]={path,channel};return true,#played end
+StopSound=function(id)stopped[#stopped+1]=id end
+DuelsReimaginedCountdownSoundPacks={version=1,groups={
+    {label="Overwatch",packs={{key="Overwatch/Ana",label="Ana"},{key="../bad",label="Bad"}}},
+    {label="Unreal Tournament",packs={{key="Unreal Tournament - 99",label="99"}}},
+}}
+assert(loadfile("addon/DuelsReimagined/Core/CountdownAudio.lua"))("DuelsReimagined",ns)
+local A=ns.CountdownAudio
+prefs.duelCountdownVisual=true;prefs.duelCountdownSounds=true
+prefs.duelCountdownSoundPack="pack:Overwatch/Ana";prefs.duelCountdownAudioChannel="Dialog"
+local choices=A.GetChoices(prefs.duelCountdownSoundPack)
+assert(#choices==5 and choices[2].heading and choices[3].group==choices[2].key)
+assert(A.IsAvailable("pack:Overwatch/Ana") and not A.IsAvailable("pack:../bad"))
+local start=now
+assert(V.Preview() and #played==1 and played[1][1]:find("Overwatch\\Ana\\3.ogg",1,true) and played[1][2]=="Dialog")
+Advance(start+1.01);assert(#played==2 and played[2][1]:find("\\2.ogg",1,true))
+Advance(start+2.01);assert(#played==3 and played[3][1]:find("\\1.ogg",1,true))
+Advance(start+3.01);assert(#played==3 and #stopped==3)
+Advance(start+4);assert(A.GetDiagnosticResources().handles==0)
+prefs.duelCountdownSounds=false
+assert(V.Preview());Advance(now+4);assert(#played==3)
+prefs.duelCountdownSounds=true;prefs.duelCountdownVisual=false
+assert(V.Preview());Advance(now+4);assert(#played==3)
+prefs.duelCountdownVisual=true
+prefs.duelCountdownSoundPack="pack:Missing"
+assert(V.Preview() and played[4][1]:find("CountdownTick.mp3",1,true))
+V.Refresh();assert(A.GetDiagnosticResources().handles==0)
+local n=#played
+V.SetLayoutDraft(.5,.5,1);V.ShowLayoutSample();assert(#played==n);V.EndLayoutDraft()
+print("Countdown audio: PASS (3/2/1 only, category grouping, channel, disabled gates, fallback, cleanup, silent edit sample)")

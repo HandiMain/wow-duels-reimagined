@@ -356,9 +356,23 @@ local countdownFont=Widgets.ChoiceRow(countdownCard,"Countdown font",
     function() Settings.Reset("duelCountdownFont") end,false,true)
 MarkPosition(countdownFont,countdownCard,-196)
 RegisterOption("duelCountdownFont","Countdown font","Choose a separate Blizzard or shared font for combat visuals","combatvisuals",countdownFont)
+local countdownSounds=AddToggle(countdownCard,"combatvisuals","duelCountdownSounds","Countdown sounds",
+    "Play a sound for each of the three numbers. Never plays a FIGHT! sound.",-267,false)
+local soundPack=Widgets.ChoiceRow(countdownCard,"Countdown sound",
+    "Choose a sound pack by game, or use the built-in Duels sound.",
+    function(key) Settings.Set("duelCountdownSoundPack",key) end,
+    function() Settings.Reset("duelCountdownSoundPack") end,false,false,true)
+MarkPosition(soundPack,countdownCard,-303)
+RegisterOption("duelCountdownSoundPack","Countdown sound","Choose a grouped countdown voice or sound pack","combatvisuals",soundPack)
+local audioChannel=Widgets.ChoiceRow(countdownCard,"Sound volume channel",
+    "Use the selected Blizzard audio slider. Does not change any Blizzard sound settings.",
+    function(key) Settings.Set("duelCountdownAudioChannel",key) end,
+    function() Settings.Reset("duelCountdownAudioChannel") end,false)
+MarkPosition(audioChannel,countdownCard,-374)
+RegisterOption("duelCountdownAudioChannel","Sound volume channel","Choose Effects, Master, Ambience, Music or Dialog","combatvisuals",audioChannel)
 local countdownPreview=Style.Action(countdownCard,"Preview countdown","footer")
 countdownPreview:SetHeight(30)
-MarkPosition(countdownPreview,countdownCard,-267)
+MarkPosition(countdownPreview,countdownCard,-445)
 countdownPreview:SetScript("OnClick",function()
     local ok,why=ns.DuelCountdown.Preview()
     if not ok and ns.Feedback then ns.Feedback.Toast(why,countdownPreview) end
@@ -366,7 +380,7 @@ end)
 RegisterOption("previewDuelCountdown","Preview countdown","Play the countdown animation without starting a duel","combatvisuals",countdownPreview)
 local editLayout=Style.Action(countdownCard,"Edit layout","footer")
 editLayout:SetHeight(30)
-MarkPosition(editLayout,countdownCard,-302)
+MarkPosition(editLayout,countdownCard,-480)
 editLayout:SetScript("OnClick",function()
     local ok,why=ns.EditMode.Open("countdown")
     if not ok and ns.Feedback then ns.Feedback.Toast(why,editLayout) end
@@ -779,7 +793,7 @@ if warConsentRow then interfaceGroups[1].entries[#interfaceGroups[1].entries+1]=
 function appearance:Relayout(width) LayoutPage(self, appearanceGroups, width) end
 function interface:Relayout(width) LayoutPage(self, interfaceGroups, width) end
 function widgetPage:Relayout(width) LayoutPage(self, widgetGroups, width) end
-local combatGroups={{card=countdownCard,entries={{widget=countdownRow},{widget=countdownChoice},{widget=countdownFont},{widget=countdownPreview,height=30},{widget=editLayout,height=30}}}}
+local combatGroups={{card=countdownCard,entries={{widget=countdownRow},{widget=countdownChoice},{widget=countdownFont},{widget=countdownSounds},{widget=soundPack},{widget=audioChannel},{widget=countdownPreview,height=30},{widget=editLayout,height=30}}}}
 function combatVisuals:Relayout(width) LayoutPage(self,combatGroups,width) end
 appearance:Relayout(appearance:GetWidth())
 interface:Relayout(interface:GetWidth())
@@ -838,6 +852,17 @@ function Options.Refresh()
     countdownFont:SetAvailable(true)
     countdownFont:SetModified(Settings.IsModified("duelCountdownFont"))
     countdownFont.resetIcon:SetVertexColor(unpack(C.gold))
+    local visualOn=Settings.Get("duelCountdownVisual")
+    local soundOn=visualOn and Settings.Get("duelCountdownSounds")
+    countdownSounds:SetAvailable(visualOn,"Enable the duel countdown first.")
+    soundPack:SetChoices(ns.CountdownAudio.GetChoices(Settings.Get("duelCountdownSoundPack")),Settings.Get("duelCountdownSoundPack"))
+    soundPack:SetAvailable(soundOn,"Enable the duel countdown and countdown sounds first.")
+    soundPack:SetModified(Settings.IsModified("duelCountdownSoundPack"))
+    soundPack.resetIcon:SetVertexColor(unpack(C.gold))
+    audioChannel:SetChoices(Settings.GetCountdownChannels(),Settings.Get("duelCountdownAudioChannel"))
+    audioChannel:SetAvailable(soundOn,"Enable the duel countdown and countdown sounds first.")
+    audioChannel:SetModified(Settings.IsModified("duelCountdownAudioChannel"))
+    audioChannel.resetIcon:SetVertexColor(unpack(C.gold))
     local matching = ready and Settings.Get("matchFont")
     fontChoice:SetChoices(Fonts.GetChoices(), Settings.Get("fontChoice"),
         matching and "Managed by EllesmereUI" or nil)

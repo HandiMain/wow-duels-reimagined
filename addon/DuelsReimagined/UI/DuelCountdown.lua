@@ -77,6 +77,7 @@ local function Hide()
 end
 local function Clear()
     StopTimer();Hide()
+    if ns.CountdownAudio then ns.CountdownAudio.Stop() end
     cycle,deadline,shown,preview=nil,nil,nil,nil
 end
 local function Live(s,id)
@@ -305,6 +306,7 @@ Tick=function()
         end
         -- Don't play an old fight cue after a long frame stall or reload.
         if remaining<-.5 then Clear();return end
+        if ns.CountdownAudio then ns.CountdownAudio.Stop() end
         shown="FIGHT!";ShowStage(shown,.90);Arm(.94)
         return
     end
@@ -315,6 +317,7 @@ Tick=function()
     if shown~=stage then
         shown=stage
         ShowStage(tostring(stage),math.min(.95,nextIn))
+        if ns.CountdownAudio then ns.CountdownAudio.Play(stage) end
     end
     Arm(nextIn)
 end
