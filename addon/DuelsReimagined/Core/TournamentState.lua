@@ -30,7 +30,8 @@ function T.IsPageAvailable(key)
     local snapshot=T.GetSnapshot()
     local test=ns.TournamentRegistration and ns.TournamentRegistration.PreviewState()
     if key=="host" and ns.TournamentRegistration and not ns.TournamentRegistration.CanCreatePreview() then return false end
-    return ns.Client.IsSupported() and T.Project(test or snapshot.state,snapshot.hasBracket)[key]==true
+    local hasBracket=test and ns.TournamentRegistration.PreviewHasBracket() or snapshot.hasBracket
+    return ns.Client.IsSupported() and T.Project(test or snapshot.state,hasBracket)[key]==true
 end
 -- Creation is a local session draft only. Registration and hosting remain closed.
 local function Copy(row)

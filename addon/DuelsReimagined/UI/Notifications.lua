@@ -316,9 +316,11 @@ local function Paint(m)
     local ranked=m.kind=="promotion"
     local achieved=m.kind=="achievement"
     local warned=m.kind=="warning"
+    local tournament=m.kind=="tournament"
     for _,region in ipairs({ornamentLeft,ornamentRight,emblem,category,heading,description,updateAction,updateDismiss,closeText}) do
         Visible(region,not ranked and not achieved and not warned)
     end
+    if tournament then Visible(updateAction,false);Visible(updateDismiss,false) end
     Visible(defaultBackground,not achieved and not warned);Visible(connector,not achieved and not warned)
     Visible(warning,warned);Visible(warningConnector,warned);Visible(warningClose,warned)
     Visible(achievement,achieved);Visible(achConnector,achieved)
@@ -347,14 +349,14 @@ local function Paint(m)
         ratingGain:SetText("+"..m.gain.." rating")
     else
         Position(close,panel,WIDTH-35,12,18,18)
-        category:SetText(m.preview and "PREVIEW: Addon update" or "Addon update")
+        category:SetText(tournament and "LOCAL TEST: Tournament" or m.preview and "PREVIEW: Addon update" or "Addon update")
         heading:SetText(m.title)
         description:SetText(m.body)
     end
 end
 local function StartExpiry()
-    if not current or (current.kind~="promotion" and current.kind~="achievement" and current.kind~="warning") or not C_Timer or not C_Timer.NewTimer then return end
-    local seconds=expiryRemaining or (current.kind=="warning" and (WARNING_SOUND_SECONDS+2) or current.kind=="achievement" and ACHIEVEMENT_SOUND_SECONDS+2 or PROMOTION_SOUND_SECONDS+2)
+    if not current or (current.kind~="promotion" and current.kind~="achievement" and current.kind~="warning" and current.kind~="tournament") or not C_Timer or not C_Timer.NewTimer then return end
+    local seconds=expiryRemaining or (current.kind=="tournament" and 7 or current.kind=="warning" and (WARNING_SOUND_SECONDS+2) or current.kind=="achievement" and ACHIEVEMENT_SOUND_SECONDS+2 or PROMOTION_SOUND_SECONDS+2)
     local now=Plain(GetTime)
     expiryAt=type(now)=="number" and now+seconds or nil
     local m=current
@@ -384,7 +386,7 @@ local function ShowCurrent()
     -- The shared entrance owns the glow until complete; celebration owns
     -- it only afterwards and never replays on a combat resume.
     Animate(0,1,.32,isPromotion and firstAppearance and Celebrate or nil);Play()
-    if isPromotion or current.kind=="warning" then StartExpiry() end
+    if isPromotion or current.kind=="warning" or current.kind=="tournament" then StartExpiry() end
 end
 local function Snoozed(m)
     local now=Plain(GetServerTime)
@@ -509,6 +511,20 @@ function N.PreviewAchievement()
 end
 -- Preview-only warning catalogue. No automatic producer until actual duel
 -- result/recording evidence is verified. Never warn for merely targeting.
+function N.ClearTournamentPreview()
+    for i=#queue,1,-1 do if queue[i].kind=="tournament" then table.remove(queue,i) end end
+    if current and current.kind=="tournament" then Clear();Pump() end
+end
+function N.PreviewTournamentReady()
+    if not ready or Blocked() then return false,"Finish your duel or combat first." end
+    if not Settings.Get("notificationEnabled") then return false,"Notifications are disabled." end
+    if not HUDVisible() then return false,"Show the Duel HUD to receive notifications." end
+    if current or #queue>0 then return false,"Dismiss the current notification first." end
+    local p=ns.TournamentRegistration and ns.TournamentRegistration.PreviewSnapshot()
+    if not p or p.scope~="SIMULATED" or p.role~="player" or not p.match then return false,"No local test match ready." end
+    return Enqueue({id="preview:tournament-ready",kind="tournament",preview=true,
+        title="Your match is ready",body=p.match.opponent.."\nBest of "..p.match.bestOf.." - Local test only"})
+end
 function N.PreviewWarning()
     if not PREVIEW_ENABLED or not ready then return false,"Preview unavailable" end
     if Blocked() then return false,"Finish your duel or combat first" end

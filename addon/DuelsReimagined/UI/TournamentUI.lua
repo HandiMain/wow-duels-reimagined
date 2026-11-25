@@ -286,12 +286,14 @@ local function Switch(key)
 end
 local function Run(action,key)
     local ok,why=R.PreviewAction(action);feedback=why or ""
+    if ok and action=="cancel" and ns.Notifications then ns.Notifications.ClearTournamentPreview() end
     if ok and key then Switch(key) else U.Show(active or "overview") end
 end
 local hostPlayer=Action(hostTest,"Player Preview",function()
     local p=R.PreviewSnapshot()
     if p then Run("player",p.member and "my-tournament" or "browse") else Switch("overview") end
 end)
+local hostStart=Action(hostTest,"Start Test Bracket",function()Run("start-bracket","brackets")end)
 local hostCancel=Action(hostTest,"Cancel Test",function()Run("cancel","host")end)
 local listRow=CreateFrame("Frame",nil,list)
 S.Skin(listRow,C.body,{corner=8,edge=C.goldDim,shine=.12,shade=.18})
@@ -302,7 +304,16 @@ local check=Action(myPanel,"Test Check-in",function()Run("checkin")end)
 local advance=Action(myPanel,"Test Check-in Time",function()Run("checkin-time")end)
 local leave=Action(myPanel,"Leave Test",function()Run("leave","browse")end)
 local myHost=Action(myPanel,"Organizer View",function()Run("host","manage")end)
-local endTest=Action(hero,"End Local Test",function()R.EndPreview();feedback="";Switch("overview")end)
+local matchNotice=Action(myPanel,"Preview Match Notification",function()
+    local ok,why=ns.Notifications.PreviewTournamentReady()
+    feedback=ok and "Match notification shown." or why or "Notification unavailable."
+    U.Show("my-tournament")
+end)
+local endTest=Action(hero,"End Local Test",function()
+    R.EndPreview()
+    if ns.Notifications then ns.Notifications.ClearTournamentPreview() end
+    feedback="";Switch("overview")
+end)
 local resumeTest=Action(hero,"Resume Local Test",function()
     local p=R.PreviewSnapshot();if p then Switch(p.role=="host" and "manage" or p.member and "my-tournament" or "browse") end
 end)
@@ -332,10 +343,27 @@ local function RefreshTest()
     listRow:SetShown(not not (player and p.events[1]))
     join:SetShown(not not (player and p.events[1] and not p.member))
     browseHost:SetShown(not not player)
-    check:SetShown(not not (player and p.member and not p.member.checkedIn))
-    advance:SetShown(not not (player and p.member and p.now<p.event.draft.startAt-1800))
-    leave:SetShown(not not (player and p.member))
+    local started=p and p.bracket~=nil
+    check:SetShown(not not (player and p.member and not started and not p.member.checkedIn))
+    advance:SetShown(not not (player and p.member and not started and p.now<p.event.draft.startAt-1800))
+    leave:SetShown(not not (player and p.member and not started))
+    matchNotice:SetShown(not not (player and p.match))
+    hostStart:SetShown(not not (hosting and not started))
+    hostStart:SetEnabled(not not (hosting and not started and p.member and p.member.checkedIn))
     myHost:SetShown(not not player)
+    if started then
+        local lines={"LOCAL TEST - Simulated bracket"}
+        for i,round in ipairs(p.bracket.rounds) do
+            for _,m in ipairs(round) do
+                if m.a and m.b then
+                    lines[#lines+1]=(i==#p.bracket.rounds and "Final" or "Round "..i)..": "..(p.names[m.a] or "Unknown")..
+                        "  "..m.wins[1].." - "..m.wins[2].."  "..(p.names[m.b] or "Unknown")
+                    lines[#lines+1]=m.state=="ready" and "Match ready" or m.state=="done" and "Match complete" or "Waiting"
+                end
+            end
+        end
+        bracketPanel.detail:SetText(table.concat(lines,"\n"))
+    else bracketPanel.detail:SetText("No tournament bracket available.") end
     if hosting then
         hostSummary:SetText(Describe(p.event))
         local lines={"Registered participants"}
@@ -351,7 +379,13 @@ local function RefreshTest()
             listRowText:SetText(ad.draft.name.."  -  "..ad.count.." / "..ad.draft.capacity)
             info.detail:SetText(Describe(ad).."\nOrganizer: "..ad.organizer.."\n"..feedback)
         else info.detail:SetText("Registration is closed for this test event. Return to the organizer.") end
-        if p.member then myPanel.detail:SetText(Describe(p.event).."\n"..(p.member.checkedIn and "Checked in" or "Registered").."\n"..feedback) end
+        if p.match then
+            local m=p.match
+            myPanel.detail:SetText("LOCAL TEST - No real duel or rating changes\n\n"..p.event.draft.name.."\n"..
+                (m.round==m.roundCount and "Final" or "Round "..m.round).." - Best of "..m.bestOf.."\n\n"..
+                "Your next opponent\n"..m.opponent.."\n\nSeries score: "..m.score.." - "..m.opponentScore..
+                "\n\nMatch ready - gameplay preview not connected yet.\n"..feedback)
+        elseif p.member then myPanel.detail:SetText(Describe(p.event).."\n"..(p.member.checkedIn and "Checked in" or "Registered").."\n"..feedback) end
     else
         list.detail:SetText("No tournaments discovered.")
         list.note:SetText("Tournament discovery is not active yet.")
@@ -442,12 +476,13 @@ local function Layout()
         height=LayoutHost(w)
     elseif active=="manage" then
         if p and p.role=="host" then
-            height=560
+            height=596
             Place(hostTest,organizer,0,0,w,height);Header(hostTest,w)
             TextAt(hostSummary,hostTest,12,44,w-24,300)
             TextAt(hostRoster,hostTest,12,350,w-24,120)
-            Place(hostPlayer,hostTest,12,484,w-24,28)
-            Place(hostCancel,hostTest,12,520,w-24,28)
+            Place(hostStart,hostTest,12,484,w-24,28)
+            Place(hostPlayer,hostTest,12,520,w-24,28)
+            Place(hostCancel,hostTest,12,556,w-24,28)
         else height=1 end
     else
         local f=active=="champions" and archive or active=="my-tournament" and myPanel or bracketPanel
@@ -457,10 +492,14 @@ local function Layout()
             if p and active=="my-tournament" then
                 h=math.max(h,550);Place(f,pages[active],0,0,w,h)
                 TextAt(f.detail,f,12,44,w-24,h-196)
+                Place(matchNotice,f,12,h-72,w-24,28)
                 Place(advance,f,12,h-144,w-24,28)
                 Place(check,f,12,h-108,w-24,28)
                 Place(leave,f,12,h-72,w-24,28)
                 Place(myHost,f,12,h-36,w-24,28)
+            elseif active=="brackets" and p and p.bracket then
+                h=math.max(h,260);Place(f,pages[active],0,0,w,h)
+                TextAt(f.detail,f,20,54,w-40,h-68)
             else TextAt(f.detail,f,20,54,w-40,100) end
             height=h
         end

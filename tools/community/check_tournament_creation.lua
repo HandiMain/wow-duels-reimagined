@@ -28,6 +28,8 @@ CreateFrame,GetTime,C_Timer,hooksecurefunc=oldFrame,oldClock,oldAfter,oldHook
 ns.Group=oldGroup
 local hp,hf=ns.TournamentRegistration.RunHostRecoverySelfTest(print)
 assert(hp==72 and hf==0,"tournament host recovery QA failed")
+local pp,pf=ns.TournamentRegistration.RunPlayerPreviewSelfTest(print)
+assert(pp==2 and pf==0,"tournament player preview QA failed")
 local bp,bf=ns.TournamentBracket.RunSelfTest(print)
 assert(bp==24 and bf==0,"tournament bracket QA failed")
 local T=ns.TournamentState
