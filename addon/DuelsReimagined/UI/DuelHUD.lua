@@ -17,16 +17,28 @@ local surface=body
 -- One authored skin owner. In particular, do not use Style.Fill followed
 -- by a second anchor: its original opposing anchors stretch the region.
 local ATLAS="Interface\\AddOns\\DuelsReimagined\\Media\\Skin\\DuelHUDArt.png"
-local art={shell={0,0,336,310},crest={342,0,60,56},selected={342,64,140,32},
-    normal={342,100,140,32},red={342,136,140,30},disabled={342,170,140,30},
-    timer={0,316,190,38},stats={0,361,310,59},gear={342,205,24,24},
-    close={372,205,24,24},swords={410,0,30,30},playerRing={342,238,48,48},enemyRing={396,238,48,48}}
+local PREMIUM="Interface\\AddOns\\DuelsReimagined\\Media\\Skin\\DuelHUDPremium.png"
+local HEALTH_FILL="Interface\\AddOns\\DuelsReimagined\\Media\\Skin\\DuelHUDHealthFill.png"
+local HEALTH_MASK="Interface\\AddOns\\DuelsReimagined\\Media\\Skin\\DuelHUDHealthMask.png"
+-- Approved rendered shell and individual blank control surfaces. The shared
+-- small original gear, close, portrait rims and crossed-swords art remain in
+-- the original atlas, also used by Notifications. Never replace that atlas.
+local premiumArt={shell={2,2,672,620},foldedShell={2,630,672,84},
+    timer={2,724,380,76},stats={2,814,620,118},normal={700,2,280,64},
+    selected={700,72,280,64},disabled={700,142,280,64},red={700,212,280,64},
+    crest={700,286,112,104},healthTrack={700,402,284,38}}
+local art={gear={342,205,24,24},close={372,205,24,24},swords={410,0,30,30},
+    playerRing={342,238,48,48},enemyRing={396,238,48,48}}
 local function Place(f,x,y,w,h)
     f:ClearAllPoints();f:SetPoint("TOPLEFT",f:GetParent(),"TOPLEFT",x,-y);f:SetSize(w,h)
 end
 local function Region(t,key)
-    local a=art[key];t:SetTexture(ATLAS)
-    t:SetTexCoord((a[1]+.25)/512,(a[1]+a[3]-.25)/512,(a[2]+.25)/512,(a[2]+a[4]-.25)/512)
+    local premium=premiumArt[key]
+    local a=premium or assert(art[key]);local size=premium and 1024 or 512
+    t:SetTexture(premium and PREMIUM or ATLAS)
+    if t.SetSnapToPixelGrid then t:SetSnapToPixelGrid(false) end
+    if t.SetTexelSnappingBias then t:SetTexelSnappingBias(0) end
+    t:SetTexCoord((a[1]+.5)/size,(a[1]+a[3]-.5)/size,(a[2]+.5)/size,(a[2]+a[4]-.5)/size)
 end
 local function Artwork(key,x,y,w,h,layer)
     local t=surface:CreateTexture(nil,layer or "ARTWORK");Region(t,key);Place(t,x,y,w,h);return t
@@ -39,9 +51,8 @@ local function Rect(x,y,w,h,r,g,b,a)
     local t=surface:CreateTexture(nil,"BORDER")
     t:SetColorTexture(r,g,b,a or 1);Place(t,x,y,w,h);return t
 end
-Rect(9,35,318,1,.50,.35,.16,.8)
+-- Header and statistics dividers are part of their rendered surfaces.
 Rect(14,74,308,1,.19,.15,.10,.85)
-Rect(16,229,304,1,.27,.22,.15,.75)
 local function Label(value,size,color,x,y,w,h,align)
     local f=S.Text(surface,value,size,color or C.text)
     f:SetJustifyH(align or "CENTER");f:SetWordWrap(false);Place(f,x,y,w,h)
@@ -91,15 +102,13 @@ end
 -- The expanded shell belongs to the body. The folded shell samples only
 -- the original header and lower rim, so no body artwork leaks below it.
 surface=root
-art.foldedTop={0,0,336,38};art.foldedBottom={0,305,336,5}
-local foldedTop=Artwork("foldedTop",0,0,WIDTH,38,"BACKGROUND")
-local foldedBottom=Artwork("foldedBottom",0,38,WIDTH,4,"BACKGROUND")
-foldedTop:Hide();foldedBottom:Hide()
+local foldedShell=Artwork("foldedShell",0,0,WIDTH,FOLDED_HEIGHT,"BACKGROUND")
+foldedShell:Hide()
 surface=headerLayer
 local header=CreateFrame("Frame",nil,headerLayer)
 Place(header,0,0,WIDTH-87,35);header:EnableMouse(true);header:RegisterForDrag("LeftButton")
-Artwork("crest",-4,-11,56,52,"OVERLAY")
-Label("Duels Reimagined",17,C.pale,52,4,WIDTH-145,26,"LEFT")
+Artwork("crest",7,-1,46,43,"OVERLAY")
+Label("Duels Reimagined",17,C.pale,54,4,WIDTH-147,26,"LEFT")
 local function OpenOptions()
     if Combat() then return end
     if not ns.Window.frame:IsShown() then ns.Window.Toggle() end
@@ -164,15 +173,29 @@ local function Side(x,enemy)
     side.badge=ns.CompetitiveUI.CreateRankEmblem(body,19,false)
     Place(side.badge,enemy and x+123 or x+2,163,19,19)
     side.rank=Label("Rank unknown",11,C.text,enemy and x or x+23,163,119,18,align)
-    -- Exactly anchored dark track and thin bronze edge; no Fill helper.
-    Rect(x,182,142,17,.38,.27,.12)
-    Rect(x+1,183,140,15,.04,.045,.04)
-    side.hp=CreateFrame("StatusBar",nil,body);Place(side.hp,x+2,184,138,13)
-    side.hp:SetStatusBarTexture("Interface\\TargetingFrame\\UI-StatusBar")
-    side.hp:SetStatusBarColor(.19,.72,.16);side.hp:SetMinMaxValues(0,1);side.hp:SetValue(0)
+    -- Pill-shaped track and alpha-shaped fill, driven by Blizzard's native
+    -- StatusBar. Do not size textures from restricted health values.
+    Artwork("healthTrack",x,181,142,19)
+    side.hp=CreateFrame("StatusBar",nil,body);Place(side.hp,x+3,184,136,13)
+    side.hp:SetStatusBarTexture(HEALTH_FILL)
+    side.hp:SetStatusBarColor(1,1,1);side.hp:SetMinMaxValues(0,1);side.hp:SetValue(0)
+    -- The static mask clips the whole native fill to the rounded track.
+    -- Alpha-shaped fill still renders when a client lacks mask support.
+    if body.CreateMaskTexture and side.hp.GetStatusBarTexture then
+        pcall(function()
+            local tex=side.hp:GetStatusBarTexture()
+            if not tex or not tex.AddMaskTexture then return end
+            local mask=body:CreateMaskTexture()
+            mask:SetTexture(HEALTH_MASK,"CLAMPTOBLACKADDITIVE","CLAMPTOBLACKADDITIVE")
+            mask:SetAllPoints(side.hp);tex:AddMaskTexture(mask)
+            side.healthMask=mask
+        end)
+    end
     local overlay=CreateFrame("Frame",nil,body)
     overlay:SetFrameLevel(side.hp:GetFrameLevel()+1);Place(overlay,x,181,142,19)
-    side.hpText=S.Text(overlay,"",11,C.text);side.hpText:SetAllPoints(overlay);side.hpText:SetJustifyH("CENTER");S.ConstrainText(side.hpText,138,17,8)
+    side.hpText=S.Text(overlay,"",11,{1,1,1,1});side.hpText:SetAllPoints(overlay);side.hpText:SetJustifyH("CENTER")
+    if side.hpText.SetJustifyV then side.hpText:SetJustifyV("MIDDLE") end
+    S.ConstrainText(side.hpText,136,17,8)
     local click=CreateFrame("Button",nil,body);Place(click,x,163,142,19)
     click:SetScript("OnClick",function()
         if Combat() or preview or not side.profile or not side.id or ns.CompetitivePreview.IsActive() then return end
@@ -200,7 +223,7 @@ local function Native(fn,unit)
     end
     note:SetText("Request sent to Blizzard; awaiting observation.");return true
 end
-challenge=Action("Challenge Target",18,277,157,27,function()
+challenge=Action("Challenge Target",18,272,157,27,function()
     if preview or ns.CompetitivePreview.IsActive() or Combat() or not snap or snap.state~="idle" then return end
     local id=Identity("target");local self=Identity("player")
     local now=Now()
@@ -218,7 +241,7 @@ challenge=Action("Challenge Target",18,277,157,27,function()
         else note:SetText("Request not confirmed; try again") end
     end
 end,false)
-forfeit=Action("Forfeit",187,277,131,27,function()
+forfeit=Action("Forfeit",187,272,131,27,function()
     if preview or ns.CompetitivePreview.IsActive() or not snap or snap.state=="finishing" then return end
     if snap.challenge and snap.challenge.direction=="outgoing" then
         if not snap.challenge.requestConfirmed then ns.DuelDetection.DismissUnconfirmed()
@@ -247,8 +270,23 @@ local function Health(side,unit)
     end)
     if not painted then return end
     side.hp:Show()
-    if restricted then side.hpText:SetText("")
-    else side.hpText:SetText(string.format("%d%%",math.floor(100*value/max+.5))) end
+    if not restricted then
+        side.hpText:SetText(string.format("%d%%",math.floor(math.max(0,math.min(100,100*value/max))+.5)))
+        return
+    end
+    -- Modern clients may calculate the percentage internally, even when
+    -- the underlying health values are secret. Never inspect or compute on
+    -- a secret percentage in Lua. Try native formatted text directly; if
+    -- the API or sink refuses it, leave the native bar visible without text.
+    side.hpText:SetText("")
+    if type(UnitHealthPercent)~="function" or not CurveConstants or not CurveConstants.ScaleTo100 then return end
+    local available,percent=pcall(UnitHealthPercent,unit,false,CurveConstants.ScaleTo100)
+    if not available then return end
+    if Secret(percent) then
+        if side.hpText.SetFormattedText then pcall(side.hpText.SetFormattedText,side.hpText,"%.0f%%",percent) end
+    elseif type(percent)=="number" and percent>=0 and percent<=100 then
+        side.hpText:SetText(string.format("%.0f%%",percent))
+    end
 end
 local function ReadRanks()
     if not rankDirty then return end
@@ -460,7 +498,7 @@ function H.Fold(value)
     local want=value==true
     if want==folded then return end
     StopDrag();folded=want;probeGeneration=probeGeneration+1
-    body:SetShown(not folded);foldedTop:SetShown(folded);foldedBottom:SetShown(folded)
+    body:SetShown(not folded);foldedShell:SetShown(folded)
     root:SetHeight(folded and FOLDED_HEIGHT or HEIGHT);PaintFold();H.ApplyPosition()
     if not folded and root:IsShown() then rankDirty=true;Receive(ns.DuelDetection.GetSnapshot());ProbeSelected() end
     UpdateDriver()

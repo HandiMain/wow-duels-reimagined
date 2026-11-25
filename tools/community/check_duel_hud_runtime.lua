@@ -18,6 +18,9 @@ function methods:Hide()local old=self.shown;self.shown=false;if old and self.scr
 function methods:IsShown()return self.shown end
 function methods:IsVisible()return self.shown and (not self.parent or self.parent:IsVisible())end
 function methods:SetText(t)self.text=t end
+function methods:SetStatusBarTexture(t)self.barTexture=t end
+function methods:SetMinMaxValues(lo,hi)self.low,self.high=lo,hi end
+function methods:SetValue(v)self.value=v end
 function methods:SetTexture(t)self.texture=t end
 function methods:SetScale(v)self.scale=v end
 function methods:GetEffectiveScale()return self.scale or 1 end
@@ -87,3 +90,43 @@ assert(root:IsShown() and H.IsFolded() and root:GetHeight()==42 and subscribers=
 H.Fold(false)
 assert(#frames==frameCount and anchors>3 and ranked:IsVisible())
 print("Duel HUD fold mock: PASS (stable top, body visibility, dragging, polling, subscriptions and font registration)")
+local function HealthText(t)
+    for _,f in ipairs(frames) do
+        if f.text==t and f:IsVisible() then return true end
+    end
+end
+local barCount=0
+for _,f in ipairs(frames) do
+    if f.barTexture and f.barTexture:find("DuelHUDHealthFill.png",1,true) then barCount=barCount+1 end
+end
+assert(barCount==2)
+local hp,max=73,100
+UnitHealth=function()return hp end;UnitHealthMax=function()return max end
+root.scripts.OnEvent(root,"UNIT_HEALTH","player")
+assert(HealthText("73%"))
+hp=0;root.scripts.OnEvent(root,"UNIT_HEALTH","player");assert(HealthText("0%"))
+hp=100;root.scripts.OnEvent(root,"UNIT_HEALTH","player");assert(HealthText("100%"))
+-- Mock protected values that cannot be treated as numbers in Lua.
+local secretHealth,secretMax,secretPct={},{},{}
+issecretvalue=function(v)return v==secretHealth or v==secretMax or v==secretPct end
+hp,max=secretHealth,secretMax
+CurveConstants={ScaleTo100={}}
+UnitHealthPercent=function(unit,predicted,curve)
+    assert(unit=="player" and predicted==false and curve==CurveConstants.ScaleTo100)
+    return 62
+end
+root.scripts.OnEvent(root,"UNIT_HEALTH","player");assert(HealthText("62%"))
+function methods:SetFormattedText(format,v)
+    assert(format=="%.0f%%" and v==secretPct)
+    self.text="48%"
+end
+UnitHealthPercent=function()return secretPct end
+root.scripts.OnEvent(root,"UNIT_HEALTH","player");assert(HealthText("48%"))
+UnitHealthPercent=function()error("restricted percent unavailable")end
+root.scripts.OnEvent(root,"UNIT_HEALTH","player");assert(not HealthText("48%"))
+for _,f in ipairs(frames) do
+    if f.barTexture and f.value==secretHealth then assert(f:IsShown() and f.high==secretMax) end
+end
+max=0;hp=0;root.scripts.OnEvent(root,"UNIT_HEALTH","player")
+assert(HealthText("Unavailable"))
+print("Duel HUD health mock: PASS (two native pill bars, readable percent, protected display, refusal and empty state)")

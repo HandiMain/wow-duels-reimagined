@@ -13,6 +13,27 @@ class DuelHUDTests(unittest.TestCase):
         self.assertNotIn("S.Fill(",h)
         self.assertNotIn("S.Skin(root",h)
         self.assertTrue((ROOT/"Media/Skin/DuelHUDArt.png").is_file())
+        self.assertIn("DuelHUDPremium.png",h)
+        self.assertIn('local foldedShell=Artwork("foldedShell",0,0,WIDTH,FOLDED_HEIGHT,"BACKGROUND")',h)
+        self.assertIn("body:SetShown(not folded);foldedShell:SetShown(folded)",h)
+
+    def test_rounded_health_assets_and_secret_safe_percentage(self):
+        import hashlib, struct
+        assets={
+            "DuelHUDPremium.png": ((1024,1024),"6fd4670b4b21b1859dee9d54fa782a6e8b997dac"),
+            "DuelHUDHealthFill.png": ((256,32),"77aa11d7b1e264d25b1e7b03ac2fd36d9027536d"),
+            "DuelHUDHealthMask.png": ((256,32),"953bba2639425582fe6b138f9ca083ad77a3e412"),
+        }
+        for name,(dims,sha) in assets.items():
+            data=(ROOT/"Media/Skin"/name).read_bytes()
+            self.assertEqual(struct.unpack(">II",data[16:24]),dims)
+            self.assertEqual(hashlib.sha1(b"blob "+str(len(data)).encode()+b"\0"+data).hexdigest(),sha)
+        h=read("UI/DuelHUD.lua")
+        for token in ('Artwork("healthTrack",x,181,142,19)','side.hp:SetStatusBarTexture(HEALTH_FILL)',
+                      'tex:AddMaskTexture(mask)','pcall(UnitHealthPercent,unit,false,CurveConstants.ScaleTo100)',
+                      'if Secret(percent) then','pcall(side.hpText.SetFormattedText,side.hpText,"%.0f%%",percent)',
+                      'elseif type(percent)=="number" and percent>=0 and percent<=100 then'):
+            self.assertIn(token,h)
 
     def test_independent_default_and_settings(self):
         s,o,h=read("Core/Settings.lua"),read("UI/Options.lua"),read("UI/DuelHUD.lua")
