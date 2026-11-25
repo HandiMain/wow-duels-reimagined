@@ -33,12 +33,13 @@ local function Context(c,scope)
 end
 local function Statement(c,r,scope)
     c=Context(c,scope)
-    if not c or type(r)~="table" or r.scope~=(scope=="PEER" and "LOCAL" or "SIMULATED") or r.client~=c.client or r.id~=c.cycle
+    if not c or type(r)~="table" or r.scope~=((scope=="PEER" or scope=="PRIVATE_TEST") and "LOCAL" or "SIMULATED") or r.client~=c.client or r.id~=c.cycle
         or type(r.opponent)~="table" or r.opponent.guid~=c.peer or r.rankEligible~=false
         or r.duelMode=="practice" or (scope=="PEER" and r.duelMode=="tournament") or r.kind=="death_duel" or (r.kind~="standard" and r.kind~="unclassified")
         or r.reason~="matching_result_and_finish" or r.outcomeObserved~=true or r.finishObserved~=true
         or r.resultObserved~=true or r.conflict~=false or r.endType~="knockout"
         or (r.outcome~="won" and r.outcome~="lost") then return end
+    if scope=="PRIVATE_TEST" and (r.duelMode~="tournament" or r.tournamentSession~=c.session) then return nil end
     local fields={WireVersion(scope),c.client,c.session,c.me,c.peer,r.outcome,tostring(c.cycle)}
     if scope=="PEER" then
         if not Stamp(r.observedAt) then return end
@@ -100,6 +101,7 @@ function P.NewSimulated(client,session,a,b) return Build(client,session,a,b,"SIM
 function P.NewPeer(client,session,a,b) return Build(client,session,a,b,"PEER") end
 function P.MakeSimulatedStatement(c,r) return Statement(c,r,"SIMULATED") end
 function P.MakePeerStatement(c,r) return Statement(c,r,"PEER") end
+function P.MakePrivateTournamentStatement(c,r) return Statement(c,r,"PRIVATE_TEST") end
 -- Shared reconstruction from canonical statement pairs; no derived input
 -- fields or transport identity are trusted by this storage/codec helper.
 local function Decode(client,a,b,scope)

@@ -167,3 +167,72 @@ function G.NewSimulated(scope,match,token,read,resolve,submit)
     end
     return D
 end
+
+-- Local private seat bridge. No communication or journal owner here.
+-- Caller persists the seat first, checks the owner's bilateral readiness,
+-- then persists the terminal observation before attempting transport.
+function G.ConnectPrivate(scope,me,seat,detector,allowed,done,interrupted)
+    if not P.Key(scope) or not Guid(me) or not Guid(seat and seat.peer) or me==seat.peer
+        or type(detector)~="table" or type(detector.ArmPrivateTournament)~="function"
+        or type(allowed)~="function" or type(done)~="function" or type(interrupted)~="function" then return nil end
+    local session=ns.TournamentRecovery.PrivateSession(seat)
+    local initial=detector.GetSnapshot()
+    if not session or not initial or initial.scope~="LOCAL" or initial.state~="idle" or initial.active or initial.challenge then return nil end
+    local release=detector.ArmPrivateTournament(me,seat.peer,session)
+    if not release then return nil end
+    local D,remove,closed={},nil,false
+    local phase,revision,last="armed",initial.revision,initial.last and initial.last.id or 0
+    local cycle,acceptedAt,direction,challengeAt
+    function D.Close()
+        if closed then return end
+        closed=true
+        if remove then remove();remove=nil end
+        release()
+    end
+    function D.IsWaiting() return not closed and phase=="armed" end
+    function D.IsActive() return not closed end
+    local function Fail()
+        D.Close();interrupted("Assigned duel was not confirmed; organizer review required.")
+    end
+    local function Marked(q)
+        return q and q.duelMode=="tournament" and q.tournamentSession==session
+            and q.opponent and q.opponent.guid==seat.peer and q.rankedWidget~=true
+            and (q.kind=="standard" or q.kind=="unclassified")
+    end
+    remove=detector.Subscribe(function(s)
+        if closed or type(s)~="table" or s.scope~="LOCAL" or s.client~=scope.client
+            or not Whole(s.revision,0,2147483647) or s.revision<=revision then return end
+        revision=s.revision
+        if phase=="armed" then
+            if s.state=="idle" and not s.active and not s.challenge then return end
+            local q=s.challenge
+            if s.state~="challenge" or not Marked(q) or not allowed(session) or not Time(q.time)
+                or (q.direction~="incoming" and q.direction~="outgoing") then Fail();return end
+            phase="challenge";direction=q.direction;challengeAt=q.time
+        elseif phase=="challenge" then
+            if s.state=="challenge" then
+                local q=s.challenge
+                if not Marked(q) or q.direction~=direction or q.time~=challengeAt then Fail() end
+                return
+            end
+            local q=s.active
+            if s.state~="accepted" or not Marked(q) or q.direction~=direction or not q.player or q.player.guid~=me
+                or not Whole(q.id,last+1,2147483647) or not Time(q.acceptedAt) or q.acceptedAt<challengeAt then Fail();return end
+            phase="playing";cycle=q.id;acceptedAt=q.acceptedAt
+        elseif phase=="playing" then
+            if s.state=="accepted" or s.state=="finishing" then
+                local q=s.active
+                if not Marked(q) or q.id~=cycle or q.acceptedAt~=acceptedAt then Fail() end
+                return
+            end
+            local r=s.last
+            if s.state~="idle" or not r or r.id~=cycle or r.acceptedAt~=acceptedAt or not Time(r.endedAt)
+                or r.endedAt<acceptedAt or not ns.ResultConfirmation.MakePrivateTournamentStatement({
+                    scope="PRIVATE_TEST",client=scope.client,me=me,peer=seat.peer,cycle=cycle,
+                    agreement={scope="PRIVATE_TEST",state="candidate",candidate=true,rankEligible=false,session=session}},r) then Fail();return end
+            D.Close()
+            done(r.outcome=="won" and me or seat.peer)
+        end
+    end)
+    return D
+end

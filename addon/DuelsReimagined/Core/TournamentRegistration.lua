@@ -1304,6 +1304,62 @@ function R.OpenRegistrationSession(s,actor,clock,resolve,store,role)
         if wire then return wire,cache end
     end
 end
+-- Private match packets use the same registration codec and size bound.
+-- The caller resolves the real sender before routing to the durable owner.
+function R.PrivateMatchRequest(s,op,seq,event,match,term,serial,outcome)
+    if not P.Key(s) or not Whole(seq,1,2147483647) or type(event)~="string" or #event>96
+        or type(match)~="string" or #match>8 or not match:match("^R%d+M%d+$") then return nil end
+    local parts={op,P.Key(s),seq,event,match}
+    if op=="K" or op=="U" then
+        if not Whole(term,1,2147483647) or not Whole(serial,1,2147483647) then return nil end
+        parts[#parts+1]=term;parts[#parts+1]=serial
+        if op=="U" then
+            if outcome~="won" and outcome~="lost" then return nil end
+            parts[#parts+1]=outcome
+        end
+    elseif op~="I" then return nil end
+    local body=table.concat(parts,"|")
+    return Packet(body) and body or nil
+end
+function R.ReceivePrivateMatchRequest(s,engine,sender,body)
+    if not Packet(body) then return nil end
+    local a=Split(body);local op=a[1];local seq=Number(a[3],1,2147483647)
+    local term=Number(a[6],1,2147483647);local serial=Number(a[7],1,2147483647)
+    if a[2]~=P.Key(s) or not seq or type(a[4])~="string" or type(a[5])~="string" then return nil end
+    local canonical=R.PrivateMatchRequest(s,op,seq,a[4],a[5],term,serial,a[8])
+    if canonical~=body then return nil end
+    local offer
+    if op=="I" then offer=engine.PrivateOfferFor(sender,a[4],a[5])
+    elseif op=="K" then offer=engine.PrivateReady(sender,a[4],a[5],term,serial)
+    elseif op=="U" then
+        local ok,why=engine.PrivateReport(sender,a[4],a[5],term,serial,a[8])
+        if not ok or (why~="pending" and why~="confirmed" and why~="duplicate" and why~="disputed") then return nil end
+        local reply=table.concat({"N",P.Key(s),seq,a[5],term,serial,why},"|")
+        return Packet(reply) and {reply} or nil
+    end
+    if not offer then return nil end
+    local reply=table.concat({"J",P.Key(s),seq,offer.match,offer.game,offer.attempt,offer.term,offer.serial,
+        offer.peer,offer.ready and 1 or 0,offer.both and 1 or 0,offer.reported and 1 or 0},"|")
+    return Packet(reply) and {reply} or nil
+end
+function R.DecodePrivateMatchReply(s,seq,body)
+    if not Packet(body) then return nil end
+    local a=Split(body)
+    if a[2]~=P.Key(s) or Number(a[3],1,2147483647)~=seq or type(a[4])~="string"
+        or #a[4]>8 or not a[4]:match("^R%d+M%d+$") then return nil end
+    if a[1]=="J" and #a==12 then
+        local game,attempt,term,serial=Number(a[5],1,5),Number(a[6],0,1),Number(a[7],1,2147483647),Number(a[8],1,2147483647)
+        if not game or not attempt or not term or not serial or not Guid(a[9]) then return nil end
+        for i=10,12 do if a[i]~="0" and a[i]~="1" then return nil end end
+        if a[11]=="1" and a[10]~="1" then return nil end
+        return {kind="offer",match=a[4],game=game,attempt=attempt,term=term,serial=serial,peer=a[9],
+            ready=a[10]=="1",both=a[11]=="1",reported=a[12]=="1"}
+    elseif a[1]=="N" and #a==7 then
+        local term,serial=Number(a[5],1,2147483647),Number(a[6],1,2147483647)
+        if not term or not serial or (a[7]~="pending" and a[7]~="confirmed" and a[7]~="duplicate" and a[7]~="disputed") then return nil end
+        return {kind="receipt",match=a[4],term=term,serial=serial,status=a[7]}
+    end
+end
 local function Replica(s,owner,id)
     local current
     local D={}

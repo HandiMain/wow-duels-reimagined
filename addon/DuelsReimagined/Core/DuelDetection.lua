@@ -62,15 +62,26 @@ function D.Subscribe(fn)
 end
 -- Sandbox-only arm. A future live bridge must establish the same intent
 -- from verified bilateral assignment before enabling this on the real detector.
-function D.ArmSimulatedTournament(me,peer,session)
-    if api.scope~="SIMULATED" or state~="idle" or tournamentLease or type(session)~="string"
+local function ArmTournament(me,peer,session,expires)
+    if state~="idle" or tournamentLease or type(session)~="string"
         or #session>65 or not session:match("^[%w%-]+:[%w%-]+$") or me==peer
         or type(me)~="string" or type(peer)~="string" then return nil end
     local p=ns.Group.ReadPlayerIdentity("player")
     if not p or p.guid~=me then return nil end
-    local lease={peer=peer,session=session}
+    local lease={peer=peer,session=session,expires=expires}
     tournamentLease=lease
     return function() if tournamentLease==lease then tournamentLease=nil end end
+end
+function D.ArmSimulatedTournament(me,peer,session)
+    if api.scope~="SIMULATED" then return nil end
+    return ArmTournament(me,peer,session)
+end
+function D.ArmPrivateTournament(me,peer,session)
+    if api.scope~="LOCAL" or not ns.CompetitiveStorage or not ns.CompetitiveStorage.TournamentTestEnabled()
+        or not ns.TournamentSession or not ns.TournamentSession.CanArm(me,peer,session) then return nil end
+    local n=Now()
+    if not n then return nil end
+    return ArmTournament(me,peer,session,n+120)
 end
 local function Publish(nextState,why)
     state,reason=nextState,why
@@ -258,7 +269,8 @@ local function Challenge(name,direction,kind,rankedWidget,widgetChallenge)
     end
     local c={opponent=Resolve(name),direction=direction,kind=kind,time=Now(),rankedWidget=rankedWidget==true,widgetChallenge=widgetChallenge==true}
     local lease=tournamentLease;tournamentLease=nil
-    if lease and c.opponent and c.opponent.guid==lease.peer and not c.rankedWidget and kind~="death_duel" then
+    if lease and (not lease.expires or c.time and c.time<=lease.expires)
+        and c.opponent and c.opponent.guid==lease.peer and not c.rankedWidget and kind~="death_duel" then
         c.duelMode="tournament";c.tournamentSession=lease.session
     end
     challenge=c
@@ -502,7 +514,8 @@ function D.LaunchWidgetChallenge(ranked,expectedGuid)
         if not ok or Plain(v)~=false then return false,"combat" end
     end
     if D.GetChallengeRange(expectedGuid)~=true then return false,"range" end
-    if ranked and (not ns.CompetitiveLifecycle or not ns.CompetitiveLifecycle.RankedAvailability(expectedGuid)) then
+    if ranked and (tournamentLease or ns.TournamentSession and ns.TournamentSession.IsActive()
+        or not ns.CompetitiveLifecycle or not ns.CompetitiveLifecycle.RankedAvailability(expectedGuid)) then
         return false,"ranked_unavailable"
     end
     widgetLaunch={guid=expectedGuid,ranked=ranked==true}

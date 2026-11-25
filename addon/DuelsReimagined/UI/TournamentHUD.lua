@@ -47,7 +47,7 @@ function B.Project(p)
     local sa,sb=m.wins[swap and 2 or 1],m.wins[swap and 1 or 2]
     local status
     if p.held or v.state=="disputed" then status="Match on hold"
-    elseif private then status=own and "Your match - snapshot" or "Organizer snapshot"
+    elseif private then status=p.observedDuel and "Duel in progress" or p.assignmentStatus or (own and "Your match - snapshot" or "Organizer snapshot")
     elseif p.broadcast or p.role=="spectator" then status="Featured match ready"
     elseif own then status="It's your turn!"
     elseif p.role=="host" then status="Featured match ready"

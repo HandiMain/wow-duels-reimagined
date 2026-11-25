@@ -847,7 +847,8 @@ function H.Refresh()
     local p=ns.TournamentRegistration.PreviewHasBracket() and ns.TournamentRegistration.PreviewSnapshot() or nil
     if not p and ns.TournamentSession then p=ns.TournamentSession.GetProjection() end
     local model=enabled and B.Project(p)
-    local want=model and d.state=="idle" and not d.active and not d.challenge and not Combat()
+    local assigned=model and model.scope=="PRIVATE_TEST" and ns.TournamentSession.IsAssignedDuel(d)
+    local want=model and (assigned or d.state=="idle" and not d.active and not d.challenge and not Combat())
     tournamentSuspended=not not (model and not want)
     local regularWasShown=root:IsShown()
     switchingAnchor=true
@@ -860,7 +861,7 @@ function H.Refresh()
             -- of a detector notification so its listener iteration stays safe.
             root:Hide()
             tournamentUnsubscribe=ns.DuelDetection.Subscribe(function(s)
-                if s.state~="idle" or s.active or s.challenge then H.ScheduleTournamentRefresh() end
+                if s.state~="idle" or s.active or s.challenge or ns.TournamentSession and ns.TournamentSession.IsActive() then H.ScheduleTournamentRefresh() end
             end)
             for _,e in ipairs({"PLAYER_REGEN_DISABLED","PLAYER_ENTERING_WORLD","UI_SCALE_CHANGED","DISPLAY_SIZE_CHANGED"}) do f:RegisterEvent(e) end
             f:SetScript("OnEvent",function(_,e)

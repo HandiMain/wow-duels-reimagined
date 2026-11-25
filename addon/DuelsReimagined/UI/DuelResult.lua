@@ -132,7 +132,10 @@ local function Show(data)
     else subtitle:SetText(win and "You defeated "..opponent or "You were defeated by "..opponent) end
     local duration=data.duration
     meta:SetText(duration and string.format("Duel duration: %02d:%02d",math.floor(duration/60),math.floor(duration%60)) or "Duration not observed")
-    if data.tournament then
+    if data.privateTournament then
+        rank.label:SetText("Tournament result")
+        detail:SetText("PRIVATE TEST  •  Awaiting organizer confirmation")
+    elseif data.tournament then
         rank.label:SetText("Series: "..data.score.." - "..data.opponentScore)
         detail:SetText("LOCAL TEST  •  "..(data.champion and "Tournament complete" or data.spectated and (data.complete and "Series complete" or "Tournament game") or data.complete and (data.advanced and "Series won" or "Series lost") or "Tournament game"))
     else
@@ -188,7 +191,7 @@ local function Receive(s)
     local opponent=l.opponent and l.opponent.display
     if type(opponent)~="string" or #opponent>128 or #opponent==0 then opponent=nil end
     local duration=start and l.endedAt>=start and l.endedAt-start or nil
-    local data={outcome=l.outcome,opponent=opponent,duration=duration}
+    local data={outcome=l.outcome,opponent=opponent,duration=duration,privateTournament=l.duelMode=="tournament"}
     if Idle() then Show(data)
     else
         Clear();pending=data
