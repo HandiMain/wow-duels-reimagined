@@ -624,16 +624,18 @@ function Window.ShowPage(page)
     local isWarGames = page.warGames == true
     local isCompetitive = page.competitive == true
     local isAchievements = page.achievements == true
-    local isCustomPage = isOptions or isCommunity or isPatchNotes or isAddonStatus or isWarGames or isCompetitive or isAchievements
+    local isTournament = page.tournament == true
+    local isCustomPage = isOptions or isCommunity or isPatchNotes or isAddonStatus or isWarGames or isCompetitive or isAchievements or isTournament
     -- Hall artwork stays Hall-only. Other owners present their own pages.
-    title:SetShown(not isCommunity and not isPatchNotes and not isAddonStatus and not isWarGames and not isCompetitive and not isAchievements)
-    titleRule:SetShown(not isCommunity and not isPatchNotes and not isAddonStatus and not isWarGames and not isCompetitive and not isAchievements)
-    subtitle:SetShown(not isCommunity and not isPatchNotes and not isAddonStatus and not isWarGames and not isCompetitive and not isAchievements)
+    title:SetShown(not isCommunity and not isPatchNotes and not isAddonStatus and not isWarGames and not isCompetitive and not isAchievements and not isTournament)
+    titleRule:SetShown(not isCommunity and not isPatchNotes and not isAddonStatus and not isWarGames and not isCompetitive and not isAchievements and not isTournament)
+    subtitle:SetShown(not isCommunity and not isPatchNotes and not isAddonStatus and not isWarGames and not isCompetitive and not isAchievements and not isTournament)
     watermark:SetShown(not isCustomPage)
     emptyHeading:SetShown(not isCustomPage)
     emptyDetail:SetShown(not isCustomPage)
     if ns.CompetitiveUI then ns.CompetitiveUI.Show(isCompetitive and page.key or nil) end
     if ns.AchievementUI then ns.AchievementUI.Show(isAchievements) end
+    if ns.TournamentUI then ns.TournamentUI.Show(isTournament and page.key or nil) end
     if ns.WarGamesUI then
         ns.WarGamesUI.Show(isWarGames and page.key or nil)
     end

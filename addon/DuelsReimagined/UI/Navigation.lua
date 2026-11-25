@@ -19,6 +19,14 @@ local sections = {
     { key = "achievements", label = "Achievements", icon = "Hall", pages = {
         { key = "achievements", label = "Achievements", title = "Achievements", subtitle = "Dueling accomplishments", achievements = true },
     } },
+    { key = "tournaments", label = "Tournaments", icon = "Hall", pages = {
+        { key = "overview", label = "Overview", tournament = true, title = "Tournaments", subtitle = "Community 1v1 duel tournaments." },
+        { key = "browse", label = "Browse", tournament = true, subtitle = "Discover 1v1 duel tournaments." },
+        { key = "my-tournament", label = "My Tournament", tournament = true, subtitle = "Your tournament and next match." },
+        { key = "brackets", label = "Brackets", tournament = true, subtitle = "Follow tournament progression." },
+        { key = "host", label = "Host & Manage", tournament = true, subtitle = "Organize a duel tournament." },
+        { key = "champions", label = "Hall of Champions", tournament = true, subtitle = "Tournament champions and results." },
+    } },
     { key = "wargames", label = "War Games", icon = "Hall", pages = {
         { key = "player", label = "Players", warGames = true,
           title = "War Games: Players",
@@ -76,12 +84,19 @@ end
 -- Only primary gameplay destinations live in the expandable upper strip.
 -- Secondary utility sections remain in the narrow left rail. New gameplay
 -- sections can be promoted here only when their real pages are implemented.
-local primaryKeys = { hall = true, leaderboard = true, matchhistory = true, achievements = true, wargames = true }
+local primaryKeys = { hall = true, leaderboard = true, matchhistory = true, achievements = true, tournaments = true, wargames = true }
 local railButtons, primaryButtons, subButtons = {}, {}, {}
 local patchDot, patchPulse
 -- The page heading now belongs to Window.content, not the subcategory bar.
 
 local currentSection, currentPage
+local FitSubTabs
+local function PageAvailable(section, page)
+    if not section or not page then return false end
+    if section.key == "wargames" then return ns.Client.IsRetail() end
+    if page.tournament then return ns.TournamentState.IsPageAvailable(page.key) end
+    return true
+end
 local history, backButton = {}, nil
 -- The last real page persists, but Back history stays session-only.
 -- Scroll ownership remains with the actual Options/Community/Patch Notes page.
@@ -93,6 +108,7 @@ local function ScrollOwner(page)
     if page.competitive then return ns.CompetitiveUI end
     if page.achievements then return ns.AchievementUI end
     if page.warGames then return ns.WarGamesUI end
+    if page.tournament then return ns.TournamentUI end
     if page.addonStatus then return ns.AddonStatus end
     if page.community then return ns.Community end
     if page.patchNotes then return ns.PatchNotes end
@@ -145,13 +161,13 @@ end
 
 local function CanReturn()
     local _,page=PageId(currentSection,currentPage)
-    return #history>0 or (page and (page.achievements or (page.competitive and page.key~="overview"))) or false
+    return #history>0 or (page and (page.achievements or ((page.competitive or page.tournament) and page.key~="overview"))) or false
 end
 local function UpdateBack()
     if not backButton then return end
     local _,page=PageId(currentSection,currentPage)
     local can=CanReturn()
-    backButton:SetShown(can or (page and (page.competitive or page.achievements)) or false)
+    backButton:SetShown(can or (page and (page.competitive or page.achievements or page.tournament)) or false)
     backButton:SetEnabled(can)
     backButton:SetAlpha(can and 1 or .48)
 end
@@ -161,6 +177,11 @@ local function Select(sectionIndex, pageIndex, noMotion, repaintOnly, isBack)
     -- War Games stays visible but unavailable in Forever. Guard every
     -- entry point, including workspace restoration and Search navigation.
     if section.key == "wargames" and not ns.Client.IsRetail() then return end
+    if section.key == "tournaments" and not PageAvailable(section,section.pages[pageIndex]) then
+        if not PageAvailable(section,section.pages[1]) then return end
+        pageIndex=1
+        repaintOnly=false
+    end
     local priorSection, priorPage = currentSection, currentPage
     local changed = priorSection ~= sectionIndex or priorPage ~= pageIndex
     if not repaintOnly and priorSection then CapturePage() end
@@ -177,7 +198,11 @@ local function Select(sectionIndex, pageIndex, noMotion, repaintOnly, isBack)
     local section, page = sections[sectionIndex], sections[sectionIndex].pages[pageIndex]
     -- Patch Notes versions live in their own scrollable rail, never in the
     -- horizontal subcategory strip (which would overflow with new releases).
-    Window.nav:SetShown(#section.pages > 1 and section.key ~= "patchnotes" and not page.competitive)
+    local visibleCount=0
+    for _,candidate in ipairs(section.pages) do
+        if PageAvailable(section,candidate) then visibleCount=visibleCount+1 end
+    end
+    Window.nav:SetShown(visibleCount > 1 and section.key ~= "patchnotes" and not page.competitive)
     UpdateBack()
 
     for i, item in ipairs(railButtons) do
@@ -196,7 +221,7 @@ local function Select(sectionIndex, pageIndex, noMotion, repaintOnly, isBack)
     end
     for i, group in ipairs(subButtons) do
         for j, item in ipairs(group) do
-            local visible = i == sectionIndex
+            local visible = i == sectionIndex and PageAvailable(sections[i],sections[i].pages[j])
             item.button:SetShown(visible)
             local active = visible and j == pageIndex
             if noMotion then
@@ -211,6 +236,7 @@ local function Select(sectionIndex, pageIndex, noMotion, repaintOnly, isBack)
             item.label:SetTextColor(unpack(active and C.tabText or C.text))
         end
     end
+    if FitSubTabs then FitSubTabs(Window.nav,Window.nav:GetWidth()) end
     if repaintOnly then return end
     if changed and not noMotion then SweepPage() end
     if ns.Feedback then ns.Feedback.HidePreview() end
@@ -293,6 +319,19 @@ for index, section in ipairs(sections) do
         glow:SetBlendMode("ADD");glow:SetVertexColor(1,.78,.48);glow:SetAlpha(0)
         button.hallGlow=glow
         button:HookScript("OnHide",function() Motion.Stop(glow,0) end)
+    elseif section.key == "tournaments" then
+        -- Existing red plate and the existing achievements emblem are a
+        -- temporary, native-art foundation until the approved crop ships.
+        Style.Plate(button,"hall",{corner=12})
+        local trophy=button:CreateTexture(nil,"ARTWORK",nil,4)
+        ns.TournamentUI.PaintEmblem(trophy)
+        trophy:SetPoint("TOP",button,"TOP",0,-4)
+        local function FitEmblem(self)
+            local h=self:GetHeight()
+            trophy:SetSize(h*.66,h*.47)
+        end
+        button:HookScript("OnSizeChanged",FitEmblem)
+        FitEmblem(button)
     elseif section.key == "wargames" then
         -- The approved Coliseum War Games plate keeps its own arena emblem,
         -- gold lettering with a safe lower inset, and Hall-matched framing.
@@ -339,7 +378,7 @@ for index, section in ipairs(sections) do
     icon:SetSize(isPrimary and 48 or 20, isPrimary and 48 or 20)
     local label = Style.Text(button,
         isPrimary and string.upper(section.label) or section.label,
-        section.key == "wargames" and 20 or (isPrimary and 23 or 12),
+        (section.key == "wargames" or section.key == "tournaments") and 20 or (isPrimary and 23 or 12),
         C.tabMuted, nil, isPrimary and "display" or nil)
     if isPrimary then
         icon:SetPoint("TOP", button, "TOP", 0, -4)
@@ -349,7 +388,15 @@ for index, section in ipairs(sections) do
         -- Blizzard font strings or small icons over the fixed artwork.
         if isPrimary then
             icon:Hide()
-            label:Hide()
+            if section.key == "tournaments" then
+                label:ClearAllPoints()
+                label:SetPoint("BOTTOMLEFT",button,"BOTTOMLEFT",6,6)
+                label:SetPoint("BOTTOMRIGHT",button,"BOTTOMRIGHT",-6,6)
+                label:SetWordWrap(false)
+                local function FitTitle(self) Style.ConstrainText(label,math.max(1,self:GetWidth()-12),24,9) end
+                button:HookScript("OnSizeChanged",FitTitle)
+                FitTitle(button)
+            else label:Hide() end
         end
     else
         icon:SetPoint("LEFT", button, "LEFT", 9, 0)
@@ -601,10 +648,16 @@ end
 Window.rail:SetScript("OnSizeChanged", FitTabs)
 FitTabs(Window.rail,Window.rail:GetWidth())
 
-local function FitSubTabs(self, width)
+FitSubTabs = function(self, width)
     local w = (type(width) == "number" and width > 0) and width or self:GetWidth()
     for sectionIndex, group in ipairs(subButtons) do
         local count = #group
+        if sections[sectionIndex].key=="tournaments" then
+            count=0
+            for j in ipairs(group) do
+                if PageAvailable(sections[sectionIndex],sections[sectionIndex].pages[j]) then count=count+1 end
+            end
+        end
         if count > 0 then
             local tabWidth = math.max(76, math.min(174,
                 (math.max(80, w) - 12 - 8 * (count - 1)) / count))
@@ -616,11 +669,15 @@ local function FitSubTabs(self, width)
                 local rowWidth = count * tabWidth + (count - 1) * 8
                 rowStart = math.max(6, (w - rowWidth) / 2)
             end
+            local slot=0
             for j, item in ipairs(group) do
-                item.button:ClearAllPoints()
-                item.button:SetPoint("LEFT", self, "LEFT",
-                    rowStart + (j - 1) * (tabWidth + 8), 0)
-                item.button:SetWidth(tabWidth)
+                if sections[sectionIndex].key~="tournaments" or PageAvailable(sections[sectionIndex],sections[sectionIndex].pages[j]) then
+                    item.button:ClearAllPoints()
+                    item.button:SetPoint("LEFT", self, "LEFT",
+                        rowStart + slot * (tabWidth + 8), 0)
+                    item.button:SetWidth(tabWidth)
+                    slot=slot+1
+                end
             end
         end
     end
@@ -639,6 +696,7 @@ FitTabs(Window.rail,Window.rail:GetWidth())
 ns.Navigation = {
     Back = function()
         local _,page=PageId(currentSection,currentPage)
+        if #history==0 and page and page.tournament and page.key~="overview" then Select(currentSection,1,false,false,true);return true end
         if #history==0 and page and (page.achievements or (page.competitive and page.key~="overview")) then Select(1,1,false,false,true);return true end
         if #history == 0 then return false end
         local previous = table.remove(history)
@@ -691,6 +749,7 @@ ns.Navigation = {
             if section.key == sectionKey then
                 for pageIndex, page in ipairs(section.pages) do
                     if page.key == pageKey then
+                        if not PageAvailable(section,page) then return false end
                         Select(sectionIndex, pageIndex)
                         return true
                     end
@@ -728,7 +787,7 @@ for sectionIndex, section in ipairs(sections) do
             page.label, section.label,
             (page.title or "") .. " " .. (page.subtitle or ""),
             function() Select(si, pi) end,
-            function() return section.key ~= "wargames" or ns.Client.IsRetail() end)
+            function() return PageAvailable(section,page) end)
     end
 end
 

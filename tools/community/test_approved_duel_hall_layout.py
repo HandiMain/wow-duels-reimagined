@@ -72,7 +72,7 @@ class ApprovedDuelHallLayoutTests(unittest.TestCase):
     def test_no_new_gameplay_data_or_menu_dependency(self):
         n = read("UI/Navigation.lua")
         gm = read("UI/GameMenu.lua")
-        self.assertIn('local primaryKeys = { hall = true, leaderboard = true, matchhistory = true, achievements = true, wargames = true }', n)
+        self.assertIn('local primaryKeys = { hall = true, leaderboard = true, matchhistory = true, achievements = true, tournaments = true, wargames = true }', n)
         self.assertIn('ns.Search.Register("page:" .. section.key', n)
         self.assertIn('local function ManualSlot(menu, upper, addons)', gm)
         self.assertIn('local function HasManualButtons(menu)', gm)
