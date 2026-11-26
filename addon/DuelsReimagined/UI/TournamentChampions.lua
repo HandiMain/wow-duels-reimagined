@@ -7,6 +7,7 @@ local ROOT="Interface\\AddOns\\DuelsReimagined\\Media\\"
 local ART=ROOT.."Skin\\TournamentOverviewArt.png"
 local MONUMENT=ROOT.."Skin\\ChampionsMonument.png"
 local LEGACY=ROOT.."Skin\\ChampionsLegacy.png"
+local JEWEL=ROOT.."Skin\\DuelCornerJewel.tga"
 local GOLD={1,.79,.32,1}
 local SILVER={.78,.81,.86,1}
 local BRONZE={.85,.55,.30,1}
@@ -74,18 +75,23 @@ local function GoldRule(p)
     else t:SetColorTexture(.83,.52,.15,.72) end
     return t
 end
+local function Jewel(p)
+    local t=p:CreateTexture(nil,"OVERLAY",nil,2);t:SetTexture(JEWEL);ns.Chrome.Sharp(t);return t
+end
 local function RulePair(p)
     local a=GoldRule(p);local b=GoldRule(p)
     if b.SetGradient and CreateColor then
         b:SetGradient("HORIZONTAL",CreateColor(1,.74,.27,.95),CreateColor(.45,.25,.08,0))
     end
-    local jewel=Text(p,18,GOLD,"CENTER");jewel:SetText("◆")
+    local jewel=Jewel(p)
     return {a=a,b=b,jewel=jewel}
 end
-local function RuleAt(r,p,x,y,w)
-    local half=math.max(1,w/2-11)
-    At(r.a,p,x,y,half,2);At(r.b,p,x+w/2+11,y,half,2)
-    At(r.jewel,p,x+w/2-11,y-10,22,22)
+local function RuleAt(r,p,x,y,w,soft)
+    local half=math.max(1,w/2-7)
+    local thickness=soft and 1 or 2
+    At(r.a,p,x,y,half,thickness);At(r.b,p,x+w/2+7,y,half,thickness)
+    At(r.jewel,p,x+w/2-8,y-7,16,16)
+    r.a:SetAlpha(soft and .48 or 1);r.b:SetAlpha(soft and .48 or 1);r.jewel:SetAlpha(soft and .80 or 1)
 end
 function A.New(parent)
     local root=CreateFrame("Frame",nil,parent);root:Hide()
@@ -93,8 +99,15 @@ function A.New(parent)
     local heading=Text(shell,25,GOLD);local mark=Art(shell,160,112,154,128)
     local scopeText=Text(shell,14,C.muted,"RIGHT")
     local rule=RulePair(shell)
+    -- Empty-state header and artwork share one surface, not two hard-edged boxes.
+    local emptyHeader=shell:CreateTexture(nil,"BACKGROUND",nil,2)
+    emptyHeader:SetColorTexture(.071,.059,.047,1)
     local empty=CreateFrame("Frame",nil,shell)
     local scene=ConceptArt(empty,MONUMENT,0,1,0,367/512)
+    local topFade=empty:CreateTexture(nil,"ARTWORK",nil,1);topFade:SetColorTexture(1,1,1,1)
+    if topFade.SetGradient and CreateColor then
+        topFade:SetGradient("VERTICAL",CreateColor(.071,.059,.047,0),CreateColor(.071,.059,.047,1))
+    else topFade:Hide() end
     local floor=empty:CreateTexture(nil,"BACKGROUND",nil,0);floor:SetAllPoints();floor:SetColorTexture(.071,.059,.047,1)
     local fade=empty:CreateTexture(nil,"ARTWORK");fade:SetColorTexture(1,1,1,1)
     if fade.SetGradient and CreateColor then fade:SetGradient("VERTICAL",CreateColor(.071,.059,.047,1),CreateColor(.071,.059,.047,0)) else fade:Hide() end
@@ -127,7 +140,7 @@ function A.New(parent)
     local function Card(i)
         if cards[i] then return cards[i] end
         local f=Panel(shell,"browseCard")
-        f.marker=Text(shell,22,GOLD,"CENTER")
+        f.marker=Jewel(shell)
         f.sep1=Line(f,{.63,.42,.20,.38});f.sep2=Line(f,{.63,.42,.20,.38})
         f.flag=Art(f,656,112,82,110)
         f.name=Text(f,20,C.pale);f.date=Text(f,14,C.muted)
@@ -141,7 +154,7 @@ function A.New(parent)
     end
     local function PaintRow(row,r,x,y,w,compact)
         local h=compact and 132 or 84
-        At(row,shell,x,y,w,h);At(row.marker,shell,x-27,y,24,h);row.marker:SetText("◆");row.marker:Show();row:Show()
+        At(row,shell,x,y,w,h);At(row.marker,shell,x-24,y+(h-16)/2,16,16);row.marker:Show();row:Show()
         At(row.flag,row,8,8,48,64)
         local placement,color=Placement(r)
         if compact then
@@ -180,7 +193,7 @@ function A.New(parent)
         local compact=leftW<820
         local rowH=compact and 132 or 84
         local listY=274
-        local artH=math.floor((base-24)*367/1024+.5)
+        local artH=math.floor((base-12)*367/1024+.5)
         local contentH=count==0 and math.max(56+artH+130,viewportH/scale-8) or math.max(listY+count*(rowH+10)+16,wide and 620 or 0)
         local legacyY=wide and 58 or contentH+10
         local total=count==0 and contentH or wide and contentH or contentH+388
@@ -188,12 +201,16 @@ function A.New(parent)
         At(mark,shell,12,9,35,31)
         Put(heading,shell,53,5,base-240,42,"Hall of Champions")
         Put(scopeText,shell,base-187,5,175,42,scope=="SIMULATED" and "LOCAL TEST" or scope=="PRIVATE_TEST" and "PRIVATE NETWORK TEST" or "Personal Archive")
-        RuleAt(rule,shell,12,48,base-24)
+        -- The short, softly lit ornament is not a horizontal panel boundary.
+        RuleAt(rule,shell,count==0 and base*.23 or 12, count==0 and 40 or 48,count==0 and base*.54 or base-24,count==0)
+        emptyHeader:SetShown(count==0)
         empty:SetShown(count==0);hero:SetShown(count>0);legacy:SetShown(count>0);timelineTitle:SetShown(count>0);rail:SetShown(count>0)
         if count==0 then
-            local ew,eh=base-24,contentH-64
-            At(empty,shell,12,56,ew,eh)
+            local ew,eh=base-12,contentH-52
+            At(emptyHeader,shell,6,5,ew,39)
+            At(empty,shell,6,44,ew,eh)
             At(scene,empty,0,0,ew,artH)
+            At(topFade,empty,0,0,ew,math.min(52,artH*.18))
             At(fade,empty,0,artH-18,ew,22)
             Put(emptyTitle,empty,12,artH+8,ew-24,42,reason and "Tournament history unavailable" or "NO COMPLETED TOURNAMENTS RECORDED")
             RuleAt(emptyRule,empty,ew*.24,artH+56,ew*.52)
