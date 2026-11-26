@@ -72,7 +72,8 @@ local ns={
     Settings={Get=function(k)return prefs[k] end,GetDuelHUDPosition=function()return .3,.52 end,
         IsUpdateSnoozed=function(v)return snoozed==v end,SnoozeUpdate=function(v)snoozed=v end},
     DuelHUD={GetNotificationAnchor=function()return hud end,
-        GetRegularNotificationAnchor=function()return hud end,IsSwitchingNotificationAnchor=function()return false end},
+        GetRegularNotificationAnchor=function()return hud end,GetNotificationScale=function()return hud:GetScale() end,
+        IsTournamentHUDActive=function()return false end,IsSwitchingNotificationAnchor=function()return false end},
     DuelDetection={GetSnapshot=function()return {state=duel} end,
         Subscribe=function(fn)dc=fn;return function()end end},
     Presence={Subscribe=function(fn)pc=fn;return function()end end,
@@ -209,3 +210,18 @@ prefs.notificationSounds=true
 now=270;assert(N.PreviewAchievement() and card:GetWidth()==410 and card:GetHeight()==172)
 prefs.notificationEnabled=false;N.Refresh();assert(not card:IsShown() and N.GetDiagnosticResources().timers==0)
 print("Warning notification mock: PASS (compact layout, original SFX, sound preference, expiry, no replay on resume, visibility, shared size restore)")
+
+
+-- Organizer-reported interruption clears only the matching outstanding warning.
+prefs.notificationEnabled=true;now=300
+local projection={event={id="test-cup"},names={["Player-1-00000001"]="Test participant"}}
+ns.TournamentSession={GetProjection=function()return projection end}
+local grace={scope="PRIVATE_TEST",event="test-cup",match="R1M1",player="Player-1-00000001",sequence=1700000300,notice="started",reported=true}
+N.OnPrivateTournamentGrace(grace);assert(card:IsShown())
+N.ClearPrivateTournamentGrace("other-cup",grace.match,grace.sequence);assert(card:IsShown())
+projection=nil;grace.notice="interrupted"
+N.OnPrivateTournamentGrace(grace);assert(not card:IsShown() and N.GetDiagnosticResources().queued==0)
+now=310;assert(N.PreviewWarning() and card:IsShown())
+N.ClearPrivateTournamentGrace(grace.event,grace.match,grace.sequence);assert(card:IsShown())
+prefs.notificationEnabled=false;N.Refresh();assert(not card:IsShown() and N.GetDiagnosticResources().timers==0)
+print("Private tournament grace notification mock: PASS (exact dismissal, no projection required, unrelated popup preserved)")

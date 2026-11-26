@@ -5,6 +5,16 @@ local R={};ns.TournamentRecovery=R
 local P=ns.CompetitiveScope
 local function Whole(v,lo,hi)return type(v)=="number" and v>=lo and v<=hi and v==math.floor(v) end
 local function Guid(v)return type(v)=="string" and #v<=64 and v:match("^Player%-%w[%w%-]*$")~=nil end
+-- One policy shared by admission and canonical journal validation.
+-- Simulated fixture limits remain unchanged; private histories keep full evidence.
+function R.ArchiveLimits(private)
+    if private==true then return 64,256,512 end
+    return 16,64,128
+end
+local function Copy(v)
+    if type(v)~="table" then return v end
+    local out={};for k,x in pairs(v) do out[k]=Copy(x) end;return out
+end
 local function Equal(a,b)
     if type(a)~=type(b) then return false end
     if type(a)~="table" then return a==b end
@@ -190,12 +200,25 @@ function R.PrivateSeat(character,lock,raw)
         attempt=raw.attempt,term=raw.term,serial=raw.serial,phase=raw.phase,winner=raw.winner}
     if Equal(raw,clean) then return clean end
 end
-function R.Validate(client,character,raw,private)
+local function Validate(client,character,raw,private,previous,nextMemo)
     if not Guid(character) or (client~="retail" and client~="forever") then return nil end
     if raw==nil then return {version=1,scope="SIMULATED",client=client,character=character,revision=0,sequence=0} end
     if type(raw)~="table" or raw.version~=1 or raw.scope~="SIMULATED" or raw.client~=client
         or raw.character~=character or not Whole(raw.revision,0,2147483647) or not Whole(raw.sequence,0,raw.revision) then return nil end
     local out={version=1,scope="SIMULATED",client=client,character=character,revision=raw.revision,sequence=raw.sequence}
+    local hostLimit,participantLimit,cancelLimit=R.ArchiveLimits(private)
+    local function Checked(id,rawRecord,participant)
+        local key=(participant and "p:" or "h:")..id
+        local prior=previous and previous[key]
+        local record
+        if prior and Equal(prior,rawRecord) then
+            if nextMemo then nextMemo[key]=prior end
+            return Copy(prior)
+        elseif participant then record=ParticipantRecord(client,character,rawRecord)
+        else record=FinalRecord(client,character,rawRecord) end
+        if record and nextMemo then nextMemo[key]=Copy(record) end
+        return record
+    end
     local l=raw.commitment
     if l~=nil then
         if type(l)~="table" or not Guid(l.owner) or type(l.id)~="string" or #l.id>96
@@ -259,7 +282,7 @@ function R.Validate(client,character,raw,private)
         local archive,n={},0
         for id,v in pairs(raw.cancelled) do
             n=n+1
-            if n>128 or type(id)~="string" or #id>96 or type(v)~="table"
+            if n>cancelLimit or type(id)~="string" or #id>96 or type(v)~="table"
                 or type(v.population)~="string" or not P.Code(v.population,client)
                 or not Whole(v.revision,2,2147483647) then return nil end
             local who,stamp,serial=id:match("^(Player%-%w[%w%-]*):(%d+):(%d+)$")
@@ -280,8 +303,8 @@ function R.Validate(client,character,raw,private)
         local archive,n={},0
         for id,record in pairs(raw.completed) do
             n=n+1
-            if n>16 or (out.cancelled and out.cancelled[id]) then return nil end
-            local clean=FinalRecord(client,character,record)
+            if n>hostLimit or type(id)~="string" or #id>96 or (out.cancelled and out.cancelled[id]) then return nil end
+            local clean=Checked(id,record,false)
             if not clean or clean.bracket.checkpoint.ad.id~=id then return nil end
             if out.checkpoint and out.checkpoint.host.ad.id==id and not CompletedCheckpoint(clean,out.checkpoint) then return nil end
             archive[id]=clean
@@ -296,8 +319,9 @@ function R.Validate(client,character,raw,private)
         out.participantCompleted={}
         for id,v in pairs(raw.participantCompleted) do
             n=n+1
-            local clean=ParticipantRecord(client,character,v)
-            if n>64 or not clean or clean.bracket.checkpoint.ad.id~=id
+            if n>participantLimit or type(id)~="string" or #id>96 then return nil end
+            local clean=Checked(id,v,true)
+            if not clean or clean.bracket.checkpoint.ad.id~=id
                 or (out.completed and out.completed[id]) or (out.cancelled and out.cancelled[id]) then return nil end
             out.participantCompleted[id]=clean
         end
@@ -307,8 +331,9 @@ function R.Validate(client,character,raw,private)
         out.archiveReceipts={}
         for id,v in pairs(raw.archiveReceipts) do
             n=n+1
+            if n>participantLimit then return nil end
             local clean=ArchiveReceipt(client,id,v)
-            if n>64 or not clean or clean.owner==character
+            if not clean or clean.owner==character
                 or (out.participantCompleted and out.participantCompleted[id])
                 or (out.completed and out.completed[id]) or (out.cancelled and out.cancelled[id]) then return nil end
             out.archiveReceipts[id]=clean
@@ -318,6 +343,48 @@ function R.Validate(client,character,raw,private)
         and not (out.completed and out.completed[out.checkpoint.host.ad.id]) then return nil end
     for k in pairs(raw) do if out[k]==nil then return nil end end
     return out
+end
+function R.Validate(client,character,raw,private)
+    return Validate(client,character,raw,private)
+end
+-- Per-storage-owner memo, not a second journal. Only fully validated immutable
+-- terminal records are retained, and only reused after exact deep equality.
+-- Detached return values cannot mutate the memo; a changed owner clears it.
+function R.NewJournalValidator()
+    local owner,memos
+    return function(client,character,raw,private)
+        if private~=true or (client~="retail" and client~="forever") then
+            return Validate(client,character,raw,private)
+        end
+        if owner~=character or not memos then owner=character;memos={} end
+        local nextMemo={}
+        local clean=Validate(client,character,raw,private,memos[client],nextMemo)
+        if clean then memos[client]=nextMemo else memos[client]=nil end
+        return clean
+    end
+end
+function R.RunArchiveCapacitySelfTest()
+    local owner="Player-1-00000001";local other="Player-1-00000002"
+    local host,participant,cancel=R.ArchiveLimits(true)
+    assert(host>16 and participant>64 and cancel>128)
+    local validate=R.NewJournalValidator()
+    for _,client in ipairs({"forever","retail"}) do
+        local population=client..":EU:"..(client=="retail" and "retail" or "normal")..":Alliance"
+        local raw=assert(R.Validate(client,owner,nil,true))
+        raw.archiveReceipts={}
+        for i=1,participant do raw.archiveReceipts[other..":1700000000:"..i]={owner=other,population=population,revision=2} end
+        local copy=assert(validate(client,owner,raw,true))
+        copy.archiveReceipts[other..":1700000000:1"].revision=99
+        assert(validate(client,owner,raw,true).archiveReceipts[other..":1700000000:1"].revision==2)
+        raw.archiveReceipts[other..":1700000000:"..(participant+1)]={owner=other,population=population,revision=2}
+        assert(not validate(client,owner,raw,true))
+        raw.archiveReceipts=nil;raw.cancelled={}
+        for i=1,cancel do raw.cancelled[owner..":1700000000:"..i]={population=population,revision=2} end
+        assert(validate(client,owner,raw,true) and not R.Validate(client,owner,raw,false))
+        raw.cancelled[owner..":1700000000:"..(cancel+1)]={population=population,revision=2}
+        assert(not validate(client,owner,raw,true))
+    end
+    return true
 end
 local function Same(a,b)
     if not a or not b then return a==b end
@@ -463,9 +530,10 @@ function R.Transition(old,new,action,private)
     elseif not Equal(before,after) then return false end
     if action=="host_open" then
         local n=0;for _ in pairs(expected) do n=n+1 end
-        if n>=128 then return false end
+        local hostLimit,_,cancelLimit=R.ArchiveLimits(private)
+        if n>=cancelLimit then return false end
         local completed=0;for _ in pairs(finished) do completed=completed+1 end
-        if completed>=16 then return false end
+        if completed>=hostLimit then return false end
         return not old.commitment and not old.pending and not new.pending and new.commitment
             and new.commitment.role=="host" and y and y.host.ad.state=="open" and y.host.ad.revision==1
             and y.host.ad.count==0 and next(y.receipts)==nil and new.sequence==old.sequence+1
@@ -494,7 +562,14 @@ function R.Transition(old,new,action,private)
             and Same(a,b) and (not a or a.status==b.status) and new.sequence==old.sequence+1
     elseif action=="begin" then
         if old.pending or not new.pending or new.sequence~=old.sequence+1 then return false end
-        if new.pending.op=="J" then return not a and b and b.role=="participant" and b.status=="pending" end
+        if new.pending.op=="J" then
+            if private==true then
+                local _,limit=R.ArchiveLimits(true)
+                local n=0;for _ in pairs(beforeResults) do n=n+1 end;for _ in pairs(beforeReceipts) do n=n+1 end
+                if n>=limit then return false end
+            end
+            return not a and b and b.role=="participant" and b.status=="pending"
+        end
         return a and b and a.role=="participant" and Same(a,b) and a.status==b.status
     elseif action=="ack" then
         return old.pending and not new.pending and new.sequence==old.sequence

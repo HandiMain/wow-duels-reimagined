@@ -93,11 +93,11 @@ local function SavePeerEvidence(client,node,population)
     return {version=population and 2 or 1,scope="PEER",epoch=node.GetSeasonEpoch(),ledger=ledger.SaveCompact(),clocks=data.clocks,population=population}
 end
 -- Private character commitment journal; the tournament domain validates its shape.
-local function TournamentJournal(client,owner,raw,private)
+local function TournamentJournal(client,owner,raw,private,validator)
     local r=ns.TournamentRecovery
-    return r and r.Validate(client,owner,raw,private)
+    return r and (validator or r.Validate)(client,owner,raw,private)
 end
-local function Root(raw,kind,owner,scope)
+local function Root(raw,kind,owner,scope,validator)
     local clean={version=VERSION,kind=kind,owner=owner,scope=scope,clients={}}
     if raw==nil then return clean end
     if type(raw)~="table" or (raw.version~=1 and raw.version~=VERSION) or raw.kind~=kind
@@ -132,7 +132,7 @@ local function Root(raw,kind,owner,scope)
             if type(envelope)~="table" or envelope.scope~="PRIVATE_TEST" or envelope.version~=1 then return nil end
             for field in pairs(envelope) do if field~="scope" and field~="version" and field~="journal" then return nil end end
             if type(envelope.journal)~="table" then return nil end
-            local journal=TournamentJournal(k,owner,envelope.journal,true)
+            local journal=TournamentJournal(k,owner,envelope.journal,true,validator)
             if not journal then return nil end
             part.tournamentTestJournal={scope="PRIVATE_TEST",version=1,journal=journal}
         end
@@ -237,13 +237,18 @@ end
 local function Build(read,write,client,identity,scope,privateFixture)
     scope=scope or "LOCAL"
     local D,loaded={},false
+    local archiveValidator
+    local function ValidateArchive(...)
+        if not archiveValidator then archiveValidator=ns.TournamentRecovery.NewJournalValidator() end
+        return archiveValidator(...)
+    end
     function D.MarkLoaded() loaded=true end
     local function Pair()
         if not loaded then return nil,nil,nil,"not_loaded" end
         local k=client();if not Client(k) then return nil,nil,nil,"unsupported_client" end
         local owner=identity();if not Guid(owner) then return nil,nil,nil,"identity_unavailable" end
         local a,c=read()
-        local aa,cc=Root(a,"account",nil,scope),Root(c,"character",owner,scope)
+        local aa,cc=Root(a,"account",nil,scope),Root(c,"character",owner,scope,ValidateArchive)
         if not aa or not cc then return nil,nil,nil,"invalid_or_unsupported_storage" end
         return aa,cc,k,nil,type(a)=="table" and a.version==VERSION and type(c)=="table" and c.version==VERSION
     end
@@ -293,7 +298,7 @@ local function Build(read,write,client,identity,scope,privateFixture)
         local clean=TournamentJournal(k,c.owner,candidate)
         if not clean or not ns.TournamentRecovery.Transition(old,clean,action) then return nil,"invalid_transition" end
         cp.tournamentJournal=clean;c.clients[k]=cp
-        local checked=Root(c,"character",c.owner,scope)
+        local checked=Root(c,"character",c.owner,scope,ValidateArchive)
         if not checked then return nil,"invalid_storage" end
         write(a,checked)
         return TournamentJournal(k,c.owner,checked.clients[k].tournamentJournal)
@@ -302,23 +307,23 @@ local function Build(read,write,client,identity,scope,privateFixture)
         if scope~="LOCAL" or not (TOURNAMENT_TEST_ENABLED or privateFixture==true) then return nil,"disabled" end
         local a,c,k,why=Pair();if not a then return nil,why end
         local part=c.clients[k];local envelope=part and part.tournamentTestJournal
-        return TournamentJournal(k,c.owner,envelope and envelope.journal,true)
+        return TournamentJournal(k,c.owner,envelope and envelope.journal,true,ValidateArchive)
     end
     function D.CommitTournamentTestJournal(expected,candidate,action)
         if scope~="LOCAL" or not (TOURNAMENT_TEST_ENABLED or privateFixture==true) then return nil,"disabled" end
         local a,c,k,why=Pair();if not a then return nil,why end
         local part=c.clients[k] or {probe=0,runCounter=0}
         local envelope=part.tournamentTestJournal
-        local old=TournamentJournal(k,c.owner,envelope and envelope.journal,true)
+        local old=TournamentJournal(k,c.owner,envelope and envelope.journal,true,ValidateArchive)
         if not old or old.revision~=expected then return nil,"stale_revision" end
-        local clean=TournamentJournal(k,c.owner,candidate,true)
+        local clean=TournamentJournal(k,c.owner,candidate,true,ValidateArchive)
         if not clean or not ns.TournamentRecovery.Transition(old,clean,action,true) then return nil,"invalid_transition" end
         part.tournamentTestJournal={scope="PRIVATE_TEST",version=1,journal=clean}
         c.clients[k]=part
-        local checked=Root(c,"character",c.owner,scope)
+        local checked=Root(c,"character",c.owner,scope,ValidateArchive)
         if not checked then return nil,"invalid_storage" end
         write(a,checked)
-        return TournamentJournal(k,c.owner,checked.clients[k].tournamentTestJournal.journal,true)
+        return TournamentJournal(k,c.owner,checked.clients[k].tournamentTestJournal.journal,true,ValidateArchive)
     end
     -- Local observations use the character root only. No shared ledger,
     -- rating, simulated record, or account competitive data is imported.
@@ -337,7 +342,7 @@ local function Build(read,write,client,identity,scope,privateFixture)
         if cp.sessionStartIndex~=nil and not reset then return true end
         cp.sessionStartIndex=cp.localHistory and #cp.localHistory.observations or 0
         c.clients[k]=cp
-        local clean=Root(c,"character",c.owner,scope)
+        local clean=Root(c,"character",c.owner,scope,ValidateArchive)
         if not clean then return false,"invalid_history" end
         write(a,clean);return true
     end
@@ -358,7 +363,7 @@ local function Build(read,write,client,identity,scope,privateFixture)
         local cp=c.clients[k] or {probe=0,runCounter=0}
         if cp.runCounter>=MAX then return nil,"capacity" end
         cp.runCounter=cp.runCounter+1;c.clients[k]=cp
-        local clean=Root(c,"character",c.owner,scope)
+        local clean=Root(c,"character",c.owner,scope,ValidateArchive)
         if not clean then return nil,"invalid_history" end
         write(a,clean);return "run-"..cp.runCounter
     end
@@ -372,7 +377,7 @@ local function Build(read,write,client,identity,scope,privateFixture)
         local ok,reason=h.Observe(run,r,agreement)
         if not ok then return false,reason end
         cp.localHistory=h.Save()
-        local clean=Root(c,"character",c.owner,scope)
+        local clean=Root(c,"character",c.owner,scope,ValidateArchive)
         if not clean then return false,"invalid_history" end
         write(a,clean);return true
     end
@@ -492,7 +497,7 @@ local function Build(read,write,client,identity,scope,privateFixture)
         local ok,accept=pcall(edit,l,h,run)
         if not ok or accept~=true then return false,"edit_rejected" end
         ap.ledger=SaveLedger(l,ap.ledger);cp.history=h.Save();a.clients[k]=ap;c.clients[k]=cp
-        local aa,cc=Root(a,"account",nil,scope),Root(c,"character",c.owner,scope)
+        local aa,cc=Root(a,"account",nil,scope),Root(c,"character",c.owner,scope,ValidateArchive)
         if not aa or not cc then return false,"invalid_records" end
         write(aa,cc);return true,run
     end
@@ -514,7 +519,7 @@ local function Build(read,write,client,identity,scope,privateFixture)
             ap.ledger=assert(OpenLedger(k,saved.ledger)).SaveCompact()
         else ap.ledger=saved.ledger end
         ap.season={version=1,rule=season.rule,epoch=epoch,clocks=saved.clocks};a.clients[k]=ap
-        local aa,cc=Root(a,"account",nil,scope),Root(c,"character",c.owner,scope)
+        local aa,cc=Root(a,"account",nil,scope),Root(c,"character",c.owner,scope,ValidateArchive)
         if not aa or not cc then return false,"invalid_records" end
         write(aa,cc);return true,status
     end
@@ -542,7 +547,7 @@ local function Build(read,write,client,identity,scope,privateFixture)
         if ap.ledger.version==2 then return true,"unchanged" end
         local ledger=OpenLedger(k,ap.ledger);if not ledger then return false,"invalid_ledger" end
         ap.ledger=ledger.SaveCompact()
-        local aa,cc=Root(a,"account",nil,scope),Root(c,"character",c.owner,scope)
+        local aa,cc=Root(a,"account",nil,scope),Root(c,"character",c.owner,scope,ValidateArchive)
         if not aa or not cc then return false,"invalid_records" end
         write(aa,cc);return true,"compacted"
     end
@@ -563,7 +568,7 @@ local function Build(read,write,client,identity,scope,privateFixture)
             end
         end
         ap.identities[clean.guid]=clean
-        local aa,cc=Root(a,"account",nil,scope),Root(c,"character",c.owner,scope)
+        local aa,cc=Root(a,"account",nil,scope),Root(c,"character",c.owner,scope,ValidateArchive)
         if not aa or not cc then return false,"invalid_records" end
         write(aa,cc);return true,"observed"
     end

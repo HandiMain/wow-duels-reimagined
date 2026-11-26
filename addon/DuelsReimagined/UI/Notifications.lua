@@ -349,7 +349,7 @@ local function Paint(m)
         ratingGain:SetText("+"..m.gain.." rating")
     else
         Position(close,panel,WIDTH-35,12,18,18)
-        category:SetText(tournament and "LOCAL TEST: Tournament" or m.preview and "PREVIEW: Addon update" or "Addon update")
+        category:SetText(tournament and (m.privateTest and "PRIVATE TEST: Tournament" or "LOCAL TEST: Tournament") or m.preview and "PREVIEW: Addon update" or "Addon update")
         heading:SetText(m.title)
         description:SetText(m.body)
     end
@@ -528,7 +528,7 @@ local function Announce(event,key,title,body,warning,personal,private)
     end
     if tournamentAnnouncements[key] then return false end
     local ok=Enqueue({id="preview:tournament:"..event..":"..key,kind=warning and "warning" or "tournament",
-        tournamentPreview=true,personalTournament=personal==true,preview=true,title=title,body=body..(private and "\nPrivate test only" or "\nLocal test only")})
+        tournamentPreview=true,privateTest=private==true,personalTournament=personal==true,preview=true,title=title,body=body..(private and "\nPrivate test only" or "\nLocal test only")})
     if ok then tournamentAnnouncements[key]=true end
     return ok
 end
@@ -605,8 +605,15 @@ function N.OnTournamentGrace(o)
         Announce(o.event,key,"Match forfeited",name.." did not reconnect in time.",true)
     end
 end
+function N.ClearPrivateTournamentGrace(event,match,sequence)
+    local id="preview:tournament:"..tostring(event)..":private-grace:"..tostring(match)..":"..tostring(sequence)..":started"
+    for i=#queue,1,-1 do if queue[i].id==id then table.remove(queue,i) end end
+    if current and current.id==id then Clear();Pump() end
+end
 function N.OnPrivateTournamentGrace(o)
     if type(o)~="table" or o.scope~="PRIVATE_TEST" or not o.notice then return end
+    if o.notice~="started" then N.ClearPrivateTournamentGrace(o.event,o.match,o.sequence) end
+    if o.notice=="interrupted" then return end
     local p=ns.TournamentSession and ns.TournamentSession.GetProjection()
     if not p or p.event.id~=o.event then return end
     local name=p.names[o.player] or "Player"

@@ -10,19 +10,28 @@ local echoTimer,echo,graceTimer,graceTicking
 local RefreshGrace
 local pageFlags
 local autoTimer
+local autoPending={}
 local ScheduleRefresh,PublishAdvisory,PublishGrace
 local hintTimer,remoteGraceTimer,fanTimer
 local hintPending={}
+local function ClearRemoteGrace()
+    if remoteGraceTimer then remoteGraceTimer:Cancel();remoteGraceTimer=nil end
+    local old=active and active.remoteGrace
+    if active then active.remoteGrace=nil end
+    if old and ns.Notifications and ns.Notifications.ClearPrivateTournamentGrace then
+        ns.Notifications.ClearPrivateTournamentGrace(old.event,old.match,old.sequence)
+    end
+end
 local function StopHints()
     if hintTimer then hintTimer:Cancel();hintTimer=nil end
     if fanTimer then fanTimer:Cancel();fanTimer=nil end
     hintPending={}
     if active and active.role=="host" then active.advisedSignature=nil;active.advisory=nil end
-    if remoteGraceTimer then remoteGraceTimer:Cancel();remoteGraceTimer=nil end
-    if active then active.remoteGrace=nil end
+    ClearRemoteGrace()
 end
 local function StopAuto()
     if autoTimer then autoTimer:Cancel();autoTimer=nil end
+    autoPending={}
 end
 local function StopEcho()
     if echoTimer then echoTimer:Cancel();echoTimer=nil end
@@ -32,7 +41,11 @@ local function StopGrace()
     local observing=graceTimer or active and active.grace
     if graceTimer then graceTimer:Cancel();graceTimer=nil end
     if active then
-        active.grace=nil
+        local old=active.grace;active.grace=nil
+        if old then
+            if ns.Notifications and ns.Notifications.ClearPrivateTournamentGrace then ns.Notifications.ClearPrivateTournamentGrace(old.event,old.match,old.sequence) end
+            if PublishGrace then PublishGrace({event=old.event,match=old.match,player=old.player,sequence=old.sequence,notice="interrupted"}) end
+        end
         if observing and active.role=="host" then active.engine.ResetPrivateObservation() end
     end
 end
@@ -115,7 +128,7 @@ local function ClearQueue()
 end
 local function Stop()
     CloseSeatLink()
-    StopHints();StopAuto();StopFetch();StopEcho();StopGrace()
+    StopGrace();StopHints();StopAuto();StopFetch();StopEcho()
     if active and active.role=="host" and active.engine.CloseSession then active.engine.CloseSession() end
     ClearQueue()
     if unsubscribe then unsubscribe();unsubscribe=nil end
@@ -172,10 +185,16 @@ end
 local function HintSend(guid,body)
     local now=Clock()
     if not now or #body>237 or not Resolve(active.scope,active.actor.guid,nil,guid) then return false end
-    -- A newer bracket hint supersedes an unsent older hint to the same member.
-    if body:sub(1,2)=="B|" then
+    -- Only coalesce within the same tournament; a new cup cannot erase an old terminal notice.
+    local event=body:match("^B|[^|]+|([^|]+)|")
+    if event then
         for i=#hintPending,1,-1 do
-            if hintPending[i].guid==guid and hintPending[i].body:sub(1,2)=="B|" then table.remove(hintPending,i) end
+            local row=hintPending[i]
+            if row.guid==guid and row.body:match("^B|[^|]+|([^|]+)|")==event then
+                if row.body:match("|terminal$") and not body:match("|terminal$") then return true end
+                if row.body:match("|drawn$") and body:match("|match$") then body=body:gsub("|match$","|drawn") end
+                table.remove(hintPending,i)
+            end
         end
     end
     if #hintPending>=96 then return false end
@@ -183,28 +202,41 @@ local function HintSend(guid,body)
     if not fanTimer then fanTimer=C_Timer.NewTimer(.5,DrainHints) end
     return true
 end
+-- Bracket/control changes affect every checked-in entrant; readiness alone
+-- targets the current and previous assigned pair. No result data in hints.
+function L.AdvisoryRecipients(prev,n)
+    local targets={}
+    local terminal=n.phase=="completed" or n.phase=="cancelled"
+    local all=n.phase=="drawn" and (not prev or prev.id~=n.id or prev.progress~=n.progress)
+    for _,m in ipairs(n.peers) do
+        local assigned=m.guid==n.first or m.guid==n.second or prev and prev.id==n.id and (m.guid==prev.first or m.guid==prev.second)
+        if terminal or m.checked and (all or assigned) then
+            targets[#targets+1]={guid=m.guid,kind=terminal and "terminal" or all and "drawn" or "match"}
+        end
+    end
+    return targets
+end
+local function FlushAdvisory(owner)
+    if active~=owner or not L.CanCommunicate() then return end
+    local n=owner.engine.PrivateAdvisory()
+    if not n or owner.advisedSignature==n.signature then return end
+    for _,m in ipairs(L.AdvisoryRecipients(owner.advisory,n)) do
+        HintSend(m.guid,table.concat({"B",owner.key,n.id,n.revision,m.kind},"|"))
+    end
+    owner.advisory=n;owner.advisedSignature=n.signature
+end
 PublishAdvisory=function()
     if not active or active.role~="host" or not L.CanCommunicate() then return end
     local v=active.engine.PrivateAdvisory()
-    if not v or active.advisedSignature==v.signature or hintTimer then return end
+    if not v or active.advisedSignature==v.signature then return end
+    if v.phase=="completed" or v.phase=="cancelled" then
+        -- Capture terminal recipients before a subsequent publication changes the checkpoint.
+        if hintTimer then hintTimer:Cancel();hintTimer=nil end
+        FlushAdvisory(active);return
+    end
+    if hintTimer then return end
     local owner=active
-    hintTimer=C_Timer.NewTimer(1.5,function()
-        hintTimer=nil
-        if active~=owner or not L.CanCommunicate() then return end
-        local n=owner.engine.PrivateAdvisory()
-        if not n or owner.advisedSignature==n.signature then return end
-        local prev=owner.advisory
-        local all=n.phase=="completed" or n.phase=="cancelled" or n.phase=="drawn" and (not prev or prev.id~=n.id or prev.phase~="drawn")
-        local terminal=n.phase=="completed" or n.phase=="cancelled"
-        for _,m in ipairs(n.peers) do
-            local assigned=m.guid==n.first or m.guid==n.second or prev and prev.id==n.id and (m.guid==prev.first or m.guid==prev.second)
-            if terminal or m.checked and (all or assigned) then
-                local kind=terminal and "terminal" or all and "drawn" or "match"
-                HintSend(m.guid,table.concat({"B",owner.key,n.id,n.revision,kind},"|"))
-            end
-        end
-        owner.advisory=n;owner.advisedSignature=n.signature
-    end)
+    hintTimer=C_Timer.NewTimer(1.5,function() hintTimer=nil;FlushAdvisory(owner) end)
 end
 PublishGrace=function(o)
     if not active or active.role~="host" or not L.CanCommunicate() or not o.notice or not o.sequence then return end
@@ -252,16 +284,33 @@ local function TickGrace()
     local states=ConnectionStates()
     local observed=active.engine.ObserveMatch(a.match,{[a.player1]=states[a.player1] or "unknown",[a.player2]=states[a.player2] or "unknown"},a.term,active.actor.guid)
     local old=active.grace
+    local notice=observed and observed.notice
+    local function Notify(o)
+        o.scope="PRIVATE_TEST"
+        if ns.Notifications and ns.Notifications.OnPrivateTournamentGrace then ns.Notifications.OnPrivateTournamentGrace(o) end
+        PublishGrace(o)
+    end
+    if old and (not observed or notice=="started" or observed.player~=old.player or observed.match~=old.match) then
+        Notify({event=old.event,match=old.match,player=old.player,sequence=old.sequence,notice="interrupted"})
+        old=nil
+        if not notice then notice="interrupted" end
+    end
     if observed and observed.remaining and observed.remaining>0 then
-        active.grace={match=a.match,remaining=observed.remaining,player=observed.player,sequence=old and old.sequence or Clock()}
+        local sequence=old and old.sequence
+        if not sequence then
+            sequence=math.max(Clock() or 1,(active.graceSerial or 0)+1)
+            active.graceSerial=sequence
+            notice="started"
+        end
+        active.grace={event=observed.event,match=a.match,remaining=observed.remaining,player=observed.player,sequence=sequence}
     else active.grace=nil end
     graceTicking=nil
-    if old or active.grace or observed and observed.notice then Changed() else RefreshGrace() end
-    if observed and observed.notice and ns.Notifications and ns.Notifications.OnPrivateTournamentGrace then
-        observed.scope="PRIVATE_TEST";observed.sequence=active.grace and active.grace.sequence or old and old.sequence or Clock()
-        ns.Notifications.OnPrivateTournamentGrace(observed)
-        PublishGrace(observed)
+    if notice and observed then
+        observed.notice=notice
+        observed.sequence=active.grace and active.grace.sequence or old and old.sequence
+        if observed.sequence then Notify(observed) end
     end
+    if old or active.grace or notice then Changed() else RefreshGrace() end
 end
 RefreshGrace=function()
     if graceTicking then return end
@@ -318,6 +367,16 @@ local function SendResult()
 end
 local function ReconcileSeat()
     local seat=active.engine.PrivateSeat();local v=active.progress
+    local grace=active.remoteGrace
+    if grace then
+        local valid=false
+        if v and v.control.event==grace.event and not v.control.paused and v.bracket.state=="running" then
+            for _,round in ipairs(v.bracket.rounds) do for _,m in ipairs(round) do
+                if m.id==grace.match and m.state=="ready" and (m.a==grace.player or m.b==grace.player) then valid=true end
+            end end
+        end
+        if not valid then ClearRemoteGrace() end
+    end
     if not seat or not v or v.control.event~=seat.event then return end
     local row=OwnRow(v,active.actor.guid,seat.match)
     local obsolete=v.control.term>seat.term or v.bracket.state=="completed"
@@ -420,34 +479,56 @@ function L.IsAssignedDuel(s)
 end
 -- Bounded follow-up on confirmed lifecycle changes, not permanent polling.
 function L.RefreshIntent(lock,hasArchive)
-    if hasArchive then return "sync-archive" end
-    if lock and lock.status=="checked" then return "sync" end
+    if lock and lock.status=="checked" then return "refresh" end
     if lock and lock.status=="registered" then return "refresh" end
+    if hasArchive then return "sync-archive" end
+end
+local refreshOrder={"refresh","sync","offer","sync-archive"}
+function L.NextRefresh(pending,lock,hasArchive)
+    for _,command in ipairs(refreshOrder) do
+        local row=pending[command]
+        if row then
+            local eligible=command=="sync-archive" and hasArchive or lock and row.event==lock.id and
+                (command=="refresh" or lock.status=="checked" and (command=="sync" or command=="offer"))
+            if eligible then return command,row end
+            pending[command]=nil
+        end
+    end
+end
+local function RunAuto()
+    autoTimer=nil
+    if not active or active.role~="player" or not L.CanCommunicate() then StopAuto();return end
+    local owner=active
+    local lock=owner.engine.Status()
+    local command,row=L.NextRefresh(autoPending,lock,#owner.engine.PendingArchives()>0)
+    if not row then return end
+    local now=Clock()
+    if not now then StopAuto();return end
+    if now>=row.expires then autoPending[command]=nil
+    elseif fetch or echo or owner.engine.PendingOwner() or owner.matchRequest and now<owner.matchRequest.deadline then
+        -- Wait for the existing transfer, without restarting the expiry budget.
+    else
+        row.attempts=row.attempts+1
+        local ok=L.Command(command)
+        if active~=owner then return end
+        if ok or row.attempts>=3 then autoPending[command]=nil end
+    end
+    if next(autoPending) then autoTimer=C_Timer.NewTimer(3,RunAuto) end
 end
 ScheduleRefresh=function(command)
-    StopAuto()
     if not active or active.role~="player" or not command then return end
-    local owner=active
-    local attempts=0
-    local function Try()
-        autoTimer=nil
-        if active~=owner or not L.CanCommunicate() then return end
-        -- A player action always takes priority over a deferred refresh.
-        if fetch or echo or owner.engine.PendingOwner() then
-            attempts=attempts+1
-            if attempts<3 then autoTimer=C_Timer.NewTimer(8,Try) end
-            return
-        end
-        local lock=owner.engine.Status()
-        if (command=="sync" or command=="offer") and (not lock or lock.status~="checked") then return end
-        if command=="refresh" and not lock then return end
-        if command=="sync-archive" and #owner.engine.PendingArchives()==0 then return end
-        attempts=attempts+1
-        local ok=L.Command(command)
-        if not ok and attempts<3 then autoTimer=C_Timer.NewTimer(3,Try) end
+    local now=Clock();if not now then return end
+    local lock=active.engine.Status()
+    if command~="sync-archive" and not lock then return end
+    local event=command~="sync-archive" and lock.id or nil
+    local old=autoPending[command]
+    if not old or old.event~=event or now>=old.expires then
+        autoPending[command]={event=event,attempts=0,expires=now+120}
     end
-    local tail=active.actor.guid:sub(-1):byte() or 0
-    autoTimer=C_Timer.NewTimer(2+(tail%7)*.4,Try)
+    if not autoTimer then
+        local tail=active.actor.guid:sub(-1):byte() or 0
+        autoTimer=C_Timer.NewTimer(2+(tail%7)*.4,RunAuto)
+    end
 end
 -- Advisory data is never used to score, finalize, or write an archive.
 function L.DecodeAdvisory(body,key,event)
@@ -458,39 +539,57 @@ function L.DecodeAdvisory(body,key,event)
         or (kind~="drawn" and kind~="match" and kind~="terminal") then return nil end
     return n,kind
 end
-local function ReceiveGrace(body,a,lock)
+function L.DecodeGrace(body,key,event,now)
+    if type(body)~="string" or #body>237 or type(now)~="number" then return nil end
     local k,id,match,player,seq,notice,deadline=body:match("^D|([^|]+)|([^|]+)|(R%d+M%d+)|([^|]+)|(%d+)|([a-z]+)|(%d+)$")
-    local now=Clock();local serial,untilAt=tonumber(seq),tonumber(deadline)
-    if k~=active.key or id~=lock.id or not now or not serial or serial<1 or serial>4102444800 or not Guid(player)
-        or (notice~="started" and notice~="reconnected" and notice~="forfeited") or not untilAt then return end
+    local serial,untilAt=tonumber(seq),tonumber(deadline)
+    if k~=key or id~=event or not serial or serial<1 or serial>4102444800 or tostring(serial)~=seq or not Guid(player)
+        or not match or #match>8 or not untilAt or tostring(untilAt)~=deadline then return nil end
+    if notice=="started" then
+        if untilAt<=now or untilAt>now+300 then return nil end
+    elseif (notice~="reconnected" and notice~="forfeited" and notice~="interrupted") or untilAt~=0 then return nil end
+    return {event=id,match=match,player=player,sequence=serial,deadline=untilAt,notice=notice}
+end
+-- Terminal tombstones also reject late/reordered start packets.
+function L.GraceDecision(last,o)
+    if last and last.event==o.event then
+        if o.sequence<last.sequence then return false end
+        if o.sequence==last.sequence then
+            if last.match~=o.match or last.player~=o.player or last.notice~="started" or o.notice=="started" then return false end
+        end
+    end
+    return true
+end
+local function ReceiveGrace(body,a,lock)
+    local now=Clock()
+    local o=L.DecodeGrace(body,active.key,lock.id,now)
+    if not o then return end
+    local id,match,player,serial,untilAt,notice=o.event,o.match,o.player,o.sequence,o.deadline,o.notice
     local v=active.progress
     if not v or v.control.event~=id then return end
     local known=false
     for _,round in ipairs(v.bracket.rounds) do for _,m in ipairs(round) do
-        if m.id==match and (m.a==player or m.b==player) then known=true end
+        if m.id==match and (m.a==player or m.b==player) and (notice~="started" or m.state=="ready" and v.bracket.state=="running" and not v.control.paused) then known=true end
     end end
     if not known then return end
     local old=active.remoteGrace
+    if not L.GraceDecision(active.lastGrace,o) then return end
+    active.lastGrace=o
+    ClearRemoteGrace()
     if notice=="started" then
-        if untilAt<=now or untilAt>now+300 or active.lastGraceEvent==id and serial<=(active.lastGraceSequence or 0) then return end
-        active.lastGraceEvent=id;active.lastGraceSequence=serial
-        active.remoteGrace={event=id,match=match,player=player,sequence=serial,deadline=untilAt}
-        if remoteGraceTimer then remoteGraceTimer:Cancel();remoteGraceTimer=nil end
+        active.remoteGrace=o
         local owner=active
         local function Tick()
             remoteGraceTimer=nil
-            if active~=owner or not owner.remoteGrace or not L.CanCommunicate() then return end
+            if active~=owner or not owner.remoteGrace then return end
+            if not L.CanCommunicate() then ClearRemoteGrace();Changed();return end
             local current=Clock()
-            if not current or current>=untilAt then owner.remoteGrace=nil;Changed();return end
+            if not current or current>=untilAt then ClearRemoteGrace();Changed();return end
             Changed();remoteGraceTimer=C_Timer.NewTimer(math.min(5,untilAt-current),Tick)
         end
         remoteGraceTimer=C_Timer.NewTimer(math.min(5,untilAt-now),Tick)
-    else
-        if untilAt~=0 or not old or old.sequence~=serial or old.match~=match or old.player~=player then return end
-        if remoteGraceTimer then remoteGraceTimer:Cancel();remoteGraceTimer=nil end
-        active.remoteGrace=nil
     end
-    if ns.Notifications and ns.Notifications.OnPrivateTournamentGrace then
+    if (notice=="started" or old and old.sequence==serial or notice=="forfeited") and ns.Notifications and ns.Notifications.OnPrivateTournamentGrace then
         ns.Notifications.OnPrivateTournamentGrace({scope="PRIVATE_TEST",event=id,match=match,player=player,sequence=serial,notice=notice,reported=true})
     end
     Changed()
@@ -579,21 +678,21 @@ local function Receive(body,channel,sender)
             end
             return
         end
-        local previous=active.engine.Status()
         local ok,why=active.engine.Receive(sender,body)
         if ok and why~="partial" then
             active.receipt=why
             if why=="cancelled" or why=="completed" then
                 StopHints();StopAuto();StopFetch();StopEcho();CloseSeatLink();active.offer=nil;active.both=nil;active.matchRequest=nil
                 active.progress=nil
-                if why=="completed" and #active.engine.PendingArchives()>0 and not fetch and not echo then
+                if #active.engine.PendingArchives()>0 and not fetch and not echo then
                     ScheduleRefresh("sync-archive")
                 end
-            elseif why=="confirmed" then
+            elseif why=="confirmed" or why=="refused" then
                 local lock=active.engine.Status()
                 if not lock then
                     StopHints();StopAuto();StopFetch();StopEcho();CloseSeatLink();active.progress=nil;active.offer=nil;active.both=nil;active.matchRequest=nil
-                elseif lock.status=="checked" and (not previous or previous.status~="checked") then ScheduleRefresh("sync") end
+                elseif why=="confirmed" and lock.status=="checked" then ScheduleRefresh("sync") end
+                if #active.engine.PendingArchives()>0 then ScheduleRefresh("sync-archive") end
             end
             Changed()
         end
@@ -631,6 +730,7 @@ local function Open(role)
             elseif active.organizerMissing then
                 active.organizerMissing=nil
                 ScheduleRefresh(L.RefreshIntent(lock,#active.engine.PendingArchives()>0))
+                if #active.engine.PendingArchives()>0 then ScheduleRefresh("sync-archive") end
             elseif not lock and #active.engine.PendingArchives()>0 and not fetch and not echo and not autoTimer then
                 ScheduleRefresh("sync-archive")
             end
@@ -647,7 +747,10 @@ local function Open(role)
             elseif event=="PLAYER_REGEN_ENABLED" then
                 if active.role=="player" then
                     if active.engine.PrivateSeat() and active.engine.PrivateSeat().phase=="reported" then SendResult()
-                    else ScheduleRefresh(L.RefreshIntent(active.engine.Status(),#active.engine.PendingArchives()>0)) end
+                    else
+                        ScheduleRefresh(L.RefreshIntent(active.engine.Status(),#active.engine.PendingArchives()>0))
+                        if #active.engine.PendingArchives()>0 then ScheduleRefresh("sync-archive") end
+                    end
                 end
                 Changed()
             else Stop() end
@@ -658,7 +761,10 @@ local function Open(role)
     frame:RegisterEvent("PLAYER_REGEN_ENABLED")
     frame:RegisterEvent("PLAYER_LOGOUT")
     Changed()
-    if role=="player" then ScheduleRefresh(L.RefreshIntent(engine.Status(),#engine.PendingArchives()>0)) end
+    if role=="player" then
+        ScheduleRefresh(L.RefreshIntent(engine.Status(),#engine.PendingArchives()>0))
+        if #engine.PendingArchives()>0 then ScheduleRefresh("sync-archive") end
+    end
     return true,"Private "..role.." session opened. No rating."
 end
 local function SelectedTarget()
@@ -1023,13 +1129,42 @@ function L.GetControlModel()
         actions=actions,role=active.role}
 end
 function L.GetDiagnosticResources()
+    local deferred=0;for _ in pairs(autoPending) do deferred=deferred+1 end
     return {subscriptions=(unsubscribe and 1 or 0)+(unroster and 1 or 0),
         timers=(timer and 1 or 0)+(syncTimer and 1 or 0)+(seatTimer and 1 or 0)+(echoTimer and 1 or 0)+(graceTimer and 1 or 0)+(autoTimer and 1 or 0)+(hintTimer and 1 or 0)+(remoteGraceTimer and 1 or 0)+(fanTimer and 1 or 0),
-        pending=(queue and #queue or 0)+#hintPending+(fetch and 1 or 0)+(echo and 1 or 0)+(active and active.matchRequest and 1 or 0),
+        pending=deferred+(queue and #queue or 0)+#hintPending+(fetch and 1 or 0)+(echo and 1 or 0)+(active and active.matchRequest and 1 or 0),
         detectorSubscriptions=seatLink and 1 or 0}
 end
 -- No listeners or timer while disabled/idle. Combat clears unsent packets,
 -- world/logout closes the session; durable pending requests survive.
+function L.RunReliabilitySelfTest()
+    for _,key in ipairs({"forever:EU:pvp:Alliance","retail:EU:retail:Alliance"}) do
+        local lock={id="event",status="checked"}
+        local pending={refresh={event="event"},sync={event="event"},offer={event="event"},["sync-archive"]={}}
+        assert(L.NextRefresh(pending,lock,true)=="refresh")
+        pending.refresh=nil;assert(L.NextRefresh(pending,lock,true)=="sync")
+        pending.sync=nil;assert(L.NextRefresh(pending,lock,true)=="offer")
+        assert(L.NextRefresh(pending,{id="different",status="checked"},true)=="sync-archive" and not pending.offer)
+        assert(not L.NextRefresh(pending,nil,false))
+        local peers={{guid="a",checked=true},{guid="b",checked=true},{guid="c",checked=true},{guid="d",checked=false}}
+        local prev={id="event",phase="drawn",progress="1",first="a",second="b",peers=peers}
+        local n={id="event",phase="drawn",progress="2",first="a",second="b",peers=peers}
+        local rows=L.AdvisoryRecipients(prev,n);assert(#rows==3 and rows[3].kind=="drawn")
+        n.progress="1";rows=L.AdvisoryRecipients(prev,n);assert(#rows==2 and rows[1].kind=="match")
+        n.phase="completed";rows=L.AdvisoryRecipients(prev,n);assert(#rows==4 and rows[4].kind=="terminal")
+        local prefix="D|"..key.."|event|R1M1|Player-1-00000001|"
+        local started=assert(L.DecodeGrace(prefix.."100|started|400",key,"event",100))
+        local interrupted=assert(L.DecodeGrace(prefix.."100|interrupted|0",key,"event",101))
+        assert(L.GraceDecision(nil,started) and L.GraceDecision(started,interrupted))
+        assert(not L.GraceDecision(interrupted,started) and not L.GraceDecision(interrupted,interrupted))
+        assert(L.GraceDecision(interrupted,assert(L.DecodeGrace(prefix.."101|started|401",key,"event",101))))
+        assert(not L.DecodeGrace(prefix.."100|started|401",key,"event",100))
+        assert(not L.DecodeGrace(prefix.."100|forfeited|1",key,"event",101))
+        assert(not L.DecodeGrace(prefix.."0100|interrupted|0",key,"event",101))
+        assert(not L.DecodeGrace(prefix.."100|interrupted|0",key,"different",101))
+    end
+    return true
+end
 function L.RunGateSelfTest()
     -- This diagnostic never opens a live session in an enabled build.
     if Store.TournamentTestEnabled() then return nil,"Live test gate enabled; no network action attempted." end
@@ -1037,7 +1172,9 @@ function L.RunGateSelfTest()
     assert(not L.DecodeAdvisory("B|key|wrong|1|terminal","key","event"))
     assert(not L.DecodeAdvisory("B|key|event|01|drawn","key","event"))
     assert(not L.DecodeAdvisory("B|key|event|1|score","key","event"))
-    assert(L.RefreshIntent({status="checked"},false)=="sync" and L.RefreshIntent(nil,true)=="sync-archive")
+    assert(L.RefreshIntent({status="checked"},false)=="refresh" and L.RefreshIntent(nil,true)=="sync-archive")
+    assert(L.RunReliabilitySelfTest())
+    assert(ns.TournamentRecovery.RunArchiveCapacitySelfTest())
     local before=L.GetDiagnosticResources()
     assert(not L.CanCommunicate() and not L.IsActive())
     assert(not L.Command("host") and not L.Command("player") and not L.Command("publish"))

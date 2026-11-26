@@ -464,7 +464,8 @@ local function WireClient(scope,cache,clock,resolve,store)
         if not store or not store.privateArchive then return false end
         local n=0;for _ in pairs(journal.participantCompleted or {}) do n=n+1 end
         for _ in pairs(journal.archiveReceipts or {}) do n=n+1 end
-        return n>=64
+        local _,limit=ns.TournamentRecovery.ArchiveLimits(true)
+        return n>=limit
     end
     D.ArchiveFull=ArchiveFull
     function D.Join(owner,id)
@@ -1044,8 +1045,9 @@ local function DurableHost(s,h,clock,resolve,store)
         local completed,cancelled=0,0
         for _ in pairs(journal.completed or {}) do completed=completed+1 end
         for _ in pairs(journal.cancelled or {}) do cancelled=cancelled+1 end
-        if completed>=16 then return "Organizer history is full. Existing results are preserved." end
-        if cancelled>=128 then return "Organizer cancellation history is full. Existing records are preserved." end
+        local hostLimit,_,cancelLimit=ns.TournamentRecovery.ArchiveLimits(store.privateArchive==true)
+        if completed>=hostLimit then return "Organizer history is full. Existing results are preserved." end
+        if cancelled>=cancelLimit then return "Organizer cancellation history is full. Existing records are preserved." end
     end
     function D.Publish(d)
         if not Fresh() or journal.commitment or D.PublicationLimit() then return nil end
@@ -1347,12 +1349,12 @@ local function DurableHost(s,h,clock,resolve,store)
         local ad=cp.ad
         local a=journal.privateAssignment
         local phase=ad.state=="open" and (journal.bracket and "drawn" or "open") or ad.state
-        local signature=table.concat({ad.id,ad.revision,phase,journal.control and journal.control.term or 0,
-            journal.bracket and #journal.bracket.reports or 0,a and a.serial or 0,
-            a and a.ready1 and 1 or 0,a and a.ready2 and 1 or 0},"/")
+        local progress=table.concat({ad.id,ad.revision,phase,journal.control and journal.control.term or 0,
+            journal.control and journal.control.paused and 1 or 0,journal.bracket and #journal.bracket.reports or 0},"/")
+        local signature=table.concat({progress,a and a.serial or 0,a and a.ready1 and 1 or 0,a and a.ready2 and 1 or 0},"/")
         local peers={}
         for _,m in ipairs(cp.roster) do peers[#peers+1]={guid=m.guid,checked=m.checkedIn==true} end
-        return {id=ad.id,revision=journal.revision,phase=phase,signature=signature,peers=peers,
+        return {id=ad.id,revision=journal.revision,phase=phase,signature=signature,progress=progress,peers=peers,
             first=a and a.player1,second=a and a.player2}
     end
     function D.PrivateProgress()
@@ -3428,6 +3430,13 @@ function R.RunPrivateNetworkSelfTest(emit)
                 local invalid=Copy(journal);invalid.character=actors.host.guid
                 assert(not ns.TournamentRecovery.Validate(client,actors.host.guid,invalid,true))
                 assert(not ns.TournamentRecovery.Validate(client,actors[name].guid,journal,false))
+                local validate=ns.TournamentRecovery.NewJournalValidator()
+                local verified=assert(validate(client,actors[name].guid,journal,true))
+                verified.participantCompleted[ad.id].champion=actors.host.guid
+                assert(validate(client,actors[name].guid,journal,true).participantCompleted[ad.id].champion==winner)
+                local tampered=Copy(journal);tampered.participantCompleted[ad.id].champion=actors.host.guid
+                assert(not validate(client,actors[name].guid,tampered,true))
+                assert(validate(client,actors[name].guid,journal,true))
             end
             -- The shared validator accepts only the marked, complete LOCAL result.
             local ctx={scope="PRIVATE_TEST",client=client,me=winner,peer=actors.two.guid,cycle=1,
