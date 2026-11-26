@@ -28,12 +28,12 @@ local function Copy(t)
 end
 -- Stable ID partitions and two bounded rolling checksums, for comparison
 -- hints only. Neither checksum authenticates evidence or proves completeness.
-local GROUPS,H1,H2=128,2147483647,2147483629
+local GROUPS,H1,H2=ns.MatchLedger.GetSegmentCount(),2147483647,2147483629
 local function Hash(h,text,mul,mod)
     for i=1,#text do h=(h*mul+text:byte(i))%mod end
     return (h*mul)%mod -- zero-byte field separator
 end
-local function Group(id) return Hash(1,id,131,H1)%GROUPS+1 end
+local Group=ns.MatchLedger.SegmentForID
 local function GroupInfo(v)
     if type(v)~="table" or not Int(v.count,0,LIMIT) or not Int(v.a,0,H1-1)
         or not Int(v.b,0,H2-1) then return false end

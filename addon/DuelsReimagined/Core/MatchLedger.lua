@@ -3,6 +3,16 @@ local _,ns=...
 local P={}
 ns.MatchLedger=P
 local VERSION,LIMIT=1,8192
+-- Stable ID partitions, shared with delta sync. The partition hash is a
+-- routing hint only, never identity or evidence authentication.
+local SEGMENTS,MOD=128,2147483647
+function P.GetSegmentCount() return SEGMENTS end
+function P.SegmentForID(id)
+    if type(id)~="string" or #id==0 or #id>220 then return nil end
+    local h=1
+    for i=1,#id do h=(h*131+id:byte(i))%MOD end
+    return ((h*131)%MOD)%SEGMENTS+1
+end
 -- Account/client evidence capacity; bounded, never silently evicted.
 function P.GetCapacity() return LIMIT end
 function P.GetSnapshot()
@@ -20,8 +30,20 @@ local function Open(client,stored,cap,scope)
     if client~="forever" and client~="retail" then return nil,"client" end
     if cap==nil then cap=LIMIT end
     if type(cap)~="number" or cap<1 or cap>LIMIT or cap~=math.floor(cap) then return nil,"invalid_capacity" end
-    local data={version=VERSION,scope=scope,client=client,entries={}}
-    local count=0
+    -- One canonical runtime owner. Segments are allocated only on first
+    -- insert; old flat saved formats and global ordering remain unchanged.
+    local segments,count={},0
+    local function Get(id)
+        local g=P.SegmentForID(id)
+        local bucket=g and segments[g]
+        return bucket and bucket[id] or nil
+    end
+    local function Put(id,variants)
+        local g=assert(P.SegmentForID(id))
+        local bucket=segments[g]
+        if not bucket then bucket={};segments[g]=bucket end
+        bucket[id]=variants
+    end
     local function Validate(r)
         local validate=scope=="PEER" and ns.ResultConfirmation.ValidatePeerRecord or ns.ResultConfirmation.ValidateSimulatedRecord
         local clean=validate(r)
@@ -41,7 +63,8 @@ local function Open(client,stored,cap,scope)
             if n<1 or not variants[1] or (n==2 and not variants[2]) then return nil,"invalid_store" end
             local a=Validate(variants[1]);local b=n==2 and Validate(variants[2]) or nil
             if not a or a.id~=id or (n==2 and (not b or b.id~=id or Key(a)>=Key(b))) then return nil,"invalid_store" end
-            data.entries[id]={a,b}
+            if not P.SegmentForID(id) then return nil,"invalid_store" end
+            Put(id,{a,b})
         end
     end
     local D={}
@@ -61,11 +84,12 @@ local function Open(client,stored,cap,scope)
     function D.Insert(r)
         local v=Validate(r)
         if not v then return false,"invalid_record" end
-        local old=data.entries[v.id]
+        if not P.SegmentForID(v.id) then return false,"invalid_record" end
+        local old=Get(v.id)
         if not old and count>=cap then return false,"capacity" end
         local nextVariants,why=Stage(v,old)
         if why=="duplicate" then return false,why end
-        data.entries[v.id]=nextVariants
+        Put(v.id,nextVariants)
         if not old then count=count+1 end
         return true,why
     end
@@ -78,8 +102,8 @@ local function Open(client,stored,cap,scope)
         end
         local staged,added={},0
         for i=1,n do
-            local v=Validate(records[i]);if not v then return false,"invalid_record" end
-            local old=staged[v.id] or data.entries[v.id]
+            local v=Validate(records[i]);if not v or not P.SegmentForID(v.id) then return false,"invalid_record" end
+            local old=staged[v.id] or Get(v.id)
             if not old then
                 added=added+1;if count+added>cap then return false,"capacity" end
             end
@@ -89,36 +113,56 @@ local function Open(client,stored,cap,scope)
         -- The caller never receives references to the canonical record tables.
         local changes={}
         for id,variants in pairs(staged) do
-            if variants~=data.entries[id] then
-                changes[id]=data.entries[id]==nil
-                data.entries[id]=variants
+            local previous=Get(id)
+            if variants~=previous then
+                changes[id]=previous==nil
+                Put(id,variants)
             end
         end
         count=count+added
         return true,next(changes) and "merged" or "unchanged",changes
     end
-    function D.Save() return Copy(data) end
-    -- Explicit compact disk representation only. Runtime/wire retain v1.
-    function D.SaveCompact()
-        local out={version=2,scope=scope,client=client,entries={}}
-        for id,variants in pairs(data.entries) do
-            local row={}
-            for _,r in ipairs(variants) do row[#row+1]=r.statement1;row[#row+1]=r.statement2 end
-            out.entries[id]=row
+    function D.Save()
+        local out={version=VERSION,scope=scope,client=client,entries={}}
+        for _,bucket in pairs(segments) do
+            for id,variants in pairs(bucket) do out.entries[id]=Copy(variants) end
         end
         return out
     end
+    -- Explicit compact disk representation only. Wire and saved formats
+    -- are unchanged; segments are private to the canonical runtime owner.
+    function D.SaveCompact()
+        local out={version=2,scope=scope,client=client,entries={}}
+        for _,bucket in pairs(segments) do
+            for id,variants in pairs(bucket) do
+                local row={}
+                for _,r in ipairs(variants) do row[#row+1]=r.statement1;row[#row+1]=r.statement2 end
+                out.entries[id]=row
+            end
+        end
+        return out
+    end
+    function D.ListSegmentIDs(g)
+        if type(g)~="number" or g<1 or g>SEGMENTS or g~=math.floor(g) then return nil,"segment" end
+        local ids={}
+        for id in pairs(segments[g] or {}) do ids[#ids+1]=id end
+        table.sort(ids);return ids
+    end
     function D.ListIDs()
-        local ids={};for id in pairs(data.entries) do ids[#ids+1]=id end;table.sort(ids);return ids
+        local ids={}
+        for _,bucket in pairs(segments) do
+            for id in pairs(bucket) do ids[#ids+1]=id end
+        end
+        table.sort(ids);return ids
     end
     function D.ReadVariants(id)
-        local v=data.entries[id];return v and Copy(v) or nil
+        local v=Get(id);return v and Copy(v) or nil
     end
     function D.Snapshot()
         local ids=D.ListIDs()
         local out={scope=scope,client=client,version=VERSION,rankEligible=false,matched={},disputed={}}
         for _,id in ipairs(ids) do
-            local v=data.entries[id]
+            local v=Get(id)
             if v[2] then out.disputed[#out.disputed+1]={id=id,evidence=Copy(v)}
             else out.matched[#out.matched+1]=Copy(v[1]) end
         end
@@ -237,6 +281,36 @@ function P.RunSelfTest(emit)
         Case(client.." stable listing across insert order",function()
             local a,b=Record(client,1),Record(client,2);local x,y=assert(Open(client)),assert(Open(client))
             x.Insert(a);x.Insert(b);y.Insert(b);y.Insert(a);assert(Equal(x.Snapshot(),y.Snapshot()))
+            -- Multiple segments: flat save/compact parity, targeted ID lists,
+            -- cross-segment rejected batch and late correction stay atomic.
+            local rows={}
+            for i=3,130 do rows[#rows+1]=Record(client,i) end
+            assert(x.MergeBatch(rows))
+            for i=#rows,1,-1 do assert(y.Insert(rows[i])) end
+            assert(Equal(x.Save(),y.Save()) and Equal(x.SaveCompact(),y.SaveCompact()))
+            local before=x.Save()
+            local all,used={},0
+            for g=1,P.GetSegmentCount() do
+                local ids=assert(x.ListSegmentIDs(g))
+                if #ids>0 then used=used+1 end
+                for _,id in ipairs(ids) do
+                    local h=1
+                    for i=1,#id do h=(h*131+id:byte(i))%2147483647 end
+                    assert(g==((h*131)%2147483647)%128+1 and not all[id])
+                    all[id]=true
+                end
+                ids[1]="changed" -- no mutable index escapes
+            end
+            assert(used>1 and #x.ListIDs()==130 and not x.ListSegmentIDs(0))
+            for _,id in ipairs(x.ListIDs()) do assert(all[id]) end
+            local compact=assert(P.OpenCompactSimulated(client,x.SaveCompact()))
+            assert(Equal(before,compact.Save()))
+            local capped=assert(Open(client,before,131))
+            local ok,why=capped.MergeBatch({Record(client,1,true),Record(client,131),Record(client,132)})
+            assert(not ok and why=="capacity" and Equal(capped.Save(),before))
+            assert(capped.MergeBatch({Record(client,1,true),Record(client,131)}))
+            assert(#capped.Snapshot().disputed==1 and #capped.ListIDs()==131)
+            assert(Equal(capped.ReadVariants(a.id),assert(Open(client,capped.Save())).ReadVariants(a.id)))
         end)
         Case(client.." invalid persisted variant order rejected",function()
             local d=assert(Open(client));local r=Record(client,1);d.Insert(r);d.Insert(Record(client,1,true))
