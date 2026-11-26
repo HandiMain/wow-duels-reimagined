@@ -5,8 +5,13 @@ local B={};ns.TournamentBrowse=B
 local S,C,W=ns.Style,ns.Style.color,ns.Widgets
 local ART="Interface\\AddOns\\DuelsReimagined\\Media\\Skin\\TournamentBrowseArt.png"
 local green={.58,1,.24,1};local amber={1,.75,.20,1};local grey={.70,.68,.65,1}
-local rect={logo={0,0,96,82},community={100,0,65,55},flag={170,0,36,44},location={212,34,25,29},players={244,34,29,25},swords={278,34,28,25},laurelL={312,34,28,33},laurelR={344,34,32,33},landscape={0,120,240,124},statusLight={400,60,32,32}}
+local rect={logo={0,0,96,82},community={100,0,65,55},flag={170,0,36,44},location={212,34,25,29},players={244,34,29,25},swords={275,1,28,28},laurelL={312,34,28,33},laurelR={344,34,32,33},landscape={0,120,240,124},statusLight={400,60,32,32}}
 for i=1,7 do rect[i]={212+(i-1)*32,0,28,28} end
+-- Use the clean format swords for every small crossed-swords icon.
+rect[3]=rect.swords
+-- The hourglass artwork sits left and low in its original cell.
+-- Recenter the square crop in the atlas gutter without stretching the art.
+rect[2]={241,2,28,28}
 local filters={{key="all",label="All Tournaments"},{key="open",label="Open registration"},{key="filling",label="Filling"},{key="full",label="Full"},{key="closed",label="Closed"}}
 function B.Status(ad,now)
     if not ad or not ad.draft or ad.state~="open" then return "closed","Closed",false end
