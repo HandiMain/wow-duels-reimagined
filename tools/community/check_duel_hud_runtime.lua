@@ -20,6 +20,7 @@ function methods:IsVisible()return self.shown and (not self.parent or self.paren
 function methods:SetText(t)self.text=t end
 function methods:SetTextColor(...)self.textColor={...}end
 function methods:SetAlpha(v)self.alpha=v end
+function methods:GetAlpha()return self.alpha or 1 end
 function methods:IsMouseOver()return self.mouseOver==true end
 function methods:SetStatusBarTexture(t)self.barTexture=t end
 function methods:SetMinMaxValues(lo,hi)self.low,self.high=lo,hi end
@@ -27,6 +28,7 @@ function methods:SetValue(v)self.value=v end
 function methods:SetTexture(t)self.texture=t end
 function methods:SetColorTexture(...)self.color={...}end
 function methods:SetScale(v)self.scale=v end
+function methods:GetScale()return self.scale or 1 end
 function methods:GetEffectiveScale()return self.scale or 1 end
 function methods:GetFrameLevel()return 1 end
 function methods:GetCenter()return self.point[4],self.point[5]-self.h/2 end
@@ -87,7 +89,9 @@ local ns={
     CompetitiveUI={CreateRankEmblem=function(p)local f=Frame(p);f.Paint=noop;return f end},
     DuelDetection={GetSnapshot=function()return snap end,Subscribe=function(fn)duelListener=fn;return Subscribe()end,GetChallengeRange=function()return true end},
     OpponentDiscovery={Subscribe=function(fn)discoveryListener=fn;return Subscribe()end,GetSnapshot=function()return discovery end,ProbeTarget=function()probes=probes+1;if probeCooldown then return false,"cooldown" end;return true end},
-    Notifications={Reanchor=function()anchors=anchors+1 end}
+    TournamentRegistration={PreviewHasBracket=function()return false end,SubscribePreview=function()return noop end},
+    TournamentHUD={IsEditing=function()return false end,Project=function()return nil end,GetDiagnosticResources=function()return {timers=0} end},
+    Notifications={Reanchor=function()anchors=anchors+1 end,Refresh=noop,OnTournamentProgress=noop,ClearTournamentPreview=noop}
 }
 assert(loadfile("addon/DuelsReimagined/UI/DuelHUD.lua"))("DuelsReimagined",ns)
 local H=ns.DuelHUD;local root=H.GetNotificationAnchor()
@@ -329,6 +333,21 @@ function label:SetJustifyV()end
 local parent={CreateFontString=function()return label end}
 local sty={Settings={Get=function()return 1 end}}
 assert(loadfile("addon/DuelsReimagined/UI/Style.lua"))("DuelsReimagined",sty)
+-- Identical skin group/alpha contract with no invisible native slices.
+local skinParent=Frame(nil)
+local nativeBefore=#frames
+local skin=sty.Style.Skin(skinParent,sty.Style.color.body,{shine=0,shade=0,rim=0})
+assert(#frames-nativeBefore==9 and #skin.groups==4)
+skin:SetAlpha(.4);assert(skin:GetAlpha()==.4 and skin.groups[1]:GetAlpha()==.4)
+assert(skin.groups[2]:GetAlpha()==0 and skin.groups[3]:GetAlpha()==0 and skin.groups[4]:GetAlpha()==0)
+nativeBefore=#frames
+local normal=sty.Style.Skin(skinParent,sty.Style.color.body,{})
+assert(#frames-nativeBefore==36)
+normal:SetAlpha(.5);assert(math.abs(normal.groups[2]:GetAlpha()-.2)<.0001)
+nativeBefore=#frames
+local smooth=sty.Style.Skin(skinParent,sty.Style.color.body,{smooth=true})
+assert(#frames-nativeBefore==20 and smooth.groups[2]:GetAlpha()==0 and smooth.groups[3]:GetAlpha()==0)
+print("Shared skin resource regression: PASS (invisible masks omitted, live layer alpha retained)")
 sty.Style.Text(parent,"x",11)
 sty.Style.ConstrainText(label,100,20,8)
 assert(fontSize==11)

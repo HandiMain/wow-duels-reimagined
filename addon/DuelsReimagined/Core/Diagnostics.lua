@@ -5,7 +5,6 @@ ns.Diagnostics=D
 local providers,ids,incidents,last={},{},{},nil
 local running=false
 local pendingAudit
-local preparedAudit
 local lastHealthyComplete
 local function Plain(v)
     if type(issecretvalue)=="function" then
@@ -35,11 +34,11 @@ local function Copy(t)
     for k,v in pairs(t) do out[k]=Copy(v) end
     return out
 end
-function D.Register(id,profile,fn)
+function D.Register(id,profile,fn,cooperative)
     if type(id)~="string" or ids[id] or type(fn)~="function" or
         (profile~="health" and profile~="deep") then return false end
     ids[id]=true
-    providers[#providers+1]={id=id,profile=profile,run=fn}
+    providers[#providers+1]={id=id,profile=profile,run=fn,cooperative=cooperative==true}
     return true
 end
 local function Assert(v,why) if not v then error(why,2) end end
@@ -490,31 +489,47 @@ local function Add(result,id,status,detail,ms)
     result.rows[#result.rows+1]={id=id,status=status,detail=SafeText(detail,16000),ms=ms}
     result.counts[status]=(result.counts[status] or 0)+1
 end
-function D.Run(mode)
-    if D.IsRunning() then return nil,"Already running" end
-    running=true
+-- One scan owner for synchronous CLI/health runs and cooperative UI runs.
+-- Providers remain isolated; only explicitly cooperative providers may yield.
+-- Never suspend inside pcall: Lua 5.1 cannot yield across a protected call.
+local function NewScan(mode,prepared)
     local r={mode=mode=="complete" and "complete" or "health",stamp=Stamp(),rows={},counts={}}
-    local start=Clock()
+    local job={result=r,ms=prepared and prepared.ms or 0,peak=prepared and prepared.peak or 0,batched=prepared~=nil}
     local function Scan(profile,prefix)
         for _,p in ipairs(providers) do
             if p.profile==profile then
-                local t=Clock()
                 local ok,status,detail
-                if p.id=="Owned UI geometry and texture sources" and preparedAudit then
-                    ok,status,detail=true,preparedAudit.status,preparedAudit.detail
-                else ok,status,detail=pcall(p.run) end
+                local ms=0;local measured=false
+                if p.id=="Owned UI geometry and texture sources" and prepared then
+                    ok,status,detail=true,prepared.status,prepared.detail
+                    ms=prepared.ms;measured=prepared.measured
+                elseif p.cooperative then
+                    local task=coroutine.create(function()return p.run(coroutine.yield)end)
+                    repeat
+                        local t=Clock()
+                        ok,status,detail=coroutine.resume(task)
+                        local done=Clock()
+                        if t and done then ms=ms+math.max(0,done-t);measured=true end
+                        if ok and coroutine.status(task)~="dead" then
+                            coroutine.yield(prefix..p.id)
+                        end
+                    until not ok or coroutine.status(task)=="dead"
+                else
+                    local t=Clock()
+                    ok,status,detail=pcall(p.run)
+                    local done=Clock()
+                    if t and done then ms=math.max(0,done-t);measured=true end
+                end
                 if not ok then detail=SafeText(status);status="FAIL";D.Record("Check "..p.id,detail) end
                 if status~="PASS" and status~="WARN" and status~="SKIP" and status~="FAIL" then
                     status="FAIL";detail="Invalid provider return"
                 end
-                local done=Clock()
-                local ms=t and done and done-t or nil
-                if p.id=="Owned UI geometry and texture sources" and preparedAudit then ms=preparedAudit.ms end
-                Add(r,prefix..p.id,status,detail,ms)
+                Add(r,prefix..p.id,status,detail,measured and ms or nil)
+                coroutine.yield(prefix..p.id)
             end
         end
     end
-    local ok,err=pcall(function()
+    job.thread=coroutine.create(function()
         Scan("health","Health / ")
         if r.mode=="complete" then
             Scan("deep","Deep Health / ")
@@ -537,7 +552,7 @@ function D.Run(mode)
             local unchanged=motionBefore.active==motionAfter.active and motionBefore.driver==motionAfter.driver
             Add(r,"Leak Sentinel / shared animation probe",unchanged and "PASS" or "FAIL",
                 "Active tweens before="..motionBefore.active.."; after="..motionAfter.active..
-                ". QA is synchronous and must not start live animations.")
+                ". Isolated duel QA must not start live animations.")
             local resourcesAfter,coveredAfter=ns.DiagnosticAudit.Resources()
             local unchangedResources,changes=ns.DiagnosticAudit.CompareResources(resourcesBefore,resourcesAfter)
             Add(r,"Leak Sentinel / owned frame, region, timer and subscriber counts",
@@ -546,6 +561,7 @@ function D.Run(mode)
                     "\nTracked counts unchanged during QA." or "\nChanged:\n"..changes))
             Add(r,"Leak Sentinel / remaining resource coverage","SKIP",
                 "Anonymous frames outside known roots, uninstrumented UI timers and repeated real interactions are not certified.")
+            coroutine.yield("Isolated duel suite and resource comparison")
             Scan("health","Final Health / ")
             Add(r,"Static package / Lua syntax","SKIP","Source file syntax and TOC validation are CI-only; not readable from WoW Lua.")
             Add(r,"Live gameplay / multiplayer","SKIP","Requires real players. Simulated results never prove Blizzard event delivery.")
@@ -558,12 +574,13 @@ function D.Run(mode)
         r.incidents=D.GetIncidents()
         if #r.incidents>0 then Add(r,"Incident ledger","WARN",#r.incidents.." distinct incident(s); review advanced report.") end
     end)
-    if not ok then Add(r,"Diagnostics coordinator","FAIL",SafeText(err));D.Record("Coordinator",SafeText(err)) end
-    local done=Clock()
-    r.ms=start and done and done-start or nil
-    if preparedAudit and r.ms then r.ms=r.ms+preparedAudit.ms end
-    r.batched=preparedAudit~=nil
-    preparedAudit=nil
+    return job
+end
+local function Finish(job)
+    local r=job.result
+    r.ms=job.measured and job.ms or nil
+    r.peakSlice=job.measured and job.peak or nil
+    r.batched=job.batched
     r.status=r.counts.FAIL and "FAIL" or r.counts.WARN and "WARN" or "PASS"
     r.previous=last and last.status or "none"
     if r.mode=="complete" and ns.DiagnosticAudit then
@@ -577,36 +594,83 @@ function D.Run(mode)
     end
     if ns.DiagnosticAudit then r.release=ns.DiagnosticAudit.ReleaseGate(r) end
     last=r
-    running=false
     if ns.DiagnosticAudit then ns.DiagnosticAudit.MarkScanEnd() end
     return Copy(r)
 end
+-- Each resume is one isolated provider or one explicitly cooperative case.
+local function Advance(job)
+    local t=Clock()
+    local ok,message=coroutine.resume(job.thread)
+    local done=Clock()
+    if t and done then
+        local elapsed=math.max(0,done-t)
+        job.ms=job.ms+elapsed;job.peak=math.max(job.peak,elapsed);job.measured=true
+    end
+    if not ok then
+        Add(job.result,"Diagnostics coordinator","FAIL",SafeText(message))
+        D.Record("Coordinator",SafeText(message))
+    end
+    return not ok or coroutine.status(job.thread)=="dead",message
+end
+function D.Run(mode)
+    if D.IsRunning() then return nil,"Already running" end
+    running=true
+    local ok,result=pcall(function()
+        local job=NewScan(mode)
+        while not Advance(job) do end
+        -- A synchronous caller still performs all checks in one call.
+        job.peak=job.ms
+        return Finish(job)
+    end)
+    running=false
+    if not ok then D.Record("Coordinator",SafeText(result));return nil,SafeText(result) end
+    return result
+end
 function D.CancelPending()
+    local job=pendingAudit
     pendingAudit=nil
+    if job then
+        job.step=nil;job.scan=nil
+        if ns.DiagnosticAudit then ns.DiagnosticAudit.MarkScanEnd() end
+    end
 end
 function D.RunAsync(mode,callback,progress)
     if D.IsRunning() then return false,"Already running" end
     if mode~="complete" or not C_Timer or type(C_Timer.After)~="function" then
         local r,err=D.Run(mode);callback(r,err);return true
     end
-    local job={step=ns.DiagnosticAudit.BeginUIAudit(),ms=0}
+    local job={step=ns.DiagnosticAudit.BeginUIAudit(),ms=0,peak=0}
     pendingAudit=job
     local function Next()
         if pendingAudit~=job then return end
-        local start=Clock()
-        local ok,done,status,detail=pcall(job.step)
-        local finish=Clock()
-        if start and finish then job.ms=job.ms+finish-start end
-        if not ok then done,status,detail=true,"FAIL",SafeText(done) end
-        if done then
-            pendingAudit=nil
-            preparedAudit={status=status,detail=detail,ms=job.ms}
-            local r,err=D.Run(mode)
-            preparedAudit=nil
-            callback(r,err)
+        if job.step then
+            local t=Clock()
+            local ok,done,status,detail=pcall(job.step)
+            local finish=Clock()
+            if t and finish then
+                local elapsed=math.max(0,finish-t)
+                job.ms=job.ms+elapsed;job.peak=math.max(job.peak,elapsed);job.measured=true
+            end
+            if not ok then done,status,detail=true,"FAIL",SafeText(done) end
+            if done then
+                job.scan=NewScan(mode,{status=status,detail=detail,ms=job.ms,peak=job.peak,measured=job.measured})
+                job.scan.measured=job.measured
+                job.step=nil
+                if progress then progress("Running isolated checks in batches...") end
+            end
         else
-            C_Timer.After(0,Next)
+            local done,message=Advance(job.scan)
+            if done then
+                local ok,r=pcall(Finish,job.scan)
+                pendingAudit=nil;job.scan=nil
+                if ok then callback(r) else D.Record("Coordinator",SafeText(r));callback(nil,SafeText(r)) end
+                return
+            end
+            if progress and type(message)=="string" and message~=job.lastMessage then
+                job.lastMessage=message;progress(message)
+            end
         end
+        if pendingAudit==job then C_Timer.After(0,Next) end
     end
     if progress then progress("Scanning UI in small batches...") end
     C_Timer.After(0,Next)
@@ -625,7 +689,8 @@ function D.BuildReport(result,advanced)
         "Changes under test: native capture, resource counts, UI audit, baseline comparison, performance and release gate.",
         "Evidence: each row below names its check; skipped checks remain unverified.",
         "No automated repair; live records and preferences are not modified by scans.",
-        r.ms and string.format("Measured work: %.2f ms (%s)",r.ms,r.batched and "batched UI plus atomic QA; excludes wait" or "synchronous checks") or "Timing unavailable",
+        r.ms and string.format("Measured work: %.2f ms (%s)",r.ms,r.batched and "batched UI and QA; excludes wait" or "synchronous checks") or "Timing unavailable",
+        r.peakSlice and string.format("Longest measured work slice: %.2f ms (excludes report rendering and wait)",r.peakSlice) or "Slice timing unavailable",
         "Runtime evidence only; not a source-code or multiplayer certification.",""}
     for _,row in ipairs(r.rows) do
         lines[#lines+1]=row.status.." | "..row.id..(row.ms and string.format(" (%.2f ms)",row.ms) or "")

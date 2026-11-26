@@ -99,9 +99,12 @@ local roots={"DuelsReimaginedWindow","DuelsReimaginedDiagnosticsWindow",
     "DuelsReimaginedBlizzardSettingsPanel","DuelsReimaginedMinimapButton","DuelsReimaginedAccessWidget","DuelsReimaginedArenaPicker","DuelsReimaginedPlayerCard"}
 -- Retail includes War Games; previous 20k ceiling truncated the audit.
 local LIMIT=32000
-local pageRoots={}
+local pageRoots,deferredRoots={},{}
+function A.RegisterDeferredUIRoot(label)
+    if type(label)=="string" then deferredRoots[label]=true end
+end
 function A.RegisterUIRoot(label,frame)
-    if type(label)=="string" and frame then pageRoots[frame]=label end
+    if type(label)=="string" and frame then pageRoots[frame]=label;deferredRoots[label]=nil end
 end
 local function Inspect(check,slice)
     local processed=0
@@ -111,7 +114,9 @@ local function Inspect(check,slice)
         if processed>=150 then processed=0;coroutine.yield() end
     end
     local r={frames=0,regions=0,visible=0,textureSources=0,unknownTextures=0,
-        problems={},missingRoots=0,limited=false,unreadable=0,pages={}}
+        problems={},missingRoots=0,limited=false,unreadable=0,pages={},deferred={}}
+    for label in pairs(deferredRoots) do r.deferred[#r.deferred+1]=label end
+    table.sort(r.deferred)
     local seen={}
     local function Issue(label,msg)
         if #r.problems<30 then r.problems[#r.problems+1]=label..": "..msg end
@@ -198,6 +203,7 @@ local function FormatAudit(r)
     local detail=string.format("%d frames, %d regions, %d visible frames, %d texture sources, %d unclassified textures, %d unreadable, %d roots absent.",
         r.frames,r.regions,r.visible,r.textureSources,r.unknownTextures,r.unreadable,r.missingRoots)
     detail=detail..table.concat(breakdown,"\n")
+    if #r.deferred>0 then detail=detail.."\nDeferred views at audit start (not visually inspected): "..table.concat(r.deferred,", ") end
     if r.limited then detail=detail.."\nObject limit reached ("..LIMIT.."); coverage incomplete." end
     if #r.problems>0 then return "WARN",detail.."\n"..table.concat(r.problems,"\n") end
     if r.limited or r.unreadable>0 or r.frames==0 or r.missingRoots>0 then

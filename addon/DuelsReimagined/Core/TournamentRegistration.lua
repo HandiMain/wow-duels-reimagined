@@ -1777,12 +1777,13 @@ function R.RunRecoverySelfTest(emit)
     return p,f
 end
 
-function R.RunHostRecoverySelfTest(emit)
+function R.RunHostRecoverySelfTest(emit,checkpoint)
     emit=type(emit)=="function" and emit or function()end
     local pass,fail=0,0
     local function Case(label,fn)
         local ok,err=pcall(fn);if ok then pass=pass+1 else fail=fail+1 end
         emit("DR | SIMULATED | "..(ok and "PASS " or "FAIL ")..label..(ok and "" or ": "..tostring(err)))
+        if checkpoint then checkpoint() end
     end
     for _,client in ipairs({"forever","retail"}) do
         local function Fixture()
@@ -3553,10 +3554,10 @@ ns.Diagnostics.Register("Tournament player rehearsal / isolated match QA","deep"
     local log={};local p,f=R.RunPlayerPreviewSelfTest(function(line)log[#log+1]=line end)
     return f==0 and p==2 and "PASS" or "FAIL",string.format("%d passed / %d failed (SIMULATED)\n",p,f)..table.concat(log,"\n")
 end)
-ns.Diagnostics.Register("Tournament host recovery / isolated checkpoint QA","deep",function()
-    local log={};local p,f=R.RunHostRecoverySelfTest(function(line)log[#log+1]=line end)
+ns.Diagnostics.Register("Tournament host recovery / isolated checkpoint QA","deep",function(checkpoint)
+    local log={};local p,f=R.RunHostRecoverySelfTest(function(line)log[#log+1]=line end,checkpoint)
     return f==0 and p==72 and "PASS" or "FAIL",string.format("%d passed / %d failed (SIMULATED)\n",p,f)..table.concat(log,"\n")
-end)
+end,true)
 ns.Diagnostics.Register("Tournament recovery / isolated journal QA","deep",function()
     local log={};local p,f=R.RunRecoverySelfTest(function(line)log[#log+1]=line end)
     return f==0 and p==10 and "PASS" or "FAIL",string.format("%d passed / %d failed (SIMULATED)\n",p,f)..table.concat(log,"\n")

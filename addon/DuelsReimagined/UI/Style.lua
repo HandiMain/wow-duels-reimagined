@@ -218,25 +218,30 @@ end
 function Style.Skin(parent, fill, opts)
     opts = opts or {}
     local corner, inset = opts.corner or 11, opts.inset or 0
-    local face = Style.SkinMask(parent, fill, "face", "BACKGROUND", 1, corner, inset)
-    local shine = Style.SkinMask(parent, opts.light or C.headerText,
-        "shine", "BACKGROUND", 2, corner, inset)
-    local shade = Style.SkinMask(parent, opts.dark or C.window,
-        "shade", "BACKGROUND", 3, corner, inset)
-    local rim = Style.SkinMask(parent, opts.edge or C.goldDim,
-        "rim", "BORDER", 0, corner, inset)
     local strengths = {
         1, opts.shine == nil and 0.40 or opts.shine,
         opts.shade == nil and 0.28 or opts.shade,
         opts.rim == nil and 0.8 or opts.rim,
     }
+    if opts.smooth then strengths[2], strengths[3] = 0, 0 end
+    local function Layer(index,color,mask,layer,sublevel)
+        if strengths[index]<=0 then
+            -- A permanently invisible nine-slice never needs native regions.
+            -- Keep the group contract/order for existing callers and motion.
+            return {regions={},alpha=0,SetAlpha=function()end,GetAlpha=function()return 0 end}
+        end
+        return Style.SkinMask(parent,color,mask,layer,sublevel,corner,inset)
+    end
+    local face = Layer(1,fill,"face","BACKGROUND",1)
+    local shine = Layer(2,opts.light or C.headerText,"shine","BACKGROUND",2)
+    local shade = Layer(3,opts.dark or C.window,"shade","BACKGROUND",3)
+    local rim = Layer(4,opts.edge or C.goldDim,"rim","BORDER",0)
     -- Large window canvases must not scale the 64px shine/shade masks
     -- across hundreds of pixels: their quantized rows become horizontal
     -- bands. Keep the rounded face/rim, with short edge fades and a neutral
     -- solid center. This is deliberately opt-in: small interactive controls
     -- retain their established 9-slice lighting and feedback.
     if opts.smooth then
-        strengths[2], strengths[3] = 0, 0
         local function EdgeFade(top, height, bright, alpha)
             local tex = parent:CreateTexture(nil, "BACKGROUND", nil, 4)
             tex:SetTexture("Interface\\Buttons\\WHITE8X8")

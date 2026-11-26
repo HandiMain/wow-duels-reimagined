@@ -187,9 +187,13 @@ ns.Style.FeedbackOverlay=function()return Frame(main)end
 ns.Motion.Duration=function()return .1 end
 assert(loadfile(base.."UI/AchievementUI.lua"))("DuelsReimagined",ns)
 local Ach=ns.AchievementUI
-local frameCount=#frames
+local beforeAchievements=#frames
+Ach.Show(false);Ach.Refresh();assert(Ach.GetPageScroll()==0 and #frames==beforeAchievements)
 assert(P.Command("start"))
+assert(#frames==beforeAchievements,"background progression must not construct page")
 Ach.Show(true)
+local frameCount=#frames
+assert(frameCount>beforeAchievements,"first open constructs the view")
 assert(HasText("Achievements") and HasText("The Beginning") and HasText("SOLO TEST - SIMULATED"))
 assert(not HasText("Completed"))
 assert(P.Command("win"))
@@ -222,3 +226,16 @@ Ach.Show(true);Ach.Show(false)
 assert(#frames==frameCount,"Achievement navigation must reuse frames")
 assert(_G.DuelsReimaginedCompetitiveDB==nil and _G.DuelsReimaginedCharacterDB==nil)
 print("Achievements UI mocked controllers: PASS (scope, updates, filters, scroll, reuse)")
+
+-- Patch notes unread state works without allocating the page at login.
+local patchAllocations=#frames
+local reminder
+local patchNS={Style=ns.Style,Chrome=ns.Chrome,Widgets=ns.Widgets,Motion=ns.Motion,Window=ns.Window,
+    Search={entries={}},Settings={Get=function()return true end,GetPatchNotesSeenId=function()return nil end},
+    Navigation={SetPatchUnread=function(v)reminder=v end},DiagnosticAudit={RegisterDeferredUIRoot=noop,RegisterUIRoot=noop}}
+assert(loadfile(base.."UI/PatchNotesData.lua"))("DuelsReimagined",patchNS)
+assert(loadfile(base.."UI/PatchNotes.lua"))("DuelsReimagined",patchNS)
+assert(reminder==true and #frames==patchAllocations)
+patchNS.PatchNotes.Show(nil);patchNS.PatchNotes.SetPageScroll("v0-1-2",50);patchNS.PatchNotes.RefreshReminder()
+assert(patchNS.PatchNotes.GetPageScroll("v0-1-2")==0 and #frames==patchAllocations)
+print("Deferred Patch Notes: PASS (unread reminder and hidden navigation allocate no view)")

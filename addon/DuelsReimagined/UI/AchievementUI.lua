@@ -114,10 +114,12 @@ local function Button(p,fn)
     b:HookScript("OnHide",b.ResetMotion)
     return b
 end
+local view
+if ns.DiagnosticAudit and ns.DiagnosticAudit.RegisterDeferredUIRoot then ns.DiagnosticAudit.RegisterDeferredUIRoot("Achievements") end
+local function BuildPage()
 local page=CreateFrame("Frame",nil,ns.Window.content)
 page:SetPoint("TOPLEFT",ns.Window.content,"TOPLEFT",22,-17);page:SetPoint("BOTTOMRIGHT",ns.Window.content,"BOTTOMRIGHT",-22,14)
 page:Hide()
-if ns.DiagnosticAudit then ns.DiagnosticAudit.RegisterUIRoot("Achievements",page) end
 if page.SetClipsChildren then page:SetClipsChildren(true) end
 local hero=Crop(page,"ARTWORK",1,778,154,112,80)
 local title=Label(page,"Achievements",26,C.pale)
@@ -160,7 +162,7 @@ local function Row()
     f:EnableMouseWheel(true);f:SetScript("OnMouseWheel",function(_,d)U.SetPageScroll(nil,offset-(d>0 and 1 or -1))end)
     f:Hide();return f
 end
-for i=1,18 do rows[i]=Row() end
+local MAX_VISIBLE_ROWS=18
 local bar=W.ScrollBar(list,function()return visible,total,offset end,function(v)U.SetPageScroll(nil,v)end)
 list:EnableMouseWheel(true);list:SetScript("OnMouseWheel",function(_,d)U.SetPageScroll(nil,offset-(d>0 and 1 or -1))end)
 local function Paint(f,r,w,h)
@@ -251,7 +253,8 @@ Render=function()
     local selected={}
     for _,r in ipairs(data.rows) do if category=="All" or r.category==category then selected[#selected+1]=r end end
     local rowH=math.max(70,math.min(90,math.floor((h-contentY)/5)-5))
-    visible=math.max(1,math.min(#rows,math.floor((h-contentY)/(rowH+5))))
+    visible=math.max(1,math.min(MAX_VISIBLE_ROWS,math.floor((h-contentY)/(rowH+5))))
+    for i=#rows+1,visible do rows[i]=Row() end
     total=#selected;offset=math.max(0,math.min(offset,math.max(0,total-visible)))
     for i,f in ipairs(rows) do
         local r=i<=visible and selected[offset+i]
@@ -260,10 +263,9 @@ Render=function()
     end
     empty:SetShown(total==0);bar:Refresh()
 end
-function U.GetPageScroll()return offset end
-function U.SetPageScroll(_,v)offset=math.max(0,math.floor(tonumber(v) or 0));Render()end
-function U.Refresh()
-    if ns.Notifications and ns.Notifications.CheckAchievements then ns.Notifications.CheckAchievements() end
+local function GetPageScroll()return offset end
+local function SetPageScroll(_,v)offset=math.max(0,math.floor(tonumber(v) or 0));Render()end
+local function RefreshPage()
     if not shown or not page:IsVisible() then data=nil;return end
     local ok,result=pcall(function()
         local r=ns.TournamentRegistration
@@ -280,7 +282,7 @@ function U.Refresh()
     end
     Render()
 end
-function U.Show(on)
+local function ShowPage(on)
     local wasShown=page:IsShown()
     shown=on==true;page:SetShown(shown)
     if shown and wasShown then U.Refresh() elseif not shown then data=nil end
@@ -292,3 +294,18 @@ page:HookScript("OnHide",function()
     for _,b in ipairs(tabs) do b.ResetMotion() end
     for _,b in ipairs(filters) do b.ResetMotion() end
 end)
+
+if ns.DiagnosticAudit then ns.DiagnosticAudit.RegisterUIRoot("Achievements",page) end
+return {Show=ShowPage,Refresh=RefreshPage,GetPageScroll=GetPageScroll,SetPageScroll=SetPageScroll}
+end
+-- Art and notification evaluation remain available even before the page exists.
+function U.GetPageScroll()return view and view.GetPageScroll() or 0 end
+function U.SetPageScroll(key,v)if view then view.SetPageScroll(key,v) end end
+function U.Refresh()
+    if ns.Notifications and ns.Notifications.CheckAchievements then ns.Notifications.CheckAchievements() end
+    if view then view.Refresh() end
+end
+function U.Show(on)
+    if on==true and not view then view=BuildPage() end
+    if view then view.Show(on) end
+end

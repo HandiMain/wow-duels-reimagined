@@ -18,8 +18,21 @@ local art = "Interface\\AddOns\\DuelsReimagined\\Media\\Artwork\\"
 local atlas = art .. "PatchNotesAtlas.tga"
 local heroArtPath = art .. "PatchNotesHero.png"
 
+function PatchNotes.RefreshReminder()
+    local latest = releases[1]
+    local unread = latest and Settings.Get("patchNotesReminder") and
+        Settings.GetPatchNotesSeenId() ~= latest.id or false
+    if ns.Navigation and ns.Navigation.SetPatchUnread then
+        ns.Navigation.SetPatchUnread(unread)
+    end
+    if ns.AccessIcons and ns.AccessIcons.NotifyPatchNotes then
+        ns.AccessIcons.NotifyPatchNotes(unread)
+    end
+end
+local view
+if ns.DiagnosticAudit and ns.DiagnosticAudit.RegisterDeferredUIRoot then ns.DiagnosticAudit.RegisterDeferredUIRoot("Patch Notes") end
+local function BuildPage()
 local root = CreateFrame("Frame", nil, Window.content)
-if ns.DiagnosticAudit then ns.DiagnosticAudit.RegisterUIRoot("Patch Notes",root) end
 root:SetAllPoints(Window.content)
 root:Hide()
 local heading = Style.Text(root, "Patch Notes", 24, C.pale, nil, "display")
@@ -595,28 +608,17 @@ local function Populate(release, index)
     Layout()
 end
 
-function PatchNotes.RefreshReminder()
-    local latest = releases[1]
-    local unread = latest and Settings.Get("patchNotesReminder") and
-        Settings.GetPatchNotesSeenId() ~= latest.id or false
-    if ns.Navigation and ns.Navigation.SetPatchUnread then
-        ns.Navigation.SetPatchUnread(unread)
-    end
-    if ns.AccessIcons and ns.AccessIcons.NotifyPatchNotes then
-        ns.AccessIcons.NotifyPatchNotes(unread)
-    end
-end
-function PatchNotes.GetPageScroll(pageKey)
+local function GetPageScroll(pageKey)
     if not byKey[pageKey] then return 0 end
     return scroll:GetVerticalScroll()
 end
-function PatchNotes.SetPageScroll(pageKey, offset)
+local function SetPageScroll(pageKey, offset)
     if not byKey[pageKey] or type(offset) ~= "number" then return end
     local limit = math.max(0, canvas:GetHeight() - scroll:GetHeight())
     scroll:SetVerticalScroll(math.max(0, math.min(limit, offset)))
     bar:Refresh()
 end
-function PatchNotes.Show(pageKey)
+local function ShowPage(pageKey)
     local item = byKey[pageKey]
     root:SetShown(item ~= nil)
     if not item then return end
@@ -640,4 +642,17 @@ function PatchNotes.Show(pageKey)
     Motion.Fade(canvas, 1, Motion.Duration("gentle"))
 end
 root:HookScript("OnHide", function() Motion.Stop(canvas, 1) end)
+if ns.DiagnosticAudit then ns.DiagnosticAudit.RegisterUIRoot("Patch Notes",root) end
+return {Show=ShowPage,GetPageScroll=GetPageScroll,SetPageScroll=SetPageScroll}
+end
+function PatchNotes.GetPageScroll(pageKey)
+    return view and view.GetPageScroll(pageKey) or 0
+end
+function PatchNotes.SetPageScroll(pageKey, offset)
+    if view then view.SetPageScroll(pageKey, offset) end
+end
+function PatchNotes.Show(pageKey)
+    if byKey[pageKey] and not view then view=BuildPage() end
+    if view then view.Show(pageKey) end
+end
 PatchNotes.RefreshReminder()

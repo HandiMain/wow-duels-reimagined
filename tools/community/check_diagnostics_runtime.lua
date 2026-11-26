@@ -142,12 +142,17 @@ for i=1,320 do regions[i]=Node(nil,nil,i%2==0 and "Texture" or "FontString") end
 local page=Node(regions)
 _G.DuelsReimaginedWindow=Node({}, {page})
 A.RegisterUIRoot("Fixture page",page)
+A.RegisterDeferredUIRoot("Deferred fixture")
 local step=A.BeginUIAudit()
 local done,st,report=step()
 Check(not done,"audit actually yields")
 local slices=1
 while not done do done,st,report=step();slices=slices+1;Check(slices<20,"audit terminates") end
 Check(report:find("Fixture page: 1 frames, 320 regions, 160 textures, 160 font strings",1,true),"page counts correct")
+Check(report:find("Deferred views at audit start (not visually inspected): Deferred fixture",1,true),"explicit deferred coverage")
+A.RegisterUIRoot("Deferred fixture",page)
+local _,audit=A.UIAudit()
+Check(not audit:find("Deferred views at audit start",1,true),"constructed root clears deferred status")
 _G.DuelsReimaginedWindow=oldRoot
 
 local equal,detail=A.CompareResources({frames=2,timers=1},{frames=2,timers=2})
@@ -160,3 +165,43 @@ Check(A.CompareBaseline({rows={}},nil)=="SKIP","missing baseline is not pass")
 Check(A.ReleaseGate({mode="complete",counts={PASS=1}}):find("RELEASE BLOCKED",1,true),"runtime never certifies release")
 Check(A.ReleaseGate({mode="complete",counts={FAIL=1}}):find("BLOCKED",1,true),"failed runtime gate")
 print("Diagnostics provider, native capture, baseline, resource and storage contracts: PASS")
+
+-- Full scan runner: cooperate between providers/cases without changing the
+-- existing protected check contract. Mock only final isolation collaborators.
+ns.DuelDetection={GetSnapshot=function()return {scope="LOCAL",state="idle",revision=1,trace={}} end}
+ns.Group={GetSnapshot=function()return {revision=1} end}
+ns.Motion={GetRuntimeState=function()return {active=0,driver=false} end}
+ns.DuelSelfTest={Run=function()return 1,0 end}
+local prevAudit,prevResources=A.BeginUIAudit,A.Resources
+A.BeginUIAudit=function()return function()return true,"PASS","fixture" end end
+A.Resources=function()return {},true end
+local queued={}
+C_Timer={After=function(_,fn)queued[#queued+1]=fn end}
+local steps,callbacks=0,0
+D.Register("cooperative fixture","deep",function(yield)
+    for i=1,4 do steps=steps+1;yield() end
+    return "PASS","all four cases"
+end,true)
+local function Next() local fn=table.remove(queued,1);Check(fn~=nil,"scheduled slice");fn() end
+Check(D.RunAsync("complete",function()callbacks=callbacks+1 end),"start async")
+Check(D.IsRunning() and not D.RunAsync("complete",function()end),"reject overlap")
+local limit=0
+while steps<1 do Next();limit=limit+1;Check(limit<500,"fixture reached") end
+Check(steps==1 and callbacks==0,"first case yields")
+D.CancelPending();Check(not D.IsRunning(),"cancel releases runner")
+while #queued>0 do Next() end
+Check(steps==1 and callbacks==0,"cancel prevents stale callback and remaining work")
+steps=0
+local complete
+Check(D.RunAsync("complete",function(r)complete=r;callbacks=callbacks+1 end),"restart")
+limit=0
+while #queued>0 do
+    local before=steps;Next();Check(steps-before<=1,"one cooperative case per slice")
+    limit=limit+1;Check(limit<500,"scan terminates")
+end
+Check(steps==4 and callbacks==1 and complete and not D.IsRunning(),"complete after restart")
+local found
+for _,row in ipairs(complete.rows) do if row.id=="Deep Health / cooperative fixture" then found=row end end
+Check(found and found.status=="PASS" and found.ms and complete.peakSlice,"timing and evidence preserved")
+A.BeginUIAudit,A.Resources=prevAudit,prevResources
+print("Cooperative diagnostics: PASS (one case per slice, overlap refusal, cancellation, restart, report and timing)")
