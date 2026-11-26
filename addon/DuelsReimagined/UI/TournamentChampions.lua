@@ -5,6 +5,8 @@ local S,C=ns.Style,ns.Style.color
 local chrome=ns.TournamentBrowse.Chrome
 local ROOT="Interface\\AddOns\\DuelsReimagined\\Media\\"
 local ART=ROOT.."Skin\\TournamentOverviewArt.png"
+local MONUMENT=ROOT.."Skin\\ChampionsMonument.png"
+local LEGACY=ROOT.."Skin\\ChampionsLegacy.png"
 local GOLD={1,.79,.32,1}
 local SILVER={.78,.81,.86,1}
 local BRONZE={.85,.55,.30,1}
@@ -58,47 +60,61 @@ function A.Project(rows)
     end
     return m
 end
-local function Scene(p)
-    local t=p:CreateTexture(nil,"BACKGROUND",nil,1)
-    t:SetTexture(ROOT.."Arenas\\WarGamesArenaFallback.png");t:SetTexCoord(.25,.5,.25,.5)
-    t:SetVertexColor(.65,.48,.29,.52);ns.Chrome.Sharp(t)
-    local shade=p:CreateTexture(nil,"BACKGROUND",nil,2);shade:SetColorTexture(1,1,1,1)
-    if shade.SetGradient and CreateColor then
-        shade:SetGradient("VERTICAL",CreateColor(.035,.025,.015,.94),CreateColor(.035,.025,.015,.20))
-    else shade:SetColorTexture(.035,.025,.015,.55) end
-    return t,shade
+-- Artwork extracted directly from the two approved concept images.
+-- Text remains native; the scene never contains player names or results.
+local function ConceptArt(p,path,u1,u2,v1,v2,layer)
+    local t=p:CreateTexture(nil,layer or "BACKGROUND",nil,1)
+    t:SetTexture(path);t:SetTexCoord(u1,u2,v1,v2);ns.Chrome.Sharp(t);return t
 end
-local function SceneAt(t,shade,p,w,h)
-    At(t,p,4,4,w-8,h-8);At(shade,p,4,4,w-8,h-8)
-    local ratio=math.max(1,w-8)/math.max(1,h-8)
-    local cw,ch=.25,.25
-    if ratio>2 then ch=ch*2/ratio else cw=cw*ratio/2 end
-    t:SetTexCoord(.375-cw/2,.375+cw/2,.375-ch/2,.375+ch/2)
+local function GoldRule(p)
+    local t=p:CreateTexture(nil,"BORDER")
+    t:SetColorTexture(1,1,1,1)
+    if t.SetGradient and CreateColor then
+        t:SetGradient("HORIZONTAL",CreateColor(.45,.25,.08,0),CreateColor(1,.74,.27,.95))
+    else t:SetColorTexture(.83,.52,.15,.72) end
+    return t
+end
+local function RulePair(p)
+    local a=GoldRule(p);local b=GoldRule(p)
+    if b.SetGradient and CreateColor then
+        b:SetGradient("HORIZONTAL",CreateColor(1,.74,.27,.95),CreateColor(.45,.25,.08,0))
+    end
+    local jewel=Text(p,18,GOLD,"CENTER");jewel:SetText("◆")
+    return {a=a,b=b,jewel=jewel}
+end
+local function RuleAt(r,p,x,y,w)
+    local half=math.max(1,w/2-11)
+    At(r.a,p,x,y,half,2);At(r.b,p,x+w/2+11,y,half,2)
+    At(r.jewel,p,x+w/2-11,y-10,22,22)
 end
 function A.New(parent)
     local root=CreateFrame("Frame",nil,parent);root:Hide()
     local shell=Panel(root)
     local heading=Text(shell,25,GOLD);local mark=Art(shell,160,112,154,128)
     local scopeText=Text(shell,14,C.muted,"RIGHT")
-    local rule=Line(shell,{.78,.49,.15,.72})
-    local empty=Panel(shell,"organizerHero")
-    local scene,shade=Scene(empty)
-    local leftFlag=Art(empty,656,112,82,110);local rightFlag=Art(empty,656,112,82,110)
-    local pedestal=Panel(empty,"organizerHero")
-    local rim=pedestal:CreateTexture(nil,"BACKGROUND",nil,1)
-    rim:SetTexture(ROOT.."Skin\\TournamentBracketArt.tga");rim:SetTexCoord(0,.5,0,1);rim:SetAllPoints()
-    local trophy=Art(pedestal,160,112,154,128);trophy:SetBlendMode("ADD")
-    local foot=Panel(empty,"browseCard")
+    local rule=RulePair(shell)
+    local empty=CreateFrame("Frame",nil,shell)
+    local scene=ConceptArt(empty,MONUMENT,0,1,0,367/512)
+    local floor=empty:CreateTexture(nil,"BACKGROUND",nil,0);floor:SetAllPoints();floor:SetColorTexture(.071,.059,.047,1)
+    local fade=empty:CreateTexture(nil,"ARTWORK");fade:SetColorTexture(1,1,1,1)
+    if fade.SetGradient and CreateColor then fade:SetGradient("VERTICAL",CreateColor(.071,.059,.047,1),CreateColor(.071,.059,.047,0)) else fade:Hide() end
+    local emptyRule=RulePair(empty)
     local emptyTitle=Text(empty,24,GOLD,"CENTER")
     local emptyNote=Text(empty,17,C.text,"CENTER")
     local hero=Panel(shell,"organizerHero")
-    local hscene,hshade=Scene(hero)
-    local heroTrophy=Art(hero,160,112,154,128);heroTrophy:SetBlendMode("ADD")
+    local heroScene=ConceptArt(hero,LEGACY,0,384/512,0,146/256)
+    local heroFade=hero:CreateTexture(nil,"ARTWORK");heroFade:SetColorTexture(1,1,1,1)
+    if heroFade.SetGradient and CreateColor then heroFade:SetGradient("HORIZONTAL",CreateColor(.075,.055,.035,0),CreateColor(.075,.055,.035,1)) else heroFade:Hide() end
+    local heroRule=RulePair(hero)
+    local heroLaurel=ConceptArt(hero,LEGACY,348/512,384/512,40/256,132/256,"ARTWORK")
+    heroLaurel:SetTexCoord(384/512,348/512,40/256,132/256)
     local heroCaption=Text(hero,16,GOLD,"CENTER");local heroName=Text(hero,25,C.pale,"CENTER")
     local heroDetail=Text(hero,17,GOLD,"CENTER")
     local timelineTitle=Text(shell,22,GOLD)
     local legacy=Panel(shell,"organizerHero")
-    local flag=Art(legacy,656,112,82,110)
+    local flag=ConceptArt(legacy,LEGACY,0,192/512,150/256,1,"ARTWORK")
+    local legacyRule=RulePair(legacy)
+    local legacyFoot=Text(legacy,16,C.muted,"CENTER")
     local legacyTitle=Text(legacy,23,GOLD,"CENTER")
     local legacyHint=Text(legacy,15,C.muted,"CENTER")
     local stats={}
@@ -112,6 +128,7 @@ function A.New(parent)
         if cards[i] then return cards[i] end
         local f=Panel(shell,"browseCard")
         f.marker=Text(shell,22,GOLD,"CENTER")
+        f.sep1=Line(f,{.63,.42,.20,.38});f.sep2=Line(f,{.63,.42,.20,.38})
         f.flag=Art(f,656,112,82,110)
         f.name=Text(f,20,C.pale);f.date=Text(f,14,C.muted)
         f.placeLabel=Text(f,13,C.muted,"CENTER");f.place=Text(f,18,GOLD,"CENTER")
@@ -123,7 +140,7 @@ function A.New(parent)
         cards[i]=f;return f
     end
     local function PaintRow(row,r,x,y,w,compact)
-        local h=compact and 112 or 84
+        local h=compact and 132 or 84
         At(row,shell,x,y,w,h);At(row.marker,shell,x-27,y,24,h);row.marker:SetText("◆");row.marker:Show();row:Show()
         At(row.flag,row,8,8,48,64)
         local placement,color=Placement(r)
@@ -136,7 +153,8 @@ function A.New(parent)
             Put(row.place,row,left,21,w-left-8,28,placement,color)
             Put(row.champLabel,row,left+4,53,w-left-10,18,"Champion")
             Put(row.champ,row,left+4,70,w-left-12,34,r.champion)
-            row.result:Hide()
+            At(row.result,row,w-130,101,120,25);row.result:Show()
+            row.sep1:Hide();row.sep2:Hide()
         else
             local titleW=math.floor(w*.34);local placeW=math.floor(w*.18);local champX=titleW+placeW
             Put(row.name,row,65,5,titleW-72,34,r.title)
@@ -147,6 +165,8 @@ function A.New(parent)
             Put(row.champLabel,row,champX+5,9,w-champX-135,22,"Champion")
             Put(row.champ,row,champX+5,31,w-champX-135,40,r.champion)
             At(row.result,row,w-122,24,112,35);row.result:Show()
+            At(row.sep1,row,titleW-4,12,1,h-24);row.sep1:Show()
+            At(row.sep2,row,champX-2,12,1,h-24);row.sep2:Show()
         end
         return h
     end
@@ -158,50 +178,55 @@ function A.New(parent)
         local gap=12;local sidebar=wide and 264 or base-24
         local leftW=wide and base-sidebar-gap-24 or base-24
         local compact=leftW<820
-        local rowH=compact and 112 or 84
-        local listY=246
-        local contentH=count==0 and math.max(430,math.min(650,viewportH/scale-8)) or math.max(listY+count*(rowH+10)+16,wide and 550 or 0)
+        local rowH=compact and 132 or 84
+        local listY=274
+        local artH=math.floor((base-24)*367/1024+.5)
+        local contentH=count==0 and math.max(56+artH+130,viewportH/scale-8) or math.max(listY+count*(rowH+10)+16,wide and 620 or 0)
         local legacyY=wide and 58 or contentH+10
-        local total=count==0 and contentH or wide and contentH or contentH+338
+        local total=count==0 and contentH or wide and contentH or contentH+388
         root:SetScale(scale);At(root,parent,0,0,base,total);At(shell,root,0,0,base,total);root:Show()
         At(mark,shell,12,9,35,31)
         Put(heading,shell,53,5,base-240,42,"Hall of Champions")
         Put(scopeText,shell,base-187,5,175,42,scope=="SIMULATED" and "LOCAL TEST" or scope=="PRIVATE_TEST" and "PRIVATE NETWORK TEST" or "Personal Archive")
-        At(rule,shell,12,48,base-24,2)
+        RuleAt(rule,shell,12,48,base-24)
         empty:SetShown(count==0);hero:SetShown(count>0);legacy:SetShown(count>0);timelineTitle:SetShown(count>0);rail:SetShown(count>0)
         if count==0 then
             local ew,eh=base-24,contentH-64
-            At(empty,shell,12,56,ew,eh);SceneAt(scene,shade,empty,ew,eh)
-            At(leftFlag,empty,math.max(15,ew*.10),18,64,100)
-            At(rightFlag,empty,ew-math.max(15,ew*.10)-64,18,64,100)
-            local pw,ph=math.min(340,ew*.50),math.min(260,eh-125)
-            At(pedestal,empty,(ew-pw)/2,12,pw,ph)
-            local tw=math.min(180,ph*.66)
-            At(trophy,pedestal,(pw-tw)/2,ph*.12,tw,tw*128/154);trophy:SetVertexColor(.68,.57,.41,.85)
-            At(foot,empty,(ew-pw-46)/2,ph-7,pw+46,39)
-            Put(emptyTitle,empty,12,eh-98,ew-24,42,reason and "Tournament history unavailable" or "NO COMPLETED TOURNAMENTS RECORDED")
-            Put(emptyNote,empty,20,eh-54,ew-40,42,reason and "Your saved archive could not be read." or "Completed tournaments will appear here once they finish.")
+            At(empty,shell,12,56,ew,eh)
+            At(scene,empty,0,0,ew,artH)
+            At(fade,empty,0,artH-18,ew,22)
+            Put(emptyTitle,empty,12,artH+8,ew-24,42,reason and "Tournament history unavailable" or "NO COMPLETED TOURNAMENTS RECORDED")
+            RuleAt(emptyRule,empty,ew*.24,artH+56,ew*.52)
+            Put(emptyNote,empty,20,artH+65,ew-40,38,reason and "Your saved archive could not be read." or "Completed tournaments will appear here once they finish.")
         else
-            At(hero,shell,12,58,leftW,150);SceneAt(hscene,hshade,hero,leftW,150)
-            At(heroTrophy,hero,24,12,141,117)
-            Put(heroCaption,hero,180,12,leftW-194,27,m.best and "YOUR BEST RESULT" or "YOUR TOURNAMENT LEGACY")
-            Put(heroName,hero,180,43,leftW-194,49,m.best and m.best.title or "Organizer")
+            At(hero,shell,12,58,leftW,178)
+            local artW=math.min(leftW*.46,448);local artHeight=artW*146/384
+            At(heroScene,hero,4,(178-artHeight)/2,artW,artHeight)
+            At(heroFade,hero,artW-22,5,28,168)
+            local tx=artW+10;local tw=leftW-tx-12
+            Put(heroCaption,hero,tx,15,tw,29,m.best and "YOUR BEST RESULT" or "YOUR TOURNAMENT LEGACY")
+            RuleAt(heroRule,hero,tx+tw*.08,47,tw*.84)
+            local laurelW=tw>=330 and 32 or 0
+            heroLaurel:SetShown(laurelW>0);At(heroLaurel,hero,leftW-42,59,32,80)
+            Put(heroName,hero,tx,55,tw-laurelW,55,m.best and m.best.title or "Organizer")
             local bestLabel=m.best and Placement(m.best) or "Hosted tournaments"
-            Put(heroDetail,hero,180,94,leftW-194,42,m.best and (bestLabel.." · "..Date(m.best.finishedAt)) or bestLabel)
-            Put(timelineTitle,shell,14,213,leftW,30,"Your Legacy Timeline")
+            Put(heroDetail,hero,tx,111,tw-laurelW,48,m.best and (bestLabel.." · "..Date(m.best.finishedAt)) or bestLabel)
+            Put(timelineTitle,shell,14,239,leftW,30,"Your Legacy Timeline")
             At(rail,shell,24,listY+8,2,math.max(1,count*(rowH+10)-20))
             for i,r in ipairs(m.rows) do PaintRow(Card(i),r,42,listY+(i-1)*(rowH+10),leftW-30,compact) end
             local lx=wide and 12+leftW+gap or 12
-            local lh=wide and math.max(480,contentH-70) or 318
+            local lh=wide and math.max(550,contentH-70) or 368
             At(legacy,shell,lx,legacyY,sidebar,lh)
-            At(flag,legacy,(sidebar-72)/2,9,72,92)
-            Put(legacyTitle,legacy,8,105,sidebar-16,33,"Your Legacy")
-            Put(legacyHint,legacy,8,138,sidebar-16,28,"Personal Tournament Archive")
-            local bestValue=m.best and Placement(m.best) or "—"
+            local fw=math.min(sidebar-16,220)
+            At(flag,legacy,(sidebar-fw)/2,6,fw,fw*106/192)
+            Put(legacyTitle,legacy,8,130,sidebar-16,34,"Your Legacy")
+            Put(legacyHint,legacy,8,164,sidebar-16,26,"Personal Tournament Archive")
+            RuleAt(legacyRule,legacy,16,195,sidebar-32)
+            local bestValue=m.best and (m.best.placement==1 and "1st" or m.best.placement==2 and "2nd" or "Top "..m.best.placement) or "—"
             local values={m.played,m.won,m.hosted,bestValue}
             if wide then
                 for i,v in ipairs(stats) do
-                    local y=174+(i-1)*60
+                    local y=205+(i-1)*60
                     At(v.icon,legacy,13,y+12,26,25)
                     Put(v.label,legacy,46,y,sidebar-130,50,v.key)
                     Put(v.value,legacy,sidebar-101,y,91,50,tostring(values[i]))
@@ -210,13 +235,15 @@ function A.New(parent)
             else
                 local cw=(sidebar-24)/2
                 for i,v in ipairs(stats) do
-                    local x=12+((i-1)%2)*cw;local y=174+math.floor((i-1)/2)*60
+                    local x=12+((i-1)%2)*cw;local y=205+math.floor((i-1)/2)*60
                     At(v.icon,legacy,x+4,y+12,26,25)
                     Put(v.label,legacy,x+35,y,cw-133,50,v.key)
                     Put(v.value,legacy,x+cw-96,y,89,50,tostring(values[i]))
                     At(v.rule,legacy,x+4,y+55,cw-8,1)
                 end
             end
+            legacyFoot:SetShown(wide)
+            if wide then Put(legacyFoot,legacy,18,457,sidebar-36,76,"A record of your tournament journey, victories, and greatest results.") end
         end
         for i=count+1,#cards do cards[i]:Hide();cards[i].marker:Hide() end
         return total*scale
