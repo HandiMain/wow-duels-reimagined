@@ -2844,7 +2844,25 @@ function R.ProjectPersonalResult(ad,bracket,names,actor,host,finishedAt,scope)
     local final=bracket.rounds[#bracket.rounds] and bracket.rounds[#bracket.rounds][1]
     local score=final and final.wins and final.wins[1] and final.wins[2] and
         tostring(final.wins[final.a==bracket.champion and 1 or 2]).." - "..tostring(final.wins[final.a==bracket.champion and 2 or 1]) or nil
-    return {id=ad.id,title=ad.draft.name,champion=type(names)=="table" and names[bracket.champion] or "Unknown player",
+    local runner=final and (final.a==bracket.champion and final.b or final.a)
+    local matches={}
+    if played then
+        for r,round in ipairs(bracket.rounds) do
+            for _,m in ipairs(round) do
+                if m.state=="done" and not m.bye and (m.a==actor or m.b==actor) then
+                    local first=m.a==actor
+                    local opponent=first and m.b or m.a
+                    local distance=#bracket.rounds-r
+                    local label=distance==0 and "Final" or distance==1 and "Semifinal" or distance==2 and "Quarterfinal" or "Round of "..2^(distance+1)
+                    matches[#matches+1]={id=m.id,round=label,opponent=names and names[opponent] or "Unknown player",
+                        score=m.wins and tostring(m.wins[first and 1 or 2]).." - "..tostring(m.wins[first and 2 or 1]) or nil,
+                        won=m.winner==actor,forfeit=m.forfeit~=nil and m.forfeit~=false}
+                end
+            end
+        end
+    end
+    return {id=ad.id,title=ad.draft.name,runner=runner and names and names[runner] or nil,
+        finalForfeit=final and not not final.forfeit, matches=matches,champion=type(names)=="table" and names[bracket.champion] or "Unknown player",
         played=played,hosted=host==true,placement=placement,wins=wins,losses=losses,count=count,
         bestOf=ad.draft.bestOf,finishedAt=Whole(finishedAt,1,4102444800) and finishedAt or nil,
         score=score,scope=scope}
@@ -2856,6 +2874,7 @@ function R.ReadPersonalArchive(previewSnapshot)
         if p.scope~="SIMULATED" or p.role=="spectator" or not p.bracket then return {},"SIMULATED" end
         local actor=p.role=="host" and p.event.owner or p.member and p.member.guid
         local row=R.ProjectPersonalResult(p.event,p.bracket,p.names,actor,p.role=="host",p.finishedAt,"SIMULATED")
+        if row then row.board={event=p.event,bracket=p.bracket,names=p.names,players=p.players,scope=p.scope,member=p.member} end
         return row and {row} or {},"SIMULATED"
     end
     local store=ns.CompetitiveStorage
@@ -2874,7 +2893,10 @@ function R.ReadPersonalArchive(previewSnapshot)
                 if engine then
                     local names={};for _,m in ipairs(cp.roster) do names[m.guid]=m.name end
                     local row=R.ProjectPersonalResult(ad,engine.Snapshot(),names,actor,true,record.finishedAt,"PRIVATE_TEST")
-                    if row then rows[#rows+1]=row end
+                    if row then
+                        row.board={event=ad,bracket=engine.Snapshot(),names=names,scope="PRIVATE_TEST"}
+                        rows[#rows+1]=row
+                    end
                 end
             end
         end
@@ -2894,7 +2916,10 @@ function R.RunPersonalArchiveSelfTest()
             {{a="a",b="c",state="done",winner="a",wins={2,1}}}}}
     local names={a="Alpha",b="Beta",c="Gamma",d="Delta"}
     local function Row(actor,host) return R.ProjectPersonalResult(ad,b,names,actor,host,100,"SIMULATED") end
-    assert(Row("a").placement==1 and Row("a").wins==2 and Row("a").score=="2 - 1")
+    local champion=Row("a");assert(champion.placement==1 and champion.wins==2 and champion.score=="2 - 1")
+    assert(champion.runner=="Gamma" and #champion.matches==2 and champion.matches[2].round=="Final" and champion.matches[2].won)
+    assert(Row("c").matches[2].score=="1 - 2" and not Row("c").matches[2].won)
+    assert(#Row("host",true).matches==0)
     assert(Row("c").placement==2 and Row("b").placement==4 and Row("d").placement==4)
     assert(not Row("outsider") and Row("host",true).hosted and not Row("host",true).played)
     b.state="running";assert(not Row("a"))

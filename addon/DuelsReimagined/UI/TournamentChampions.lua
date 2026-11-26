@@ -93,7 +93,7 @@ local function RuleAt(r,p,x,y,w,soft)
     At(r.jewel,p,x+w/2-8,y-7,16,16)
     r.a:SetAlpha(soft and .48 or 1);r.b:SetAlpha(soft and .48 or 1);r.jewel:SetAlpha(soft and .80 or 1)
 end
-function A.New(parent)
+function A.New(parent,onResults)
     local root=CreateFrame("Frame",nil,parent);root:Hide()
     local shell=Panel(root)
     local heading=Text(shell,25,GOLD);local mark=Art(shell,160,112,154,128)
@@ -148,12 +148,14 @@ function A.New(parent)
         f.champLabel=Text(f,13,C.muted);f.champ=Text(f,17,C.text)
         f.details=Text(f,13,C.muted)
         f.result=chrome.Action(f,false,17)
-        f.result.label:SetText("View Results");f.result:SetEnabled(false);f.result:SetAlpha(.58)
-        if ns.Tooltips then ns.Tooltips.Bind(f.result,{title="View Results",disabled="Detailed results are not available in this build."}) end
+        f.result.label:SetText("View Results")
+        f.result:SetScript("OnClick",function() if f.entry and onResults then onResults(f.entry.id,f.entry.scope) end end)
+        if ns.Tooltips then ns.Tooltips.Bind(f.result,{title="View Results",detail="Inspect this completed tournament and its bracket."}) end
         cards[i]=f;return f
     end
     local function PaintRow(row,r,x,y,w,compact)
         local h=compact and 132 or 84
+        row.entry=r;row.result:SetEnabled(r.board~=nil);row.result:SetAlpha(r.board and 1 or .58)
         At(row,shell,x,y,w,h);At(row.marker,shell,x-24,y+(h-16)/2,16,16);row.marker:Show();row:Show()
         At(row.logo,row,7,compact and 16 or 21,51,51*82/96)
         local placement,color=Placement(r)
@@ -184,7 +186,7 @@ function A.New(parent)
         return h
     end
     local D={}
-    function D.Hide() root:Hide() end
+    function D.Hide() root:Hide();for _,card in ipairs(cards) do card.entry=nil end end
     function D.Show(rows,scope,reason,width,viewportH)
         local base,wide,scale=chrome.LayoutWidth(width,1140)
         local m=A.Project(rows);local count=#m.rows
@@ -262,11 +264,106 @@ function A.New(parent)
             legacyFoot:SetShown(wide)
             if wide then Put(legacyFoot,legacy,18,457,sidebar-36,76,"A record of your tournament journey, victories, and greatest results.") end
         end
-        for i=count+1,#cards do cards[i]:Hide();cards[i].marker:Hide() end
+        for i=count+1,#cards do cards[i].entry=nil;cards[i]:Hide();cards[i].marker:Hide() end
         return total*scale
     end
     return D
 end
+-- Archived results reuse the approved archive artwork and the existing read-only
+-- bracket renderer. This view has no simulation, assignment or network actions.
+function A.NewResults(parent)
+    local root=CreateFrame("Frame",nil,parent);root:Hide()
+    local shell=Panel(root)
+    local title=Text(shell,21,GOLD)
+    local emblem=chrome.Art(shell,"logo")
+    local stamp=Text(shell,12,C.muted,"RIGHT")
+    local hero=Panel(shell,"organizerHero")
+    local art=ConceptArt(hero,LEGACY,0,384/512,0,146/256)
+    local cap=Text(hero,13,GOLD,"CENTER")
+    local winner=Text(hero,24,GOLD,"CENTER")
+    local versus=Text(hero,15,C.text,"CENTER")
+    local meta=Text(hero,13,C.muted,"CENTER")
+    local personal=Panel(shell)
+    local personalTitle=Text(personal,18,GOLD)
+    local summary=Text(personal,16,C.pale)
+    local matchRows={}
+    local boardParent=Panel(shell)
+    local boardTitle=Text(boardParent,18,GOLD)
+    local missing=Text(boardParent,15,C.muted,"CENTER")
+    local board
+    local function Match(i)
+        if matchRows[i] then return matchRows[i] end
+        local f=Panel(personal,"browseCard")
+        f.round=Text(f,13,C.muted)
+        f.name=Text(f,16,C.text)
+        f.score=Text(f,16,C.pale,"CENTER")
+        f.result=Text(f,14,C.pale,"RIGHT")
+        matchRows[i]=f;return f
+    end
+    local D={}
+    function D.Hide()
+        if not root:IsShown() then return end
+        if board then board.Hide() end
+        root:Hide()
+    end
+    function D.Show(r,w,viewportH)
+        local inside=math.max(1,w-24)
+        local wide=inside>=650
+        local headerH=wide and 150 or 184
+        local matches=r.matches or {}
+        local ph=76+#matches*(wide and 42 or 58)
+        local by=52+headerH+12+ph+12
+        local bh=math.max(460,viewportH-30)
+        local total=by+bh+12
+        At(root,parent,0,0,w,total);At(shell,root,0,0,w,total);root:Show()
+        At(emblem,shell,12,6,38,33)
+        Put(title,shell,58,5,w-230,39,"Completed Tournament")
+        Put(stamp,shell,w-166,5,154,39,r.scope=="SIMULATED" and "LOCAL TEST" or "PRIVATE NETWORK TEST")
+        At(hero,shell,12,52,inside,headerH)
+        local aw=math.min(inside*.38,340)
+        At(art,hero,4,(headerH-aw*146/384)/2,aw,aw*146/384)
+        local x=aw+10;local tw=inside-x-10
+        Put(cap,hero,x,10,tw,24,r.title)
+        Put(winner,hero,x,36,tw,41,r.champion or "Unknown player")
+        local finalText=r.runner and ("Final: "..r.champion.." vs "..r.runner) or "Final opponent unavailable"
+        if r.score then finalText=finalText.."  ·  "..r.score end
+        if r.finalForfeit then finalText=finalText.."  ·  Forfeit" end
+        Put(versus,hero,x,79,tw,wide and 30 or 52,finalText)
+        Put(meta,hero,x,headerH-39,tw,33,Date(r.finishedAt).."  ·  "..tostring(r.count).." players  ·  Best of "..tostring(r.bestOf or "—"))
+        At(personal,shell,12,52+headerH+12,inside,ph)
+        Put(personalTitle,personal,12,5,inside-24,29,"Your Performance")
+        local placement=Placement(r)
+        local stat=r.played and (placement.."  ·  "..tostring(r.wins or 0).." matches won  ·  "..tostring(r.losses or 0).." lost") or "Organizer — no personal placement"
+        Put(summary,personal,12,34,inside-24,34,stat)
+        for i,m in ipairs(matches) do
+            local f=Match(i);local h=wide and 36 or 52
+            At(f,personal,10,70+(i-1)*(h+6),inside-20,h);f:Show()
+            local rw=inside-20
+            if wide then
+                Put(f.round,f,10,0,rw*.22,h,m.round)
+                Put(f.name,f,rw*.23,0,rw*.39,h,m.opponent)
+                Put(f.score,f,rw*.63,0,rw*.14,h,m.score or "—")
+                Put(f.result,f,rw*.78,0,rw*.21-6,h,m.forfeit and "Forfeit" or m.won and "Won" or "Lost",m.won and {.54,.90,.40,1} or C.muted)
+            else
+                Put(f.round,f,8,2,rw*.46,20,m.round)
+                Put(f.name,f,8,23,rw*.60-8,25,m.opponent)
+                Put(f.score,f,rw*.64,2,rw*.34,20,m.score or "—")
+                Put(f.result,f,rw*.64,23,rw*.34,25,m.forfeit and "Forfeit" or m.won and "Won" or "Lost",m.won and {.54,.90,.40,1} or C.muted)
+            end
+        end
+        for i=#matches+1,#matchRows do matchRows[i]:Hide() end
+        At(boardParent,shell,12,by,inside,bh)
+        Put(boardTitle,boardParent,12,5,inside-24,32,"Completed Bracket")
+        if not board then board=ns.BracketView.New(boardParent) end
+        local ok=r.board and board.Show(r.board,inside,bh-4)
+        if not ok then board.Hide() end
+        missing:SetShown(not ok)
+        if not ok then Put(missing,boardParent,10,50,inside-20,100,"Completed bracket unavailable.") end
+        return total
+    end
+    return D
+end
+
 function A.RunSelfTest()
     local a={id="1",played=true,placement=4};local b={id="2",played=true,placement=1}
     local c={id="3",hosted=true};local d={id="4",played=true,hosted=true,placement=2}

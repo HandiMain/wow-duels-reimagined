@@ -695,6 +695,7 @@ FitTabs(Window.rail,Window.rail:GetWidth())
 ns.Navigation = {
     Back = function()
         local _,page=PageId(currentSection,currentPage)
+        if page and page.tournament and page.key=="champions" and ns.TournamentUI and ns.TournamentUI.BackFromResult() then return true end
         if #history==0 and page and page.tournament and page.key~="overview" then Select(currentSection,1,false,false,true);return true end
         if #history==0 and page and (page.achievements or (page.competitive and page.key~="overview")) then Select(1,1,false,false,true);return true end
         if #history == 0 then return false end

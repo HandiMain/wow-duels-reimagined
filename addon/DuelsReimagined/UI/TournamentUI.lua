@@ -121,7 +121,7 @@ local function LayoutHost(w)
     return hostView.Show(w,Population.GetCurrent(),displayedKey)
 end
 local championPage=Page("champions")
-local championView
+local championView,completedView,selectedResult,selectedScope,archiveOffset
 local mine=Page("my-tournament")
 local myView
 local brackets=Page("brackets")
@@ -361,11 +361,31 @@ local function Layout()
     if active~="manage" and organizerView then organizerView.Hide() end
     if active~="my-tournament" and myView then myView.Hide() end
     if active~="champions" and championView then championView.Hide() end
+    if active~="champions" and completedView then completedView.Hide() end
     if active=="champions" then
-        if not championView then championView=ns.TournamentChampions.New(championPage) end
+        if not championView then
+            championView=ns.TournamentChampions.New(championPage,function(id,scope)
+                if active~="champions" then return end
+                archiveOffset=scroll:GetVerticalScroll()
+                selectedResult,selectedScope=id,scope
+                SetOffset(0);U.RefreshActive()
+            end)
+        end
         local rows,scope,reason=R.ReadPersonalArchive(p)
         if listings and not p then rows,scope,reason={},"SIMULATED",nil end
-        height=championView.Show(rows,scope,reason,w,scroll:GetHeight())
+        local selected
+        if selectedResult and selectedScope==scope then
+            for _,r in ipairs(rows) do if r.id==selectedResult and r.board then selected=r;break end end
+        end
+        if selected then
+            championView.Hide()
+            if not completedView then completedView=ns.TournamentChampions.NewResults(championPage) end
+            height=completedView.Show(selected,w,scroll:GetHeight())
+        else
+            selectedResult,selectedScope=nil,nil
+            if completedView then completedView.Hide() end
+            height=championView.Show(rows,scope,reason,w,scroll:GetHeight())
+        end
     elseif active=="overview" then
         height=LayoutOverview(w,p,listings,private)
     elseif active=="brackets" and privateProjection then
@@ -475,7 +495,15 @@ local function Layout()
     SetOffset(scroll:GetVerticalScroll())
     bar:Refresh()
 end
+function U.BackFromResult()
+    if active~="champions" or not selectedResult then return false end
+    selectedResult,selectedScope=nil,nil
+    local offset=archiveOffset or 0;archiveOffset=nil
+    Layout();SetOffset(offset);bar:Refresh();return true
+end
 function U.Show(key)
+    selectedResult,selectedScope,archiveOffset=nil,nil,nil
+    if completedView then completedView.Hide() end
     if (active=="host" or active=="browse" or active=="manage") and key~=active then W.CloseChoices() end
     if not key then
         if bracketView then bracketView.Hide() end
