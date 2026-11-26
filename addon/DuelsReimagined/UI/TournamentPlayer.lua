@@ -103,6 +103,17 @@ end
 local function Rich(p,kind,corner)
     local f=CreateFrame("Frame",nil,p)
     f.plate=S.Plate(f,kind or "organizerPanel",{corner=corner or 12,layer="BACKGROUND",sublevel=0})
+    -- Static inset relief; the atlas owns the outer frame.
+    if kind=="organizerHero" or not kind or kind=="organizerPanel" then
+        local light=f:CreateTexture(nil,"BACKGROUND",nil,2)
+        light:SetPoint("TOPLEFT",f,"TOPLEFT",9,-7);light:SetPoint("TOPRIGHT",f,"TOPRIGHT",-9,-7);light:SetHeight(48)
+        light:SetColorTexture(1,1,1,1)
+        if light.SetGradient and CreateColor then
+            light:SetGradient("VERTICAL",CreateColor(1,.53,.12,0),CreateColor(1,.65,.22,.19))
+        else light:Hide() end
+        local edge=S.Fill(f,{1,.72,.30,1},"BORDER");edge:ClearAllPoints()
+        edge:SetPoint("TOPLEFT",f,"TOPLEFT",13,-3);edge:SetPoint("TOPRIGHT",f,"TOPRIGHT",-13,-3);edge:SetHeight(1);edge:SetAlpha(.65)
+    end
     return f
 end
 local function Art(p,kind)
@@ -194,24 +205,24 @@ function P.New(parent,callbacks)
     function D.Hide() Stop();f:Hide();current=nil end
     local function PaintHero(p,m,scope,base,wide,top,heroH,stageY,isMatch)
         chrome.PaintCommunity(community,scope or {},base,wide)
-        At(hero,f,0,top,base,heroH);At(logo,hero,18,13,130,112)
+        At(hero,f,0,top,base,heroH);At(logo,hero,20,18,140,130)
         scene:SetShown(m.location=="Dun Morogh" and scope and scope.faction=="Alliance")
         elwynn:SetShown(m.location=="Elwynn Forest" and scope and scope.faction=="Alliance")
         At(scene,hero,base*.48,5,base*.51-5,heroH-10);At(elwynn,hero,base*.63,5,base*.36-5,heroH-10)
-        local titleW=isMatch and base-420 or base-175
-        Text(name,hero,165,7,titleW,49,m.name,C.pale,20)
-        At(pin,hero,165,62,20,23);Text(location,hero,192,50,titleW-27,40,m.location,GOLD,15)
+        local titleW=isMatch and base-440 or base-187
+        Text(name,hero,176,12,titleW-11,49,m.name,C.pale,20)
+        At(pin,hero,176,70,20,23);Text(location,hero,203,58,titleW-38,40,m.location,GOLD,15)
         badge:SetShown(not isMatch);roundBox:SetShown(isMatch)
         if not isMatch then
             badge.plate:SetStyle(m.status=="Eliminated" and "organizerStageWarning" or "organizerStageActive")
-            At(badge,hero,165,96,math.min(titleW,350),38);Text(badgeText,badge,10,1,math.min(titleW,350)-20,35,m.status,m.status=="Eliminated" and RED or GREEN,14)
+            At(badge,hero,176,112,math.min(titleW-11,350),42);Text(badgeText,badge,10,1,math.min(titleW-11,350)-20,39,m.status,m.status=="Eliminated" and RED or GREEN,14)
         else
             At(roundBox,hero,base-245,14,222,96);Text(roundText,roundBox,8,7,206,43,m.round,C.pale,18)
             Text(seriesText,roundBox,8,52,206,32,"Best of "..m.bestOf,C.text)
         end
         track:SetShown(not isMatch)
         if not isMatch then
-            At(track,f,0,stageY,base,106)
+            At(track,f,0,stageY,base,130)
             local labels={m.registrationOpen and "Open" or "Confirmed",m.checked and "Complete" or m.next=="Check in now" and "Open now" or p.now>=p.event.draft.startAt and "Closed" or "In "..m.timer,p.bracket and "Drawn" or "Pending",p.bracket and m.status or "Not started"}
             local cell=base/4
             for i,node in ipairs(nodes) do
@@ -220,11 +231,11 @@ function P.New(parent,callbacks)
                 if i==3 and not p.bracket then active=false;done=false end
                 if i==2 and not m.checked then done=false end
                 node.frame.plate:SetStyle(done and "organizerStageActive" or active and "organizerStageDone" or "organizerStageIdle")
-                At(node.frame,track,x-28,0,56,54);At(node.icon,node.frame,13,12,30,30)
-                Text(node.heading,track,x-cell/2+4,57,cell-8,24,node.title,done and GREEN or active and GOLD or C.pale,14)
-                Text(node.status,track,x-cell/2+4,81,cell-8,22,labels[i],done and GREEN or active and GOLD or C.muted,12)
+                At(node.frame,track,x-34,4,68,66);At(node.icon,node.frame,15,14,38,38)
+                Text(node.heading,track,x-cell/2+4,76,cell-8,24,node.title,done and GREEN or active and GOLD or C.pale,14)
+                Text(node.status,track,x-cell/2+4,103,cell-8,22,labels[i],done and GREEN or active and GOLD or C.muted,12)
                 if i<4 then
-                    At(links[i],track,x+28,25,cell-56,4)
+                    At(links[i],track,x+34,35,cell-68,5)
                     links[i]:SetColorTexture(unpack(done and GREEN or active and GOLD or C.goldDim))
                 end
             end
@@ -234,19 +245,19 @@ function P.New(parent,callbacks)
         timerCard:SetShown(not isMatch and not isProgress);nextCard:SetShown(not isMatch);progress:SetShown(isProgress)
         match:SetShown(isMatch);ready:SetShown(isMatch)
         if isMatch then
-            At(match,f,0,contentY,base,161)
-            At(matchTitle,match,base*.26,-10,base*.48,37);Text(matchTitleText,matchTitle,6,0,base*.48-12,37,"UPCOMING MATCH — LOCAL TEST",GOLD,15)
-            At(youPortrait,match,20,38,86,86);At(otherPortrait,match,base*.58,38,86,86)
-            Text(youName,match,119,42,base*.37-120,37,"Yourself",C.pale,18)
-            Text(youSub,match,119,80,base*.32-100,33,"Participant",C.muted,13)
-            Text(vs,match,base*.44,48,base*.12,63,"VS",GOLD,26)
-            local ox=base*.58+98
-            Text(otherName,match,ox,36,base-ox-12,38,m.opponent,C.pale,16)
-            Text(otherSub,match,ox,74,base-ox-12,27,m.opponentLevel and "Level "..m.opponentLevel.." · Local test" or "Local test player",C.muted,13)
-            At(opponentButton,match,ox,103,base-ox-15,32);opponentButton:SetEnabled(p.opponent~=nil);opponentButton:SetAlpha(p.opponent and 1 or .5)
-            At(scoreBox,match,base*.36,130,base*.28,58);Text(scoreCaption,scoreBox,5,1,base*.28-10,23,"SERIES SCORE",C.pale,13)
+            At(match,f,0,contentY,base,246)
+            At(matchTitle,match,base*.26,8,base*.48,37);Text(matchTitleText,matchTitle,6,0,base*.48-12,37,"UPCOMING MATCH — LOCAL TEST",GOLD,15)
+            At(youPortrait,match,20,58,94,94);At(otherPortrait,match,base*.58,58,94,94)
+            Text(youName,match,125,62,base*.37-126,37,"Yourself",C.pale,18)
+            Text(youSub,match,125,103,base*.32-106,33,"Participant",C.muted,13)
+            Text(vs,match,base*.44,63,base*.12,74,"VS",GOLD,26)
+            local ox=base*.58+106
+            Text(otherName,match,ox,58,base-ox-12,38,m.opponent,C.pale,16)
+            Text(otherSub,match,ox,99,base-ox-12,27,m.opponentLevel and "Level "..m.opponentLevel.." · Local test" or "Local test player",C.muted,13)
+            At(opponentButton,match,ox,133,base-ox-15,32);opponentButton:SetEnabled(p.opponent~=nil);opponentButton:SetAlpha(p.opponent and 1 or .5)
+            At(scoreBox,match,base*.36,176,base*.28,60);Text(scoreCaption,scoreBox,5,1,base*.28-10,23,"SERIES SCORE",C.pale,13)
             Text(score,scoreBox,5,24,base*.28-10,32,m.score,GOLD,20)
-            At(ready,f,base*.28,contentY+181,base*.44,35)
+            At(ready,f,base*.28,contentY+258,base*.44,35)
             ready.plate:SetStyle(m.status=="Match ready" and "organizerStageActive" or "organizerStageDone")
             Text(readyText,ready,6,0,base*.44-12,35,m.status,m.status=="Match ready" and GREEN or GOLD,15)
         elseif isProgress then
@@ -266,13 +277,13 @@ function P.New(parent,callbacks)
             Text(hint,nextCard,12,wide and 120 or 94,nw-24,wide and infoH-132 or 60,m.hint,C.text,14)
         else
             local tw=wide and left or base;local nw=wide and base-left-12 or base
-            At(timerCard,f,0,contentY,tw,136)
-            At(la,timerCard,15,41,45,77);At(ra,timerCard,tw-60,41,45,77)
-            Text(clockLabel,timerCard,55,9,tw-110,36,m.timerLabel,C.pale,15)
-            Text(clock,timerCard,57,46,tw-114,77,m.timer,GOLD,26)
-            At(nextCard,f,wide and left+12 or 0,wide and contentY or contentY+146,nw,wide and 136 or 104);Header(nextCard,nw)
-            Text(nextText,nextCard,14,44,nw-28,35,m.next,GOLD,16)
-            Text(hint,nextCard,14,79,nw-28,wide and 49 or 25,m.hint,C.text,13)
+            At(timerCard,f,0,contentY,tw,174)
+            At(la,timerCard,16,53,55,96);At(ra,timerCard,tw-71,53,55,96)
+            Text(clockLabel,timerCard,75,16,tw-150,36,m.timerLabel,C.pale,15)
+            Text(clock,timerCard,75,58,tw-150,93,m.timer,GOLD,26)
+            At(nextCard,f,wide and left+12 or 0,wide and contentY or contentY+188,nw,wide and 174 or 148);Header(nextCard,nw)
+            Text(nextText,nextCard,18,53,nw-36,42,m.next,GOLD,16)
+            Text(hint,nextCard,18,99,nw-36,wide and 60 or 39,m.hint,C.text,13)
         end
     end
     function D.Show(p,width,scope,feedback)
@@ -282,15 +293,15 @@ function P.New(parent,callbacks)
         local m=model;local wide=width>=760;local base=wide and 1170 or 680;local scale=width/base
         local top=wide and 77 or 132
         local isMatch=m.state=="match";local isProgress=m.state=="progress"
-        local heroH=isMatch and 126 or 146
-        local stageY=top+heroH+10
-        local contentY=stageY+(isMatch and 0 or 116)
+        local heroH=isMatch and 164 or 174
+        local stageY=top+heroH+16
+        local contentY=stageY+(isMatch and 0 or 146)
         local infoY,infoH,footerY
         local rulesExtra=math.min(160,math.max(0,math.ceil(#m.rules/(wide and 55 or 38))-1)*22)
         local left=math.floor((base-12)*.51)
-        if isMatch then infoY=contentY+222;infoH=wide and 174+rulesExtra or 258+rulesExtra;footerY=infoY+infoH+12
-        elseif isProgress then infoY=contentY;infoH=wide and 270+rulesExtra or 258+rulesExtra;footerY=contentY+(wide and infoH or infoH+350)+12
-        else infoY=contentY+(wide and 148 or 262);infoH=wide and 174+rulesExtra or 258+rulesExtra;footerY=infoY+infoH+12 end
+        if isMatch then infoY=contentY+309;infoH=wide and 202+rulesExtra or 304+rulesExtra;footerY=infoY+infoH+12
+        elseif isProgress then infoY=contentY;infoH=wide and 304+rulesExtra or 304+rulesExtra;footerY=contentY+(wide and infoH or infoH+350)+12
+        else infoY=contentY+(wide and 190 or 352);infoH=wide and 202+rulesExtra or 304+rulesExtra;footerY=infoY+infoH+12 end
         local footerH=wide and 60 or 50+math.ceil(#m.actions/2)*45
         local total=footerY+footerH+(feedback~="" and 42 or 8)
         f:SetScale(scale);At(f,parent,0,0,base,total);f:Show()
@@ -304,14 +315,14 @@ function P.New(parent,callbacks)
             "Registration closes: "..(times and times.closes or "Unavailable")}
         local cols=wide and not isProgress and 2 or 1
         local cellW=(iw-24)/cols
-        local y=47
+        local y=53
         for i,row in ipairs(infoRows) do
             local col=cols==2 and (i>=4 and 1 or 0) or 0
             local yy=cols==2 and (i>=4 and i-4 or i-1) or i-1
             local x=12+col*cellW
-            local ry=y+yy*(cols==2 and 28 or 29)+(i>=6 and rulesExtra or 0)
+            local ry=y+yy*(cols==2 and 34 or 34)+(i>=6 and rulesExtra or 0)
             At(row.icon,info,x,ry+4,22,22)
-            Text(row.text,info,x+30,ry,cellW-39,28+(i==5 and rulesExtra or 0),vals[i],C.text,13)
+            Text(row.text,info,x+30,ry,cellW-39,32+(i==5 and rulesExtra or 0),vals[i],C.text,13)
         end
         At(footer,f,0,footerY,base,footerH);Text(testLabel,footer,12,5,wide and 144 or base-24,wide and 50 or 39,"LOCAL TEST",GOLD,15)
         for i,b in ipairs(buttons) do
