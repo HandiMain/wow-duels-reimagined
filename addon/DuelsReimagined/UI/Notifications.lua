@@ -330,10 +330,10 @@ local function Paint(m)
         warningTitle:SetText(m.title);warningDescription:SetText(m.body)
     elseif achieved then
         Position(close,panel,WIDTH-27,32,19,19)
-        achCategory:SetText(m.preview and "PREVIEW: Achievement unlocked" or "ACHIEVEMENT UNLOCKED")
+        achCategory:SetText(m.testTournament and (m.privateTest and "PRIVATE TEST: Achievement" or "LOCAL TEST: Achievement") or m.preview and "PREVIEW: Achievement unlocked" or "ACHIEVEMENT UNLOCKED")
         ns.AchievementUI.PaintAchievementIcon(achIcon,m.achievement.id,false,achievement)
         achTitle:SetText(m.achievement.title);achDescription:SetText(m.achievement.description)
-        achPoints:SetText("+"..m.achievement.points)
+        achPoints:SetText(m.testTournament and "TEST" or "+"..m.achievement.points)
         local rarityColors={{1,.78,.36},{.57,1,.43},{.39,.70,1},{.80,.48,1},{1,.67,.22}}
         local color=rarityColors[m.achievement.rarity] or rarityColors[1]
         achGlow:SetVertexColor(color[1],color[2],color[3],1)
@@ -512,6 +512,7 @@ end
 -- Preview-only warning catalogue. No automatic producer until actual duel
 -- result/recording evidence is verified. Never warn for merely targeting.
 local tournamentEvent,tournamentAnnouncements=nil,{}
+local localAwardEvent
 local function TournamentMessage(m)
     return m and (m.kind=="tournament" or m.tournamentPreview==true)
 end
@@ -531,8 +532,35 @@ local function Announce(event,key,title,body,warning,personal,private)
     if ok then tournamentAnnouncements[key]=true end
     return ok
 end
+-- Only explicitly completed rehearsal data or a newly committed private
+-- archive can produce a labelled test popup; no ordinary points/seen writes.
+function N.CheckTournamentAwards(event,p)
+    if not ready or not ns.Achievements or not ns.TournamentRegistration or type(event)~="string" then return end
+    if p and (p.scope~="SIMULATED" or p.event.id~=event or localAwardEvent==event) then return end
+    local rows,scope=ns.TournamentRegistration.ReadPersonalArchive(p)
+    if scope~="SIMULATED" and scope~="PRIVATE_TEST" then return end
+    local before,found={},false
+    for _,r in ipairs(rows) do
+        if r.id==event and r.scope==scope then found=true else before[#before+1]=r end
+    end
+    if not found then return end
+    if p then localAwardEvent=event end
+    local input={scope="LOCAL",recordingDisabled=true}
+    local old=ns.Achievements.Evaluate(input,before,scope)
+    local model=ns.Achievements.Evaluate(input,rows,scope)
+    local earned={}
+    for _,r in ipairs(old.rows) do if r.earned then earned[r.id]=true end end
+    for _,r in ipairs(model.rows) do
+        if r.testOnly and r.earned and not earned[r.id] then
+            Enqueue({id="test:tournament-achievement:"..scope..":"..event..":"..r.id,kind="achievement",
+                preview=true,testTournament=true,privateTest=scope=="PRIVATE_TEST",
+                tournamentPreview=scope=="SIMULATED",achievement=r})
+        end
+    end
+end
 function N.OnTournamentProgress(p,visible)
     if not p or (p.scope~="SIMULATED" and p.scope~="PRIVATE_TEST") or not p.bracket then
+        localAwardEvent=nil
         if tournamentEvent then tournamentEvent=nil;tournamentAnnouncements={};N.ClearTournamentPreview() end
         return
     end
@@ -552,6 +580,7 @@ function N.OnTournamentProgress(p,visible)
     end
     if p.bracket.state=="completed" and p.bracket.champion then
         Announce(id,"champion","Tournament complete",(p.names[p.bracket.champion] or "Winner").." is champion")
+        N.CheckTournamentAwards(id,p)
     elseif p.role=="player" and not p.broadcast then
         if p.state=="eliminated" then
             Announce(id,"eliminated","Tournament result","You are eliminated. Keep watching the remaining matches.",false,true)
@@ -582,12 +611,13 @@ function N.OnPrivateTournamentGrace(o)
     if not p or p.event.id~=o.event then return end
     local name=p.names[o.player] or "Player"
     local key="private-grace:"..o.match..":"..tostring(o.sequence or 0)..":"..o.notice
+    local prefix=o.reported and "Organizer reports: " or ""
     if o.notice=="started" then
-        Announce(o.event,key,"Player disconnected",name.." has five minutes to reconnect.",true,false,true)
+        Announce(o.event,key,"Player disconnected",prefix..name.." has a reconnect window.",true,false,true)
     elseif o.notice=="reconnected" then
-        Announce(o.event,key,"Player reconnected",name.." is back.",false,false,true)
+        Announce(o.event,key,"Player reconnected",prefix..name.." is back.",false,false,true)
     elseif o.notice=="forfeited" then
-        Announce(o.event,key,"Match forfeited",name.." did not reconnect in time.",true,false,true)
+        Announce(o.event,key,"Match forfeited",prefix..name.." did not reconnect in time.",true,false,true)
     end
 end
 function N.PreviewTournamentReady()

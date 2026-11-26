@@ -184,6 +184,8 @@ local function OverviewAction(action)
             local ok,why=ns.TournamentSession.Command("checkin")
             feedback=why or (ok and "Request submitted." or "Check-in unavailable.")
         end
+        if action=="details" and T.IsPageAvailable("my-tournament") then Switch("my-tournament");return end
+        if action=="manage" and T.IsPageAvailable("manage") then Switch("manage");return end
         if action=="details" or action=="manage" or action=="checkin" then
             U.Show("overview")
             if privateControlsTop then U.SetPageScroll(nil,privateControlsTop) end
@@ -341,11 +343,17 @@ local function Layout()
     local height
     local p=RefreshTest()
     local listings=R.TestListings()
-    local private=ns.TournamentSession and ns.TournamentSession.GetControlModel()
-    local privateProjection=private and private.active and ns.TournamentSession.GetProjection()
+    local session=ns.TournamentSession
+    local private=active=="overview" and session and session.GetControlModel()
+    local needsProjection=active=="overview" or active=="manage" or active=="my-tournament" or active=="brackets"
+    local privateView=needsProjection and session and session.IsActive() and session.GetOverviewProjection()
+    local privateProjection=privateView and privateView.bracket and privateView
+    local presentation=p or privateView
+    if privateView then subtitle:SetText("PRIVATE NETWORK TEST - No rating changes") end
     if privatePanel then privatePanel:Hide() end
     if privateBack then privateBack:Hide() end
-    if p or listings then communityNote:SetText("Local test only. Community settings are automatically detected.") end
+    if p or listings then communityNote:SetText("Local test only. Community settings are automatically detected.")
+    elseif session and session.IsActive() then communityNote:SetText("Private network test. Rankings are disabled.") end
     local showCommunity=active=="brackets"
     community:SetShown(showCommunity)
     local top=showCommunity and LayoutCommunity(w) or 0
@@ -404,11 +412,14 @@ local function Layout()
     elseif active=="host" then
         height=LayoutHost(w)
     elseif active=="my-tournament" then
-        if p and p.role=="player" and p.member then
+        if presentation and presentation.role=="player" and presentation.member and presentation.event and presentation.now then
             if not myView then
                 myView=ns.TournamentPlayer.New(mine,{
                     refresh=U.RefreshActive,
                     action=function(command)
+                        if ns.TournamentSession and ns.TournamentSession.IsActive() and command~="brackets" then
+                            local ok,why=ns.TournamentSession.Command(command);feedback=why or "";U.RefreshActive();return
+                        end
                         if command=="brackets" then Switch("brackets")
                         elseif command=="leave" then Run("leave","browse")
                         elseif command=="host" then Run("host","manage")
@@ -420,24 +431,27 @@ local function Layout()
                         else Run(command) end
                     end,
                     profile=function()
-                        local current=R.PreviewSnapshot()
+                        local current=R.PreviewSnapshot() or (ns.TournamentSession and ns.TournamentSession.GetOverviewProjection())
                         if current and current.role=="player" and current.opponent then
                             ns.CompetitiveUI.OpenTournamentPlayerCard(current.opponent,current.event.draft.name,current.scope)
                         end
                     end,
                 })
             end
-            height=myView.Show(p,w,Population.GetCurrent(),feedback)
+            height=myView.Show(presentation,w,Population.GetCurrent(),feedback)
         else
             if myView then myView.Hide() end
             height=1
         end
     elseif active=="manage" then
-        if p and p.role=="host" then
+        if presentation and presentation.role=="host" and presentation.event and presentation.now then
             if not organizerView then
                 organizerView=ns.TournamentOrganizer.New(organizer,{
                     refresh=U.RefreshActive,
                     action=function(command)
+                        if ns.TournamentSession and ns.TournamentSession.IsActive() and command~="brackets" then
+                            local ok,why=ns.TournamentSession.Command(command);feedback=why or "";U.RefreshActive();return
+                        end
                         if command=="brackets" then Switch("brackets")
                         elseif command=="player" then
                             local current=R.PreviewSnapshot()
@@ -447,7 +461,7 @@ local function Layout()
                         else Run(command) end
                     end,
                     profile=function(row)
-                        local current=R.PreviewSnapshot()
+                        local current=R.PreviewSnapshot() or (ns.TournamentSession and ns.TournamentSession.GetOverviewProjection())
                         if not current or current.role~="host" then return end
                         for _,member in ipairs(current.roster or {}) do
                             if member.guid==row.guid then
@@ -458,7 +472,7 @@ local function Layout()
                     end,
                 })
             end
-            height=organizerView.Show(p,w,Population.GetCurrent(),feedback)
+            height=organizerView.Show(presentation,w,Population.GetCurrent(),feedback)
         else
             if organizerView then organizerView.Hide() end
             height=1
@@ -530,8 +544,23 @@ function U.Show(key)
     subtitle:SetText("1v1 world duels  |  "..label)
     root:Show();SetOffset(0);Layout()
 end
+local navSignature
 function U.RefreshActive()
-    if active and root:IsShown() then Layout() end
+    if active and root:IsShown() then
+        if ns.TournamentSession and ns.TournamentSession.IsActive() then
+            local flags=ns.TournamentSession.PageFlags()
+            local sig=tostring(flags.manage)..":"..tostring(flags["my-tournament"])..":"..tostring(flags.brackets)
+            if sig~=navSignature then
+                navSignature=sig
+                if ns.Navigation and ns.Navigation.RefreshSelection then ns.Navigation.RefreshSelection() end
+            end
+        elseif navSignature then
+            navSignature=nil
+            if ns.Navigation and ns.Navigation.RefreshSelection then ns.Navigation.RefreshSelection() end
+        end
+        if not T.IsPageAvailable(active) then Switch("overview");return end
+        Layout()
+    end
 end
 function U.GetPageScroll() return scroll:GetVerticalScroll() end
 function U.SetPageScroll(_,offset) SetOffset(offset);bar:Refresh() end

@@ -8,8 +8,9 @@ local function Clock(n)
     return string.format("%02d:%02d:%02d",math.floor(n/3600),math.floor(n/60)%60,n%60)
 end
 function O.Project(p,query,filter)
-    if not p or p.scope~="SIMULATED" or p.role~="host" or not p.event or not p.event.draft then return end
+    if not p or (p.scope~="SIMULATED" and p.scope~="PRIVATE_TEST") or p.role~="host" or not p.event or not p.event.draft then return end
     local d=p.event.draft;local now=p.now
+    local private=p.scope=="PRIVATE_TEST"
     local bracket=p.bracket
     local complete=bracket and bracket.state=="completed"
     local checking=not bracket and now>=d.startAt-1800 and now<d.startAt
@@ -17,7 +18,7 @@ function O.Project(p,query,filter)
     local ready=not bracket and now>=d.startAt
     local stage=complete and 5 or bracket and 4 or ready and 3 or checking and 2 or 1
     local m={stage=stage,registration=registration,checking=checking,ready=ready,rows={},checked=0,notices={},actions={},complete=complete}
-    m.state=complete and "Tournament complete" or bracket and (bracket.state=="disputed" and "Result disputed" or "Matches in progress") or ready and "Ready to start" or registration and (checking and "Registration & check-in open" or "Registration open") or checking and "Check-in open" or "Registration closed"
+    m.state=complete and (private and not p.finalized and "Final result awaiting confirmation" or "Tournament complete") or bracket and (bracket.state=="disputed" and "Result disputed" or "Matches in progress") or ready and "Ready to start" or registration and (checking and "Registration & check-in open" or "Registration open") or checking and "Check-in open" or "Registration closed"
     m.timerLabel=bracket and (complete and "FINAL RESULTS" or "READY MATCHES") or ready and "SCHEDULED START REACHED" or registration and "REGISTRATION CLOSES IN" or "TOURNAMENT STARTS IN"
     m.timer=bracket and (complete and "Completed" or tostring(p.readyCount or 0)) or ready and "Ready" or Clock((registration and d.registrationClosesAt or d.startAt)-now)
     query=(query or ""):lower()
@@ -39,13 +40,28 @@ function O.Project(p,query,filter)
         if featured then m.notices[#m.notices+1]={text="Featured: "..(p.names[featured.a] or "Unknown").." vs "..(p.names[featured.b] or "Unknown"),kind="info"} end
         m.notices[#m.notices+1]={text=tostring(p.readyCount or 0).." matches ready.",kind="info"}
     else
-        m.notices[#m.notices+1]={text=ready and "Scheduled start reached. Start the test bracket when ready." or checking and "Check-in is open." or "Check-in opens in "..Clock(d.startAt-1800-now)..".",kind="info"}
+        m.notices[#m.notices+1]={text=ready and (private and "Scheduled start reached. Start when entrants are checked in." or "Scheduled start reached. Start the test bracket when ready.") or checking and "Check-in is open." or "Check-in opens in "..Clock(d.startAt-1800-now)..".",kind="info"}
         m.notices[#m.notices+1]={text=math.max(0,d.capacity-p.event.count).." slots remaining ("..p.event.count.." / "..d.capacity..").",kind="info"}
     end
     local function Add(key,label,enabled,reason,primary,test)
         m.actions[#m.actions+1]={key=key,label=label,enabled=enabled==true,reason=reason,primary=primary,test=test}
     end
     Add("brackets","Open Bracket",bracket~=nil,"The bracket has not been drawn.",true)
+    if private then
+        local enabled=p.canCommunicate==true
+        if not bracket then Add("start","Start Tournament",enabled and ready and m.checked>=2,"Wait for scheduled start and two checked-in players.",true)
+        elseif p.held then Add("resume","Resume Tournament",enabled,"Matching organizer-log acknowledgements required.",true)
+        elseif complete then
+            if not p.finalized then Add("finalize","Finalize Results",enabled,"Finalist acknowledgements required.",true) end
+        else
+            Add("assign","Assign Match",enabled and not p.assigned and p.selected~=nil,"No unassigned ready match.")
+            Add("feature","Next Featured Match",enabled and (p.readyCount or 0)>1,"No other ready match.")
+            Add("hold","Pause Tournament",enabled,"Communication unavailable.")
+            Add("broadcast",p.broadcast and "Exit Broadcast" or "Broadcast View",enabled,"Communication unavailable.")
+        end
+        if not p.finalized then Add("cancel","Cancel Tournament",enabled,"Communication unavailable.") end
+        return m
+    end
     local busy=p.demo or p.offline
     if not bracket then
         Add("start-bracket","Start Test Bracket",(p.mode=="host" and p.event.count>=2) or (p.member and p.member.checkedIn==true),"At least two participants or the required check-in are needed.",false,true)
@@ -213,12 +229,13 @@ function O.New(parent,callbacks)
     local D={}
     function D.Hide() StopClock();if f:IsShown() then f:Hide() end;current=nil end
     local function ArmClock()
-        if clockTimer or not current or current.bracket or model.ready or current.mode~="host" or
+        if clockTimer or not current or current.bracket or model.ready or (current.mode~="host" and current.scope~="PRIVATE_TEST") or
             not f:IsVisible() or not C_Timer or type(C_Timer.NewTimer)~="function" then return end
         clockTimer=C_Timer.NewTimer(1,function()
             clockTimer=nil
             if not f:IsVisible() or not current or current.bracket then return end
-            local now=ns.TournamentRegistration.SyncHostPreviewClock(current.event.id)
+            local now
+            if current.scope=="PRIVATE_TEST" then now=ns.TournamentSession.Now() else now=ns.TournamentRegistration.SyncHostPreviewClock(current.event.id) end
             if not now then return end
             if now~=current.now then
                 current.now=now
@@ -326,7 +343,8 @@ function O.New(parent,callbacks)
         for i,b in ipairs(buttons) do
             local action=model.actions[i];b:SetShown(action~=nil)
             if action then
-                local label=action.key=="cancel" and confirm==p.event.id and "Confirm Cancel" or action.label
+                local confirmation=p.event.id..":"..action.key
+                local label=confirm==confirmation and ("Confirm "..(action.key=="hold" and "Pause" or "Cancel")) or action.label
                 b.label:SetText(label);b:SetEnabled(action.enabled);b:SetAlpha(action.enabled and 1 or .5)
                 At(b,actions,12+((i-1)%2)*(bw+10),54+math.floor((i-1)/2)*43,bw,37)
                 b.reason=action.reason;b.caption=label
@@ -335,7 +353,7 @@ function O.New(parent,callbacks)
                 end) end
                 b:SetScript("OnClick",function()
                     search:ClearFocus();W.CloseChoices()
-                    if action.key=="cancel" and confirm~=p.event.id then confirm=p.event.id;b.label:SetText("Confirm Cancel");return end
+                    if (action.key=="cancel" or action.key=="hold") and confirm~=confirmation then confirm=confirmation;b.label:SetText(action.key=="hold" and "Confirm Pause" or "Confirm Cancel");return end
                     confirm=nil;callbacks.action(action.key)
                 end)
             end
@@ -353,7 +371,7 @@ function O.New(parent,callbacks)
                 Text(row.label,notices,40,48+(i-1)*29,right-52,29,item.text,C.text,13)
             end
         end
-        Text(footer,f,0,bottom+6,base,36,"LOCAL TEST  ·  Test controls are temporary. The schedule follows server time until the start.",C.muted,13)
+        Text(footer,f,0,bottom+6,base,36,p.scope=="PRIVATE_TEST" and "PRIVATE NETWORK TEST · Results do not affect rating." or "LOCAL TEST  ·  Test controls are temporary. The schedule follows server time until the start.",C.muted,13)
         if current.bracket or model.ready then StopClock() else ArmClock() end
         return total*scale
     end
@@ -373,5 +391,12 @@ function O.RunSelfTest()
     p.bracket={state="running",rounds={}};p.offline={player="b",remaining=120}
     m=O.Project(p,"","offline");assert(#m.rows==1 and m.rows[1].guid=="b" and m.stage==4)
     p.bracket={state="completed",champion="a"};p.offline=nil;assert(O.Project(p).complete)
+    p.scope="PRIVATE_TEST";p.canCommunicate=true;p.finalized=false
+    m=O.Project(p);assert(m.state=="Final result awaiting confirmation")
+    assert(m.actions[2].key=="finalize" and m.actions[2].enabled)
+    p.finalized=true;m=O.Project(p);assert(#m.actions==1 and m.actions[1].key=="brackets")
+    p.bracket=nil;p.finalized=nil;p.now=4000;m=O.Project(p)
+    assert(m.actions[2].key=="start" and not m.actions[2].enabled or m.actions[2].key=="start" and m.actions[2].enabled== (m.checked>=2))
+    for _,a in ipairs(m.actions) do assert(not a.test and a.key~="simulate-game") end
     return true
 end

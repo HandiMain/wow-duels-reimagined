@@ -795,8 +795,8 @@ function profile.Render()
         Place(tournamentInfo,tournamentDetails,24,82,w-48,150)
         Set(tournamentInfo,"Tournament: "..tournamentCard.event.."\nLevel: "..tournamentCard.level.."\nStatus: "..tournamentCard.status.."\nClass: Not observed")
         Place(tournamentNotice,tournamentDetails,24,248,w-48,100)
-        Set(tournamentNotice,"Local test participant. Competitive rating, match history and statistics are not available. No real player data is created or modified.")
-        profile.dataCaption:SetText("LOCAL TEST")
+        Set(tournamentNotice,tournamentCard.scope=="PRIVATE_TEST" and "Organizer-reported participant. Competitive rating, match history and statistics are not available." or "Local test participant. Competitive rating, match history and statistics are not available. No real player data is created or modified.")
+        profile.dataCaption:SetText(tournamentCard.scope=="PRIVATE_TEST" and "PRIVATE TEST" or "LOCAL TEST")
         return
     end
     local d=Data();if not d then return end
@@ -875,9 +875,9 @@ end
 U.OpenPlayerCard=OpenProfile
 function U.OpenTournamentPlayerCard(member,event,scope)
     -- Simulation IDs must never resolve to competitive fixture or real IDs.
-    if scope~="SIMULATED" or type(member)~="table" or type(member.name)~="string" then return false end
+    if (scope~="SIMULATED" and scope~="PRIVATE_TEST") or type(member)~="table" or type(member.name)~="string" then return false end
     W.CloseChoices()
-    tournamentCard={name=member.name,event=event or "Local test",level=tostring(member.level or "Unknown"),
+    tournamentCard={name=member.name,scope=scope,event=event or (scope=="PRIVATE_TEST" and "Private test" or "Local test"),level=tostring(member.level or "Unknown"),
         status=member.checkedIn and "Checked in" or "Registered"}
     local width,height=UIParent:GetWidth(),UIParent:GetHeight()
     card:SetScale(math.max(.4,math.min(1,(width-24)/800,(height-24)/590)))

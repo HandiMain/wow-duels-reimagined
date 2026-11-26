@@ -1040,8 +1040,15 @@ local function DurableHost(s,h,clock,resolve,store)
         if not saved then return false end
         journal=saved;return true
     end
+    function D.PublicationLimit()
+        local completed,cancelled=0,0
+        for _ in pairs(journal.completed or {}) do completed=completed+1 end
+        for _ in pairs(journal.cancelled or {}) do cancelled=cancelled+1 end
+        if completed>=16 then return "Organizer history is full. Existing results are preserved." end
+        if cancelled>=128 then return "Organizer cancellation history is full. Existing records are preserved." end
+    end
     function D.Publish(d)
-        if not Fresh() or journal.commitment then return nil end
+        if not Fresh() or journal.commitment or D.PublicationLimit() then return nil end
         local e
         if journal.checkpoint then e=Open() else e=Host(s,h,clock) end
         if not e then return nil end
@@ -1333,6 +1340,20 @@ local function DurableHost(s,h,clock,resolve,store)
                 and (r.winner==actor.guid)==(outcome=="won") then return true,"duplicate" end
         end
         return false
+    end
+    function D.PrivateAdvisory()
+        local cp=journal.checkpoint and journal.checkpoint.host
+        if not cp then return nil end
+        local ad=cp.ad
+        local a=journal.privateAssignment
+        local phase=ad.state=="open" and (journal.bracket and "drawn" or "open") or ad.state
+        local signature=table.concat({ad.id,ad.revision,phase,journal.control and journal.control.term or 0,
+            journal.bracket and #journal.bracket.reports or 0,a and a.serial or 0,
+            a and a.ready1 and 1 or 0,a and a.ready2 and 1 or 0},"/")
+        local peers={}
+        for _,m in ipairs(cp.roster) do peers[#peers+1]={guid=m.guid,checked=m.checkedIn==true} end
+        return {id=ad.id,revision=journal.revision,phase=phase,signature=signature,peers=peers,
+            first=a and a.player1,second=a and a.player2}
     end
     function D.PrivateProgress()
         if not Fresh() then return nil end
@@ -2924,6 +2945,7 @@ function R.ProjectPersonalResult(ad,bracket,names,actor,host,finishedAt,scope)
         bestOf=ad.draft.bestOf,finishedAt=Whole(finishedAt,1,4102444800) and finishedAt or nil,
         score=score,scope=scope}
 end
+local personalArchiveCache
 function R.ReadPersonalArchive(previewSnapshot)
     local p=previewSnapshot
     if p then
@@ -2935,11 +2957,14 @@ function R.ReadPersonalArchive(previewSnapshot)
         return row and {row} or {},"SIMULATED"
     end
     local store=ns.CompetitiveStorage
-    if not store or not store.TournamentTestEnabled() then return {},"LOCAL" end
+    if not store or not store.TournamentTestEnabled() then personalArchiveCache=nil;return {},"LOCAL" end
     local scope=P.GetCurrent();local key=P.Key(scope);local actor=Read(UnitGUID,"player")
     if not key or type(actor)~="string" then return {},"PRIVATE_TEST","unavailable" end
     local journal=store.ReadTournamentTestJournal()
-    if not journal then return {},"PRIVATE_TEST","unavailable" end
+    if not journal then personalArchiveCache=nil;return {},"PRIVATE_TEST","unavailable" end
+    local cached=personalArchiveCache
+    if cached and cached.actor==actor and cached.key==key and Equal(cached.hosted,journal.completed or {})
+        and Equal(cached.played,journal.participantCompleted or {}) then return Copy(cached.rows),"PRIVATE_TEST" end
     local rows={}
     for _,record in pairs(journal.completed or {}) do
         if record.population==key then
@@ -2976,6 +3001,7 @@ function R.ReadPersonalArchive(previewSnapshot)
         if x==y then return a.id<b.id end
         return x>y
     end)
+    personalArchiveCache={actor=actor,key=key,hosted=Copy(journal.completed or {}),played=Copy(journal.participantCompleted or {}),rows=Copy(rows)}
     return rows,"PRIVATE_TEST"
 end
 function R.RunPersonalArchiveSelfTest()

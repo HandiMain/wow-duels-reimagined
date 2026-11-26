@@ -13,8 +13,9 @@ local function Round(r,total)
     return r and (r==total and "Final" or "Round "..r) or "Not started"
 end
 function P.Project(p)
-    if not p or p.scope~="SIMULATED" or p.role~="player" or not p.member or not p.event then return nil end
+    if not p or (p.scope~="SIMULATED" and p.scope~="PRIVATE_TEST") or p.role~="player" or not p.member or not p.event then return nil end
     local d=p.event.draft;local v=p.bracket;local own=p.member.guid
+    local private=p.scope=="PRIVATE_TEST"
     local m={name=d.name,location=d.location,players=p.event.count.." / "..d.capacity,
         format="Single elimination · Best of "..d.bestOf,bestOf=d.bestOf,
         levels=(d.minLevel>0 and d.minLevel or "Any").." - "..(d.maxLevel>0 and d.maxLevel or "Any"),
@@ -60,9 +61,10 @@ function P.Project(p)
         elseif p.match and v.state=="running" then
             local r=p.match;m.state="match";m.round=Round(r.round,r.roundCount);m.score=r.score.." - "..r.opponentScore
             m.opponent=r.opponent;m.opponentLevel=p.opponent and p.opponent.level
-            m.status="Match ready";m.next="Get ready to duel";m.hint="Your match is assigned. Local test only."
+            m.status="Match ready";m.next="Get ready to duel";m.hint=private and "Check the organizer’s assignment and confirm readiness." or "Your match is assigned. Local test only."
+            if private and p.assignmentStatus then m.status=p.assignmentStatus;m.next=m.status end
             if p.offline and p.offline.match==r.id then
-                m.status="Waiting for reconnect";m.next=m.status;m.hint="Simulated disconnect grace: "..Clock(p.offline.remaining)
+                m.status="Waiting for reconnect";m.next=m.status;m.hint=(private and "Organizer-reported reconnect time: " or "Simulated disconnect grace: ")..Clock(p.offline.remaining)
             elseif p.demo and p.demo.match==r.id then m.status="Simulated match in progress";m.next=m.status end
         elseif v.state=="disputed" then
             m.status="Match results under review";m.next="Wait for the organizer";m.hint="A disputed result must be resolved before play continues.";m.timer="Paused";m.timerLabel="TOURNAMENT STATUS"
@@ -75,6 +77,35 @@ function P.Project(p)
     end
     local function Add(key,label,enabled,reason,primary)
         m.actions[#m.actions+1]={key=key,label=label,enabled=enabled==true,reason=reason,primary=primary}
+    end
+    if private then
+        local enabled=p.canCommunicate==true and not p.pending
+        if v and v.state=="completed" and not p.finalized then
+            m.hint="Organizer-reported final result. Waiting for finalization."
+        elseif p.held then
+            m.status="Tournament paused";m.next="Wait for organizer";m.hint="The organizer must resume the tournament."
+        end
+        if not v then
+            if not m.checked then Add("checkin","Check In",enabled and check<=0 and before>0,"Check-in is unavailable.",true) end
+            if m.checked then Add("sync","Refresh Bracket",enabled,"Wait for organizer or connection.",true) end
+            Add("refresh","Refresh Registration",enabled,"Request pending or connection unavailable.")
+            Add("leave","Leave Tournament",enabled and before>0,"The scheduled start has passed.")
+        else
+            Add("brackets","View Bracket",true,nil,true)
+            if p.syncing then Add("stop-sync","Stop Sync",true)
+            elseif p.acknowledging then Add("stop-ack","Stop Acknowledgement",true)
+            else
+                Add("sync","Refresh Bracket",enabled,"Request pending or connection unavailable.")
+                if (p.held or v.state=="completed") and not p.finalized then Add("ack","Acknowledge Log",enabled,"Connection unavailable.")
+                elseif v.state=="disputed" and v.dispute and not v.dispute.confirmed then Add("consent-replay","Agree to Replay",enabled,"Connection unavailable.")
+                elseif p.seat=="reported" then Add("report","Send Result",enabled,"Connection unavailable.")
+                elseif p.match and not p.held then
+                    Add("offer","Check Assignment",enabled,"Connection unavailable.")
+                    if p.offer then Add("ready","Confirm Readiness",enabled,"Connection unavailable.",true) end
+                end
+            end
+        end
+        return m
     end
     if not v then
         if check>0 and not m.checked then Add("checkin-time","Test Check-in Time",true) end
@@ -182,11 +213,12 @@ function P.New(parent,callbacks)
     local current,model,clockTimer,confirm,eventId
     local function Stop() if clockTimer then clockTimer:Cancel();clockTimer=nil end end
     local function Arm()
-        if clockTimer or not current or current.bracket or current.mode~="join" or current.now>=current.event.draft.startAt or not f:IsVisible() or not C_Timer or type(C_Timer.NewTimer)~="function" then return end
+        if clockTimer or not current or current.bracket or (current.mode~="join" and current.scope~="PRIVATE_TEST") or current.now>=current.event.draft.startAt or not f:IsVisible() or not C_Timer or type(C_Timer.NewTimer)~="function" then return end
         clockTimer=C_Timer.NewTimer(1,function()
             clockTimer=nil
             if not current or not f:IsVisible() or current.bracket then return end
-            local now=ns.TournamentRegistration.SyncPlayerPreviewClock(current.event.id)
+            local now
+            if current.scope=="PRIVATE_TEST" then now=ns.TournamentSession.Now() else now=ns.TournamentRegistration.SyncPlayerPreviewClock(current.event.id) end
             if not now then return end
             current.now=now
             local m=P.Project(current)
@@ -246,7 +278,7 @@ function P.New(parent,callbacks)
         match:SetShown(isMatch);ready:SetShown(isMatch)
         if isMatch then
             At(match,f,0,contentY,base,matchH)
-            At(matchTitle,match,base*.26,8,base*.48,37);Text(matchTitleText,matchTitle,6,0,base*.48-12,37,"UPCOMING MATCH — LOCAL TEST",GOLD,15)
+            At(matchTitle,match,base*.26,8,base*.48,37);Text(matchTitleText,matchTitle,6,0,base*.48-12,37,p.scope=="PRIVATE_TEST" and "UPCOMING MATCH — PRIVATE TEST" or "UPCOMING MATCH — LOCAL TEST",GOLD,15)
             if base<760 then
                 local half=base*.5
                 At(youPortrait,match,half*.5-39,52,78,78)
@@ -255,7 +287,7 @@ function P.New(parent,callbacks)
                 Text(youName,match,12,132,half-24,34,"Yourself",C.pale,16)
                 Text(youSub,match,12,166,half-24,29,"Participant",C.muted,13)
                 Text(otherName,match,half+12,132,half-24,34,m.opponent,C.pale,16)
-                Text(otherSub,match,half+12,166,half-24,29,m.opponentLevel and "Level "..m.opponentLevel.." · Local test" or "Local test player",C.muted,13)
+                Text(otherSub,match,half+12,166,half-24,29,m.opponentLevel and "Level "..m.opponentLevel or "Level unavailable",C.muted,13)
                 Text(vs,match,half-32,62,64,55,"VS",GOLD,26)
                 At(opponentButton,match,half+25,196,half-50,30)
             else
@@ -266,7 +298,7 @@ function P.New(parent,callbacks)
                 Text(vs,match,base*.44,63,base*.12,74,"VS",GOLD,26)
                 local ox=base*.58+106
                 Text(otherName,match,ox,58,base-ox-12,38,m.opponent,C.pale,16)
-                Text(otherSub,match,ox,99,base-ox-12,27,m.opponentLevel and "Level "..m.opponentLevel.." · Local test" or "Local test player",C.muted,13)
+                Text(otherSub,match,ox,99,base-ox-12,27,m.opponentLevel and "Level "..m.opponentLevel or "Level unavailable",C.muted,13)
                 At(opponentButton,match,ox,133,base-ox-15,32)
             end
             opponentButton:SetEnabled(p.opponent~=nil);opponentButton:SetAlpha(p.opponent and 1 or .5)
@@ -341,19 +373,20 @@ function P.New(parent,callbacks)
             At(row.icon,info,x,ry+4,22,22)
             Text(row.text,info,x+30,ry,cellW-39,32+(i==5 and rulesExtra or 0),vals[i],C.text,13)
         end
-        At(footer,f,0,footerY,base,footerH);Text(testLabel,footer,12,5,wide and 144 or base-24,wide and 50 or 39,"LOCAL TEST",GOLD,15)
+        At(footer,f,0,footerY,base,footerH);Text(testLabel,footer,12,5,wide and 144 or base-24,wide and 50 or 39,p.scope=="PRIVATE_TEST" and "PRIVATE TEST" or "LOCAL TEST",GOLD,15)
         for i,b in ipairs(buttons) do
             local action=m.actions[i];b:SetShown(action~=nil)
             if action then
                 local cols=wide and #m.actions or 2
                 local x=wide and 165 or 12;local bw=(base-x-12-(cols-1)*9)/cols
                 At(b,footer,x+((i-1)%cols)*(bw+9),wide and 11 or 45+math.floor((i-1)/cols)*45,bw,38)
-                local text=action.key=="leave" and confirm==p.event.id and "Confirm Leave" or action.label
+                local confirmation=p.event.id..":"..action.key
+                local text=confirm==confirmation and ("Confirm "..(action.key=="leave" and "Leave" or "Replay")) or action.label
                 b.label:SetText(text);b.caption=text;b.reason=action.reason;b:SetEnabled(action.enabled);b:SetAlpha(action.enabled and 1 or .52)
                 b.plate:SetStyle(action.key=="leave" and "browsePrimary" or action.primary and "gold" or "browseCard")
                 b:SetScript("OnClick",function()
                     if not action.enabled then return end
-                    if action.key=="leave" and confirm~=p.event.id then confirm=p.event.id;b.label:SetText("Confirm Leave");return end
+                    if (action.key=="leave" or action.key=="consent-replay") and confirm~=confirmation then confirm=confirmation;b.label:SetText(action.key=="leave" and "Confirm Leave" or "Confirm Replay");return end
                     confirm=nil;callbacks.action(action.key)
                 end)
             end
@@ -374,5 +407,12 @@ function P.RunSelfTest()
     p.match=nil;p.bracket.rounds[1][1].state="done";p.bracket.rounds[1][1].winner="b";p.state="eliminated"
     assert(P.Project(p).status=="Eliminated")
     p.bracket.state="completed";p.bracket.champion="a";p.bracket.rounds[1][1].winner="a";assert(P.Project(p).status=="Tournament champion")
+    p.scope="PRIVATE_TEST";p.canCommunicate=true;p.finalized=false
+    m=P.Project(p);assert(m.actions[3].key=="ack" and m.actions[3].enabled)
+    p.finalized=true;m=P.Project(p);assert(#m.actions==2)
+    p.bracket=nil;p.state=nil;p.member.checkedIn=false;p.now=2300
+    m=P.Project(p);assert(m.actions[1].key=="checkin" and m.actions[1].enabled)
+    p.pending=true;m=P.Project(p);assert(not m.actions[1].enabled)
+    for _,a in ipairs(m.actions) do assert(a.key~="simulate-game" and a.key~="notice") end
     return true
 end
