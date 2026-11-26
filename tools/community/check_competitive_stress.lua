@@ -32,8 +32,38 @@ GetTime=function()return 0 end;C_Timer={After=function()end};hooksecurefunc=func
 assert(loadfile(root.."DuelDetection.lua"))("DuelsReimagined",ns)
 CreateFrame,GetTime,C_Timer,hooksecurefunc=oldFrame,oldClock,oldAfter,oldHook
 ns.Group=oldGroup
-local hp,hf=ns.TournamentRegistration.RunHostRecoverySelfTest(print)
+local recoveryLines={}
+local hp,hf=ns.TournamentRegistration.RunHostRecoverySelfTest(function(line)
+    recoveryLines[#recoveryLines+1]=line;print(line)
+end)
 assert(hp==72 and hf==0,"tournament host recovery QA failed")
+-- Exercise the same cases through the diagnostic cooperative path, not only
+-- the synchronous runner. Every assertion and report must remain identical.
+local cooperativeLines,caseSlices={},{}
+local recoveryTask=coroutine.create(function()
+    return ns.TournamentRegistration.RunHostRecoverySelfTest(function(line)
+        cooperativeLines[#cooperativeLines+1]=line
+    end,coroutine.yield)
+end)
+local resumes=0
+while true do
+    local ok,a,b=coroutine.resume(recoveryTask)
+    assert(ok,a)
+    resumes=resumes+1;assert(resumes<5000,"cooperative recovery did not terminate")
+    if coroutine.status(recoveryTask)=="dead" then
+        assert(a==hp and b==hf,"cooperative recovery counts differ")
+        break
+    end
+    assert(type(a)=="string","recovery slice missing case label")
+    caseSlices[a]=(caseSlices[a] or 0)+1
+end
+assert(#cooperativeLines==#recoveryLines,"cooperative recovery report count differs")
+for i,line in ipairs(recoveryLines) do assert(cooperativeLines[i]==line,"cooperative recovery report differs") end
+for _,client in ipairs({"forever","retail"}) do
+    local label=client.." bracket reports persist atomically and cannot be forged by organizer"
+    assert((caseSlices[label] or 0)>=15,"atomic report fixture lost cooperative boundaries")
+end
+print("Cooperative host recovery: all 72 reports match synchronous execution")
 local bp,bf=ns.TournamentBracket.RunSelfTest(print)
 assert(bp==24 and bf==0,"tournament bracket QA failed")
 local function Equal(a,b)
