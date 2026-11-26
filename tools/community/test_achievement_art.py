@@ -29,8 +29,21 @@ class AchievementArtTests(unittest.TestCase):
         expansion=(ADDON/"Media/Skin/AchievementExpansionArt.png").read_bytes()
         self.assertEqual(struct.unpack(">II",expansion[16:24]),(1024,512))
         self.assertEqual(hashlib.sha1(b"blob "+str(len(expansion)).encode()+b"\0"+expansion).hexdigest(),"ea5b7482285551ff74d87c3f915dc3b22cc64aca")
-        self.assertIn("PaintIcon(t,0)",ui)
-        self.assertIn("TintCenter(f.icon",ui)
+        self.assertIn("rim:SetTexture(COMMON_FRAME)",ui)
+        self.assertIn("rim:SetAllPoints(t)",ui)
+        self.assertIn("t:SetTexture(FRAMED_ART)",ui)
+        self.assertIn("TintFrame(f.icon",ui)
+        self.assertNotIn("PaintIcon(t,0)",ui)
+        self.assertIn("HideFrame(t)",ui)
+        self.assertIn("CollectionIcon(categoryEmblem)",ui)
+        for filename, dimensions, digest in [
+            ("AchievementCommonFrame.png",(256,256),"d11f31b8ea66ca836f009211284249a28612aeb8"),
+            ("AchievementFramedArt.png",(1024,512),"8159fb59572c68f5b71450e7763024a9afaf21ad"),
+        ]:
+            image=(ADDON/"Media/Skin"/filename).read_bytes()
+            self.assertEqual(image[:8],b"\x89PNG\r\n\x1a\n")
+            self.assertEqual(struct.unpack(">II",image[16:24]),dimensions)
+            self.assertEqual(hashlib.sha1(b"blob "+str(len(image)).encode()+b"\0"+image).hexdigest(),digest)
         self.assertEqual(set(tour_slots.values()),set(range(9)))
         data=(ADDON/"Media/Skin/TournamentAchievementArt.png").read_bytes()
         self.assertEqual(data[:8],b"\x89PNG\r\n\x1a\n")
@@ -38,7 +51,7 @@ class AchievementArtTests(unittest.TestCase):
         self.assertEqual(hashlib.sha1(b"blob "+str(len(data)).encode()+b"\0"+data).hexdigest(),"c435e48a1757c92eddb1256af7853992c1a16e68")
         self.assertIn("HIDDEN_SLOT=35",ui)
         self.assertIn("U.PaintAchievementIcon(f.icon,r.id,r.hidden)",ui)
-        self.assertIn("PaintIcon(t,hidden and HIDDEN_SLOT or iconSlots[id] or HIDDEN_SLOT)",ui)
+        self.assertIn("PaintIcon(t,hidden and HIDDEN_SLOT or iconSlots[id] or HIDDEN_SLOT,parent)",ui)
         self.assertNotIn("Interface\\\\Icons",ui)
         self.assertNotIn("wreathL",ui)
         self.assertNotIn("pointsLaurel",ui)

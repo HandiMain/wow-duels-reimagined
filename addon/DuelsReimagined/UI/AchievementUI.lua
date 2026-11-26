@@ -2,11 +2,12 @@ local _,ns=...
 local U={};ns.AchievementUI=U
 local S,C,W=ns.Style,ns.Style.color,ns.Widgets
 local ART="Interface\\AddOns\\DuelsReimagined\\Media\\Skin\\DuelAchievementArt.png"
-local EXPANSION_ART="Interface\\AddOns\\DuelsReimagined\\Media\\Skin\\AchievementExpansionArt.png"
+local FRAMED_ART="Interface\\AddOns\\DuelsReimagined\\Media\\Skin\\AchievementFramedArt.png"
+local COMMON_FRAME="Interface\\AddOns\\DuelsReimagined\\Media\\Skin\\AchievementCommonFrame.png"
 local tourSlots={tourbegin=0,tourfinal=1,tourwin=2,tourreign=3,toursweep=4,tourarena=5,tourhost=6,tourveteran=7,tourlegend=8}
 local expansionSlots={rematch=10,familiar=11,eternalrival=12,regular=13,wayoflife=14,nemesis=15,revenge=16,rankedrivals=17,
     tourcontender=18,tourbacktoback=19,tourstalwart=20,tourceremonies=21,tourgrandhost=22,tourbigstage=23,tourpath=24,collector=25}
-local centers=setmetatable({},{__mode="k"})
+local rims=setmetatable({},{__mode="k"})
 local colors={{.65,.65,.65,1},{.42,.85,.28,1},{.34,.68,1,1},{.73,.38,1,1},{1,.65,.16,1}}
 -- Stable artwork keys, independent of catalogue ordering or unlock logic.
 local iconSlots={
@@ -21,46 +22,52 @@ local function Sample(t,x,y,w,h)
     t:SetTexture(ART)
     t:SetTexCoord((x+.5)/1024,(x+w-.5)/1024,(y+.5)/1024,(y+h-.5)/1024)
 end
-local function PaintIcon(t,slot)
-    Sample(t,(slot%6)*128+1,math.floor(slot/6)*128+1,126,126)
-end
--- Use the real original atlas frame underneath every expansion center.
--- Opaque center replaces the old emblem; native frame pixels remain exposed.
-local function Center(t,parent)
-    local c=centers[t]
-    if not c and parent then
-        c=parent:CreateTexture(nil,"OVERLAY",nil,4)
-        ns.Chrome.Sharp(c);c:Hide();centers[t]=c
+-- One authored border, identical for every badge. The expansion atlas has
+-- the same frame baked in; older illustrations use the shared transparent rim.
+-- Never show an entire unrelated badge underneath the new center.
+local function FrameOverlay(t,parent)
+    local rim=rims[t]
+    if not rim and parent then
+        rim=parent:CreateTexture(nil,"OVERLAY",nil,4)
+        ns.Chrome.Sharp(rim);rim:SetTexture(COMMON_FRAME)
+        rim:SetTexCoord(0,1,0,1);rim:Hide();rims[t]=rim
     end
-    return c
+    return rim
 end
-local function HideCenter(t)
-    local c=centers[t];if c then c:Hide() end
+local function HideFrame(t)
+    local rim=rims[t];if rim then rim:Hide() end
 end
-local function Framed(t,slot,parent)
-    local c=Center(t,parent)
-    -- Existing first achievement is the shared source of metallic frame pixels.
-    PaintIcon(t,0)
-    if not c then return end
+local function ShowFrame(t,parent)
+    local rim=FrameOverlay(t,parent)
+    if not rim then return end
+    rim:ClearAllPoints();rim:SetAllPoints(t)
+    rim:SetVertexColor(1,1,1,1);rim:Show()
+end
+local function PaintIcon(t,slot,parent)
+    -- Inset sample suppresses the old outer frame; the new rim covers its
+    -- remaining perimeter while retaining each original illustration.
+    Sample(t,(slot%6)*128+8,math.floor(slot/6)*128+8,112,112)
+    ShowFrame(t,parent)
+end
+local function Framed(t,slot)
+    HideFrame(t)
     local x,y=(slot%8)*128,math.floor(slot/8)*128
-    c:SetTexture(EXPANSION_ART)
-    c:SetTexCoord((x+.5)/1024,(x+127.5)/1024,(y+.5)/512,(y+127.5)/512)
-    local w,h=t:GetWidth(),t:GetHeight()
-    c:ClearAllPoints();c:SetPoint("CENTER",t,"CENTER",0,0)
-    c:SetSize(math.max(1,w*.78),math.max(1,h*.78))
-    c:SetVertexColor(1,1,1,1);c:Show()
+    t:SetTexture(FRAMED_ART)
+    t:SetTexCoord((x+.5)/1024,(x+127.5)/1024,(y+.5)/512,(y+127.5)/512)
 end
 function U.PaintAchievementIcon(t,id,hidden,parent)
     local slot=not hidden and (tourSlots[id] or expansionSlots[id])
-    if slot then Framed(t,slot,parent);return end
-    HideCenter(t)
-    PaintIcon(t,hidden and HIDDEN_SLOT or iconSlots[id] or HIDDEN_SLOT)
+    if slot then Framed(t,slot);return end
+    PaintIcon(t,hidden and HIDDEN_SLOT or iconSlots[id] or HIDDEN_SLOT,parent)
 end
 local function CategoryIcon(t,cat,index)
-    if cat=="Tournaments" then Framed(t,9) else HideCenter(t);PaintIcon(t,29+index) end
+    if cat=="Tournaments" then Framed(t,9) else PaintIcon(t,29+index) end
 end
-local function TintCenter(t,value)
-    local c=centers[t];if c then c:SetVertexColor(value,value,value,1) end
+local function CollectionIcon(t)
+    Sample(t,794,154,80,80);ShowFrame(t)
+end
+local function TintFrame(t,value)
+    local rim=rims[t];if rim then rim:SetVertexColor(value,value,value,1) end
 end
 local function Place(f,p,x,y,w,h)
     f:ClearAllPoints();f:SetPoint("TOPLEFT",p,"TOPLEFT",x,-y);f:SetSize(math.max(1,w),math.max(1,h))
@@ -77,7 +84,7 @@ local function Panel(p)
     local f=CreateFrame("Frame",nil,p);f.skin=S.Skin(f,C.body,{corner=8,edge=C.goldDim,shine=.10,shade=.12,rim=.8});return f
 end
 local function Icon(p)
-    local t=p:CreateTexture(nil,"ARTWORK",nil,2);ns.Chrome.Sharp(t);Center(t,p);return t
+    local t=p:CreateTexture(nil,"ARTWORK",nil,2);ns.Chrome.Sharp(t);FrameOverlay(t,p);return t
 end
 local function Button(p,fn)
     local b=CreateFrame("Button",nil,p);local plate=S.Plate(b,"dark",{corner=8})
@@ -138,7 +145,7 @@ end
 local all={"All"};for _,cat in ipairs(ns.Achievements.Categories) do all[#all+1]=cat end
 for i,cat in ipairs(all) do
     local key=cat;local b=Button(left,function()Select(key)end);b.icon=Icon(b)
-    if i==1 then Sample(b.icon,778,154,112,80) else CategoryIcon(b.icon,cat,i-1) end
+    if i==1 then CollectionIcon(b.icon) else CategoryIcon(b.icon,cat,i-1) end
     filters[i]=b
 end
 local function Row()
@@ -168,7 +175,7 @@ local function Paint(f,r,w,h)
     -- The existing state text and subdued rim distinguish unavailable rows.
     f.icon:SetDesaturated(false)
     f.icon:SetVertexColor(locked and .86 or 1,locked and .86 or 1,locked and .86 or 1,1)
-    TintCenter(f.icon,locked and .86 or 1)
+    TintFrame(f.icon,locked and .86 or 1)
     local x=sz+17;local stateW=w>=530 and 130 or 90
     local pX=w-stateW-81
     local textW=math.max(55,pX-x-10)
@@ -229,14 +236,14 @@ Render=function()
     local lw=math.min(200,w*.235)
     Place(left,page,0,contentY,lw,math.max(1,h-contentY))
     Place(categoryEmblem,left,9,8,29,26)
-    if category=="All" then HideCenter(categoryEmblem);Sample(categoryEmblem,778,154,112,80)
+    if category=="All" then CollectionIcon(categoryEmblem)
     else for i,cat in ipairs(ns.Achievements.Categories) do if cat==category then CategoryIcon(categoryEmblem,cat,i);break end end end
     Place(categoryTitle,left,42,8,lw-50,31);categoryTitle:SetText(category=="All" and "Collection" or category)
     for i,b in ipairs(filters) do
         local cat=all[i];local c=cat=="All" and data or data.categories[cat]
         local step=math.max(24,math.min(33,math.floor((h-contentY-45)/#filters)))
         Place(b,left,7,45+(i-1)*step,lw-14,step-2);Place(b.icon,b,5,math.max(1,(step-25)/2),23,23);Place(b.label,b,29,0,lw-48,step-2)
-        if cat~="All" then CategoryIcon(b.icon,cat,i-1) end
+        if cat=="All" then CollectionIcon(b.icon) else CategoryIcon(b.icon,cat,i-1) end
         b.label:SetText((cat=="All" and "All" or cat).."   "..c.earned.." / "..c.total);b.Active(category==cat)
     end
     local listW=w-lw-10
