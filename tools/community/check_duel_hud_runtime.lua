@@ -377,3 +377,25 @@ assert(Motion.GetRuntimeState().active==1)
 driver.scripts.OnUpdate(driver,.1)
 assert(last==2 and not Motion.GetRuntimeState().driver)
 print("Shared motion regression: PASS (completion retarget survives and driver releases)")
+
+-- The real press feedback owner allocates its uniquely layered mask only
+-- after a valid press; it retains the same alpha/motion contract.
+sty.Motion=Motion;sty.Chrome={}
+assert(loadfile("addon/DuelsReimagined/UI/Widgets.lua"))("DuelsReimagined",sty)
+local press=Frame(nil)
+function press:IsEnabled()return self.enabled~=false end
+local pressBefore=#frames
+sty.Widgets.PressFeedback(press,nil)
+assert(#frames==pressBefore and press._duelsPressFlash:GetAlpha()==0)
+press.scripts.OnMouseDown(press,"RightButton")
+press.enabled=false;press.scripts.OnMouseDown(press,"LeftButton")
+press.scripts.OnMouseUp(press,"LeftButton")
+assert(#frames==pressBefore)
+press.enabled=true;press.scripts.OnMouseDown(press,"LeftButton")
+assert(#frames-pressBefore==9 and press._duelsPressFlash:GetAlpha()==.44)
+press.scripts.OnMouseUp(press,"LeftButton")
+press.scripts.OnHide(press)
+assert(press._duelsPressFlash:GetAlpha()==0 and not Motion.GetRuntimeState().driver)
+press.scripts.OnMouseDown(press,"LeftButton");press.scripts.OnHide(press)
+assert(#frames-pressBefore==9 and not Motion.GetRuntimeState().driver)
+print("Deferred press mask: PASS (no idle or disabled allocation, exact first-press alpha, reuse and cleanup)")

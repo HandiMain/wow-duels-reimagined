@@ -3293,11 +3293,12 @@ function R.RunShowcaseSelfTest(emit)
     end
     return p,f
 end
-function R.RunPrivateNetworkSelfTest(emit)
+function R.RunPrivateNetworkSelfTest(emit,checkpoint)
+    local function Step() if checkpoint then coroutine.yield() end end
     emit=type(emit)=="function" and emit or function()end
     local pass,fail=0,0
     for _,client in ipairs({"forever","retail"}) do
-        local ok,err=pcall(function()
+        local task=coroutine.create(function()
             local s={client=client,region="EU",ruleset=client=="forever" and "pvp" or "retail",faction="Alliance"}
             local now=1795622400
             local function clock()return now end
@@ -3322,6 +3323,7 @@ function R.RunPrivateNetworkSelfTest(emit)
                 tick()
                 local replies=assert(host.Receive(name,assert(body)))
                 for _,packet in ipairs(replies) do assert(w.Receive("host",packet)) end
+                Step()
             end
             for _,name in ipairs({"one","two"}) do
                 local w=assert(Open(name,"player"));clients[name]=w
@@ -3331,7 +3333,7 @@ function R.RunPrivateNetworkSelfTest(emit)
             now=ad.draft.startAt-1800
             for _,name in ipairs({"one","two"}) do Exchange(name,clients[name],clients[name].Action("C")) end
             now=ad.draft.startAt
-            assert(host.StartBracket(actors.host.guid))
+            assert(host.StartBracket(actors.host.guid));Step()
             local match
             for _,round in ipairs(host.BracketSnapshot().rounds) do for _,m in ipairs(round) do if m.state=="ready" then match=m end end end
             assert(match)
@@ -3343,7 +3345,7 @@ function R.RunPrivateNetworkSelfTest(emit)
                 local request=assert(R.PrivateMatchRequest(s,op,nonce,ad.id,match.id,term,serial,outcome))
                 tick()
                 local reply=assert(R.ReceivePrivateMatchRequest(s,host,name,request))
-                return assert(R.DecodePrivateMatchReply(s,nonce,reply[1]))
+                local decoded=assert(R.DecodePrivateMatchReply(s,nonce,reply[1]));Step();return decoded
             end
             for _,name in ipairs({"one","two"}) do
                 local w=clients[name];local o=MatchRequest(name,"I")
@@ -3364,7 +3366,7 @@ function R.RunPrivateNetworkSelfTest(emit)
                 assert(clients[name].PrivateSeat().winner==winner)
                 local receipt=MatchRequest(name,"U",assignment.term,assignment.serial,name=="one" and "won" or "lost")
                 assert(receipt.status==(name=="one" and "pending" or "confirmed"))
-                assert(clients[name].ClearPrivateSeat())
+                assert(clients[name].ClearPrivateSeat());Step()
             end
             assert(host.BracketSnapshot().champion==winner and not host.PrivateOffer())
             tick();assert(host.PrivateReport("one",ad.id,match.id,assignment.term,assignment.serial,"won"))
@@ -3376,6 +3378,7 @@ function R.RunPrivateNetworkSelfTest(emit)
                 while not f.Snapshot() do
                     tick();local parts=assert(host.Receive(name,assert(f.Request())))
                     for _,packet in ipairs(parts) do assert(f.Receive("host",packet)) end
+                    Step()
                 end
                 local v=assert(f.Snapshot());assert(v.bracket.champion==winner)
                 local seq=assert(w.ReserveProgress())
@@ -3385,12 +3388,12 @@ function R.RunPrivateNetworkSelfTest(emit)
                     local packet,last=e.Next();assert(packet);tick()
                     receipt=host.PrivateReceiveEcho(name,packet)
                     if last then break end
-                    assert(not receipt)
+                    assert(not receipt);Step()
                 end
                 assert(receipt and R.PrivateEchoReceipt(s,seq,v.control.term,v.bracket.revision,receipt[1]))
                 if name=="one" then assert(not host.PrivateFinalize()) end
             end
-            assert(host.PrivateFinalize())
+            assert(host.PrivateFinalize());Step()
             local reopened=assert(Open("host","host"));local history=reopened.PrivateHistory()
             assert(#history==1 and history[1].champion=="one" and history[1].scope=="PRIVATE_TEST")
             for _,name in ipairs({"one","two"}) do
@@ -3400,6 +3403,7 @@ function R.RunPrivateNetworkSelfTest(emit)
                     while not f.Snapshot() do
                         tick();local parts=assert(reopened.Receive(name,assert(f.Request())))
                         for _,packet in ipairs(parts) do assert(f.Receive("host",packet)) end
+                    Step()
                     end
                     return assert(f.Snapshot())
                 end
@@ -3437,7 +3441,7 @@ function R.RunPrivateNetworkSelfTest(emit)
                 assert(validate(client,actors[name].guid,journal,true).participantCompleted[ad.id].champion==winner)
                 local tampered=Copy(journal);tampered.participantCompleted[ad.id].champion=actors.host.guid
                 assert(not validate(client,actors[name].guid,tampered,true))
-                assert(validate(client,actors[name].guid,journal,true))
+                assert(validate(client,actors[name].guid,journal,true));Step()
             end
             -- The shared validator accepts only the marked, complete LOCAL result.
             local ctx={scope="PRIVATE_TEST",client=client,me=winner,peer=actors.two.guid,cycle=1,
@@ -3448,6 +3452,11 @@ function R.RunPrivateNetworkSelfTest(emit)
             assert(ns.ResultConfirmation.MakePrivateTournamentStatement(ctx,r))
             r.tournamentSession="wrong:seat";assert(not ns.ResultConfirmation.MakePrivateTournamentStatement(ctx,r))
         end)
+        local ok,err
+        repeat
+            ok,err=coroutine.resume(task)
+            if ok and coroutine.status(task)~="dead" and checkpoint then checkpoint() end
+        until not ok or coroutine.status(task)=="dead"
         if ok then pass=pass+1 else fail=fail+1 end
         emit("DR | ISOLATED PRIVATE TEST | "..(ok and "PASS " or "FAIL ")..client.." registration to finalized archive"..(ok and "" or ": "..tostring(err)))
     end
@@ -3542,10 +3551,10 @@ function R.RunSelfTest(emit)
     return p,f
 end
 if ns.Diagnostics then
-ns.Diagnostics.Register("Tournament private network / isolated lifecycle QA","deep",function()
-    local log={};local p,f=R.RunPrivateNetworkSelfTest(function(line)log[#log+1]=line end)
+ns.Diagnostics.Register("Tournament private network / isolated lifecycle QA","deep",function(checkpoint)
+    local log={};local p,f=R.RunPrivateNetworkSelfTest(function(line)log[#log+1]=line end,checkpoint)
     return f==0 and p==2 and "PASS" or "FAIL",string.format("%d passed / %d failed (ISOLATED)\n",p,f)..table.concat(log,"\n")
-end)
+end,true)
 ns.Diagnostics.Register("Tournament showcase / isolated entry QA","deep",function()
     local log={};local p,f=R.RunShowcaseSelfTest(function(line)log[#log+1]=line end)
     return f==0 and p==2 and "PASS" or "FAIL",string.format("%d passed / %d failed (SIMULATED)\n",p,f)..table.concat(log,"\n")

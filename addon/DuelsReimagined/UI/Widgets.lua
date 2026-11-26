@@ -188,9 +188,16 @@ function Widgets.PressFeedback(button, hover, opts)
     if not button or button._duelsPressBound then return end
     opts = opts or {}
     button._duelsPressBound = true
-    local flash = Style.SkinMask(button, C.gold, "shine", "OVERLAY", -1,
-        opts.corner or 9, opts.inset or 2)
-    flash:SetAlpha(0)
+    local painted
+    local flash={alpha=0}
+    function flash:GetAlpha()return self.alpha end
+    function flash:SetAlpha(v)
+        self.alpha=math.max(0,math.min(1,v or 0))
+        if not painted and self.alpha>0 then
+            painted=Style.SkinMask(button,C.gold,"shine","OVERLAY",-1,opts.corner or 9,opts.inset or 2)
+        end
+        if painted then painted:SetAlpha(self.alpha) end
+    end
     button._duelsPressFlash = flash
     local down = false
     local function Enabled(self)

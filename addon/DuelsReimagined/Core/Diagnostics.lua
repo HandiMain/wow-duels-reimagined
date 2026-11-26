@@ -42,7 +42,7 @@ function D.Register(id,profile,fn,cooperative)
     return true
 end
 local function Assert(v,why) if not v then error(why,2) end end
-local function Check(id,profile,fn) D.Register(id,profile,fn) end
+local function Check(id,profile,fn,cooperative) D.Register(id,profile,fn,cooperative) end
 function D.Record(kind,message)
     kind=SafeText(kind,60); message=SafeText(message,1800)
     for _,item in ipairs(incidents) do
@@ -330,12 +330,12 @@ Check("Competitive rules / isolated anti-farming QA","deep",function()
     return f==0 and p==19 and "PASS" or "FAIL",
         string.format("%d passed / %d failed (SIMULATED)\n",p,f)..table.concat(log,"\n")
 end)
-Check("Leaderboard sync / isolated peer convergence QA","deep",function()
+Check("Leaderboard sync / isolated peer convergence QA","deep",function(checkpoint)
     local log={}
-    local p,f=ns.LeaderboardSync.RunSelfTest(function(line) log[#log+1]=line end)
+    local p,f=ns.LeaderboardSync.RunSelfTest(function(line) log[#log+1]=line end,checkpoint)
     return f==0 and p==25 and "PASS" or "FAIL",
         string.format("%d passed / %d failed (SIMULATED)\n",p,f)..table.concat(log,"\n")
-end)
+end,true)
 Check("Sync protocol / isolated packet QA","deep",function()
     local log={}
     local p,f=ns.SyncProtocol.RunSelfTest(function(line) log[#log+1]=line end)
@@ -402,24 +402,24 @@ Check("Sync protocol / isolated expanded capacity QA","deep",function()
     return f==0 and p==5 and "PASS" or "FAIL",
         string.format("%d passed / %d failed (SIMULATED)\n",p,f)..table.concat(log,"\n")
 end)
-Check("Leaderboard sync / isolated delta comparison QA","deep",function()
+Check("Leaderboard sync / isolated delta comparison QA","deep",function(checkpoint)
     local log={}
-    local p,f=ns.LeaderboardSync.RunDeltaSelfTest(function(line) log[#log+1]=line end)
+    local p,f=ns.LeaderboardSync.RunDeltaSelfTest(function(line) log[#log+1]=line end,checkpoint)
     return f==0 and p==9 and "PASS" or "FAIL",
         string.format("%d passed / %d failed (SIMULATED)\n",p,f)..table.concat(log,"\n")
-end)
+end,true)
 Check("Sync protocol / isolated delta packet QA","deep",function()
     local log={}
     local p,f=ns.SyncProtocol.RunDeltaWireSelfTest(function(line) log[#log+1]=line end)
     return f==0 and p==9 and "PASS" or "FAIL",
         string.format("%d passed / %d failed (SIMULATED)\n",p,f)..table.concat(log,"\n")
 end)
-Check("Leaderboard sync / isolated incremental comparison QA","deep",function()
+Check("Leaderboard sync / isolated incremental comparison QA","deep",function(checkpoint)
     local log={}
-    local p,f=ns.LeaderboardSync.RunDeltaCacheSelfTest(function(line) log[#log+1]=line end)
+    local p,f=ns.LeaderboardSync.RunDeltaCacheSelfTest(function(line) log[#log+1]=line end,checkpoint)
     return f==0 and p==7 and "PASS" or "FAIL",
         string.format("%d passed / %d failed (SIMULATED)\n",p,f)..table.concat(log,"\n")
-end)
+end,true)
 Check("Leaderboard sync / isolated cooperative preparation QA","deep",function()
     local log={}
     local p,f=ns.LeaderboardSync.RunPreparationSelfTest(function(line) log[#log+1]=line end)
@@ -432,18 +432,18 @@ Check("Sync protocol / isolated recovery session QA","deep",function()
     return f==0 and p==9 and "PASS" or "FAIL",
         string.format("%d passed / %d failed (SIMULATED)\n",p,f)..table.concat(log,"\n")
 end)
-Check("Competitive storage / isolated competitive data view QA","deep",function()
+Check("Competitive storage / isolated competitive data view QA","deep",function(checkpoint)
     local log={}
-    local p,f=ns.CompetitiveStorage.RunCompetitiveViewSelfTest(function(line) log[#log+1]=line end)
+    local p,f=ns.CompetitiveStorage.RunCompetitiveViewSelfTest(function(line) log[#log+1]=line end,checkpoint)
     return f==0 and p==15 and "PASS" or "FAIL",
         string.format("%d passed / %d failed (SIMULATED)\n",p,f)..table.concat(log,"\n")
-end)
-Check("Competitive storage / isolated final data foundation QA","deep",function()
+end,true)
+Check("Competitive storage / isolated final data foundation QA","deep",function(checkpoint)
     local log={}
-    local p,f=ns.CompetitiveStorage.RunFoundationSelfTest(function(line) log[#log+1]=line end)
+    local p,f=ns.CompetitiveStorage.RunFoundationSelfTest(function(line) log[#log+1]=line end,checkpoint)
     return f==0 and p==13 and "PASS" or "FAIL",
         string.format("%d passed / %d failed (SIMULATED)\n",p,f)..table.concat(log,"\n")
-end)
+end,true)
 Check("Search registry","deep",function()
     local S=ns.Search
     local seen={}
@@ -494,10 +494,11 @@ end
 -- Never suspend inside pcall: Lua 5.1 cannot yield across a protected call.
 local function NewScan(mode,prepared)
     local r={mode=mode=="complete" and "complete" or "health",stamp=Stamp(),rows={},counts={}}
-    local job={result=r,ms=prepared and prepared.ms or 0,peak=prepared and prepared.peak or 0,batched=prepared~=nil}
+    local job={result=r,ms=prepared and prepared.ms or 0,peak=prepared and prepared.peak or 0,peakOwner=prepared and "UI geometry audit" or nil,batched=prepared~=nil}
     local function Scan(profile,prefix)
         for _,p in ipairs(providers) do
             if p.profile==profile then
+                job.sliceOwner=prefix..p.id
                 local ok,status,detail
                 local ms=0;local measured=false
                 if p.id=="Owned UI geometry and texture sources" and prepared then
@@ -533,6 +534,7 @@ local function NewScan(mode,prepared)
         Scan("health","Health / ")
         if r.mode=="complete" then
             Scan("deep","Deep Health / ")
+            job.sliceOwner="Isolated duel suite and resource comparison"
             local before=Fingerprint()
             local motionBefore=ns.Motion.GetRuntimeState()
             local resourcesBefore,coveredBefore=ns.DiagnosticAudit.Resources()
@@ -566,6 +568,7 @@ local function NewScan(mode,prepared)
             Add(r,"Static package / Lua syntax","SKIP","Source file syntax and TOC validation are CI-only; not readable from WoW Lua.")
             Add(r,"Live gameplay / multiplayer","SKIP","Requires real players. Simulated results never prove Blizzard event delivery.")
         end
+        job.sliceOwner="Final trace and incident collection"
         local d=ns.DuelDetection.GetSnapshot()
         r.trace={}
         for _,entry in ipairs(d.trace) do
@@ -580,6 +583,7 @@ local function Finish(job)
     local r=job.result
     r.ms=job.measured and job.ms or nil
     r.peakSlice=job.measured and job.peak or nil
+    r.peakOwner=job.peakOwner
     r.batched=job.batched
     r.status=r.counts.FAIL and "FAIL" or r.counts.WARN and "WARN" or "PASS"
     r.previous=last and last.status or "none"
@@ -604,7 +608,8 @@ local function Advance(job)
     local done=Clock()
     if t and done then
         local elapsed=math.max(0,done-t)
-        job.ms=job.ms+elapsed;job.peak=math.max(job.peak,elapsed);job.measured=true
+        job.ms=job.ms+elapsed;job.measured=true
+        if elapsed>job.peak then job.peak=elapsed;job.peakOwner=job.sliceOwner end
     end
     if not ok then
         Add(job.result,"Diagnostics coordinator","FAIL",SafeText(message))
@@ -619,7 +624,7 @@ function D.Run(mode)
         local job=NewScan(mode)
         while not Advance(job) do end
         -- A synchronous caller still performs all checks in one call.
-        job.peak=job.ms
+        job.peak=job.ms;job.peakOwner="Synchronous scan"
         return Finish(job)
     end)
     running=false
@@ -691,6 +696,7 @@ function D.BuildReport(result,advanced)
         "No automated repair; live records and preferences are not modified by scans.",
         r.ms and string.format("Measured work: %.2f ms (%s)",r.ms,r.batched and "batched UI and QA; excludes wait" or "synchronous checks") or "Timing unavailable",
         r.peakSlice and string.format("Longest measured work slice: %.2f ms (excludes report rendering and wait)",r.peakSlice) or "Slice timing unavailable",
+        r.peakOwner and ("Longest slice owner: "..r.peakOwner) or "Slice owner unavailable",
         "Runtime evidence only; not a source-code or multiplayer certification.",""}
     for _,row in ipairs(r.rows) do
         lines[#lines+1]=row.status.." | "..row.id..(row.ms and string.format(" (%.2f ms)",row.ms) or "")

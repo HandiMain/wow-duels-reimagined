@@ -1146,12 +1146,13 @@ function P.RunArchiveSelfTest(emit)
     return passed,failed
 end
 
-function P.RunCompetitiveViewSelfTest(emit)
+function P.RunCompetitiveViewSelfTest(emit,checkpoint)
     emit=type(emit)=="function" and emit or function()end
     local pass,fail=0,0
     local function Case(label,fn)
         local ok,err=pcall(fn);if ok then pass=pass+1 else fail=fail+1 end
         emit("DR | SIMULATED | "..(ok and "PASS " or "FAIL ")..label..(ok and "" or ": "..tostring(err)))
+        if checkpoint then checkpoint() end
     end
     local me,b,c,d="Player-1-AAA","Player-2-BBB","Player-3-CCC","Player-4-DDD"
     local epoch=1000;local boundary=epoch+ns.SeasonRules.DURATION
@@ -1270,12 +1271,13 @@ function P.RunCompetitiveViewSelfTest(emit)
     return pass,fail
 end
 
-function P.RunFoundationSelfTest(emit)
+function P.RunFoundationSelfTest(emit,checkpoint)
     emit=type(emit)=="function" and emit or function()end
     local pass,fail=0,0
     local function Case(label,fn)
         local ok,err=pcall(fn);if ok then pass=pass+1 else fail=fail+1 end
         emit("DR | SIMULATED | "..(ok and "PASS " or "FAIL ")..label..(ok and "" or ": "..tostring(err)))
+        if checkpoint then checkpoint() end
     end
     local a,b,c,d="Player-1-AAA","Player-2-BBB","Player-3-CCC","Player-4-DDD"
     local epoch=1000

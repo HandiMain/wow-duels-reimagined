@@ -398,8 +398,11 @@ function Style.Plate(parent, kind, opts)
     r:SetPoint("TOPRIGHT", tr, "BOTTOMRIGHT"); r:SetPoint("BOTTOMRIGHT", br, "TOPRIGHT"); r:SetWidth(corner)
     m:SetPoint("TOPLEFT", tl, "BOTTOMRIGHT"); m:SetPoint("BOTTOMRIGHT", br, "TOPLEFT")
     local group = {}
+    local currentKind=kind
     function group:SetStyle(newKind)
+        if currentKind==newKind then return end
         local spec = assert(PLATES[newKind], "Unknown Duel Hall plate")
+        currentKind=newKind
         for _, tile in ipairs(tiles) do
             tile.tex:SetTexture(spec.path)
             tile.tex:SetTexCoord(Coord(spec, tile.x, tile.y))

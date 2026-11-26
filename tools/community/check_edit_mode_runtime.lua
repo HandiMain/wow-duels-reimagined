@@ -54,6 +54,7 @@ ns.DuelCountdown={LayoutSize=function()return 480,240 end,
     ShowLayoutSample=function()samples=samples+1 end,
     Preview=function()previews=previews+1 end,
     EndLayoutDraft=function()draft=nil;finishes=finishes+1 end}
+ns.TournamentHUD={LayoutSize=function()return 480,240 end,SetLayoutDraft=noop,ShowLayoutSample=noop,EndLayoutDraft=noop}
 local count=#frames
 assert(loadfile("addon/DuelsReimagined/UI/EditMode.lua"))("DuelsReimagined",ns)
 local M=ns.EditMode

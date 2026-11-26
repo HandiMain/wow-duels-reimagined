@@ -205,12 +205,13 @@ function B.OpenSimulated(scope,owner,saved)
     end
     if Equal(d.Save(),saved) then return d end
 end
-function B.RunSelfTest(emit)
+function B.RunSelfTest(emit,checkpoint)
     emit=type(emit)=="function" and emit or function()end
     local p,f=0,0
     local function Case(label,fn)
         local ok,err=pcall(fn);if ok then p=p+1 else f=f+1 end
         emit("DR | SIMULATED | "..(ok and "PASS " or "FAIL ")..label..(ok and "" or ": "..tostring(err)))
+        if checkpoint then checkpoint() end
     end
     for _,client in ipairs({"forever","retail"}) do
         local function Fixture(size,count,best)
@@ -410,8 +411,8 @@ function B.RunSelfTest(emit)
     return p,f
 end
 if ns.Diagnostics then
-    ns.Diagnostics.Register("Tournament brackets / isolated competition QA","deep",function()
-        local log={};local p,f=B.RunSelfTest(function(line)log[#log+1]=line end)
+    ns.Diagnostics.Register("Tournament brackets / isolated competition QA","deep",function(checkpoint)
+        local log={};local p,f=B.RunSelfTest(function(line)log[#log+1]=line end,checkpoint)
         return p==24 and f==0 and "PASS" or "FAIL",string.format("%d passed / %d failed (SIMULATED)\n",p,f)..table.concat(log,"\n")
-    end)
+    end,true)
 end

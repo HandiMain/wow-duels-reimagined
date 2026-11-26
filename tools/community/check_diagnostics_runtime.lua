@@ -203,5 +203,6 @@ Check(steps==4 and callbacks==1 and complete and not D.IsRunning(),"complete aft
 local found
 for _,row in ipairs(complete.rows) do if row.id=="Deep Health / cooperative fixture" then found=row end end
 Check(found and found.status=="PASS" and found.ms and complete.peakSlice,"timing and evidence preserved")
+Check(type(complete.peakOwner)=="string" and #complete.peakOwner>0,"longest slice attributed")
 A.BeginUIAudit,A.Resources=prevAudit,prevResources
 print("Cooperative diagnostics: PASS (one case per slice, overlap refusal, cancellation, restart, report and timing)")

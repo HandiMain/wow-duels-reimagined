@@ -405,12 +405,13 @@ function P.OpenSeasonPeer(client,epoch,saved,population)
 end
 function P.GetSnapshot() return {scope="LOCAL",state="disabled",rankEligible=false,version=VERSION} end
 function P.GetDiagnosticResources() return {pending=0,subscriptions=0,timers=0} end
-function P.RunSelfTest(emit)
+function P.RunSelfTest(emit,checkpoint)
     emit=type(emit)=="function" and emit or function()end
     local passed,failed=0,0
     local function Case(label,fn)
         local ok,err=pcall(fn);if ok then passed=passed+1 else failed=failed+1 end
         emit("DR | SIMULATED | "..(ok and "PASS " or "FAIL ")..label..(ok and "" or ": "..tostring(err)))
+        if checkpoint then checkpoint() end
     end
     local a,b,c="Player-1-AAA","Player-2-BBB","Player-3-CCC"
     for _,client in ipairs({"forever","retail"}) do
@@ -577,12 +578,13 @@ function P.RunMergeSelfTest(emit)
     return passed,failed
 end
 
-function P.RunDeltaSelfTest(emit)
+function P.RunDeltaSelfTest(emit,checkpoint)
     emit=type(emit)=="function" and emit or function()end
     local passed,failed=0,0
     local function Case(label,fn)
         local ok,err=pcall(fn);if ok then passed=passed+1 else failed=failed+1 end
         emit("DR | SIMULATED | "..(ok and "PASS " or "FAIL ")..label..(ok and "" or ": "..tostring(err)))
+        if checkpoint then checkpoint() end
     end
     local a,b="Player-1-AAA","Player-2-BBB"
     local epoch=1000
@@ -663,12 +665,13 @@ function P.RunDeltaSelfTest(emit)
     return passed,failed
 end
 
-function P.RunDeltaCacheSelfTest(emit)
+function P.RunDeltaCacheSelfTest(emit,checkpoint)
     emit=type(emit)=="function" and emit or function()end
     local pass,fail=0,0
     local function Case(label,fn)
         local ok,err=pcall(fn);if ok then pass=pass+1 else fail=fail+1 end
         emit("DR | SIMULATED | "..(ok and "PASS " or "FAIL ")..label..(ok and "" or ": "..tostring(err)))
+        if checkpoint then checkpoint() end
     end
     local a,b="Player-1-AAA","Player-2-BBB"
     local epoch=1000
