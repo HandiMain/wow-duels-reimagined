@@ -2,12 +2,11 @@ local _,ns=...
 local U={};ns.AchievementUI=U
 local S,C,W=ns.Style,ns.Style.color,ns.Widgets
 local ART="Interface\\AddOns\\DuelsReimagined\\Media\\Skin\\DuelAchievementArt.png"
-local TOUR_ART="Interface\\AddOns\\DuelsReimagined\\Media\\Skin\\TournamentAchievementArt.png"
+local EXPANSION_ART="Interface\\AddOns\\DuelsReimagined\\Media\\Skin\\AchievementExpansionArt.png"
 local tourSlots={tourbegin=0,tourfinal=1,tourwin=2,tourreign=3,toursweep=4,tourarena=5,tourhost=6,tourveteran=7,tourlegend=8}
-local function TourIcon(t,slot)
-    local x,y=(slot%4)*128,math.floor(slot/4)*128
-    t:SetTexture(TOUR_ART);t:SetTexCoord((x+.5)/512,(x+127.5)/512,(y+.5)/512,(y+127.5)/512)
-end
+local expansionSlots={rematch=10,familiar=11,eternalrival=12,regular=13,wayoflife=14,nemesis=15,revenge=16,rankedrivals=17,
+    tourcontender=18,tourbacktoback=19,tourstalwart=20,tourceremonies=21,tourgrandhost=22,tourbigstage=23,tourpath=24,collector=25}
+local centers=setmetatable({},{__mode="k"})
 local colors={{.65,.65,.65,1},{.42,.85,.28,1},{.34,.68,1,1},{.73,.38,1,1},{1,.65,.16,1}}
 -- Stable artwork keys, independent of catalogue ordering or unlock logic.
 local iconSlots={
@@ -25,12 +24,43 @@ end
 local function PaintIcon(t,slot)
     Sample(t,(slot%6)*128+1,math.floor(slot/6)*128+1,126,126)
 end
-function U.PaintAchievementIcon(t,id,hidden)
-    if not hidden and tourSlots[id] then TourIcon(t,tourSlots[id]);return end
+-- Use the real original atlas frame underneath every expansion center.
+-- Opaque center replaces the old emblem; native frame pixels remain exposed.
+local function Center(t,parent)
+    local c=centers[t]
+    if not c and parent then
+        c=parent:CreateTexture(nil,"OVERLAY",nil,4)
+        ns.Chrome.Sharp(c);c:Hide();centers[t]=c
+    end
+    return c
+end
+local function HideCenter(t)
+    local c=centers[t];if c then c:Hide() end
+end
+local function Framed(t,slot,parent)
+    local c=Center(t,parent)
+    -- Existing first achievement is the shared source of metallic frame pixels.
+    PaintIcon(t,0)
+    if not c then return end
+    local x,y=(slot%8)*128,math.floor(slot/8)*128
+    c:SetTexture(EXPANSION_ART)
+    c:SetTexCoord((x+.5)/1024,(x+127.5)/1024,(y+.5)/512,(y+127.5)/512)
+    local w,h=t:GetWidth(),t:GetHeight()
+    c:ClearAllPoints();c:SetPoint("CENTER",t,"CENTER",0,0)
+    c:SetSize(math.max(1,w*.78),math.max(1,h*.78))
+    c:SetVertexColor(1,1,1,1);c:Show()
+end
+function U.PaintAchievementIcon(t,id,hidden,parent)
+    local slot=not hidden and (tourSlots[id] or expansionSlots[id])
+    if slot then Framed(t,slot,parent);return end
+    HideCenter(t)
     PaintIcon(t,hidden and HIDDEN_SLOT or iconSlots[id] or HIDDEN_SLOT)
 end
 local function CategoryIcon(t,cat,index)
-    if cat=="Tournaments" then TourIcon(t,9) else PaintIcon(t,29+index) end
+    if cat=="Tournaments" then Framed(t,9) else HideCenter(t);PaintIcon(t,29+index) end
+end
+local function TintCenter(t,value)
+    local c=centers[t];if c then c:SetVertexColor(value,value,value,1) end
 end
 local function Place(f,p,x,y,w,h)
     f:ClearAllPoints();f:SetPoint("TOPLEFT",p,"TOPLEFT",x,-y);f:SetSize(math.max(1,w),math.max(1,h))
@@ -47,7 +77,7 @@ local function Panel(p)
     local f=CreateFrame("Frame",nil,p);f.skin=S.Skin(f,C.body,{corner=8,edge=C.goldDim,shine=.10,shade=.12,rim=.8});return f
 end
 local function Icon(p)
-    local t=p:CreateTexture(nil,"ARTWORK",nil,2);ns.Chrome.Sharp(t);return t
+    local t=p:CreateTexture(nil,"ARTWORK",nil,2);ns.Chrome.Sharp(t);Center(t,p);return t
 end
 local function Button(p,fn)
     local b=CreateFrame("Button",nil,p);local plate=S.Plate(b,"dark",{corner=8})
@@ -138,6 +168,7 @@ local function Paint(f,r,w,h)
     -- The existing state text and subdued rim distinguish unavailable rows.
     f.icon:SetDesaturated(false)
     f.icon:SetVertexColor(locked and .86 or 1,locked and .86 or 1,locked and .86 or 1,1)
+    TintCenter(f.icon,locked and .86 or 1)
     local x=sz+17;local stateW=w>=530 and 130 or 90
     local pX=w-stateW-81
     local textW=math.max(55,pX-x-10)
@@ -190,7 +221,7 @@ Render=function()
     local contentY=140+(math.ceil(#tabs/columns)-1)*54
     for i,b in ipairs(tabs) do
         local cat=ns.Achievements.Categories[i];local c=data.categories[cat]
-        Place(b,page,((i-1)%columns)*(tw+6),78+math.floor((i-1)/columns)*54,tw,48);Place(b.icon,b,6,7,34,34)
+        Place(b,page,((i-1)%columns)*(tw+6),78+math.floor((i-1)/columns)*54,tw,48);Place(b.icon,b,6,7,34,34);CategoryIcon(b.icon,cat,i)
         Place(b.label,b,40,2,tw-43,24);b.label:SetText(cat)
         Place(b.count,b,40,24,tw-43,20);b.count:SetText(c.earned.." / "..c.total)
         b.Active(category==cat)
@@ -198,13 +229,14 @@ Render=function()
     local lw=math.min(200,w*.235)
     Place(left,page,0,contentY,lw,math.max(1,h-contentY))
     Place(categoryEmblem,left,9,8,29,26)
-    if category=="All" then Sample(categoryEmblem,778,154,112,80)
+    if category=="All" then HideCenter(categoryEmblem);Sample(categoryEmblem,778,154,112,80)
     else for i,cat in ipairs(ns.Achievements.Categories) do if cat==category then CategoryIcon(categoryEmblem,cat,i);break end end end
     Place(categoryTitle,left,42,8,lw-50,31);categoryTitle:SetText(category=="All" and "Collection" or category)
     for i,b in ipairs(filters) do
         local cat=all[i];local c=cat=="All" and data or data.categories[cat]
         local step=math.max(24,math.min(33,math.floor((h-contentY-45)/#filters)))
         Place(b,left,7,45+(i-1)*step,lw-14,step-2);Place(b.icon,b,5,math.max(1,(step-25)/2),23,23);Place(b.label,b,29,0,lw-48,step-2)
+        if cat~="All" then CategoryIcon(b.icon,cat,i-1) end
         b.label:SetText((cat=="All" and "All" or cat).."   "..c.earned.." / "..c.total);b.Active(category==cat)
     end
     local listW=w-lw-10

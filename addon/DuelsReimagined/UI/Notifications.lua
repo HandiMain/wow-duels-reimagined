@@ -331,7 +331,7 @@ local function Paint(m)
     elseif achieved then
         Position(close,panel,WIDTH-27,32,19,19)
         achCategory:SetText(m.preview and "PREVIEW: Achievement unlocked" or "ACHIEVEMENT UNLOCKED")
-        ns.AchievementUI.PaintAchievementIcon(achIcon,m.achievement.id,false)
+        ns.AchievementUI.PaintAchievementIcon(achIcon,m.achievement.id,false,achievement)
         achTitle:SetText(m.achievement.title);achDescription:SetText(m.achievement.description)
         achPoints:SetText("+"..m.achievement.points)
         local rarityColors={{1,.78,.36},{.57,1,.43},{.39,.70,1},{.80,.48,1},{1,.67,.22}}
