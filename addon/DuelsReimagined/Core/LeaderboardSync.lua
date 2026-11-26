@@ -403,6 +403,20 @@ function P.OpenSeasonPeer(client,epoch,saved,population)
     if epoch==nil then return nil,"invalid_schedule" end
     return Open(client,saved,epoch,"PEER",population)
 end
+-- Scoped compact disk evidence has no separate clock table: the exact
+-- original peer statements already include both timestamps. Use the same
+-- canonical clock derivation as merge/validation, never an inferred clock.
+function P.OpenCompactSeasonPeer(client,epoch,compact,population)
+    if not population or not ns.CompetitiveScope or not ns.CompetitiveScope.Code(population,client) then return nil,"population" end
+    if not ns.SeasonRules.Schedule(epoch,epoch) then return nil,"invalid_schedule" end
+    local ledger=ns.MatchLedger.OpenCompactPeer(client,compact)
+    if not ledger then return nil,"invalid_compact" end
+    local saved=ledger.Save()
+    local clocks={}
+    for id,variants in pairs(saved.entries) do clocks[id]=PeerClocks(variants) end
+    return P.OpenSeasonPeer(client,epoch,{version=VERSION,scope="PEER",client=client,rule=RULE,
+        ledger=saved,clocks=clocks,population=population},population)
+end
 function P.GetSnapshot() return {scope="LOCAL",state="disabled",rankEligible=false,version=VERSION} end
 function P.GetDiagnosticResources() return {pending=0,subscriptions=0,timers=0} end
 function P.RunSelfTest(emit,checkpoint)

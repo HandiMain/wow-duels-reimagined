@@ -75,22 +75,32 @@ end
 -- Exact, compact peer evidence. No simulation ledger is allowed here.
 local function OpenPeerEvidence(client,raw,population)
     if population~=nil and not (ns.CompetitiveScope and ns.CompetitiveScope.Code(population,client)) then return nil end
-    if type(raw)~="table" or raw.version~=(population and 2 or 1) or raw.population~=population or raw.scope~="PEER" or
-        not ns.SeasonRules.Schedule(raw.epoch,raw.epoch) or type(raw.clocks)~="table" then return nil end
+    if type(raw)~="table" or raw.population~=population or raw.scope~="PEER" or
+        not ns.SeasonRules.Schedule(raw.epoch,raw.epoch) then return nil end
+    local derived=population~=nil and raw.version==3
+    if not derived and (raw.version~=(population and 2 or 1) or type(raw.clocks)~="table") then return nil end
     for k in pairs(raw) do
-        if k~="version" and k~="scope" and k~="epoch" and k~="ledger" and k~="clocks" and k~="population" then return nil end
+        if k~="version" and k~="scope" and k~="epoch" and k~="ledger" and k~="population"
+            and not (k=="clocks" and not derived) then return nil end
     end
+    if derived then return ns.LeaderboardSync.OpenCompactSeasonPeer(client,raw.epoch,raw.ledger,population) end
     local ledger=ns.MatchLedger.OpenCompactPeer(client,raw.ledger)
     if not ledger then return nil end
     return ns.LeaderboardSync.OpenSeasonPeer(client,raw.epoch,{version=1,scope="PEER",client=client,
         rule=ns.CompetitiveRules.ID,ledger=ledger.Save(),clocks=raw.clocks,population=population},population)
 end
-local function SavePeerEvidence(client,node,population)
+local function SavePeerEvidence(client,node,population,version)
     if not node or node.GetScope()~="PEER" or node.GetPopulation()~=population then return nil end
+    -- Explicit writes to a scoped population use v3. Validated reads of older
+    -- envelopes retain their encoding, including unrelated population data.
+    version=version or (population and 3 or 1)
+    if version~=(population and 2 or 1) and not (population and version==3) then return nil end
     local data=node.Save()
     local ledger=ns.MatchLedger.OpenPeer(client,data.ledger)
     if not ledger then return nil end
-    return {version=population and 2 or 1,scope="PEER",epoch=node.GetSeasonEpoch(),ledger=ledger.SaveCompact(),clocks=data.clocks,population=population}
+    local out={version=version,scope="PEER",epoch=node.GetSeasonEpoch(),ledger=ledger.SaveCompact(),population=population}
+    if version~=3 then out.clocks=data.clocks end
+    return out
 end
 -- Private character commitment journal; the tournament domain validates its shape.
 local function TournamentJournal(client,owner,raw,private,validator)
@@ -178,7 +188,7 @@ local function Root(raw,kind,owner,scope,validator)
             for key,rawEvidence in pairs(v.peerPopulations) do
                 local node=OpenPeerEvidence(k,rawEvidence,key)
                 if not node then return nil end
-                part.peerPopulations[key]=SavePeerEvidence(k,node,key)
+                part.peerPopulations[key]=SavePeerEvidence(k,node,key,rawEvidence.version)
                 if not part.peerPopulations[key] then return nil end
             end
         end
@@ -811,6 +821,13 @@ function P.RunPopulationSelfTest(emit)
         local ok,err=pcall(fn);if ok then pass=pass+1 else fail=fail+1 end
         emit("DR | SIMULATED | "..(ok and "PASS " or "FAIL ")..label..(ok and "" or ": "..tostring(err)))
     end
+    local function Equal(x,y)
+        if type(x)~=type(y) then return false end
+        if type(x)~="table" then return x==y end
+        for k,v in pairs(x) do if not Equal(v,y[k]) then return false end end
+        for k in pairs(y) do if x[k]==nil then return false end end
+        return true
+    end
     local epoch=1000
     local a,b="Player-1-AAA","Player-2-BBB"
     local S=ns.CompetitiveScope
@@ -844,18 +861,46 @@ function P.RunPopulationSelfTest(emit)
         end)
         Case(client.." exact compact persistence preserves other populations and legacy records",function()
             local x,y=Node(one),Node(two);Add(x,one,1);Add(y,two,2)
+            -- A disputed match with a different timestamp pair must survive
+            -- v3 roundtrip and remain disputed; no new result is inferred.
+            Add(x,one,4)
+            local disputed=Record(one,4)
+            local sx=table.concat({"2",client,disputed.session,a,b,"lost",4,epoch+5},"|")
+            local sy=table.concat({"2",client,disputed.session,b,a,"won",4,epoch+5},"|")
+            local other=assert(ns.ResultConfirmation.DecodePeerStatements(client,sx,sy))
+            assert(x.Observe(other,other.time1,other.time2))
             local legacy=assert(ns.LeaderboardSync.OpenSeasonPeer(client,epoch))
             local lx=table.concat({"2",client,"a-3:b-3",a,b,"won",3,epoch+3},"|")
             local ly=table.concat({"2",client,"a-3:b-3",b,a,"lost",3,epoch+3},"|")
             assert(legacy.Observe(assert(ns.ResultConfirmation.DecodePeerStatements(client,lx,ly)),epoch+3,epoch+3))
             local raw={version=VERSION,scope="LOCAL",kind="account",clients={[client]={probe=7,
                 peerEvidence=assert(SavePeerEvidence(client,legacy)),
-                peerPopulations={[one]=assert(SavePeerEvidence(client,x,one)),[two]=assert(SavePeerEvidence(client,y,two))}}}}
+                peerPopulations={[one]=assert(SavePeerEvidence(client,x,one,2)),[two]=assert(SavePeerEvidence(client,y,two,2))}}}}
             local clean=assert(Root(raw,"account",nil,"LOCAL"))
             local part=clean.clients[client]
-            assert(part.probe==7 and part.peerEvidence.version==1 and part.peerPopulations[one].version==2)
+            assert(Equal(raw,clean) and part.probe==7 and part.peerEvidence.version==1 and part.peerPopulations[one].version==2)
             local r=assert(OpenPeerEvidence(client,part.peerPopulations[one],one))
-            assert(r.GetPopulation()==one and r.ReplaySeasonPeer({epoch=epoch,asOf=epoch+4}).knownMatched==1)
+            assert(r.GetPopulation()==one and Equal(r.Save(),x.Save()))
+            local before=r.ReplaySeasonPeer({epoch=epoch,asOf=epoch+6})
+            assert(before and before.knownMatched==1)
+            local old=part.peerPopulations[one]
+            local packed=assert(SavePeerEvidence(client,r,one))
+            assert(packed.version==3 and packed.clocks==nil and Equal(packed.ledger,old.ledger))
+            local reopened=assert(OpenPeerEvidence(client,packed,one))
+            assert(Equal(reopened.Save(),x.Save()))
+            assert(Equal(before,reopened.ReplaySeasonPeer({epoch=epoch,asOf=epoch+6})))
+            assert(not OpenPeerEvidence(client,packed,two) and not OpenPeerEvidence(client,packed))
+            packed.clocks=old.clocks
+            assert(not OpenPeerEvidence(client,packed,one)) -- reject redundant or forged clock fields
+            packed.clocks=nil
+            local bad=assert(SavePeerEvidence(client,x,one,2))
+            bad.clocks[disputed.id]=nil
+            assert(not OpenPeerEvidence(client,bad,one)) -- older envelopes still validate every clock
+            part.peerPopulations[one]=packed
+            local migrated=assert(Root(clean,"account",nil,"LOCAL"))
+            assert(Equal(migrated.clients[client].peerPopulations[two],raw.clients[client].peerPopulations[two]))
+            assert(Equal(migrated.clients[client].peerEvidence,raw.clients[client].peerEvidence))
+            assert(Equal(migrated.clients[client].peerPopulations[one],packed))
             assert(not OpenPeerEvidence(client,part.peerEvidence,one))
             assert(not OpenPeerEvidence(client,part.peerPopulations[two],one))
             part.peerPopulations[three]=part.peerPopulations[one]
