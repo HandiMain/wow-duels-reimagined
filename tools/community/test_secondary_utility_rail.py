@@ -17,9 +17,9 @@ class UtilityRailTests(unittest.TestCase):
             'button:SetSize(112, 30)',
             'offset = offset + width + (i < #utilityButtons and gap or 0)',
             'sub:SetSize(174, 35)',
-            'Window.nav:SetShown(#section.pages > 1 and section.key ~= "patchnotes" and not page.competitive)',
+            'Window.nav:SetShown(visibleCount > 1 and section.key ~= "patchnotes" and not page.competitive)',
             'local function FitTabs(self, width)',
-            'local function FitSubTabs(self, width)',
+            'FitSubTabs = function(self, width)',
         ):
             self.assertIn(token, n)
         self.assertIn('Window.utility = utility', w)

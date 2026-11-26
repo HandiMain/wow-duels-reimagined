@@ -48,7 +48,7 @@ class NavigationIconAtlasTests(unittest.TestCase):
             'label:SetPoint("BOTTOM", button, "BOTTOM", 0, 6)',
             'Style.ConstrainButtonLabel(button, label, 34, 6, 9)',
             "local function FitTabs(self, width)",
-            "local function FitSubTabs(self, width)",
+            "FitSubTabs = function(self, width)",
             "FadeSelection(item, on)",
             'patchPulse:SetLooping("BOUNCE")',
             'button:SetScript("OnClick", function() Select(index, 1) end)',

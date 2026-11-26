@@ -41,7 +41,7 @@ class CompactPageDensityTests(unittest.TestCase):
             'Window.nav:SetScript("OnSizeChanged", FitSubTabs)',
         ):
             self.assertIn(marker, n)
-        self.assertIn("primaryKeys = { hall = true, leaderboard = true, matchhistory = true, achievements = true, wargames = true }", n)
+        self.assertIn("primaryKeys = { hall = true, leaderboard = true, matchhistory = true, achievements = true, tournaments = true, wargames = true }", n)
         self.assertIn("SetPatchUnread = function(unread)", n)
 
     def test_appearance_fits_compact_window_viewport(self):

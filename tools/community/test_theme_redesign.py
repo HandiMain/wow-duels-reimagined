@@ -23,8 +23,8 @@ class ThemeRedesignTests(unittest.TestCase):
         self.assertIn('button:SetSize(HALL_BUTTON_WIDTH, HALL_BUTTON_HEIGHT)', n)
         self.assertIn('button:SetSize(112, 30)', n)
         self.assertIn('sub:SetSize(174, 35)', n)
-        self.assertIn('local function FitSubTabs(self, width)', n)
-        self.assertIn('Window.nav:SetShown(#section.pages > 1 and section.key ~= "patchnotes" and not page.competitive)', n)
+        self.assertIn('FitSubTabs = function(self, width)', n)
+        self.assertIn('Window.nav:SetShown(visibleCount > 1 and section.key ~= "patchnotes" and not page.competitive)', n)
         self.assertIn('Window.rail:Hide()', h)
         self.assertIn('Window.rail:Show()', h)
 

@@ -512,7 +512,8 @@ local function NewScan(mode,prepared)
                         local done=Clock()
                         if t and done then ms=ms+math.max(0,done-t);measured=true end
                         if ok and coroutine.status(task)~="dead" then
-                            coroutine.yield(prefix..p.id)
+                            coroutine.yield(prefix..p.id,type(status)=="string" and status or nil)
+                            job.sliceOwner=prefix..p.id..(type(status)=="string" and (" / "..status) or "")
                         end
                     until not ok or coroutine.status(task)=="dead"
                 else
@@ -604,7 +605,7 @@ end
 -- Each resume is one isolated provider or one explicitly cooperative case.
 local function Advance(job)
     local t=Clock()
-    local ok,message=coroutine.resume(job.thread)
+    local ok,message,case=coroutine.resume(job.thread)
     local done=Clock()
     if t and done then
         local elapsed=math.max(0,done-t)

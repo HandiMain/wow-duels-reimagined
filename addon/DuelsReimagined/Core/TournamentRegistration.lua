@@ -1780,10 +1780,21 @@ end
 function R.RunHostRecoverySelfTest(emit,checkpoint)
     emit=type(emit)=="function" and emit or function()end
     local pass,fail=0,0
+    local function Step() if checkpoint then coroutine.yield() end end
     local function Case(label,fn)
-        local ok,err=pcall(fn);if ok then pass=pass+1 else fail=fail+1 end
+        local ok,err
+        if checkpoint then
+            -- Announce before the first case slice so reports identify the case.
+            checkpoint(label)
+            local task=coroutine.create(fn)
+            repeat
+                ok,err=coroutine.resume(task)
+                if ok and coroutine.status(task)~="dead" then checkpoint(label) end
+            until not ok or coroutine.status(task)=="dead"
+        else ok,err=pcall(fn) end
+        if ok then pass=pass+1 else fail=fail+1 end
         emit("DR | SIMULATED | "..(ok and "PASS " or "FAIL ")..label..(ok and "" or ": "..tostring(err)))
-        if checkpoint then checkpoint() end
+        if checkpoint then checkpoint(label) end
     end
     for _,client in ipairs({"forever","retail"}) do
         local function Fixture()
@@ -1936,7 +1947,7 @@ function R.RunHostRecoverySelfTest(emit,checkpoint)
             local actors={}
             for i=1,32 do
                 local a=Copy(x.s);a.guid=string.format("Player-1-P%02d",i);a.name=string.rep("N",160);a.level=30
-                actors[i]=a;assert(e.Join(ad.id,a.guid,a))
+                actors[i]=a;assert(e.Join(ad.id,a.guid,a));Step()
             end
             local cp=e.Save();assert(cp.ad.count==32)
             local replica=Replica(x.s,x.h.guid,ad.id)
@@ -1945,6 +1956,7 @@ function R.RunHostRecoverySelfTest(emit,checkpoint)
                 local reply=assert(RosterReply(x.s,actors[1],cp,assert(receiver.Request(i))))
                 for k=#reply,1,-1 do assert(#reply[k]+3<=240 and receiver.Receive("host",reply[k])) end
                 if i<32 then assert(not replica.Snapshot()) end
+                Step()
             end
             assert(Equal(cp,replica.Snapshot()))
             assert(not CheckpointAgreement(x.s,x.h.guid,cp,{}))
@@ -1962,12 +1974,12 @@ function R.RunHostRecoverySelfTest(emit,checkpoint)
             local w,j,ack=Join(x);assert(w.Receive("host",ack))
             x.Advance()
             local function Req(seq,op) return table.concat({"M",P.Key(x.s),seq,op,x.ad.id},"|") end
-            assert(x.engine.Receive("other",Req(1,"J")))
+            assert(x.engine.Receive("other",Req(1,"J")));Step()
             assert(not x.engine.StartBracket(x.h.guid))
             x.Advance(x.ad.draft.startAt-1800-x.clock())
             local check=assert(w.Action("C"))
             assert(w.Receive("host",assert(x.engine.Receive("player",check))[1]))
-            assert(x.engine.Receive("other",Req(2,"C")))
+            assert(x.engine.Receive("other",Req(2,"C")));Step()
             x.Advance(1800)
             assert(not x.engine.StartBracket(x.a.guid))
             local stale=assert(x.Open())
@@ -1976,7 +1988,7 @@ function R.RunHostRecoverySelfTest(emit,checkpoint)
             local view=assert(x.engine.BracketSnapshot())
             local match
             for _,round in ipairs(view.rounds) do for _,m in ipairs(round) do if m.state=="ready" then match=m end end end
-            assert(match and view.state=="running")
+            assert(match and view.state=="running");Step()
             return x,w,Req,match,stale
         end
         Case(client.." bracket start freezes roster through clock rollback and reopen",function()
@@ -2214,6 +2226,7 @@ function R.RunHostRecoverySelfTest(emit,checkpoint)
                     local parts=assert(x.engine.Receive("player",q))
                     assert(not f.Receive("other",parts[1]))
                     for i=#parts,1,-1 do assert(f.Receive("host",parts[i])) end
+                    Step()
                 end
                 return assert(f.Snapshot())
             end
@@ -2363,7 +2376,7 @@ function R.RunHostRecoverySelfTest(emit,checkpoint)
             states[x.a.guid]="unknown";v=Observe();assert(not v.remaining and v.notice=="interrupted")
             states[x.a.guid]="offline";assert(not Observe().remaining)
             states[x.a.guid]="online";assert(Observe().remaining==300)
-            for i=1,29 do x.Advance(10);v=Observe();assert(v.remaining==300-i*10 and not v.notice) end
+            for i=1,29 do x.Advance(10);v=Observe();assert(v.remaining==300-i*10 and not v.notice);Step() end
             x.Advance(9);assert(Observe().remaining==1)
             x.Advance();assert(not x.engine.ObserveMatch(m.id,states,2,owner))
             assert(not x.engine.ObserveMatch(m.id,states,1,x.other.guid))
@@ -2423,7 +2436,7 @@ function R.RunHostRecoverySelfTest(emit,checkpoint)
             for round=1,2 do
                 for _,m in ipairs(d.Snapshot().rounds[round]) do
                     local p={event=ad.id,match=m.id,game=1,winner=m.a,evidence=m.id..":final"}
-                    assert(d.Report(m.a,p));assert(d.Report(m.b,p))
+                    assert(d.Report(m.a,p));assert(d.Report(m.b,p));Step()
                 end
             end
             local v=d.Snapshot();local saved=d.Save();local final=v.rounds[2][1]

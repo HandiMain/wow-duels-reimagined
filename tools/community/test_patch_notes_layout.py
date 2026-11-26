@@ -48,7 +48,7 @@ class PatchNotesLayoutTests(unittest.TestCase):
             'railY = railY + (archived and 47 or 67)',
         ):
             self.assertIn(item, PAGE)
-        self.assertIn('Window.nav:SetShown(#section.pages > 1 and section.key ~= "patchnotes" and not page.competitive)', NAV)
+        self.assertIn('Window.nav:SetShown(visibleCount > 1 and section.key ~= "patchnotes" and not page.competitive)', NAV)
         self.assertIn('for index, release in ipairs(ns.PatchNotesData or {})', NAV)
 
     def test_template_keeps_demo_and_live_release_metadata_distinct(self):

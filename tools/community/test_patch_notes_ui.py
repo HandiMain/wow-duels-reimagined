@@ -70,7 +70,7 @@ class PatchNotesUITests(unittest.TestCase):
         self.assertNotIn('local parchment = Style.Fill(icon, C.goldDim, "ARTWORK")', nav)
         self.assertIn('PatchNotes = { 0,   0.5, 0.5, 1 }', load("UI/Chrome.lua"))
         self.assertIn('isPrimary and string.upper(section.label) or section.label,', nav)
-        self.assertIn('section.key == "wargames" and 20 or (isPrimary and 23 or 12)', nav)
+        self.assertIn('(section.key == "wargames" or section.key == "tournaments") and 20 or (isPrimary and 23 or 12)', nav)
         self.assertIn('C.tabMuted, nil, isPrimary and "display" or nil', nav)
         self.assertIn("Style.Text(root,", page)
         self.assertIn("Widgets.ScrollBar(scroll,", page)

@@ -1,4 +1,4 @@
-"""Stage-one interface boundaries and navigation regression."""
+"""Tournament interface ownership, private gates and navigation regression."""
 import unittest
 from pathlib import Path
 A=Path(__file__).resolve().parents[2]/"addon"/"DuelsReimagined"
@@ -21,7 +21,8 @@ class TournamentFoundation(unittest.TestCase):
             for forbidden in ("SendAddonMessage","C_ChatInfo","C_Timer","OnUpdate","AcceptDuel(","StartDuel("):
                 self.assertNotIn(forbidden,s)
         self.assertIn('discovery=false,hosting=false',read("Core/TournamentState.lua"))
-        self.assertIn('No tournaments discovered.',read("UI/TournamentUI.lua"))
+        self.assertIn('No tournaments discovered.',read("UI/TournamentBrowse.lua"))
+        self.assertIn('local TOURNAMENT_TEST_ENABLED=false',read("Core/CompetitiveStorage.lua"))
     def test_tournament_plaque_has_single_art_owner(self):
         n=read("UI/Navigation.lua")
         plaque=n.split('elseif section.key == "tournaments" then',1)[1].split('elseif section.key == "wargames" then',1)[0]
@@ -43,17 +44,19 @@ class TournamentFoundation(unittest.TestCase):
         self.assertIn("function T.SaveDraft",c)
         self.assertIn('state="draft"',c)
         self.assertIn("discovery=false,hosting=false",c)
-        self.assertIn("T.SaveDraft(form,displayedKey)",u)
+        host=read("UI/TournamentHost.lua")
+        self.assertIn("ns.TournamentHost.New(host",u)
+        self.assertIn("T.SaveDraft(form,displayedKey)",host)
         self.assertIn("Population.GetCurrent()",u)
         self.assertIn("LayoutCommunity(w)",u)
         self.assertIn("ns.CompetitiveScope",c)
         self.assertNotIn("GetCurrentRegion",c)
         self.assertNotIn("UnitFactionGroup",c)
         self.assertIn("Core\\CompetitiveScope.lua",read("DuelsReimagined.toc"))
-        self.assertIn("W.ChoiceControl",u)
-        self.assertIn("W.OpenChoices",u)
-        self.assertIn("SetAutoFocus(false)",u)
-        self.assertIn("Draft saved for this session. Not published.",u)
+        self.assertIn("W.ChoiceControl",host)
+        self.assertIn("W.OpenChoices",host)
+        self.assertIn("SetAutoFocus(false)",host)
+        self.assertIn("Draft saved for this session. Not published.",host)
     def test_calendar_uses_shared_popup_and_canonical_date(self):
         c=read("Core/TournamentState.lua")
         u=read("UI/TournamentUI.lua")
@@ -61,8 +64,9 @@ class TournamentFoundation(unittest.TestCase):
         self.assertIn("function T.ResolveCalendar",c)
         self.assertIn("function Widgets.OpenCalendar",w)
         self.assertIn("openChoicePopup=self;ChoiceCatcher(host):Show()",w)
-        self.assertIn("W.OpenCalendar(startButton,T,selectedUTC",u)
-        self.assertIn("form[key]=selectedUTC",u)
+        host=read("UI/TournamentHost.lua")
+        self.assertIn("W.OpenCalendar(startButton,T,selectedUTC",host)
+        self.assertIn("form[key]=selectedUTC",host)
         self.assertNotIn('Field(manage,"startUTC"',u)
     def test_single_active_tournament(self):
         c=read("Core/TournamentRegistration.lua")
@@ -81,7 +85,7 @@ class TournamentFoundation(unittest.TestCase):
         self.assertIn("MAX_BODY,MAX_PARTS,CHUNK=237,12,120",c)
         self.assertIn("local function WireHost",c)
         self.assertIn("local function WireClient",c)
-        self.assertIn("if commitment then return nil end",c)
+        self.assertIn("if commitment or ArchiveFull() then return nil end",c)
         self.assertIn("R.RunExchangeSelfTest",c)
         self.assertNotIn("SendAddonMessage",c)
         self.assertNotIn("C_ChatInfo",c)
@@ -91,7 +95,7 @@ class TournamentFoundation(unittest.TestCase):
         self.assertIn("P.Matches(s,ad)",c)
         self.assertIn('scope="SIMULATED"',c)
         self.assertIn("ns.TournamentRegistration.PreviewState()",read("Core/TournamentState.lua"))
-        self.assertIn("Test Publishing",u)
+        self.assertIn("Test Publishing",read("UI/TournamentHost.lua"))
         self.assertIn("LOCAL TEST",u)
         self.assertNotIn("SendAddonMessage",c)
         self.assertNotIn("C_ChatInfo",c)

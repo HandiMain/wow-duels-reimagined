@@ -98,7 +98,7 @@ class CommunityResizeTests(unittest.TestCase):
             self.assertIn(token, COMMUNITY)
         self.assertIn('sections[sectionIndex].key == "community" and w > 1000', nav)
         self.assertIn('rowStart = math.max(6, (w - rowWidth) / 2)', nav)
-        self.assertIn('rowStart + (j - 1) * (tabWidth + 8)', nav)
+        self.assertIn('rowStart + slot * (tabWidth + 8)', nav)
         self.assertIn('Window.nav:SetScript("OnSizeChanged", FitSubTabs)', nav)
         self.assertNotIn("movingBar", nav)
 

@@ -179,7 +179,7 @@ class ResponsiveSettingsTests(unittest.TestCase):
         self.assertIn("local selected, hover = AddOverlay(button, isPrimary)", nav)
         self.assertIn('button:SetScript("OnClick", function() Select(index, 1) end)', nav)
         self.assertIn("ns.Widgets.PressFeedback(button, hover, {", nav)
-        self.assertIn("local primaryKeys = { hall = true, leaderboard = true, matchhistory = true, achievements = true, wargames = true }", nav)
+        self.assertIn("local primaryKeys = { hall = true, leaderboard = true, matchhistory = true, achievements = true, tournaments = true, wargames = true }", nav)
 
     def test_all_nav_icons_use_fixed_artwork_not_theme_recolored_shapes(self):
         nav = read("UI/Navigation.lua")

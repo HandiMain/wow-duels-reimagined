@@ -1,5 +1,6 @@
 """Static asset ownership contract. Not a substitute for viewing the UI in WoW."""
 from pathlib import Path
+import re
 import unittest
 
 ADDON = Path(__file__).resolve().parents[2] / "addon" / "DuelsReimagined"
@@ -69,7 +70,11 @@ class RuntimeAssetManifestTests(unittest.TestCase):
             body = path.read_text(encoding="utf-8")
             for obsolete in ("Polestar", "BurstFX", "Narcissus", "Horizon",
                              "First Concept", "CommunityConcept"):
-                self.assertNotIn(obsolete, body, str(path))
+                if obsolete == "Horizon":
+                    # HorizontalScroll is a Blizzard API, not an addon brand.
+                    self.assertNotRegex(body, r"\bHorizon(?:Suite|UI)?\b", str(path))
+                else:
+                    self.assertNotIn(obsolete, body, str(path))
 
     def test_icon_and_toggle_files_exist(self):
         for name in (

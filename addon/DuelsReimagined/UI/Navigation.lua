@@ -92,6 +92,14 @@ local patchDot, patchPulse
 
 local currentSection, currentPage
 local FitSubTabs
+local subBuilders={}
+local function EnsureSubTabs(index)
+    local build=subBuilders[index]
+    if build then
+        local pages=build()
+        subButtons[index]=pages;subBuilders[index]=nil
+    end
+end
 local function PageAvailable(section, page)
     if not section or not page then return false end
     if section.key == "wargames" then return ns.Client.IsRetail() end
@@ -203,6 +211,8 @@ local function Select(sectionIndex, pageIndex, noMotion, repaintOnly, isBack)
     for _,candidate in ipairs(section.pages) do
         if PageAvailable(section,candidate) then visibleCount=visibleCount+1 end
     end
+    local showTabs=visibleCount > 1 and section.key ~= "patchnotes" and not page.competitive
+    if showTabs then EnsureSubTabs(sectionIndex) end
     Window.nav:SetShown(visibleCount > 1 and section.key ~= "patchnotes" and not page.competitive)
     UpdateBack()
 
@@ -486,8 +496,10 @@ for index, section in ipairs(sections) do
     railButtons[index] = item
     if isPrimary then item.key=section.key;primaryButtons[#primaryButtons + 1] = item end
 
-    local pages = {}
+    subButtons[index] = {}
     if section.key ~= "patchnotes" and section.key ~= "addonstatus" and not section.pages[1].competitive and not section.pages[1].achievements then
+    subBuilders[index]=function()
+    local pages = {}
     for pageIndex, page in ipairs(section.pages) do
         local sub = CreateFrame("Button", nil, Window.nav)
         sub:SetSize(174, 35)
@@ -562,8 +574,9 @@ for index, section in ipairs(sections) do
             bar = subBar, label = text, plate = plate, activeAlpha = 0.13
         }
     end
+    return pages
+    end
     end -- Patch Notes uses its own vertical selector; no hidden horizontal buttons.
-    subButtons[index] = pages
 end
 
 -- Compact Back control belongs to the footer beside Close, not the Hall rail.

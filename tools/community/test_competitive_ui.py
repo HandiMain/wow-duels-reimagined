@@ -21,7 +21,7 @@ class CompetitiveUI(unittest.TestCase):
         self.assertIn('ns.CompetitiveUI.LowerRim(button)',war)
         self.assertNotIn('CompetitiveUI.Plaque',war)
         self.assertNotIn('artwork:SetPoint(',war)
-        self.assertIn('backButton:SetShown(can or (page and (page.competitive or page.achievements)) or false)',n)
+        self.assertIn('backButton:SetShown(can or (page and (page.competitive or page.achievements or page.tournament)) or false)',n)
         self.assertIn('backButton:SetEnabled(can)',n)
         self.assertIn('page and (page.achievements or (page.competitive and page.key~="overview")) then Select(1,1,false,false,true)',n)
         self.assertTrue((ADDON/"Media/Skin/DuelCompetitiveAtlas.png").is_file())

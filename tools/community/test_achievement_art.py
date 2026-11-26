@@ -4,7 +4,9 @@ import struct
 import hashlib
 import unittest
 
-ADDON=Path(__file__).resolve().parents[2]/"addon"/"DuelsReimagined"
+ROOT=Path(__file__).resolve().parents[2]
+ADDON=ROOT/"addon"/"DuelsReimagined"
+SOURCE_ART=ROOT/"tools/community/artwork"
 
 class AchievementArtTests(unittest.TestCase):
     def test_custom_icon_catalogue_and_hidden_slot(self):
@@ -26,7 +28,7 @@ class AchievementArtTests(unittest.TestCase):
         self.assertEqual(len(tournament_ids),16)
         self.assertEqual(set(tour_slots),tournament_ids-set(extra_slots))
         self.assertEqual(set(slots)|set(tour_slots)|set(extra_slots),ids|tournament_ids)
-        expansion=(ADDON/"Media/Skin/AchievementExpansionArt.png").read_bytes()
+        expansion=(SOURCE_ART/"AchievementExpansionArt.png").read_bytes()
         self.assertEqual(struct.unpack(">II",expansion[16:24]),(1024,512))
         self.assertEqual(hashlib.sha1(b"blob "+str(len(expansion)).encode()+b"\0"+expansion).hexdigest(),"ea5b7482285551ff74d87c3f915dc3b22cc64aca")
         self.assertIn("rim:SetTexture(COMMON_FRAME)",ui)
@@ -45,7 +47,7 @@ class AchievementArtTests(unittest.TestCase):
             self.assertEqual(struct.unpack(">II",image[16:24]),dimensions)
             self.assertEqual(hashlib.sha1(b"blob "+str(len(image)).encode()+b"\0"+image).hexdigest(),digest)
         self.assertEqual(set(tour_slots.values()),set(range(9)))
-        data=(ADDON/"Media/Skin/TournamentAchievementArt.png").read_bytes()
+        data=(SOURCE_ART/"TournamentAchievementArt.png").read_bytes()
         self.assertEqual(data[:8],b"\x89PNG\r\n\x1a\n")
         self.assertEqual(struct.unpack(">II",data[16:24]),(512,512))
         self.assertEqual(hashlib.sha1(b"blob "+str(len(data)).encode()+b"\0"+data).hexdigest(),"c435e48a1757c92eddb1256af7853992c1a16e68")
