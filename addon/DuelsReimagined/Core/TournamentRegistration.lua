@@ -2812,9 +2812,93 @@ function R.PreviewSnapshot()
     end
     return {scope="SIMULATED",role=x.role,state=R.PreviewState(),event=ad,events=bracket and {} or x.cache.Browse(),
         roster=x.role=="host" and rows or nil,member=member,now=x.now,bracket=bracket,
-        match=match,opponent=opponent,names=names,players=players,mode=x.mode,broadcast=x.broadcast==true,
+        match=match,opponent=opponent,names=names,players=players,finishedAt=x.finishedAt,mode=x.mode,broadcast=x.broadcast==true,
         featured=featured and featured.id,selected=chosen and chosen.id,readyCount=#ready,
         demo=Copy(x.demo),offline=Copy(x.offline),upcoming=UpcomingRound(x,bracket)}
+end
+-- Read-only personal archive. Local rehearsals never enter the durable journal.
+function R.ProjectPersonalResult(ad,bracket,names,actor,host,finishedAt,scope)
+    if type(ad)~="table" or type(ad.draft)~="table" or type(ad.id)~="string"
+        or type(bracket)~="table" or bracket.state~="completed" or bracket.event~=ad.id
+        or type(bracket.champion)~="string" or type(bracket.slots)~="table"
+        or type(bracket.rounds)~="table" or type(actor)~="string"
+        or (scope~="SIMULATED" and scope~="PRIVATE_TEST") then return nil end
+    local played,count=false,0
+    for _,guid in ipairs(bracket.slots) do
+        if type(guid)=="string" then count=count+1;if guid==actor then played=true end end
+    end
+    if not played and not host then return nil end
+    local placement,wins,losses
+    if played then
+        wins,losses=0,0
+        if bracket.champion==actor then placement=1 end
+        for r,round in ipairs(bracket.rounds) do
+            for _,m in ipairs(round) do
+                if m.state=="done" and not m.bye and (m.a==actor or m.b==actor) then
+                    if m.winner==actor then wins=wins+1
+                    else losses=losses+1;placement=2^(#bracket.rounds-r+1) end
+                end
+            end
+        end
+    end
+    local final=bracket.rounds[#bracket.rounds] and bracket.rounds[#bracket.rounds][1]
+    local score=final and final.wins and final.wins[1] and final.wins[2] and
+        tostring(final.wins[final.a==bracket.champion and 1 or 2]).." - "..tostring(final.wins[final.a==bracket.champion and 2 or 1]) or nil
+    return {id=ad.id,title=ad.draft.name,champion=type(names)=="table" and names[bracket.champion] or "Unknown player",
+        played=played,hosted=host==true,placement=placement,wins=wins,losses=losses,count=count,
+        bestOf=ad.draft.bestOf,finishedAt=Whole(finishedAt,1,4102444800) and finishedAt or nil,
+        score=score,scope=scope}
+end
+function R.ReadPersonalArchive(previewSnapshot)
+    local p=previewSnapshot
+    if p then
+        -- Never mix a rehearsal with the character's durable private archive.
+        if p.scope~="SIMULATED" or p.role=="spectator" or not p.bracket then return {},"SIMULATED" end
+        local actor=p.role=="host" and p.event.owner or p.member and p.member.guid
+        local row=R.ProjectPersonalResult(p.event,p.bracket,p.names,actor,p.role=="host",p.finishedAt,"SIMULATED")
+        return row and {row} or {},"SIMULATED"
+    end
+    local store=ns.CompetitiveStorage
+    if not store or not store.TournamentTestEnabled() then return {},"LOCAL" end
+    local scope=P.GetCurrent();local key=P.Key(scope);local actor=Read(UnitGUID,"player")
+    if not key or type(actor)~="string" then return {},"PRIVATE_TEST","unavailable" end
+    local journal=store.ReadTournamentTestJournal()
+    if not journal then return {},"PRIVATE_TEST","unavailable" end
+    local rows={}
+    for _,record in pairs(journal.completed or {}) do
+        if record.population==key then
+            local saved=record.bracket;local cp=saved and saved.checkpoint;local ad=cp and cp.ad
+            -- Existing durable archive is organizer-owned; do not treat remote snapshots as finalized.
+            if ad and ad.owner==actor then
+                local engine=ns.TournamentBracket.OpenSimulated(scope,actor,saved)
+                if engine then
+                    local names={};for _,m in ipairs(cp.roster) do names[m.guid]=m.name end
+                    local row=R.ProjectPersonalResult(ad,engine.Snapshot(),names,actor,true,record.finishedAt,"PRIVATE_TEST")
+                    if row then rows[#rows+1]=row end
+                end
+            end
+        end
+    end
+    table.sort(rows,function(a,b)
+        local x,y=a.finishedAt or 0,b.finishedAt or 0
+        if x==y then return a.id<b.id end
+        return x>y
+    end)
+    return rows,"PRIVATE_TEST"
+end
+function R.RunPersonalArchiveSelfTest()
+    local ad={id="test",draft={name="Cup",bestOf=3}}
+    local b={event="test",state="completed",champion="a",slots={"a","b","c","d"},
+        rounds={{{a="a",b="b",state="done",winner="a",wins={2,0}},
+            {a="c",b="d",state="done",winner="c",wins={2,1}}},
+            {{a="a",b="c",state="done",winner="a",wins={2,1}}}}}
+    local names={a="Alpha",b="Beta",c="Gamma",d="Delta"}
+    local function Row(actor,host) return R.ProjectPersonalResult(ad,b,names,actor,host,100,"SIMULATED") end
+    assert(Row("a").placement==1 and Row("a").wins==2 and Row("a").score=="2 - 1")
+    assert(Row("c").placement==2 and Row("b").placement==4 and Row("d").placement==4)
+    assert(not Row("outsider") and Row("host",true).hosted and not Row("host",true).played)
+    b.state="running";assert(not Row("a"))
+    return true
 end
 local function FixtureWinner(x,v,m)
     local game=m.wins[1]+m.wins[2]+1
@@ -2838,6 +2922,7 @@ local function SimulatePreviewGame(x)
     x.bracket=candidate
     local result
     local nextView=candidate.Snapshot()
+    if nextView.state=="completed" then x.finishedAt=Read(GetServerTime) end
     local names={}
     for _,row in ipairs(x.engine.Roster(x.host.guid)) do names[row.guid]=row.name end
     for _,round in ipairs(nextView.rounds) do

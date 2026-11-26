@@ -121,8 +121,7 @@ local function LayoutHost(w)
     return hostView.Show(w,Population.GetCurrent(),displayedKey)
 end
 local championPage=Page("champions")
-local archive=Panel(championPage,"Hall of Champions")
-archive.detail=Label(archive,"No completed tournaments recorded.",15,C.muted,"CENTER")
+local championView
 local mine=Page("my-tournament")
 local myView
 local brackets=Page("brackets")
@@ -361,7 +360,13 @@ local function Layout()
     if active~="host" and hostView then hostView.Hide() end
     if active~="manage" and organizerView then organizerView.Hide() end
     if active~="my-tournament" and myView then myView.Hide() end
-    if active=="overview" then
+    if active~="champions" and championView then championView.Hide() end
+    if active=="champions" then
+        if not championView then championView=ns.TournamentChampions.New(championPage) end
+        local rows,scope,reason=R.ReadPersonalArchive(p)
+        if listings and not p then rows,scope,reason={},"SIMULATED",nil end
+        height=championView.Show(rows,scope,reason,w,scroll:GetHeight())
+    elseif active=="overview" then
         height=LayoutOverview(w,p,listings,private)
     elseif active=="brackets" and privateProjection then
         local h=math.max(560,scroll:GetHeight()-top)
@@ -439,7 +444,7 @@ local function Layout()
             height=1
         end
     else
-        local f=active=="champions" and archive or bracketPanel
+        local f=active=="brackets" and bracketPanel or nil
         if active and f then
             local h=math.max(200,scroll:GetHeight()-top)
             Place(f,pages[active],0,0,w,h);Header(f,w)
@@ -479,6 +484,7 @@ function U.Show(key)
         if hostView then hostView.Hide() end
         if organizerView then organizerView.Hide() end
         if myView then myView.Hide() end
+        if championView then championView.Hide() end
         privateConfirm=nil
         active=nil;root:Hide();return
     end

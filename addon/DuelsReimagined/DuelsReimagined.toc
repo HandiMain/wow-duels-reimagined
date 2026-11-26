@@ -68,6 +68,7 @@ UI\TournamentBrowse.lua
 UI\TournamentHost.lua
 UI\TournamentOrganizer.lua
 UI\TournamentPlayer.lua
+UI\TournamentChampions.lua
 UI\TournamentUI.lua
 UI\TournamentHUD.lua
 UI\DuelHUD.lua
