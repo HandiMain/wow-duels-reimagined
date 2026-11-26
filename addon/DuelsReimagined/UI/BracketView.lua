@@ -159,7 +159,6 @@ function B.New(parent)
     local cards,lines,headers={},{},{}
     local model,view,names,focus,event,own,projection=nil,nil,nil,nil,nil,nil,nil
     local zoom,vw,vh=1,1,1
-    local autoFit=true
     local dragX,dragY,dragH,dragV
     local Render,Pan,Wheel
     local classes={"WARRIOR","PALADIN","HUNTER","ROGUE","PRIEST","SHAMAN","MAGE","WARLOCK","DRUID"}
@@ -324,7 +323,6 @@ function B.New(parent)
     end
     Wheel=function(delta)
         if not model then return end
-        autoFit=false
         local nextZoom=max(.8,min(1.3,zoom+delta*.1))
         if nextZoom==zoom then return end
         local oldW,oldH=model.width,model.height
@@ -355,11 +353,11 @@ function B.New(parent)
     canvas:SetScript("OnMouseWheel",function(_,delta) Wheel(delta) end)
     viewport:EnableMouseWheel(true);viewport:SetScript("OnMouseWheel",function(_,delta) Wheel(delta) end)
     local fit=S.Action(controls,"Fit view","footer",{plate="browseCard",text=C.pale,edge=C.goldDim,hover=C.gold,tooltip=false})
-    fit:SetScript("OnClick",function() if model then autoFit=true;zoom=Fit();Render(true) end end)
+    fit:SetScript("OnClick",function() if model then zoom=Fit();Render(true) end end)
     local center=S.Action(controls,"My match","footer",{plate="browseCard",text=C.pale,edge=C.goldDim,hover=C.gold,tooltip=false})
     center:SetScript("OnClick",function() if model and model.focus then Center(model.focus) end end)
     function D.Hide()
-        StopDrag();board:Hide();model,view,names,focus,event,own,projection=nil,nil,nil,nil,nil,nil,nil;zoom=1;autoFit=true
+        StopDrag();board:Hide();model,view,names,focus,event,own,projection=nil,nil,nil,nil,nil,nil,nil;zoom=1
         for _,pool in ipairs({cards,headers}) do for _,f in ipairs(pool) do f:Hide() end end
         for _,t in ipairs(lines) do t.core:Hide();t.glow:Hide() end
         if ns.CompetitiveUI then ns.CompetitiveUI.CloseTournamentPlayerCard() end
@@ -369,7 +367,7 @@ function B.New(parent)
         local changed=event~=p.event.id
         local nextFocus=p.match and p.match.id
         local recenter=changed or focus~=nextFocus
-        if changed then zoom=1;autoFit=true end
+        if changed then zoom=1 end
         event=p.event.id;view=p.bracket;names=p.names;focus=nextFocus;own=p.member and p.member.guid;projection=p
         local bw,bh=max(1,w-20),max(1,h-54)
         At(board,parent,10,44,bw,bh)
@@ -381,7 +379,6 @@ function B.New(parent)
         At(banner,board,7,7,bw-14,64)
         At(leftArt,banner,6,4,(bw-14)*.30,56);At(rightArt,banner,(bw-14)*.70-6,4,(bw-14)*.30,56)
         At(title,banner,(bw-14)*.17,4,(bw-14)*.66,31);At(meta,banner,10,35,bw-34,22)
-        local oldW,oldH=vw,vh
         vw=max(1,bw-16);vh=max(1,bh-110)
         At(viewport,board,8,76,vw,vh)
         At(controls,board,8,bh-31,vw,26)
@@ -390,9 +387,9 @@ function B.New(parent)
         legend:SetShown(not narrow);At(legend,controls,185,0,max(1,vw-445),24)
         At(hint,controls,narrow and 180 or vw-254,0,narrow and vw-180 or 254,24)
         hint:SetText(narrow and "Drag · Wheel zoom" or "Drag to pan · Mouse wheel to zoom")
-        if autoFit and (recenter or oldW~=vw or oldH~=vh) then zoom=Fit() end
+        if changed then zoom=Fit() end
         board:Show()
-        return Render(recenter or autoFit and (oldW~=vw or oldH~=vh))
+        return Render(recenter)
     end
     board:Hide()
     return D

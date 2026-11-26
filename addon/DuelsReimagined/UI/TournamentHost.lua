@@ -30,16 +30,15 @@ function H.Project(form,times)
         closes=times and times.closes or "Not scheduled",
     }
 end
--- Base units match Browse. Stack whole panels at narrow widths rather than
--- shrinking three columns to unreadable text. At the default width the
--- 582-unit composition targets the usual content viewport.
+-- Fixed content density; resizing distributes space or stacks whole panels.
 function H.Geometry(width)
-    local wide=width>=850
-    local base=wide and 1170 or 610
-    local scale=width/base
+    local base,wide,scale=chrome.LayoutWidth(width,1170)
     local top=wide and 78 or 132
     local bodyH=420
-    local a,b,c=wide and 380 or base,wide and 426 or base,wide and 340 or base
+    local available=base-24
+    local a=wide and math.floor(available*.332) or base
+    local b=wide and math.floor(available*.372) or base
+    local c=wide and available-a-b or base
     local x2,y2=wide and a+12 or 0,wide and top or top+bodyH+12
     local x3,y3=wide and a+b+24 or 0,wide and top or y2+bodyH+12
     local footerY=y3+bodyH+12
@@ -282,10 +281,10 @@ function H.RunSelfTest()
     v=H.Project(a,nil);assert(v.name=="||Htest||h" and v.series=="Best of 5" and v.levels=="Level 70 – Any")
     for _,width in ipairs({480,610,759,849,850,940,1170,1400}) do
         local g=H.Geometry(width)
-        assert(g.scale>0 and g.total==g.footerY+g.footerH)
+        assert(g.scale==.80 and math.abs(g.base*g.scale-width)<.001 and g.total==g.footerY+g.footerH)
         assert(g.x3+g.c<=g.base and g.x2+g.b<=g.base)
         assert(g.footerY>=g.y3+g.bodyH)
-        if g.wide then assert(g.y2==g.top and g.y3==g.top and g.x2>=g.a and g.x3>=g.x2+g.b)
+        if g.wide then assert(g.y2==g.top and g.y3==g.top and g.x2>=g.a and g.x3>=g.x2+g.b and g.a>=360 and g.b>=400 and g.c>=330)
         else assert(g.y2>=g.top+g.bodyH and g.y3>=g.y2+g.bodyH) end
     end
     return true

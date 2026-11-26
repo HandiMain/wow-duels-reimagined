@@ -242,12 +242,12 @@ function O.New(parent,callbacks)
             if ns.CompetitiveUI then ns.CompetitiveUI.CloseTournamentPlayerCard() end
         end
         current=p;model=O.Project(p,query,filterKey)
-        local wide=width>=760;local base=wide and 1170 or 640;local scale=width/base
+        local base,wide,scale=chrome.LayoutWidth(width,1170)
         local top=wide and 78 or 132
         local heroY=top+45;local heroH=wide and 166 or 248
         local stageY=heroY+heroH+12;local stageH=wide and 68 or 128
         local bodyY=stageY+stageH+12
-        local left=wide and 676 or base;local right=wide and base-left-12 or base
+        local left=wide and math.floor((base-12)*.58) or base;local right=wide and base-left-12 or base
         local ax=wide and left+12 or 0;local ay=wide and bodyY or bodyY+385
         local actionH=62+math.ceil(#model.actions/2)*43
         local noteY=ay+actionH+12;local noteH=174
@@ -259,7 +259,7 @@ function O.New(parent,callbacks)
         At(hero,f,0,heroY,base,heroH);At(logo,hero,16,15,124,112)
         At(heroLaurel,hero,4,12,52,heroH-24);At(heroLaurel2,hero,101,12,52,heroH-24)
         local d=p.event.draft;local times=ns.TournamentState.GetSchedulePreview(d.startUTC,d.closeBefore)
-        local detailsW=wide and base-520 or base-160
+        local detailsW=wide and base-560 or base-160
         Text(title,hero,155,3,detailsW,42,d.name,C.pale,21)
         local vals={d.location,"Single elimination (Best of "..d.bestOf..")",p.event.count.." / "..d.capacity.." Players",
             "Starts: "..(times and times.starts or d.startUTC.." UTC"),
@@ -303,7 +303,7 @@ function O.New(parent,callbacks)
             if i<4 then At(links[i],stages,start+i*sw+(i-1)*10,y+25,10,2);links[i]:SetAlpha((done or active) and .9 or .35) end
         end
         At(roster,f,0,bodyY,left,373);Heading(roster,left,"Participant Roster ("..p.event.count.." / "..d.capacity..")")
-        local compact=wide and width>=900
+        local compact=wide and left>=650
         local filterW=compact and 162 or math.floor(left*.43)
         local filterX=compact and left-358 or 12
         local filterY=compact and 8 or 54

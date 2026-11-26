@@ -90,7 +90,7 @@ end
 local function PaintRow(r,entry,w,y,selected,cb)
     local b=r.button;b:SetShown(entry~=nil)
     if not entry then return end
-    local ad=entry.ad;local badgeW=128
+    local ad=entry.ad;local badgeW=w<540 and 108 or 128
     At(b,b:GetParent(),10,y,w-20,88)
     local bw=w-20
     r.selected:SetAlpha(selected and 1 or 0)
@@ -98,8 +98,10 @@ local function PaintRow(r,entry,w,y,selected,cb)
     Text(r.title,b,116,8,bw-116-badgeW-20,36,ad.draft.name,C.pale,17)
     At(r.people,b,117,53,23,20)
     Text(r.count,b,145,46,122,31,ad.count.." / "..ad.draft.capacity.." Players",C.text,13)
-    At(r.swords,b,277,53,24,20)
-    Text(r.format,b,306,46,bw-306-badgeW-13,31,"Best of "..ad.draft.bestOf,C.text,13)
+    local fx=bw<520 and 228 or 277
+    if bw<520 then Text(r.count,b,145,46,79,31,ad.count.." / "..ad.draft.capacity,C.text,12) end
+    At(r.swords,b,fx,53,24,20)
+    Text(r.format,b,fx+29,46,bw-fx-29-badgeW-13,31,"Best of "..ad.draft.bestOf,C.text,13)
     At(r.badge,b,bw-badgeW-10,27,badgeW,34)
     local color=entry.status=="registering" and green or entry.status=="filling" and amber or grey
     r.dot:SetVertexColor(unpack(color));At(r.dot,r.badge,1,5,24,24)
@@ -135,7 +137,12 @@ local function PaintCommunity(d,scope,base,wide)
 end
 -- Shared tournament presentation primitives. Host and Browse use the
 -- same art, native action skin and compact community strip.
-B.Chrome={Art=Art,Panel=Panel,Action=Action,NewCommunity=Community,PaintCommunity=PaintCommunity}
+local CONTENT_SCALE=.80
+local function LayoutWidth(width,wideMin)
+    local base=math.max(1,width)/CONTENT_SCALE
+    return base,base>=wideMin,CONTENT_SCALE
+end
+B.Chrome={Art=Art,Panel=Panel,Action=Action,NewCommunity=Community,PaintCommunity=PaintCommunity,LayoutWidth=LayoutWidth}
 local detailNames={"Start Time:","Registration Closes:","Format:","Players:","Levels:","Rules:","Organizer:"}
 local function Detail(parent)
     local f=Panel(parent,true);local d={frame=f,title=Label(f,25,C.pale,"CENTER"),la=Art(f,"laurelL"),ra=Art(f,"laurelR"),
@@ -145,9 +152,10 @@ local function Detail(parent)
     for i=1,7 do d.rows[i]={icon=Art(f,i),label=Label(f,18,C.pale),value=Label(f,18,C.text),line=S.Fill(f,C.goldDim,"BORDER")} end
     return d
 end
-local function DetailHeight(e)
+local function DetailHeight(e,w)
     local rules=e and e.ad.draft.rules or ""
-    return 502+math.max(0,math.ceil(#rules/34)-1)*22
+    local chars=math.max(16,math.floor((w*.57-20)/9))
+    return 502+math.max(0,math.ceil(#rules/chars)-1)*22
 end
 local function PaintDetail(d,e,w,h,model,confirmed,cb)
     local f=d.frame
@@ -227,15 +235,15 @@ function B.New(parent,action,refresh)
         confirmation=nil;action(kind,e)
     end
     function D.Show(model,width)
-        local wide=width>=760;local base=wide and 1170 or 610;local scale=width/base
+        local base,wide,scale=LayoutWidth(width,1140)
         local entries=B.Project(model.rows,model.now,filterKey)
         local e
         for i,v in ipairs(entries) do if v.id==selected then e=v;offset=math.max(0,math.min(offset,math.max(0,#entries-4)));break end end
         if not e then e=entries[1];selected=e and e.id or "";confirmation=nil;offset=0 end
         if lastModel~=model.context then confirmation=nil;lastModel=model.context end
         local confirmed=e and confirmation==e.id..":"..tostring(e.ad.revision)
-        local left=wide and 592 or base;local right=wide and base-left-12 or base
-        local h=DetailHeight(e);local listH=502
+        local left=wide and math.floor((base-12)*.51) or base;local right=wide and base-left-12 or base
+        local h=DetailHeight(e,right);local listH=502
         local top=wide and 78 or 132
         local total=top+(wide and math.max(h,listH) or listH+12+h)
         f:SetScale(scale);At(f,parent,0,0,base,total);f:Show()
@@ -261,6 +269,12 @@ function B.New(parent,action,refresh)
     return D
 end
 function B.RunSelfTest()
+    local prev=0
+    for _,width in ipairs({480,610,760,940,1170,1400,1800}) do
+        local base,wide,scale=LayoutWidth(width,1140)
+        assert(scale==.80 and math.abs(base*scale-width)<.001 and base>prev)
+        assert(wide==(base>=1140));prev=base
+    end
     local function ad(id,count,state,deadline)
         return {id=id,count=count,state=state,draft={capacity=16,registrationClosesAt=deadline}}
     end

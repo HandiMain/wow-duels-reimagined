@@ -272,20 +272,20 @@ function O.New(parent,cb)
     f:HookScript("OnHide",StopClock)
     function D.Hide() StopClock();f:Hide() end
     function D.Show(m,w,can,localTest,refresh)
-        local wide=w>=760;local base=wide and 1264 or 710;local scale=w/base
-        local gap=12;local bannerH=110;local mainW=wide and 718 or base;local sideW=wide and base-mainW-gap or base
+        local base,wide,scale=ns.TournamentBrowse.Chrome.LayoutWidth(w,1100)
+        local gap=12;local bannerH=110;local mainW=wide and math.floor((base-gap)*.57) or base;local sideW=wide and base-mainW-gap or base
         local midH=364;local sideH=(midH-gap)/2;local bodyY=bannerH+gap
         local bottomY=bodyY+midH+(wide and 0 or 2*(sideH+gap))+gap
         local hasEvent=m.event~=nil;local bottomH=hasEvent and (wide and 118 or 220) or 58
         local total=bottomY+bottomH+(localTest and 43 or 0)
         f:SetScale(scale);At(f,parent,0,0,base,total);f:Show()
         At(banner,f,0,0,base,bannerH)
-        local bw=base*(wide and .36 or .29);At(l,banner,4,4,bw,bannerH-8);At(r,banner,base-bw-4,4,bw,bannerH-8)
+        local bw=math.min(430,base*.25);At(l,banner,4,4,bw,bannerH-8);At(r,banner,base-bw-4,4,bw,bannerH-8)
         -- Center the visible title and icon together, not the icon at the
         -- edge of an oversized invisible label box.
         local showIcon=m.state~="champion" and m.state~="eliminated"
         local icon=(m.state=="registered" or m.state=="checked" or m.state=="upnext") and "tick" or "info"
-        local titleW=wide and base*.40 or base*.50
+        local titleW=math.max(1,base-2*bw-76)
         local shift=showIcon and 19 or 0
         Text(bannerTitle,banner,(base-titleW)/2+shift,12,titleW,52,m.title,GOLD)
         if S.ConstrainText then S.ConstrainText(bannerTitle,titleW,52,18) end
@@ -340,13 +340,14 @@ function O.New(parent,cb)
         At(flag,bottom,12,6,82,106);At(calendar,bottom,21,10,39,40)
         Text(summary,bottom,hasEvent and 106 or 76,hasEvent and 9 or 10,hasEvent and base-120 or 270,38,m.summary)
         event:SetShown(hasEvent);scope:SetShown(hasEvent);blank:SetShown(not hasEvent)
-        Text(event,bottom,106,44,wide and 196 or base-125,36,m.event)
-        Text(scope,bottom,106,82,wide and 194 or base-125,21,m.test or "")
+        local identityW=wide and math.min(400,math.max(196,base*.22)) or base-125
+        Text(event,bottom,106,44,identityW,36,m.event)
+        Text(scope,bottom,106,82,identityW,21,m.test or "")
         Text(blank,bottom,385,10,base-400,38,m.bottom)
         local showAction=hasEvent and m.bottomButton~=nil
         local metricCount=#m.metrics
         if wide then
-            local x=310;local endX=base-(showAction and 200 or 12);local cw=metricCount>0 and (endX-x)/metricCount or 0
+            local x=114+identityW;local endX=base-(showAction and 200 or 12);local cw=metricCount>0 and (endX-x)/metricCount or 0
             for i,c in ipairs(cells) do PaintCell(c,bottom,x+(i-1)*cw,42,cw,63,m.metrics[i],true) end
             At(bottomButton,bottom,base-191,55,177,42)
         else

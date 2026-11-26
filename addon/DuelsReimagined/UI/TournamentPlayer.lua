@@ -241,23 +241,38 @@ function P.New(parent,callbacks)
             end
         end
     end
-    local function PaintBody(p,m,base,wide,isMatch,isProgress,contentY,infoH,left)
+    local function PaintBody(p,m,base,wide,isMatch,isProgress,contentY,infoH,left,matchH)
         timerCard:SetShown(not isMatch and not isProgress);nextCard:SetShown(not isMatch);progress:SetShown(isProgress)
         match:SetShown(isMatch);ready:SetShown(isMatch)
         if isMatch then
-            At(match,f,0,contentY,base,246)
+            At(match,f,0,contentY,base,matchH)
             At(matchTitle,match,base*.26,8,base*.48,37);Text(matchTitleText,matchTitle,6,0,base*.48-12,37,"UPCOMING MATCH — LOCAL TEST",GOLD,15)
-            At(youPortrait,match,20,58,94,94);At(otherPortrait,match,base*.58,58,94,94)
-            Text(youName,match,125,62,base*.37-126,37,"Yourself",C.pale,18)
-            Text(youSub,match,125,103,base*.32-106,33,"Participant",C.muted,13)
-            Text(vs,match,base*.44,63,base*.12,74,"VS",GOLD,26)
-            local ox=base*.58+106
-            Text(otherName,match,ox,58,base-ox-12,38,m.opponent,C.pale,16)
-            Text(otherSub,match,ox,99,base-ox-12,27,m.opponentLevel and "Level "..m.opponentLevel.." · Local test" or "Local test player",C.muted,13)
-            At(opponentButton,match,ox,133,base-ox-15,32);opponentButton:SetEnabled(p.opponent~=nil);opponentButton:SetAlpha(p.opponent and 1 or .5)
-            At(scoreBox,match,base*.36,176,base*.28,60);Text(scoreCaption,scoreBox,5,1,base*.28-10,23,"SERIES SCORE",C.pale,13)
+            if base<760 then
+                local half=base*.5
+                At(youPortrait,match,half*.5-39,52,78,78)
+                At(otherPortrait,match,half*1.5-39,52,78,78)
+                youName:SetJustifyH("CENTER");youSub:SetJustifyH("CENTER");otherName:SetJustifyH("CENTER");otherSub:SetJustifyH("CENTER")
+                Text(youName,match,12,132,half-24,34,"Yourself",C.pale,16)
+                Text(youSub,match,12,166,half-24,29,"Participant",C.muted,13)
+                Text(otherName,match,half+12,132,half-24,34,m.opponent,C.pale,16)
+                Text(otherSub,match,half+12,166,half-24,29,m.opponentLevel and "Level "..m.opponentLevel.." · Local test" or "Local test player",C.muted,13)
+                Text(vs,match,half-32,62,64,55,"VS",GOLD,26)
+                At(opponentButton,match,half+25,196,half-50,30)
+            else
+                youName:SetJustifyH("LEFT");youSub:SetJustifyH("LEFT");otherName:SetJustifyH("LEFT");otherSub:SetJustifyH("LEFT")
+                At(youPortrait,match,20,58,94,94);At(otherPortrait,match,base*.58,58,94,94)
+                Text(youName,match,125,62,base*.37-126,37,"Yourself",C.pale,18)
+                Text(youSub,match,125,103,base*.32-106,33,"Participant",C.muted,13)
+                Text(vs,match,base*.44,63,base*.12,74,"VS",GOLD,26)
+                local ox=base*.58+106
+                Text(otherName,match,ox,58,base-ox-12,38,m.opponent,C.pale,16)
+                Text(otherSub,match,ox,99,base-ox-12,27,m.opponentLevel and "Level "..m.opponentLevel.." · Local test" or "Local test player",C.muted,13)
+                At(opponentButton,match,ox,133,base-ox-15,32)
+            end
+            opponentButton:SetEnabled(p.opponent~=nil);opponentButton:SetAlpha(p.opponent and 1 or .5)
+            At(scoreBox,match,base*.36,matchH-70,base*.28,60);Text(scoreCaption,scoreBox,5,1,base*.28-10,23,"SERIES SCORE",C.pale,13)
             Text(score,scoreBox,5,24,base*.28-10,32,m.score,GOLD,20)
-            At(ready,f,base*.28,contentY+258,base*.44,35)
+            At(ready,f,base*.28,contentY+matchH+12,base*.44,35)
             ready.plate:SetStyle(m.status=="Match ready" and "organizerStageActive" or "organizerStageDone")
             Text(readyText,ready,6,0,base*.44-12,35,m.status,m.status=="Match ready" and GREEN or GOLD,15)
         elseif isProgress then
@@ -265,13 +280,13 @@ function P.New(parent,callbacks)
             local pw=wide and base*.31-12 or base
             local px=wide and iw+12 or 0
             local py=wide and contentY or contentY+infoH+12
-            At(progress,f,px,py,pw,wide and infoH or 160);Header(progress,pw)
+            At(progress,f,px,py,pw,wide and infoH or 174);Header(progress,pw)
             At(pl,progress,12,59,35,63);At(pr,progress,pw-47,59,35,63)
             Text(progressRound,progress,48,47,pw-96,39,m.round,C.pale,17)
             Text(progressScore,progress,48,88,pw-96,42,m.score,GOLD,20)
             Text(progressRecord,progress,8,135,pw-16,32,m.record,C.text,13)
             Text(progressResult,progress,8,wide and 185 or 0,pw-16,wide and 44 or 1,m.result,C.pale,14);progressResult:SetShown(wide)
-            local nx=wide and iw+pw+24 or 0;local nw=wide and base-nx or base;local ny=wide and contentY or py+172
+            local nx=wide and iw+pw+24 or 0;local nw=wide and base-nx or base;local ny=wide and contentY or py+186
             At(nextCard,f,nx,ny,nw,wide and infoH or 166);Header(nextCard,nw)
             Text(nextText,nextCard,12,48,nw-24,wide and 70 or 45,m.next,GOLD,16)
             Text(hint,nextCard,12,wide and 120 or 94,nw-24,wide and infoH-132 or 60,m.hint,C.text,14)
@@ -290,23 +305,25 @@ function P.New(parent,callbacks)
         if eventId~=p.event.id then eventId=p.event.id;confirm=nil end
         current=p;model=P.Project(p)
         if not model then D.Hide();return 1 end
-        local m=model;local wide=width>=760;local base=wide and 1170 or 680;local scale=width/base
+        local m=model;local base,wide,scale=chrome.LayoutWidth(width,1060)
         local top=wide and 77 or 132
         local isMatch=m.state=="match";local isProgress=m.state=="progress"
         local heroH=isMatch and 164 or 174
         local stageY=top+heroH+16
         local contentY=stageY+(isMatch and 0 or 146)
         local infoY,infoH,footerY
-        local rulesExtra=math.min(160,math.max(0,math.ceil(#m.rules/(wide and 55 or 38))-1)*22)
+        local matchH=base<760 and 306 or 246
+        local ruleWidth=isProgress and wide and base*.36-63 or wide and (base-24)/2-39 or base-63
+        local rulesExtra=math.min(160,math.max(0,math.ceil(#m.rules/math.max(16,math.floor(ruleWidth/9)))-1)*22)
         local left=math.floor((base-12)*.51)
-        if isMatch then infoY=contentY+309;infoH=wide and 202+rulesExtra or 304+rulesExtra;footerY=infoY+infoH+12
-        elseif isProgress then infoY=contentY;infoH=wide and 304+rulesExtra or 304+rulesExtra;footerY=contentY+(wide and infoH or infoH+350)+12
+        if isMatch then infoY=contentY+matchH+63;infoH=wide and 202+rulesExtra or 304+rulesExtra;footerY=infoY+infoH+12
+        elseif isProgress then infoY=contentY;infoH=wide and 304+rulesExtra or 304+rulesExtra;footerY=contentY+(wide and infoH or infoH+364)+12
         else infoY=contentY+(wide and 190 or 352);infoH=wide and 202+rulesExtra or 304+rulesExtra;footerY=infoY+infoH+12 end
         local footerH=wide and 60 or 50+math.ceil(#m.actions/2)*45
         local total=footerY+footerH+(feedback~="" and 42 or 8)
         f:SetScale(scale);At(f,parent,0,0,base,total);f:Show()
         PaintHero(p,m,scope,base,wide,top,heroH,stageY,isMatch)
-        PaintBody(p,m,base,wide,isMatch,isProgress,contentY,infoH,left)
+        PaintBody(p,m,base,wide,isMatch,isProgress,contentY,infoH,left,matchH)
         local iw=isProgress and wide and base*.36 or base
         At(info,f,0,infoY,iw,infoH);Header(info,iw)
         local times=ns.TournamentState.GetSchedulePreview(p.event.draft.startUTC,p.event.draft.closeBefore)
