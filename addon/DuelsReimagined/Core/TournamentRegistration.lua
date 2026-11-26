@@ -460,8 +460,15 @@ local function WireClient(scope,cache,clock,resolve,store)
         return body
     end
     function D.Query(owner) return Begin(owner,"Q") end
+    local function ArchiveFull()
+        if not store or not store.privateArchive then return false end
+        local n=0;for _ in pairs(journal.participantCompleted or {}) do n=n+1 end
+        for _ in pairs(journal.archiveReceipts or {}) do n=n+1 end
+        return n>=64
+    end
+    D.ArchiveFull=ArchiveFull
     function D.Join(owner,id)
-        if commitment then return nil end
+        if commitment or ArchiveFull() then return nil end
         local found
         for _,ad in ipairs(cache.Browse()) do if ad.owner==owner and ad.id==id then found=true;break end end
         if not found then return nil end
@@ -469,7 +476,7 @@ local function WireClient(scope,cache,clock,resolve,store)
         return body
     end
     function D.JoinPending(owner,id)
-        if commitment then return nil end
+        if commitment or ArchiveFull() then return nil end
         for _,hint in ipairs(cache.Hints()) do
             if hint.ad.owner==owner and hint.ad.id==id then return Begin(owner,"J",id) end
         end
@@ -517,6 +524,43 @@ local function WireClient(scope,cache,clock,resolve,store)
         if not Persist(seq+1,commitment,nil,"query") then return nil end
         seq=seq+1;return seq,Copy(commitment)
     end
+    function D.PendingArchives()
+        local rows={}
+        if store and store.privateArchive and Fresh() then
+            for id,v in pairs(journal.archiveReceipts or {}) do
+                if v.population==key then rows[#rows+1]={id=id,owner=v.owner,revision=v.revision} end
+            end
+            table.sort(rows,function(a,b)return a.id<b.id end)
+        end
+        return rows
+    end
+    function D.ReserveArchive(id)
+        Expire()
+        if not store or not store.privateArchive or not Fresh() or pending or seq>=2147483647 then return nil end
+        local v=journal.archiveReceipts and journal.archiveReceipts[id]
+        if not v or v.population~=key then return nil end
+        if not Persist(seq+1,commitment,nil,"archive_query") then return nil end
+        seq=seq+1
+        return seq,{id=id,owner=v.owner,revision=v.revision}
+    end
+    function D.SaveFinalArchive(progress)
+        if not store or not store.privateArchive or not Fresh() or pending then return false,"Archive unavailable." end
+        local rec=ns.TournamentRecovery.ParticipantFinalRecord(scope.client,journal.character,progress,Now(clock))
+        if not rec or rec.population~=key then return false,"Final result not validated." end
+        local id=rec.bracket.checkpoint.ad.id
+        local prior=journal.participantCompleted and journal.participantCompleted[id]
+        if prior then
+            if Equal(prior,rec) then return true,"Already recorded." end
+            return false,"Conflicting finalized result rejected."
+        end
+        local candidate=Copy(journal);candidate.revision=journal.revision+1
+        candidate.participantCompleted=candidate.participantCompleted or {}
+        candidate.participantCompleted[id]=rec
+        if candidate.archiveReceipts then candidate.archiveReceipts[id]=nil end
+        local saved=store.CommitTournamentJournal(journal.revision,candidate,"archive_save")
+        if not saved then return false,"Final result could not be saved; retry sync." end
+        journal=saved;return true,"Completed tournament saved."
+    end
     function D.Receive(sender,body)
         local now=Expire()
         if not Fresh() or not pending or not now or not Packet(body) then return false end
@@ -549,7 +593,20 @@ local function WireClient(scope,cache,clock,resolve,store)
             local state=a[1]=="Y" and "completed" or "cancelled"
             local rev=Number(a[5],2,2147483647)
             if not cache.Terminal(actor.guid,pending.id,rev,state,false) then return false end
-            if not Persist(seq,nil,nil,"ack") then return false end
+            if state=="completed" and store and store.privateArchive and commitment.status=="checked" then
+                local oldResult=journal.participantCompleted and journal.participantCompleted[pending.id]
+                if oldResult then
+                    if oldResult.revision~=rev or not Persist(seq,nil,nil,"ack") then return false end
+                else
+                    local candidate=Copy(journal);candidate.revision=journal.revision+1
+                    candidate.commitment=nil;candidate.pending=nil;candidate.privateSeat=nil
+                    candidate.archiveReceipts=candidate.archiveReceipts or {}
+                    candidate.archiveReceipts[pending.id]={owner=actor.guid,population=key,revision=rev}
+                    local saved=store.CommitTournamentJournal(journal.revision,candidate,"archive_terminal")
+                    if not saved then return false end
+                    journal=saved
+                end
+            elseif not Persist(seq,nil,nil,"ack") then return false end
             cache.Terminal(actor.guid,pending.id,rev,state,true)
             pending=nil;commitment=nil
             return true,state
@@ -2901,6 +2958,19 @@ function R.ReadPersonalArchive(previewSnapshot)
             end
         end
     end
+    for _,record in pairs(journal.participantCompleted or {}) do
+        if record.population==key then
+            local saved=record.bracket;local cp=saved.checkpoint;local ad=cp.ad
+            local engine=ns.TournamentBracket.OpenSimulated(scope,ad.owner,saved)
+            if engine then
+                local names,member={},nil
+                for _,m in ipairs(cp.roster) do names[m.guid]=m.name;if m.guid==actor then member=m end end
+                local view=engine.Snapshot()
+                local row=R.ProjectPersonalResult(ad,view,names,actor,false,record.finishedAt,"PRIVATE_TEST")
+                if row then row.board={event=ad,bracket=view,names=names,scope="PRIVATE_TEST",member=member};rows[#rows+1]=row end
+            end
+        end
+    end
     table.sort(rows,function(a,b)
         local x,y=a.finishedAt or 0,b.finishedAt or 0
         if x==y then return a.id<b.id end
@@ -3213,7 +3283,7 @@ function R.RunPrivateNetworkSelfTest(emit)
                     function(a,c)r.account=a;r.character=c end,function()return client end,function()return actors[name].guid end)
                 d.MarkLoaded()
                 return R.OpenRegistrationSession(s,actors[name],clock,resolve,{
-                    ReadTournamentJournal=d.ReadTournamentTestJournal,CommitTournamentJournal=d.CommitTournamentTestJournal},role)
+                    ReadTournamentJournal=d.ReadTournamentTestJournal,CommitTournamentJournal=d.CommitTournamentTestJournal,privateArchive=true},role)
             end
             local host=assert(Open("host","host"))
             local d=T.DraftDefaults();d.name="Private Cup";d.location="Meeting place";d.startUTC="2026-11-25 18:00";d.capacity=4;d.bestOf=1
@@ -3294,6 +3364,45 @@ function R.RunPrivateNetworkSelfTest(emit)
             assert(host.PrivateFinalize())
             local reopened=assert(Open("host","host"));local history=reopened.PrivateHistory()
             assert(#history==1 and history[1].champion=="one" and history[1].scope=="PRIVATE_TEST")
+            for _,name in ipairs({"one","two"}) do
+                local w=clients[name]
+                local function Download(nonce,lock)
+                    local f=assert(R.OpenPrivateProgressFetch(s,lock.owner,lock.id,actors[name].guid,nonce,clock,resolve))
+                    while not f.Snapshot() do
+                        tick();local parts=assert(reopened.Receive(name,assert(f.Request())))
+                        for _,packet in ipairs(parts) do assert(f.Receive("host",packet)) end
+                    end
+                    return assert(f.Snapshot())
+                end
+                local v
+                if name=="one" then
+                    -- Final bracket arrives first.
+                    local nonce,lock=w.ReserveProgress();v=Download(nonce,lock)
+                    assert(w.SaveFinalArchive(v))
+                    local ack=assert(reopened.Receive(name,assert(w.Action("S"))))[1]
+                    assert(w.Receive("host",ack) and not w.Status() and #w.PendingArchives()==0)
+                else
+                    -- Terminal notice arrives first; retain receipt across restart.
+                    local ack=assert(reopened.Receive(name,assert(w.Action("S"))))[1]
+                    assert(w.Receive("host",ack) and not w.Status())
+                    w=assert(Open(name,"player"));assert(#w.PendingArchives()==1)
+                    local nonce,lock=w.ReserveArchive(ad.id);assert(nonce)
+                    v=Download(nonce,lock)
+                    local bad=Copy(v);bad.finishedAt=nil;assert(not w.SaveFinalArchive(bad))
+                    assert(w.SaveFinalArchive(v) and #w.PendingArchives()==0)
+                end
+                w=assert(Open(name,"player"))
+                assert(w.SaveFinalArchive(v) and not w.Status())
+                local journal=roots[name].character.clients[client].tournamentTestJournal.journal
+                assert(journal.participantCompleted[ad.id].champion==winner)
+                local revision=journal.revision
+                assert(w.SaveFinalArchive(v) and roots[name].character.clients[client].tournamentTestJournal.journal.revision==revision)
+                local wrong=Copy(v);wrong.finishedAt=wrong.finishedAt-1;assert(not w.SaveFinalArchive(wrong))
+                local count=0;for _ in pairs(journal.participantCompleted) do count=count+1 end;assert(count==1)
+                local invalid=Copy(journal);invalid.character=actors.host.guid
+                assert(not ns.TournamentRecovery.Validate(client,actors.host.guid,invalid,true))
+                assert(not ns.TournamentRecovery.Validate(client,actors[name].guid,journal,false))
+            end
             -- The shared validator accepts only the marked, complete LOCAL result.
             local ctx={scope="PRIVATE_TEST",client=client,me=winner,peer=actors.two.guid,cycle=1,
                 agreement={scope="PRIVATE_TEST",state="candidate",candidate=true,rankEligible=false,session=ns.TournamentRecovery.PrivateSession(assignment)}}

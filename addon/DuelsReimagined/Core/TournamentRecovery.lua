@@ -106,6 +106,38 @@ function R.FinalRecord(client,owner,bracket,control,now,copies)
     return FinalRecord(client,owner,{bracket=engine.Save(),champion=v.champion,term=c.term,finishedAt=now,
         population=P.Key(a),revision=a.revision+1})
 end
+local function ArchiveReceipt(client,id,v)
+    if type(id)~="string" or #id>96 or type(v)~="table" or not Guid(v.owner)
+        or not P.Code(v.population,client) or not Whole(v.revision,2,2147483647) then return nil end
+    local who,stamp,serial=id:match("^(Player%-%w[%w%-]*):(%d+):(%d+)$")
+    if who~=v.owner or not Whole(tonumber(stamp),1,4102444800) or not Whole(tonumber(serial),1,2147483647)
+        or tostring(tonumber(stamp))~=stamp or tostring(tonumber(serial))~=serial then return nil end
+    local clean={owner=v.owner,population=v.population,revision=v.revision}
+    if Equal(clean,v) then return clean end
+end
+local function ParticipantRecord(client,character,raw)
+    if type(raw)~="table" or type(raw.bracket)~="table" or type(raw.bracket.checkpoint)~="table" then return nil end
+    local ad=raw.bracket.checkpoint.ad
+    if type(ad)~="table" or not Guid(ad.owner) or ad.owner==character then return nil end
+    local clean=FinalRecord(client,ad.owner,raw)
+    if not clean then return nil end
+    for _,m in ipairs(clean.bracket.checkpoint.roster) do
+        if m.guid==character and m.checkedIn then return clean end
+    end
+end
+-- Organizer-reported, replay-validated history only; not independent proof.
+function R.ParticipantFinalRecord(client,character,progress,now)
+    if type(progress)~="table" or progress.scope~="PRIVATE_TEST" or progress.source~="organizer-reported"
+        or type(progress.control)~="table" or progress.control.paused~=false
+        or type(progress.saved)~="table" or type(progress.saved.checkpoint)~="table" then return nil end
+    local ad=progress.saved.checkpoint.ad
+    local c=progress.control
+    if type(ad)~="table" or c.owner~=ad.owner or c.coordinator~=ad.owner or c.event~=ad.id
+        or not Whole(progress.finishedAt,1,4102444800) or not Whole(now,progress.finishedAt,4102444800)
+        or not Whole(ad.revision,1,2147483646) or type(progress.bracket)~="table" then return nil end
+    return ParticipantRecord(client,character,{bracket=progress.saved,champion=progress.bracket.champion,
+        term=c.term,finishedAt=progress.finishedAt,population=P.Key(ad),revision=ad.revision+1})
+end
 local function CompletedCheckpoint(record,cp)
     if not record or not cp then return false end
     local a,b=record.bracket.checkpoint.ad,cp.host.ad
@@ -256,6 +288,32 @@ function R.Validate(client,character,raw,private)
         end
         out.completed=archive
     end
+    -- Bounded append-only receipts and received archives. Existing journals without
+    -- these optional fields retain their original schema and semantics.
+    local n=0
+    if raw.participantCompleted~=nil then
+        if private~=true or type(raw.participantCompleted)~="table" then return nil end
+        out.participantCompleted={}
+        for id,v in pairs(raw.participantCompleted) do
+            n=n+1
+            local clean=ParticipantRecord(client,character,v)
+            if n>64 or not clean or clean.bracket.checkpoint.ad.id~=id
+                or (out.completed and out.completed[id]) or (out.cancelled and out.cancelled[id]) then return nil end
+            out.participantCompleted[id]=clean
+        end
+    end
+    if raw.archiveReceipts~=nil then
+        if private~=true or type(raw.archiveReceipts)~="table" then return nil end
+        out.archiveReceipts={}
+        for id,v in pairs(raw.archiveReceipts) do
+            n=n+1
+            local clean=ArchiveReceipt(client,id,v)
+            if n>64 or not clean or clean.owner==character
+                or (out.participantCompleted and out.participantCompleted[id])
+                or (out.completed and out.completed[id]) or (out.cancelled and out.cancelled[id]) then return nil end
+            out.archiveReceipts[id]=clean
+        end
+    end
     if out.checkpoint and out.checkpoint.host.ad.state=="completed"
         and not (out.completed and out.completed[out.checkpoint.host.ad.id]) then return nil end
     for k in pairs(raw) do if out[k]==nil then return nil end end
@@ -269,6 +327,51 @@ end
 -- Storage checks transitions but cannot establish sender authenticity.
 function R.Transition(old,new,action,private)
     if new.revision~=old.revision+1 then return false end
+    local beforeResults,afterResults=old.participantCompleted or {},new.participantCompleted or {}
+    local beforeReceipts,afterReceipts=old.archiveReceipts or {},new.archiveReceipts or {}
+    if action=="archive_terminal" or action=="archive_query" or action=="archive_save" then
+        if private~=true then return false end
+        local ignore={revision=true,participantCompleted=true,archiveReceipts=true}
+        if action=="archive_terminal" then
+            ignore.commitment=true;ignore.pending=true;ignore.privateSeat=true
+        elseif action=="archive_query" then ignore.sequence=true end
+        local a,b={},{}
+        for k,v in pairs(old) do if not ignore[k] then a[k]=v end end
+        for k,v in pairs(new) do if not ignore[k] then b[k]=v end end
+        if not Equal(a,b) then return false end
+        local lock=old.commitment
+        if action=="archive_terminal" then
+            if not lock or lock.role~="participant" or lock.status~="checked" or not old.pending
+                or new.commitment or new.pending or new.privateSeat or not Equal(beforeResults,afterResults)
+                or beforeResults[lock.id] or beforeReceipts[lock.id] then return false end
+            local expected={};for k,v in pairs(beforeReceipts) do expected[k]=v end
+            local receipt=afterReceipts[lock.id]
+            if not receipt or receipt.owner~=lock.owner or receipt.population~=lock.population then return false end
+            expected[lock.id]=receipt
+            return Equal(expected,afterReceipts)
+        elseif action=="archive_query" then
+            return not old.pending and (not lock or lock.role=="participant")
+                and next(beforeReceipts)~=nil and new.sequence==old.sequence+1
+                and Equal(beforeResults,afterResults) and Equal(beforeReceipts,afterReceipts)
+        else
+            if old.pending or (lock and lock.role~="participant") then return false end
+            local id,record
+            for k,v in pairs(afterResults) do
+                if not beforeResults[k] then if id then return false end;id=k;record=v
+                elseif not Equal(beforeResults[k],v) then return false end
+            end
+            if not id then return false end
+            for k in pairs(beforeResults) do if not afterResults[k] then return false end end
+            local receipt=beforeReceipts[id]
+            local ad=record.bracket.checkpoint.ad
+            if receipt then
+                if receipt.owner~=ad.owner or receipt.population~=record.population or receipt.revision~=record.revision then return false end
+            elseif not lock or lock.status~="checked" or lock.id~=id or lock.owner~=ad.owner or lock.population~=record.population then return false end
+            local expected={};for k,v in pairs(beforeReceipts) do if k~=id then expected[k]=v end end
+            return Equal(expected,afterReceipts)
+        end
+    end
+    if not Equal(beforeResults,afterResults) or not Equal(beforeReceipts,afterReceipts) then return false end
     local oa,na,os,newSeat=old.privateAssignment,new.privateAssignment,old.privateSeat,new.privateSeat
     if (oa or na or os or newSeat) and private~=true then return false end
     local privateAction=action=="private_assign" or action=="private_ready" or action=="seat_arm" or action=="seat_report" or action=="seat_clear"

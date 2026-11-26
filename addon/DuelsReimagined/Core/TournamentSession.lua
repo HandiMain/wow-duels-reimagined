@@ -365,9 +365,29 @@ local function Receive(body,channel,sender)
             if ok and why~="partial" then
                 if syncTimer then syncTimer:Cancel();syncTimer=nil end
                 if why=="complete" then
-                    active.progress=fetch.reader.Snapshot()
-                    active.receipt="Organizer snapshot received; not independent match verification."
-                    StopFetch();ReconcileSeat();Changed()
+                    local v=fetch.reader.Snapshot()
+                    local archiveOnly=fetch.archiveOnly
+                    StopFetch()
+                    if v.finishedAt then
+                        local saved,message=active.engine.SaveFinalArchive(v)
+                        active.receipt=message
+                        if not archiveOnly then
+                            active.progress=v;ReconcileSeat()
+                            -- Release the active commitment only after the final record is durable.
+                            if saved and active.engine.Status() then
+                                local lock=active.engine.Status()
+                                local body=active.engine.Action("S")
+                                if body then Send(lock.owner,{body}) end
+                            end
+                        end
+                    elseif archiveOnly then
+                        active.receipt="Organizer has not provided a finalized archive; retry."
+                    else
+                        active.progress=v
+                        active.receipt="Organizer snapshot received; not independent match verification."
+                        ReconcileSeat()
+                    end
+                    Changed()
                 else
                     syncTimer=C_Timer.NewTimer(.75,function()syncTimer=nil;RequestPage()end)
                 end
@@ -381,7 +401,11 @@ local function Receive(body,channel,sender)
             active.receipt=why
             if why=="cancelled" or why=="completed" then
                 CloseSeatLink();active.offer=nil;active.both=nil;active.matchRequest=nil
-                if why=="cancelled" then active.progress=nil end
+                active.progress=nil
+                if why=="completed" and #active.engine.PendingArchives()>0 and not fetch and not echo then
+                    local ok,message=L.Command("sync-archive")
+                    if not ok then active.receipt=message end
+                end
             end
             Changed()
         end
@@ -397,7 +421,7 @@ local function Open(role)
     local s=P.GetCurrent();local key=P.Key(s)
     local actor=key and Actor("player",s)
     if not actor or not Clock() then return false,"Character or community unavailable." end
-    local store={ReadTournamentJournal=Store.ReadTournamentTestJournal,CommitTournamentJournal=Store.CommitTournamentTestJournal}
+    local store={ReadTournamentJournal=Store.ReadTournamentTestJournal,CommitTournamentJournal=Store.CommitTournamentTestJournal,privateArchive=true}
     local function resolve(sender) return Resolve(s,actor.guid,sender) end
     local engine,cache=R.OpenRegistrationSession(s,actor,Clock,resolve,store,role)
     if not engine then return false,"Journal unavailable or committed to another role/community." end
@@ -537,7 +561,22 @@ function L.Command(command)
         elseif command=="ready" then return ReadySeat()
         elseif command=="report" then return SendResult()
         end
-        if command=="sync" then
+        if command=="sync-archive" then
+            if fetch or d.PendingOwner() or active.matchRequest and Clock() and Clock()<active.matchRequest.deadline then return false,"Finish the pending request first." end
+            active.matchRequest=nil
+            local row
+            for _,v in ipairs(d.PendingArchives()) do
+                if Resolve(active.scope,active.actor.guid,nil,v.owner) then row=v;break end
+            end
+            if not row then return false,"Saved result pending: group with the organizer and retry." end
+            local seq,lock=d.ReserveArchive(row.id)
+            if not seq then return false,"Archive request unavailable." end
+            local function resolve(sender)return Resolve(active.scope,active.actor.guid,sender)end
+            local reader=R.OpenPrivateProgressFetch(active.scope,lock.owner,lock.id,active.actor.guid,seq,Clock,resolve)
+            if not reader then return false,"Archive reader unavailable." end
+            fetch={owner=lock.owner,reader=reader,archiveOnly=true}
+            return RequestPage()
+        elseif command=="sync" then
             if active.matchRequest and Clock() and Clock()<active.matchRequest.deadline then return false,"Wait for the match request to finish." end
             active.matchRequest=nil
             if fetch then return false,"A progress request is already running." end
@@ -570,6 +609,7 @@ function L.Command(command)
             local a=SelectedTarget();if not a then return false,"Target the organizer in your group." end
             owner=a.guid;body=d.Query(owner)
         elseif command:match("^join %d+$") then
+            if d.ArchiveFull() then return false,"Private tournament history is full. Existing results are preserved." end
             local selected=active.browseRows and active.browseRows[tonumber(command:match("%d+$"))]
             if not selected then return false,"Browse and choose a fresh tournament." end
             owner=selected.owner;body=d.Join(owner,selected.id)
@@ -690,15 +730,16 @@ function L.GetControlModel()
         end
     else
         local lock=d.Status()
+        local missing=d.PendingArchives()
         context=lock and lock.id or "player"
         if not lock then
-            detail="Target the organizer in your group, then check their tournament."
+            detail=d.ArchiveFull() and "Private tournament history is full. Existing results are preserved." or "Target the organizer in your group, then check their tournament."
             Add("Check target organizer","query")
             active.browseRows={}
             for i,ad in ipairs(active.cache.Browse()) do
                 if i>4 then break end
                 active.browseRows[i]={id=ad.id,owner=ad.owner}
-                Add("Join "..ad.draft.name,"join "..i)
+                if not d.ArchiveFull() then Add("Join "..ad.draft.name,"join "..i) end
             end
         else
             detail="Registration: "..lock.status
@@ -728,6 +769,10 @@ function L.GetControlModel()
                 end
             end
             if not d.PendingOwner() then Add("Refresh registration","refresh") end
+        end
+        if #missing>0 then
+            detail=detail.."\n"..#missing.." completed tournament(s) awaiting saved results."
+            if fetch then Add("Stop result sync","stop-sync") else Add("Recover saved results","sync-archive") end
         end
     end
     Add("Close network session","stop",true)
