@@ -364,7 +364,7 @@ local function Layout()
     if active=="overview" then
         height=LayoutOverview(w,p,listings,private)
     elseif active=="brackets" and privateProjection then
-        local h=math.max(320,scroll:GetHeight()-top)
+        local h=math.max(560,scroll:GetHeight()-top)
         Place(bracketPanel,brackets,0,0,w,h);Header(bracketPanel,w)
         if not bracketView then bracketView=ns.BracketView.New(bracketPanel) end
         bracketPanel.detail:SetShown(not bracketView.Show(privateProjection,w,h-40))
@@ -444,7 +444,7 @@ local function Layout()
             local h=math.max(200,scroll:GetHeight()-top)
             Place(f,pages[active],0,0,w,h);Header(f,w)
             if active=="brackets" and p and p.bracket then
-                h=math.max(h,320);Place(f,pages[active],0,0,w,h)
+                h=math.max(h,590);Place(f,pages[active],0,0,w,h)
                 -- Board remains above the separate fixture controls.
                 local bw=math.max(1,(w-36)/3)
                 Place(bracketGame,bracketPanel,12,h-34,bw,26)

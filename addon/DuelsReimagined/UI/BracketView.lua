@@ -9,7 +9,7 @@ local function RoundName(distance)
 end
 -- Compress one-sided paths using the frozen slots, NOT current names:
 -- unresolved future matches still count; byes are not played matches.
-function B.Project(view,names,focus,viewportW,viewportH,zoom)
+function B.Project(view,names,focus,viewportW,viewportH,zoom,own)
     if type(view)~="table" or type(view.slots)~="table" or type(view.rounds)~="table" then return nil end
     local size=Count(view.slots);local rounds=Count(view.rounds)
     if size<2 or size>64 or rounds<1 or rounds>6 or size~=2^rounds then return nil end
@@ -32,7 +32,8 @@ function B.Project(view,names,focus,viewportW,viewportH,zoom)
     local root=Build(rounds,1)
     if not root or not root.row then return nil end
     zoom=max(.8,min(1.3,zoom or 1))
-    local cw,ch,fw,gap,step= floor(200*zoom),floor(82*zoom),floor(326*zoom),floor(42*zoom),floor(108*zoom)
+    local cw,ch,fw,gap,step= floor(184*zoom),floor(104*zoom),floor(274*zoom),floor(34*zoom),floor(132*zoom)
+    local finalH=floor(214*zoom)
     local sides={[-1]={depths={},columns={},rows=0},[1]={depths={},columns={},rows=0}}
     local function Collect(n,side)
         if not n.row then return end
@@ -61,7 +62,7 @@ function B.Project(view,names,focus,viewportW,viewportH,zoom)
     AssignY(root.a,sides[-1]);AssignY(root.b,sides[1])
     local totalW=fw+sides[-1].width+sides[1].width+32
     local rows=max(1,sides[-1].rows,sides[1].rows)
-    local totalH=rows*step+76
+    local totalH=max(rows*step+76,finalH+80)
     local w,h=max(viewportW or 1,totalW),max(viewportH or 1,totalH)
     local centerX=(w-totalW)/2+16+sides[-1].width+fw/2
     local centerY=44+(h-60)/2
@@ -77,7 +78,9 @@ function B.Project(view,names,focus,viewportW,viewportH,zoom)
         local status=m.state=="ready" and "Match ready" or m.state=="done" and "Completed" or "Awaiting players"
         if m.forfeit then status="Forfeit"
         elseif view.dispute and view.dispute.match==m.id then status="Disputed" end
-        local node={id=m.id,x=x-width/2,y=y-ch/2,w=width,h=ch,cx=x,cy=y,
+        local nh=n==root and finalH or ch
+        local node={id=m.id,x=x-width/2,y=y-nh/2,w=width,h=nh,cx=x,cy=y,
+            guidA=a,guidB=b,ownA=own~=nil and a==own,ownB=own~=nil and b==own,winner=m.winner,
             a=Name(a),b=Name(b),sa=m.state=="waiting" and "-" or tostring(m.wins[1] or 0),
             sb=m.state=="waiting" and "-" or tostring(m.wins[2] or 0),
             winnerA=type(a)=="string" and m.winner==a,winnerB=type(b)=="string" and m.winner==b,
@@ -87,7 +90,7 @@ function B.Project(view,names,focus,viewportW,viewportH,zoom)
         return node
     end
     local final=Node(root,centerX,centerY,fw)
-    out.headers[1]={label="Final",x=centerX,w=fw}
+    -- The championship card carries its own Final plaque.
     local function PlaceTree(n,side,parent)
         if not n.row then return end
         local s=sides[side];local d=root.r-n.r;local column=s.columns[d]
@@ -96,7 +99,7 @@ function B.Project(view,names,focus,viewportW,viewportH,zoom)
         local node=Node(n,x,y,cw)
         local fromX=side==-1 and node.x+node.w or node.x
         local toX=side==-1 and parent.x or parent.x+parent.w
-        out.edges[#out.edges+1]={x1=fromX,y1=node.cy,x2=toX,y2=parent.cy,focus=node.focus or parent.focus}
+        out.edges[#out.edges+1]={x1=fromX,y1=node.cy,x2=toX,y2=parent.cy,focus=own~=nil and node.winner==own and (parent.ownA or parent.ownB),completed=type(node.winner)=="string"}
         PlaceTree(n.a,side,node);PlaceTree(n.b,side,node)
     end
     for _,side in ipairs({-1,1}) do
@@ -110,76 +113,164 @@ function B.Project(view,names,focus,viewportW,viewportH,zoom)
     return out
 end
 
--- All UI is lazy, pooled, and visible only in the bracket panel. The native
--- scroll frame clips both axes; zoom changes card spacing, not font settings.
+-- One pooled native scroll canvas. Mouse drag is active only while held.
 function B.New(parent)
     local S,C=ns.Style,ns.Style.color
     local D={}
+    local ROOT="Interface\\AddOns\\DuelsReimagined\\Media\\"
+    local ART=ROOT.."Skin\\TournamentOverviewArt.png"
     local function At(f,p,x,y,w,h)
         f:ClearAllPoints();f:SetPoint("TOPLEFT",p,"TOPLEFT",x,-y);f:SetSize(max(1,w),max(1,h))
     end
     local function Text(p,size,color,align)
-        local t=S.Text(p,"",size,color);t:SetJustifyH(align or "LEFT");t:SetWordWrap(false)
+        local t=S.Text(p,"",size,color);t:SetJustifyH(align or "LEFT");t:SetJustifyV("MIDDLE");t:SetWordWrap(false);return t
+    end
+    local function Art(p,path,x1,x2,y1,y2,layer,sub)
+        local t=p:CreateTexture(nil,layer or "ARTWORK",nil,sub or 0);t:SetTexture(path)
+        t:SetTexCoord(x1,x2,y1,y2);ns.Chrome.Sharp(t);return t
+    end
+    local function Fade(p,color,alpha,layer,sub)
+        local t=p:CreateTexture(nil,layer or "BACKGROUND",nil,sub or 2)
+        t:SetColorTexture(1,1,1,1)
+        if t.SetGradient and CreateColor then
+            t:SetGradient("VERTICAL",CreateColor(color[1],color[2],color[3],0),CreateColor(color[1],color[2],color[3],alpha))
+        else t:SetColorTexture(color[1],color[2],color[3],alpha*.5) end
         return t
     end
     local board=CreateFrame("Frame",nil,parent)
-    S.Plate(board,"dark",{corner=11,layer="BACKGROUND",sublevel=0})
+    S.Plate(board,"organizerPanel",{corner=13,layer="BACKGROUND",sublevel=0})
+    local arena=Art(board,ROOT.."Arenas\\WarGamesArenaFallback.png",.50,.75,.25,.50,"BACKGROUND",1)
+    arena:SetVertexColor(.57,.49,.40,.46)
+    local shade=Fade(board,{.025,.018,.012},.94,"BACKGROUND",2)
+    local banner=CreateFrame("Frame",nil,board)
+    S.Plate(banner,"organizerHero",{corner=13,layer="BACKGROUND",sublevel=0})
+    local leftArt=Art(banner,ART,0,456/1024,0,100/512)
+    local rightArt=Art(banner,ART,464/1024,892/1024,0,100/512)
+    leftArt:SetAlpha(.68);rightArt:SetAlpha(.68)
+    local title=Text(banner,23,C.pale,"CENTER")
+    local meta=Text(banner,13,C.text,"CENTER")
     local viewport=CreateFrame("ScrollFrame",nil,board)
     local canvas=CreateFrame("Frame",nil,viewport);canvas:SetSize(1,1);viewport:SetScrollChild(canvas)
     local controls=CreateFrame("Frame",nil,board)
+    local hint=Text(controls,12,C.muted,"RIGHT")
+    local legend=Text(controls,12,C.pale)
     local cards,lines,headers={},{},{}
-    local model,view,names,focus,event,zoom=nil,nil,nil,nil,nil,1
-    local vw,vh=1,1
+    local model,view,names,focus,event,own,projection=nil,nil,nil,nil,nil,nil,nil
+    local zoom,vw,vh=1,1,1
+    local autoFit=true
+    local dragX,dragY,dragH,dragV
+    local Render,Pan,Wheel
+    local classes={"WARRIOR","PALADIN","HUNTER","ROGUE","PRIEST","SHAMAN","MAGE","WARLOCK","DRUID"}
+    local classColors={WARRIOR={.78,.61,.43},PALADIN={.96,.55,.73},HUNTER={.67,.83,.45},ROGUE={1,.96,.41},PRIEST={.95,.95,.95},SHAMAN={.15,.48,1},MAGE={.25,.78,.92},WARLOCK={.58,.51,.79},DRUID={1,.49,.04}}
+    local function Class(guid)
+        -- Tournament registration does not carry class evidence. These
+        -- decorative classes are explicitly simulated, never peer claims.
+        if not projection or projection.scope~="SIMULATED" or type(guid)~="string" then return nil end
+        local n=0;for i=1,#guid do n=(n*31+guid:byte(i))%#classes end
+        return classes[n+1]
+    end
+    local function Profile(guid)
+        local p=projection
+        local member=p and p.scope=="SIMULATED" and p.players and p.players[guid]
+        if member and ns.CompetitiveUI then ns.CompetitiveUI.OpenTournamentPlayerCard(member,p.event.draft.name,p.scope) end
+    end
+    local function Row(f)
+        local b=CreateFrame("Button",nil,f)
+        b.bg=b:CreateTexture(nil,"BACKGROUND");b.bg:SetAllPoints()
+        b.light=Fade(b,{1,.66,.18},.10,"BACKGROUND",2);b.light:SetAllPoints()
+        b.icon=b:CreateTexture(nil,"ARTWORK");ns.Chrome.Sharp(b.icon)
+        b.name=Text(b,15,C.text);b.score=Text(b,17,C.pale,"CENTER")
+        b.accent=b:CreateTexture(nil,"BORDER")
+        b:SetScript("OnClick",function(self) if self.guid then Profile(self.guid) end end)
+        b:SetScript("OnEnter",function(self) if self.guid then self.light:SetAlpha(1) end end)
+        b:SetScript("OnLeave",function(self) self.light:SetAlpha(0) end)
+        b.light:SetAlpha(0)
+        b:EnableMouseWheel(true);b:SetScript("OnMouseWheel",function(_,d) Wheel(d) end)
+        return b
+    end
     local function Card(i)
         if cards[i] then return cards[i] end
         local f=CreateFrame("Frame",nil,canvas)
-        S.Plate(f,"dark",{corner=9,layer="BACKGROUND",sublevel=0})
+        f.plate=S.Plate(f,"browseCard",{corner=10,layer="BACKGROUND",sublevel=0})
+        f.relief=Fade(f,{1,.55,.17},.17);f.relief:SetPoint("TOPLEFT",f,"TOPLEFT",7,-5);f.relief:SetPoint("TOPRIGHT",f,"TOPRIGHT",-7,-5);f.relief:SetHeight(32)
+        f.finalRim=CreateFrame("Frame",nil,f);f.finalRim:SetAllPoints()
+        S.Plate(f.finalRim,"shellCopper",{corner=20,layer="OVERLAY",sublevel=1})
+        f.finalRim:EnableMouse(false)
+        f.finalTint=Fade(f,{.65,.12,.035},.36,"BACKGROUND",1)
+        f.trophy=Art(f,ART,160/1024,314/1024,112/512,240/512,"ARTWORK",3)
+        f.trophy:SetBlendMode("ADD")
+        f.finalTitle=Text(f,19,C.pale,"CENTER")
         f.edges={}
         for k=1,4 do f.edges[k]=f:CreateTexture(nil,"BORDER") end
-        f.rule=f:CreateTexture(nil,"ARTWORK");f.rule:SetColorTexture(.40,.30,.17,.65)
-        f.a=Text(f,14,C.text);f.b=Text(f,14,C.text)
-        f.sa=Text(f,15,C.pale,"CENTER");f.sb=Text(f,15,C.pale,"CENTER")
-        f.status=Text(f,11,C.muted,"CENTER")
+        f.a=Row(f);f.b=Row(f)
+        f.status=Text(f,12,C.muted,"CENTER")
         cards[i]=f;return f
     end
-    local function Line(i,x1,y1,x2,y2,bright)
+    local function Line(i,x1,y1,x2,y2,bright,complete)
         local t=lines[i]
-        if not t then t=canvas:CreateTexture(nil,"BACKGROUND",nil,1);lines[i]=t end
-        local color=bright and C.gold or C.goldDim
-        t:SetColorTexture(color[1],color[2],color[3],bright and .95 or .62)
-        At(t,canvas,min(x1,x2),min(y1,y2),max(2,math.abs(x2-x1)),max(2,math.abs(y2-y1)))
-        t:Show()
+        if not t then
+            t={core=canvas:CreateTexture(nil,"BACKGROUND",nil,3),glow=canvas:CreateTexture(nil,"BACKGROUND",nil,2)};lines[i]=t
+        end
+        local color=bright and C.gold or complete and C.goldDim or {.42,.40,.36}
+        local x,y=min(x1,x2),min(y1,y2)
+        local w,h=max(2,math.abs(x2-x1)),max(2,math.abs(y2-y1))
+        t.core:SetColorTexture(color[1],color[2],color[3],bright and 1 or .80)
+        At(t.core,canvas,x,y,w,h);t.core:Show()
+        t.glow:SetColorTexture(1,.63,.10,.19)
+        At(t.glow,canvas,x-3,y-3,w+6,h+6);t.glow:SetShown(bright)
     end
     local function Header(i,m)
         local f=headers[i]
         if not f then
             f=CreateFrame("Frame",nil,canvas)
-            S.Plate(f,"dark",{corner=8,layer="BACKGROUND",sublevel=0})
-            f.text=Text(f,15,C.pale,"CENTER");f.text:SetAllPoints(f)
+            S.Plate(f,"browseCard",{corner=9,layer="BACKGROUND",sublevel=0})
+            f.text=Text(f,14,C.pale,"CENTER");f.text:SetAllPoints(f)
             headers[i]=f
         end
-        At(f,canvas,m.x-m.w/2+4,10,m.w-8,26)
+        At(f,canvas,m.x-m.w/2+4,10,m.w-8,27)
         f.text:SetText(m.label);f:Show()
+    end
+    local function PaintRow(b,f,x,y,w,h,guid,name,score,winner,mine,finished)
+        At(b,f,x,y,w,h)
+        local class=Class(guid);local tint=classColors[class] or {.72,.62,.43}
+        b.guid=guid
+        b.icon:SetTexture(class and ("Interface\\Icons\\ClassIcon_"..class) or "Interface\\Icons\\INV_Misc_QuestionMark")
+        b.icon:SetAlpha(guid and 1 or .40)
+        local sz=max(15,min(h-4,32))
+        At(b.icon,b,5,(h-sz)/2,sz,sz)
+        At(b.name,b,sz+11,0,w-sz-45,h);At(b.score,b,w-30,0,28,h)
+        At(b.accent,b,1,2,2,h-4);b.accent:SetColorTexture(tint[1],tint[2],tint[3],guid and .9 or .24)
+        b.bg:SetColorTexture(tint[1],tint[2],tint[3],mine and .20 or winner and .11 or .045)
+        b.name:SetText(name);b.score:SetText(score)
+        b.name:SetTextColor(unpack(mine and C.pale or finished and not winner and C.muted or C.text))
+        b.score:SetTextColor(unpack(winner and C.gold or C.pale))
+        if S.ConstrainText then S.ConstrainText(b.name,max(1,w-sz-45),h,11) end
+        b:EnableMouse(projection and projection.scope=="SIMULATED" and projection.players and projection.players[guid]~=nil or false)
+        b.light:SetAlpha(0)
     end
     local function Paint(m,i)
         local f=Card(i);At(f,canvas,m.x,m.y,m.w,m.h)
-        local bright=m.focus or m.final and m.ready
-        local color=bright and C.gold or m.disputed and C.red or C.goldDim
-        for _,t in ipairs(f.edges) do t:SetColorTexture(color[1],color[2],color[3],bright and 1 or .75) end
-        At(f.edges[1],f,2,2,m.w-4,bright and 2 or 1)
-        At(f.edges[2],f,2,m.h-3,m.w-4,bright and 2 or 1)
-        At(f.edges[3],f,2,2,bright and 2 or 1,m.h-4)
-        At(f.edges[4],f,m.w-3,2,bright and 2 or 1,m.h-4)
-        local rowH=floor((m.h-24)/2)
-        At(f.a,f,10,4,m.w-52,rowH);At(f.b,f,10,4+rowH,m.w-52,rowH)
-        At(f.sa,f,m.w-37,4,27,rowH);At(f.sb,f,m.w-37,4+rowH,27,rowH)
-        At(f.rule,f,10,4+rowH,m.w-20,1)
-        At(f.status,f,8,m.h-21,m.w-16,18)
-        f.a:SetText(m.a);f.b:SetText(m.b);f.sa:SetText(m.sa);f.sb:SetText(m.sb)
-        f.a:SetTextColor(unpack(m.winnerA and {.54,.90,.40,1} or C.text))
-        f.b:SetTextColor(unpack(m.winnerB and {.54,.90,.40,1} or C.text))
-        f.status:SetText(m.status);f.status:SetTextColor(unpack(m.disputed and C.red or bright and C.pale or C.muted))
-        if f.a.SetMaxLines then f.a:SetMaxLines(1);f.b:SetMaxLines(1) end
+        local bright=m.focus or m.ownA or m.ownB
+        f.plate:SetStyle(m.final and "organizerHero" or "browseCard")
+        f.finalRim:SetShown(m.final);f.trophy:SetShown(m.final);f.finalTitle:SetShown(m.final);f.finalTint:SetShown(m.final)
+        local top=m.final and floor(m.h*.49) or 5
+        if m.final then
+            At(f.finalTint,f,8,8,m.w-16,m.h-16)
+            local tw=floor(m.h*.50);At(f.trophy,f,(m.w-tw)/2,2,tw,tw*.83)
+            At(f.finalTitle,f,10,floor(m.h*.35),m.w-20,floor(m.h*.13));f.finalTitle:SetText("FINAL")
+        end
+        local color=m.disputed and C.red or bright and C.gold or m.final and C.gold or C.goldDim
+        for _,t in ipairs(f.edges) do t:SetColorTexture(color[1],color[2],color[3],bright and 1 or .65) end
+        At(f.edges[1],f,5,4,m.w-10,bright and 2 or 1)
+        At(f.edges[2],f,5,m.h-5,m.w-10,bright and 2 or 1)
+        At(f.edges[3],f,4,5,bright and 2 or 1,m.h-10)
+        At(f.edges[4],f,m.w-5,5,bright and 2 or 1,m.h-10)
+        local rh=floor((m.h-top-23)/2)
+        local finished=m.status=="Completed" or m.status=="Forfeit"
+        PaintRow(f.a,f,7,top,m.w-14,rh,m.guidA,m.a,m.sa,m.winnerA,m.ownA,finished)
+        PaintRow(f.b,f,7,top+rh,m.w-14,rh,m.guidB,m.b,m.sb,m.winnerB,m.ownB,finished)
+        At(f.status,f,7,m.h-22,m.w-14,19)
+        f.status:SetText(m.status);f.status:SetTextColor(unpack(m.disputed and C.red or finished and {.54,.90,.40,1} or m.ready and C.gold or C.muted))
         f:Show()
     end
     local function Clamp()
@@ -189,74 +280,112 @@ function B.New(parent)
     end
     local function Center(n)
         if not model then return end
-        n=n or model.nodes[1]
-        if not n then return end
+        n=n or model.nodes[1];if not n then return end
         viewport:SetHorizontalScroll(max(0,min(n.cx-vw/2,model.width-vw)))
         viewport:SetVerticalScroll(max(0,min(n.cy-vh/2,model.height-vh)))
     end
-    local function Render(recenter)
-        model=B.Project(view,names,focus,vw,vh,zoom)
+    local function Fit()
+        local probe=B.Project(view,names,focus,1,1,1,own)
+        if not probe then return 1 end
+        return max(.8,min(1,vw/probe.width,vh/probe.height))
+    end
+    Render=function(recenter)
+        model=B.Project(view,names,focus,vw,vh,zoom,own)
         if not model then board:Hide();return false end
         canvas:SetSize(model.width,model.height)
         if viewport.UpdateScrollChildRect then viewport:UpdateScrollChildRect() end
         local k=0
         for _,e in ipairs(model.edges) do
             local mid=(e.x1+e.x2)/2
-            k=k+1;Line(k,e.x1,e.y1,mid,e.y1,e.focus)
-            k=k+1;Line(k,mid,e.y1,mid,e.y2,e.focus)
-            k=k+1;Line(k,mid,e.y2,e.x2,e.y2,e.focus)
+            k=k+1;Line(k,e.x1,e.y1,mid,e.y1,e.focus,e.completed)
+            k=k+1;Line(k,mid,e.y1,mid,e.y2,e.focus,e.completed)
+            k=k+1;Line(k,mid,e.y2,e.x2,e.y2,e.focus,e.completed)
         end
-        for i=k+1,#lines do lines[i]:Hide() end
+        for i=k+1,#lines do lines[i].core:Hide();lines[i].glow:Hide() end
         for i,m in ipairs(model.nodes) do Paint(m,i) end
         for i=#model.nodes+1,#cards do cards[i]:Hide() end
         for i,m in ipairs(model.headers) do Header(i,m) end
         for i=#model.headers+1,#headers do headers[i]:Hide() end
         if recenter then Center(model.focus) else Clamp() end
+        local p=projection
+        title:SetText(p.event.draft.name or "Tournament")
+        if S.ConstrainText then S.ConstrainText(title,max(1,vw*.66),30,15) end
+        meta:SetText("Single elimination  •  Best of "..tostring(p.event.draft.bestOf or "—").."  •  "..model.count.." Players")
+        legend:SetText(p.scope=="SIMULATED" and "LOCAL TEST · Sample class icons" or "Gold: your path")
         return true
     end
-    local function Pan(dx,dy)
+    Pan=function(dx,dy)
         if not model then return end
         viewport:SetHorizontalScroll(max(0,min(viewport:GetHorizontalScroll()+dx,model.width-vw)))
         viewport:SetVerticalScroll(max(0,min(viewport:GetVerticalScroll()+dy,model.height-vh)))
     end
-    local function Button(label,fn)
-        local b=S.Action(controls,label,"footer",{plate="dark",text=C.pale,edge=C.goldDim,hover=C.gold,tooltip=false})
-        b:SetScript("OnClick",fn);return b
+    Wheel=function(delta)
+        if not model then return end
+        autoFit=false
+        local nextZoom=max(.8,min(1.3,zoom+delta*.1))
+        if nextZoom==zoom then return end
+        local oldW,oldH=model.width,model.height
+        local x=(viewport:GetHorizontalScroll()+vw/2)/oldW
+        local y=(viewport:GetVerticalScroll()+vh/2)/oldH
+        zoom=nextZoom
+        if Render(false) then
+            viewport:SetHorizontalScroll(max(0,min(x*model.width-vw/2,model.width-vw)))
+            viewport:SetVerticalScroll(max(0,min(y*model.height-vh/2,model.height-vh)))
+        end
     end
-    local left=Button("<",function()Pan(-180,0)end)
-    local right=Button(">",function()Pan(180,0)end)
-    local minus=Button("-",function()zoom=max(.8,zoom-.1);Render(true)end)
-    local plus=Button("+",function()zoom=min(1.3,zoom+.1);Render(true)end)
-    local center=Button("My match",function()Center(model and model.focus)end)
-    viewport:EnableMouseWheel(true)
-    viewport:SetScript("OnMouseWheel",function(_,delta)
-        if IsShiftKeyDown and IsShiftKeyDown() then Pan(-delta*90,0) else Pan(0,-delta*70) end
+    local function StopDrag()
+        dragX=nil;canvas:SetScript("OnUpdate",nil)
+    end
+    canvas:EnableMouse(true);canvas:EnableMouseWheel(true)
+    canvas:SetScript("OnMouseDown",function(_,button)
+        if button~="LeftButton" or not model then return end
+        dragX,dragY=GetCursorPosition();dragH,dragV=viewport:GetHorizontalScroll(),viewport:GetVerticalScroll()
+        canvas:SetScript("OnUpdate",function()
+            if not dragX or not canvas:IsVisible() or not IsMouseButtonDown("LeftButton") then StopDrag();return end
+            local x,y=GetCursorPosition();local scale=viewport:GetEffectiveScale()
+            if scale<=0 then return end
+            viewport:SetHorizontalScroll(max(0,min(dragH+(dragX-x)/scale,model.width-vw)))
+            viewport:SetVerticalScroll(max(0,min(dragV+(y-dragY)/scale,model.height-vh)))
+        end)
     end)
+    canvas:SetScript("OnMouseUp",StopDrag);canvas:SetScript("OnHide",StopDrag)
+    canvas:SetScript("OnMouseWheel",function(_,delta) Wheel(delta) end)
+    viewport:EnableMouseWheel(true);viewport:SetScript("OnMouseWheel",function(_,delta) Wheel(delta) end)
+    local fit=S.Action(controls,"Fit view","footer",{plate="browseCard",text=C.pale,edge=C.goldDim,hover=C.gold,tooltip=false})
+    fit:SetScript("OnClick",function() if model then autoFit=true;zoom=Fit();Render(true) end end)
+    local center=S.Action(controls,"My match","footer",{plate="browseCard",text=C.pale,edge=C.goldDim,hover=C.gold,tooltip=false})
+    center:SetScript("OnClick",function() if model and model.focus then Center(model.focus) end end)
     function D.Hide()
-        board:Hide();model,view,names,focus,event=nil,nil,nil,nil,nil;zoom=1
-        for _,pool in ipairs({cards,lines,headers}) do for _,f in ipairs(pool) do f:Hide() end end
+        StopDrag();board:Hide();model,view,names,focus,event,own,projection=nil,nil,nil,nil,nil,nil,nil;zoom=1;autoFit=true
+        for _,pool in ipairs({cards,headers}) do for _,f in ipairs(pool) do f:Hide() end end
+        for _,t in ipairs(lines) do t.core:Hide();t.glow:Hide() end
+        if ns.CompetitiveUI then ns.CompetitiveUI.CloseTournamentPlayerCard() end
     end
     function D.Show(p,w,h)
-        if not p or not p.bracket then D.Hide();return false end
+        if not p or not p.bracket or not p.event or not p.event.draft then D.Hide();return false end
         local changed=event~=p.event.id
         local nextFocus=p.match and p.match.id
         local recenter=changed or focus~=nextFocus
-        if changed then zoom=1 end
-        event=p.event.id;view=p.bracket;names=p.names;focus=nextFocus
-        -- More than one actual match exposes navigation. Small windows
-        -- may need the controls even for a single final.
-        local probe=B.Project(view,names,focus,w-20,h-68,zoom)
-        if not probe then D.Hide();return false end
-        local nav=#probe.nodes>1 or probe.width>w-20 or probe.height>h-68
-        At(board,parent,10,44,w-20,h-54)
-        vw=max(1,w-36);vh=max(1,h-70-(nav and 34 or 0))
-        At(viewport,board,8,8,vw,vh)
-        controls:SetShown(nav);At(controls,board,8,h-88,w-36,28)
-        At(left,controls,0,0,36,26);At(right,controls,40,0,36,26)
-        At(minus,controls,84,0,36,26);At(plus,controls,124,0,36,26)
-        At(center,controls,168,0,112,26)
+        if changed then zoom=1;autoFit=true end
+        event=p.event.id;view=p.bracket;names=p.names;focus=nextFocus;own=p.member and p.member.guid;projection=p
+        local bw,bh=max(1,w-20),max(1,h-54)
+        At(board,parent,10,44,bw,bh)
+        At(arena,board,5,5,bw-10,bh-10);At(shade,board,5,5,bw-10,bh-10)
+        At(banner,board,7,7,bw-14,64)
+        At(leftArt,banner,6,4,(bw-14)*.30,56);At(rightArt,banner,(bw-14)*.70-6,4,(bw-14)*.30,56)
+        At(title,banner,(bw-14)*.17,4,(bw-14)*.66,31);At(meta,banner,10,35,bw-34,22)
+        local oldW,oldH=vw,vh
+        vw=max(1,bw-16);vh=max(1,bh-110)
+        At(viewport,board,8,76,vw,vh)
+        At(controls,board,8,bh-31,vw,26)
+        At(fit,controls,0,0,82,24);At(center,controls,86,0,90,24);center:SetShown(nextFocus~=nil)
+        local narrow=vw<640
+        legend:SetShown(not narrow);At(legend,controls,185,0,max(1,vw-445),24)
+        At(hint,controls,narrow and 180 or vw-254,0,narrow and vw-180 or 254,24)
+        hint:SetText(narrow and "Drag · Wheel zoom" or "Drag to pan · Mouse wheel to zoom")
+        if autoFit and (recenter or oldW~=vw or oldH~=vh) then zoom=Fit() end
         board:Show()
-        return Render(recenter)
+        return Render(recenter or autoFit and (oldW~=vw or oldH~=vh))
     end
     board:Hide()
     return D
@@ -299,13 +428,15 @@ function B.RunSelfTest(emit)
     end)
     Case("two players collapse to one centered final, including oversized draw",function()
         local m=assert(B.Project(Fixture(32,2),{},nil,900,300,1))
-        assert(#m.nodes==1 and #m.edges==0 and #m.headers==1 and m.nodes[1].cx==450)
+        assert(#m.nodes==1 and #m.edges==0 and #m.headers==0 and m.nodes[1].cx==450)
     end)
     Case("ready and completed score, focus and dispute from snapshot",function()
         local v=Fixture(2,2);local r=v.rounds[1][1]
         r.a,r.b,r.state,r.wins="P1","P2","ready",{1,0}
         local m=B.Project(v,{P1="First",P2="Second"},r.id,400,200,1)
         assert(m.focus.a=="First" and m.focus.sa=="1" and m.focus.status=="Match ready")
+        m=B.Project(v,{P1="First"},r.id,400,200,1,"P1")
+        assert(m.focus.ownA and not m.focus.ownB and m.focus.final and m.focus.h>100)
         r.state="done";r.winner="P1";r.wins={2,0}
         m=B.Project(v,{},nil,400,200,1);assert(m.nodes[1].winnerA and m.nodes[1].status=="Completed")
         v.dispute={match=r.id};m=B.Project(v,{},nil,400,200,1);assert(m.nodes[1].status=="Disputed")

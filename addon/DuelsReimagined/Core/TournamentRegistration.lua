@@ -2792,9 +2792,9 @@ function R.PreviewSnapshot()
     SyncHostedSchedule(x,server);SyncPlayerSchedule(x,server)
     local ad=x.engine.Ad();x.cache.Accept(x.host.guid,ad)
     local rows=x.engine.Roster(x.host.guid);local member
-    local names={}
+    local names,players={},{}
     for _,r in ipairs(rows) do
-        names[r.guid]=r.name
+        names[r.guid]=r.name;players[r.guid]=Copy(r)
         if r.guid==x.player.guid then member=r end
     end
     local bracket=x.bracket and x.bracket.Snapshot()
@@ -2812,7 +2812,7 @@ function R.PreviewSnapshot()
     end
     return {scope="SIMULATED",role=x.role,state=R.PreviewState(),event=ad,events=bracket and {} or x.cache.Browse(),
         roster=x.role=="host" and rows or nil,member=member,now=x.now,bracket=bracket,
-        match=match,opponent=opponent,names=names,mode=x.mode,broadcast=x.broadcast==true,
+        match=match,opponent=opponent,names=names,players=players,mode=x.mode,broadcast=x.broadcast==true,
         featured=featured and featured.id,selected=chosen and chosen.id,readyCount=#ready,
         demo=Copy(x.demo),offline=Copy(x.offline),upcoming=UpcomingRound(x,bracket)}
 end
