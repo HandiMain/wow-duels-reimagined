@@ -7,7 +7,7 @@ assert(loadfile(base.."UI/CompetitivePreview.lua"))("DuelsReimagined",ns)
 local function Row(a,id)for _,r in ipairs(a.rows) do if r.id==id then return r end end end
 for _,client in ipairs({"retail","forever"}) do
     local function Eval(events)return ns.Achievements.Evaluate(ns.CompetitivePreview.Build(client,events))end
-    local a=Eval({});assert(a.total==30 and a.earned==0 and a.points==0)
+    local a=Eval({});assert(a.total==39 and a.earned==0 and a.points==0)
     a=Eval({{outcome="won",opponent=1,mode="unranked"},{outcome="won",opponent=1,mode="practice"},{outcome="unknown",opponent=2},{outcome="fled",opponent=3},{outcome="they_fled",opponent=4}})
     assert(a.earned==3 and a.points==15 and Row(a,"begin").earned and Row(a,"first").earned and Row(a,"double").earned)
     assert(Row(a,"tested").progress==2 and Row(a,"rising").progress==2 and Row(a,"meet").progress==1)
@@ -52,6 +52,22 @@ for _,client in ipairs({"retail","forever"}) do
     local reopened=ns.Achievements.Evaluate(ns.CompetitivePreview.Local())
     assert(reopened.points==localData.points and Row(reopened,"first").earnedAt==stamp)
     storage.ReadLocalHistory,storage.ReadPeerView,storage.ReadLocalCapacity,storage.LocalRecordingEnabled=oldRead,oldPeer,oldCap,oldEnabled
+end
+-- New awards never leak test evidence into the existing achievement point total.
+for _,scope in ipairs({"SIMULATED","PRIVATE_TEST"}) do
+    local r={id="cup",scope=scope,played=true,placement=1,finishedAt=1700000000,count=32,wins=2,losses=0,
+        matches={{won=true,score="2 - 0"},{won=true,score="2 - 0"}}}
+    local host={id="hosted",scope=scope,hosted=true,finishedAt=1700000001}
+    local data={scope="LOCAL",recordingDisabled=true}
+    local a=ns.Achievements.Evaluate(data,{r,r,host},scope)
+    assert(a.total==39 and a.points==0 and a.earned==0 and a.categories.Tournaments.earned==6)
+    assert(Row(a,"tourbegin").earned and Row(a,"tourfinal").earned and Row(a,"tourwin").earned)
+    assert(Row(a,"toursweep").earned and Row(a,"tourarena").earned and Row(a,"tourhost").earned)
+    assert(Row(a,"tourreign").progress==1 and Row(a,"tourlegend").progress==1 and Row(a,"tourveteran").progress==1)
+    r.matches[1].forfeit=true;assert(not Row(ns.Achievements.Evaluate(data,{r},scope),"toursweep").earned)
+    r.matches[1].forfeit=nil;r.matches[1].score="2 - 1";assert(not Row(ns.Achievements.Evaluate(data,{r},scope),"toursweep").earned)
+    assert(Row(ns.Achievements.Evaluate(data,{r},"LOCAL"),"tourwin").unavailable)
+    assert(not Row(ns.Achievements.Evaluate(data,{r},scope=="SIMULATED" and "PRIVATE_TEST" or "SIMULATED"),"tourwin").earned)
 end
 assert(_G.DuelsReimaginedCompetitiveDB==nil and _G.DuelsReimaginedCharacterDB==nil)
 print("Duel-only achievements: PASS (catalogue, evidence, streaks, simulation isolation, duplicate and disabled gates)")

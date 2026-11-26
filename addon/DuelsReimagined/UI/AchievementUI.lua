@@ -2,6 +2,12 @@ local _,ns=...
 local U={};ns.AchievementUI=U
 local S,C,W=ns.Style,ns.Style.color,ns.Widgets
 local ART="Interface\\AddOns\\DuelsReimagined\\Media\\Skin\\DuelAchievementArt.png"
+local TOUR_ART="Interface\\AddOns\\DuelsReimagined\\Media\\Skin\\TournamentAchievementArt.png"
+local tourSlots={tourbegin=0,tourfinal=1,tourwin=2,tourreign=3,toursweep=4,tourarena=5,tourhost=6,tourveteran=7,tourlegend=8}
+local function TourIcon(t,slot)
+    local x,y=(slot%4)*128,math.floor(slot/4)*128
+    t:SetTexture(TOUR_ART);t:SetTexCoord((x+.5)/512,(x+127.5)/512,(y+.5)/512,(y+127.5)/512)
+end
 local colors={{.65,.65,.65,1},{.42,.85,.28,1},{.34,.68,1,1},{.73,.38,1,1},{1,.65,.16,1}}
 -- Stable artwork keys, independent of catalogue ordering or unlock logic.
 local iconSlots={
@@ -20,7 +26,11 @@ local function PaintIcon(t,slot)
     Sample(t,(slot%6)*128+1,math.floor(slot/6)*128+1,126,126)
 end
 function U.PaintAchievementIcon(t,id,hidden)
+    if not hidden and tourSlots[id] then TourIcon(t,tourSlots[id]);return end
     PaintIcon(t,hidden and HIDDEN_SLOT or iconSlots[id] or HIDDEN_SLOT)
+end
+local function CategoryIcon(t,cat,index)
+    if cat=="Tournaments" then TourIcon(t,9) else PaintIcon(t,29+index) end
 end
 local function Place(f,p,x,y,w,h)
     f:ClearAllPoints();f:SetPoint("TOPLEFT",p,"TOPLEFT",x,-y);f:SetSize(math.max(1,w),math.max(1,h))
@@ -92,13 +102,13 @@ local function Select(cat)
     category=cat;offset=0;Render()
 end
 for i,cat in ipairs(ns.Achievements.Categories) do
-    local key=cat;local b=Button(page,function()Select(key)end);b.icon=Icon(b);PaintIcon(b.icon,29+i)
+    local key=cat;local b=Button(page,function()Select(key)end);b.icon=Icon(b);CategoryIcon(b.icon,cat,i)
     b.count=Label(b,"",12,C.text,"CENTER");tabs[i]=b
 end
 local all={"All"};for _,cat in ipairs(ns.Achievements.Categories) do all[#all+1]=cat end
 for i,cat in ipairs(all) do
     local key=cat;local b=Button(left,function()Select(key)end);b.icon=Icon(b)
-    if i==1 then Sample(b.icon,778,154,112,80) else PaintIcon(b.icon,28+i) end
+    if i==1 then Sample(b.icon,778,154,112,80) else CategoryIcon(b.icon,cat,i-1) end
     filters[i]=b
 end
 local function Row()
@@ -150,7 +160,7 @@ local function Paint(f,r,w,h)
     f.points:SetText(tostring(r.points));f.points:SetTextColor(unpack(locked and C.muted or C.pale))
     f.pointsLabel:SetTextColor(unpack(locked and C.muted or C.text))
     Place(f.state,f,w-stateW-4,15,stateW,22);Place(f.when,f,w-stateW-4,37,stateW,18)
-    f.state:SetText(r.unavailable and "Unavailable" or r.earned and "Completed" or r.progress>0 and "In progress" or "Locked")
+    f.state:SetText(r.unavailable and "Unavailable" or r.testOnly and (r.earned and "Test completed" or r.progress>0 and "Test progress" or "Test locked") or r.earned and "Completed" or r.progress>0 and "In progress" or "Locked")
     f.state:SetTextColor(unpack(r.earned and C.pale or C.muted))
     local dateFn=date or (os and os.date)
     f.when:SetText(r.earned and (r.earnedAt and dateFn and dateFn("!%b %d, %Y",r.earnedAt) or "Date unavailable") or "")
@@ -172,31 +182,37 @@ Render=function()
     points:SetText(tostring(data.points))
     Place(status,page,0,57,w,16)
     status:SetText(data.scope=="SIMULATED" and "SOLO TEST - SIMULATED" or data.storageReason and "Local history unavailable" or data.recordingDisabled and "Local recording disabled - achievements unavailable" or "Duel achievements - local records")
-    local tw=(w-24)/5
+    if data.tournamentTest then
+        status:SetText((data.tournamentScope=="SIMULATED" and "LOCAL TEST" or "PRIVATE NETWORK TEST").." - Tournament progress does not award achievement points")
+    elseif category=="Tournaments" then status:SetText("Tournament achievements unavailable until multiplayer verification") end
+    local columns=w>=940 and #tabs or 3
+    local tw=(w-(columns-1)*6)/columns
+    local contentY=140+(math.ceil(#tabs/columns)-1)*54
     for i,b in ipairs(tabs) do
         local cat=ns.Achievements.Categories[i];local c=data.categories[cat]
-        Place(b,page,(i-1)*(tw+6),78,tw,48);Place(b.icon,b,6,7,34,34)
+        Place(b,page,((i-1)%columns)*(tw+6),78+math.floor((i-1)/columns)*54,tw,48);Place(b.icon,b,6,7,34,34)
         Place(b.label,b,40,2,tw-43,24);b.label:SetText(cat)
         Place(b.count,b,40,24,tw-43,20);b.count:SetText(c.earned.." / "..c.total)
         b.Active(category==cat)
     end
     local lw=math.min(200,w*.235)
-    Place(left,page,0,140,lw,math.max(1,h-140))
+    Place(left,page,0,contentY,lw,math.max(1,h-contentY))
     Place(categoryEmblem,left,9,8,29,26)
     if category=="All" then Sample(categoryEmblem,778,154,112,80)
-    else for i,cat in ipairs(ns.Achievements.Categories) do if cat==category then PaintIcon(categoryEmblem,29+i);break end end end
+    else for i,cat in ipairs(ns.Achievements.Categories) do if cat==category then CategoryIcon(categoryEmblem,cat,i);break end end end
     Place(categoryTitle,left,42,8,lw-50,31);categoryTitle:SetText(category=="All" and "Collection" or category)
     for i,b in ipairs(filters) do
         local cat=all[i];local c=cat=="All" and data or data.categories[cat]
-        Place(b,left,7,45+(i-1)*33,lw-14,31);Place(b.icon,b,5,4,23,23);Place(b.label,b,29,0,lw-48,31)
+        local step=math.max(24,math.min(33,math.floor((h-contentY-45)/#filters)))
+        Place(b,left,7,45+(i-1)*step,lw-14,step-2);Place(b.icon,b,5,math.max(1,(step-25)/2),23,23);Place(b.label,b,29,0,lw-48,step-2)
         b.label:SetText((cat=="All" and "All" or cat).."   "..c.earned.." / "..c.total);b.Active(category==cat)
     end
     local listW=w-lw-10
-    Place(list,page,lw+10,140,listW,math.max(1,h-140))
+    Place(list,page,lw+10,contentY,listW,math.max(1,h-contentY))
     local selected={}
     for _,r in ipairs(data.rows) do if category=="All" or r.category==category then selected[#selected+1]=r end end
-    local rowH=math.max(70,math.min(90,math.floor((h-140)/5)-5))
-    visible=math.max(1,math.min(#rows,math.floor((h-140)/(rowH+5))))
+    local rowH=math.max(70,math.min(90,math.floor((h-contentY)/5)-5))
+    visible=math.max(1,math.min(#rows,math.floor((h-contentY)/(rowH+5))))
     total=#selected;offset=math.max(0,math.min(offset,math.max(0,total-visible)))
     for i,f in ipairs(rows) do
         local r=i<=visible and selected[offset+i]
@@ -210,7 +226,15 @@ function U.SetPageScroll(_,v)offset=math.max(0,math.floor(tonumber(v) or 0));Ren
 function U.Refresh()
     if ns.Notifications and ns.Notifications.CheckAchievements then ns.Notifications.CheckAchievements() end
     if not shown or not page:IsVisible() then data=nil;return end
-    local ok,result=pcall(function()return ns.Achievements.Evaluate(ns.CompetitivePreview.Get())end)
+    local ok,result=pcall(function()
+        local r=ns.TournamentRegistration
+        local rows,scope
+        if r and r.ReadPersonalArchive then
+            local p=r.PreviewSnapshot and r.PreviewSnapshot()
+            rows,scope=r.ReadPersonalArchive(p)
+        end
+        return ns.Achievements.Evaluate(ns.CompetitivePreview.Get(),rows,scope)
+    end)
     if ok then data=result else
         data=ns.Achievements.Evaluate({scope="LOCAL",storageReason="unavailable"})
         if ns.Diagnostics then ns.Diagnostics.Record("Achievements","Data provider unavailable") end
