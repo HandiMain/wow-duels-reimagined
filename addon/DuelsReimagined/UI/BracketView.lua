@@ -32,8 +32,8 @@ function B.Project(view,names,focus,viewportW,viewportH,zoom,own)
     local root=Build(rounds,1)
     if not root or not root.row then return nil end
     zoom=max(.8,min(1.3,zoom or 1))
-    local cw,ch,fw,gap,step= floor(184*zoom),floor(104*zoom),floor(274*zoom),floor(34*zoom),floor(132*zoom)
-    local finalH=floor(214*zoom)
+    local cw,ch,fw,gap,step= floor(218*zoom),floor(112*zoom),floor(310*zoom),floor(38*zoom),floor(140*zoom)
+    local finalH=floor(250*zoom)
     local sides={[-1]={depths={},columns={},rows=0},[1]={depths={},columns={},rows=0}}
     local function Collect(n,side)
         if not n.row then return end
@@ -119,6 +119,8 @@ function B.New(parent)
     local D={}
     local ROOT="Interface\\AddOns\\DuelsReimagined\\Media\\"
     local ART=ROOT.."Skin\\TournamentOverviewArt.png"
+    local BRACKET_ART=ROOT.."Skin\\TournamentBracketArt.tga"
+    local PORTRAIT=ROOT.."Skin\\TournamentPlayerArt.png"
     local function At(f,p,x,y,w,h)
         f:ClearAllPoints();f:SetPoint("TOPLEFT",p,"TOPLEFT",x,-y);f:SetSize(max(1,w),max(1,h))
     end
@@ -140,7 +142,7 @@ function B.New(parent)
     local board=CreateFrame("Frame",nil,parent)
     S.Plate(board,"organizerPanel",{corner=13,layer="BACKGROUND",sublevel=0})
     local arena=Art(board,ROOT.."Arenas\\WarGamesArenaFallback.png",.50,.75,.25,.50,"BACKGROUND",1)
-    arena:SetVertexColor(.57,.49,.40,.46)
+    arena:SetVertexColor(.68,.58,.47,.22)
     local shade=Fade(board,{.025,.018,.012},.94,"BACKGROUND",2)
     local banner=CreateFrame("Frame",nil,board)
     S.Plate(banner,"organizerHero",{corner=13,layer="BACKGROUND",sublevel=0})
@@ -177,9 +179,12 @@ function B.New(parent)
     local function Row(f)
         local b=CreateFrame("Button",nil,f)
         b.bg=b:CreateTexture(nil,"BACKGROUND");b.bg:SetAllPoints()
+        b.relief=Fade(b,{1,.73,.34},.11,"BACKGROUND",1);b.relief:SetAllPoints()
+        b.rule=b:CreateTexture(nil,"BORDER")
         b.light=Fade(b,{1,.66,.18},.10,"BACKGROUND",2);b.light:SetAllPoints()
         b.icon=b:CreateTexture(nil,"ARTWORK");ns.Chrome.Sharp(b.icon)
-        b.name=Text(b,15,C.text);b.score=Text(b,17,C.pale,"CENTER")
+        b.iconRim=b:CreateTexture(nil,"BORDER");b.iconRim:SetColorTexture(.65,.43,.18,.72)
+        b.name=Text(b,17,C.text);b.score=Text(b,19,C.pale,"CENTER")
         b.accent=b:CreateTexture(nil,"BORDER")
         b:SetScript("OnClick",function(self) if self.guid then Profile(self.guid) end end)
         b:SetScript("OnEnter",function(self) if self.guid then self.light:SetAlpha(1) end end)
@@ -191,19 +196,12 @@ function B.New(parent)
     local function Card(i)
         if cards[i] then return cards[i] end
         local f=CreateFrame("Frame",nil,canvas)
-        f.plate=S.Plate(f,"browseCard",{corner=10,layer="BACKGROUND",sublevel=0})
-        f.relief=Fade(f,{1,.55,.17},.17);f.relief:SetPoint("TOPLEFT",f,"TOPLEFT",7,-5);f.relief:SetPoint("TOPRIGHT",f,"TOPRIGHT",-7,-5);f.relief:SetHeight(32)
-        f.finalRim=CreateFrame("Frame",nil,f);f.finalRim:SetAllPoints()
-        S.Plate(f.finalRim,"shellCopper",{corner=20,layer="OVERLAY",sublevel=1})
-        f.finalRim:EnableMouse(false)
-        f.finalTint=Fade(f,{.65,.12,.035},.36,"BACKGROUND",1)
+        f.frameArt=Art(f,BRACKET_ART,.5,1,0,.5,"BACKGROUND",0);f.frameArt:SetAllPoints()
         f.trophy=Art(f,ART,160/1024,314/1024,112/512,240/512,"ARTWORK",3)
         f.trophy:SetBlendMode("ADD")
         f.finalTitle=Text(f,19,C.pale,"CENTER")
-        f.edges={}
-        for k=1,4 do f.edges[k]=f:CreateTexture(nil,"BORDER") end
         f.a=Row(f);f.b=Row(f)
-        f.status=Text(f,12,C.muted,"CENTER")
+        f.status=Text(f,13,C.muted,"CENTER")
         cards[i]=f;return f
     end
     local function Line(i,x1,y1,x2,y2,bright,complete)
@@ -211,12 +209,13 @@ function B.New(parent)
         if not t then
             t={core=canvas:CreateTexture(nil,"BACKGROUND",nil,3),glow=canvas:CreateTexture(nil,"BACKGROUND",nil,2)};lines[i]=t
         end
-        local color=bright and C.gold or complete and C.goldDim or {.42,.40,.36}
+        local color=bright and {1,.82,.31} or complete and {.76,.55,.24} or {.40,.38,.33}
         local x,y=min(x1,x2),min(y1,y2)
-        local w,h=max(2,math.abs(x2-x1)),max(2,math.abs(y2-y1))
+        local thickness=bright and 3 or 2
+        local w,h=max(thickness,math.abs(x2-x1)),max(thickness,math.abs(y2-y1))
         t.core:SetColorTexture(color[1],color[2],color[3],bright and 1 or .80)
         At(t.core,canvas,x,y,w,h);t.core:Show()
-        t.glow:SetColorTexture(1,.63,.10,.19)
+        t.glow:SetColorTexture(1,.63,.10,.23)
         At(t.glow,canvas,x-3,y-3,w+6,h+6);t.glow:SetShown(bright)
     end
     local function Header(i,m)
@@ -234,42 +233,44 @@ function B.New(parent)
         At(b,f,x,y,w,h)
         local class=Class(guid);local tint=classColors[class] or {.72,.62,.43}
         b.guid=guid
-        b.icon:SetTexture(class and ("Interface\\Icons\\ClassIcon_"..class) or "Interface\\Icons\\INV_Misc_QuestionMark")
-        b.icon:SetAlpha(guid and 1 or .40)
-        local sz=max(15,min(h-4,32))
-        At(b.icon,b,5,(h-sz)/2,sz,sz)
-        At(b.name,b,sz+11,0,w-sz-45,h);At(b.score,b,w-30,0,28,h)
+        if class then
+            b.icon:SetTexture("Interface\\Icons\\ClassIcon_"..class);b.icon:SetTexCoord(.06,.94,.06,.94)
+        else
+            b.icon:SetTexture(PORTRAIT);b.icon:SetTexCoord(0,46/256,82/128,1)
+        end
+        b.icon:SetAlpha(guid and 1 or .58)
+        local sz=max(15,min(h-6,34))
+        At(b.iconRim,b,4,(h-sz)/2-1,sz+2,sz+2);At(b.icon,b,5,(h-sz)/2,sz,sz)
+        At(b.name,b,sz+13,0,w-sz-48,h);At(b.score,b,w-32,0,30,h)
+        At(b.rule,b,2,h-1,w-4,1);b.rule:SetColorTexture(.68,.46,.21,.35)
         At(b.accent,b,1,2,2,h-4);b.accent:SetColorTexture(tint[1],tint[2],tint[3],guid and .9 or .24)
-        b.bg:SetColorTexture(tint[1],tint[2],tint[3],mine and .20 or winner and .11 or .045)
+        b.bg:SetColorTexture(tint[1],tint[2],tint[3],mine and .24 or winner and .14 or .055)
+        b.relief:SetAlpha(guid and 1 or .40)
         b.name:SetText(name);b.score:SetText(score)
         b.name:SetTextColor(unpack(mine and C.pale or finished and not winner and C.muted or C.text))
         b.score:SetTextColor(unpack(winner and C.gold or C.pale))
-        if S.ConstrainText then S.ConstrainText(b.name,max(1,w-sz-45),h,11) end
+        if S.ConstrainText then S.ConstrainText(b.name,max(1,w-sz-48),h,12) end
         b:EnableMouse(projection and projection.scope=="SIMULATED" and projection.players and projection.players[guid]~=nil or false)
         b.light:SetAlpha(0)
     end
     local function Paint(m,i)
         local f=Card(i);At(f,canvas,m.x,m.y,m.w,m.h)
         local bright=m.focus or m.ownA or m.ownB
-        f.plate:SetStyle(m.final and "organizerHero" or "browseCard")
-        f.finalRim:SetShown(m.final);f.trophy:SetShown(m.final);f.finalTitle:SetShown(m.final);f.finalTint:SetShown(m.final)
-        local top=m.final and floor(m.h*.49) or 5
+        if m.final then f.frameArt:SetTexCoord(0,.5,0,1)
+        else f.frameArt:SetTexCoord(.5,1,bright and .5 or 0,bright and 1 or .5) end
+        f.trophy:SetShown(m.final);f.finalTitle:SetShown(m.final)
+        local top=m.final and floor(m.h*.46) or 9
         if m.final then
-            At(f.finalTint,f,8,8,m.w-16,m.h-16)
-            local tw=floor(m.h*.50);At(f.trophy,f,(m.w-tw)/2,2,tw,tw*.83)
-            At(f.finalTitle,f,10,floor(m.h*.35),m.w-20,floor(m.h*.13));f.finalTitle:SetText("FINAL")
+            local tw=floor(m.h*.46);At(f.trophy,f,(m.w-tw)/2,5,tw,tw*.80)
+            At(f.finalTitle,f,22,floor(m.h*.38),m.w-44,floor(m.h*.09));f.finalTitle:SetText("FINAL")
         end
-        local color=m.disputed and C.red or bright and C.gold or m.final and C.gold or C.goldDim
-        for _,t in ipairs(f.edges) do t:SetColorTexture(color[1],color[2],color[3],bright and 1 or .65) end
-        At(f.edges[1],f,5,4,m.w-10,bright and 2 or 1)
-        At(f.edges[2],f,5,m.h-5,m.w-10,bright and 2 or 1)
-        At(f.edges[3],f,4,5,bright and 2 or 1,m.h-10)
-        At(f.edges[4],f,m.w-5,5,bright and 2 or 1,m.h-10)
-        local rh=floor((m.h-top-23)/2)
+        local bottom=m.final and floor(m.h*.20) or 24
+        local rh=floor((m.h-top-bottom)/2)
         local finished=m.status=="Completed" or m.status=="Forfeit"
-        PaintRow(f.a,f,7,top,m.w-14,rh,m.guidA,m.a,m.sa,m.winnerA,m.ownA,finished)
-        PaintRow(f.b,f,7,top+rh,m.w-14,rh,m.guidB,m.b,m.sb,m.winnerB,m.ownB,finished)
-        At(f.status,f,7,m.h-22,m.w-14,19)
+        local pad=m.final and floor(m.w*.115) or 9
+        PaintRow(f.a,f,pad,top,m.w-pad*2,rh,m.guidA,m.a,m.sa,m.winnerA,m.ownA,finished)
+        PaintRow(f.b,f,pad,top+rh,m.w-pad*2,rh,m.guidB,m.b,m.sb,m.winnerB,m.ownB,finished)
+        At(f.status,f,pad,m.final and m.h-bottom+1 or m.h-23,m.w-pad*2,19)
         f.status:SetText(m.status);f.status:SetTextColor(unpack(m.disputed and C.red or finished and {.54,.90,.40,1} or m.ready and C.gold or C.muted))
         f:Show()
     end
@@ -287,6 +288,8 @@ function B.New(parent)
     local function Fit()
         local probe=B.Project(view,names,focus,1,1,1,own)
         if not probe then return 1 end
+        -- Large draws are pannable, not unreadably tiny overviews.
+        if probe.count>8 then return 1 end
         return max(.8,min(1,vw/probe.width,vh/probe.height))
     end
     Render=function(recenter)
@@ -371,6 +374,10 @@ function B.New(parent)
         local bw,bh=max(1,w-20),max(1,h-54)
         At(board,parent,10,44,bw,bh)
         At(arena,board,5,5,bw-10,bh-10);At(shade,board,5,5,bw-10,bh-10)
+        local ratio=max(1,bw-10)/max(1,bh-10)
+        local cropW,cropH=.25,.25
+        if ratio>2 then cropH=cropH*2/ratio else cropW=cropW*ratio/2 end
+        arena:SetTexCoord(.625-cropW/2,.625+cropW/2,.375-cropH/2,.375+cropH/2)
         At(banner,board,7,7,bw-14,64)
         At(leftArt,banner,6,4,(bw-14)*.30,56);At(rightArt,banner,(bw-14)*.70-6,4,(bw-14)*.30,56)
         At(title,banner,(bw-14)*.17,4,(bw-14)*.66,31);At(meta,banner,10,35,bw-34,22)
