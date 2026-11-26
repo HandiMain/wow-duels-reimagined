@@ -142,7 +142,7 @@ function A.New(parent)
         local f=Panel(shell,"browseCard")
         f.marker=Jewel(shell)
         f.sep1=Line(f,{.63,.42,.20,.38});f.sep2=Line(f,{.63,.42,.20,.38})
-        f.flag=Art(f,656,112,82,110)
+        f.logo=chrome.Art(f,"logo")
         f.name=Text(f,20,C.pale);f.date=Text(f,14,C.muted)
         f.placeLabel=Text(f,13,C.muted,"CENTER");f.place=Text(f,18,GOLD,"CENTER")
         f.champLabel=Text(f,13,C.muted);f.champ=Text(f,17,C.text)
@@ -155,7 +155,7 @@ function A.New(parent)
     local function PaintRow(row,r,x,y,w,compact)
         local h=compact and 132 or 84
         At(row,shell,x,y,w,h);At(row.marker,shell,x-24,y+(h-16)/2,16,16);row.marker:Show();row:Show()
-        At(row.flag,row,8,8,48,64)
+        At(row.logo,row,7,compact and 16 or 21,51,51*82/96)
         local placement,color=Placement(r)
         if compact then
             local left=w*.56
