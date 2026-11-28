@@ -1,8 +1,105 @@
 local _, ns = ...
-
-SLASH_DUELSREIMAGINED1 = "/duels"
-SlashCmdList.DUELSREIMAGINED = function(message)
-    if message=="edit" or message=="countdown edit" then
+-- One public command catalogue supplies both dispatch and chat help.
+-- Development shortcuts are retained separately in this build, never listed.
+local commands, ordered = {}, {}
+local function Register(name, group, description, action, available)
+    assert(not commands[name], "Duplicate slash command")
+    local entry={name=name,group=group,description=description,action=action,available=available}
+    commands[name]=entry;ordered[#ordered+1]=entry
+end
+local function Chat(line)
+    if DEFAULT_CHAT_FRAME and DEFAULT_CHAT_FRAME.AddMessage then
+        DEFAULT_CHAT_FRAME:AddMessage(line)
+    else print(line) end
+end
+local function Tell(message)
+    Chat("|cffd8b36aDuels Reimagined|r |cffc4c4c4"..message.."|r")
+end
+local function Combat()
+    if type(InCombatLockdown)~="function" then return false end
+    local ok,value=pcall(InCombatLockdown)
+    if not ok or (type(issecretvalue)=="function" and issecretvalue(value)) then return true end
+    return value~=false and value~=nil
+end
+local function SafeOpen()
+    if Combat() then Tell("Finish combat before opening Duels.");return false end
+    if ns.EditMode and ns.EditMode.IsActive() then Tell("Finish editing your layout first.");return false end
+    return true
+end
+local function EnsureWindow()
+    if not ns.Window.frame:IsShown() then ns.Window.Toggle() end
+    return ns.Window.frame:IsShown()
+end
+local function Destination(id)
+    return function()
+        if not SafeOpen() then return end
+        local item=ns.Search.entries[id]
+        if not item then Tell("This page is unavailable.");return end
+        if item.available then
+            local ok,available=pcall(item.available)
+            if not ok or available~=true then Tell("This page is unavailable right now.");return end
+        end
+        if EnsureWindow() then ns.Search.Open(item) end
+    end
+end
+local function Page(section,page) return Destination("page:"..section..":"..page) end
+local function Setting(key) return Destination("setting:"..key) end
+local function Help()
+    Chat("|cffd8b36aDuels Reimagined - Available Commands|r")
+    local group
+    for _,entry in ipairs(ordered) do
+        if not entry.available or entry.available() then
+            if group~=entry.group then
+                group=entry.group;Chat("|cffd8b36a"..group.."|r")
+            end
+            local suffix=entry.name=="" and "" or " "..entry.name
+            Chat("  |cffffdc80/duels"..suffix.."|r  |cffbfbfbf"..entry.description.."|r")
+        end
+    end
+end
+Register("","General","Open or close the addon.",function()
+    if ns.Window.frame:IsShown() or SafeOpen() then ns.Window.Toggle() end
+end)
+Register("help","General","Display available commands.",Help)
+Register("options","General","Open addon settings.",Page("options","options"))
+Register("status","General","Open Addon Status.",Page("addonstatus","status"))
+Register("diagnostics","General","Open diagnostics.",function()
+    if SafeOpen() then ns.DiagnosticsUI.Open() end
+end)
+Register("hall","Competition","Open the Hall.",Page("hall","overview"))
+Register("leaderboard","Competition","View the leaderboard.",Page("leaderboard","standings"))
+Register("history","Competition","View your match history.",Page("matchhistory","history"))
+Register("achievements","Competition","View your achievements.",Page("achievements","achievements"))
+Register("tournaments","Competition","Open tournaments.",Page("tournaments","overview"))
+Register("champions","Competition","Open the Hall of Champions.",Page("tournaments","champions"))
+Register("wargames","Competition","Open War Games.",Page("wargames","player"),function()return ns.Client.IsRetail() end)
+Register("hud","Interface","Toggle the Duel HUD.",function()
+    if Combat() then Tell("Finish combat before changing the Duel HUD.");return end
+    local enabled=not ns.Settings.Get("duelHUDEnabled")
+    ns.Settings.Set("duelHUDEnabled",enabled)
+    Tell(enabled and "Duel HUD enabled." or "Duel HUD disabled.")
+end)
+Register("hud reset","Interface","Reset the Duel HUD position and scale.",function()
+    if not SafeOpen() then return end
+    ns.Settings.ResetDuelHUDPosition();ns.Settings.Reset("duelHUDScale")
+    Tell("Duel HUD position and scale reset.")
+end)
+Register("edit","Interface","Edit the countdown layout.",function()
+    if ns.EditMode.IsActive() then ns.EditMode.Cancel(true);return end
+    local ok,why=ns.EditMode.Open("countdown")
+    if not ok then Tell(tostring(why or "Layout unavailable.")) end
+end)
+Register("countdown","Interface","Open countdown settings.",Setting("duelCountdownVisual"))
+Register("notifications","Interface","Open notification settings.",Setting("notificationEnabled"))
+Register("sounds","Interface","Open combat sound settings.",Setting("duelCountdownSoundPack"))
+Register("community","Community","Open the community page.",Page("community","community"))
+Register("patchnotes","Community","Read the latest patch notes.",function()
+    local latest=ns.PatchNotesData and ns.PatchNotesData[1]
+    if latest then Page("patchnotes",latest.key)() else Tell("Patch notes are unavailable.") end
+end)
+-- Existing internal test and preview routes intentionally omitted from help.
+local function Development(message)
+    if message=="countdown edit" then
         if ns.EditMode.IsActive() then ns.EditMode.Cancel(true)
         else
             local ok,why=ns.EditMode.Open("countdown")
@@ -10,7 +107,7 @@ SlashCmdList.DUELSREIMAGINED = function(message)
         end
         return
     end
-    if message=="sounds" or message=="sounds status" then
+    if message=="sounds status" then
         local _,countdown,fight,detail=ns.CountdownAudio.GetPackStatus()
         local victory,defeat=ns.CountdownAudio.GetResultSoundCounts()
         print("DR | "..detail.." | "..countdown.." countdown packs / "..fight.." FIGHT! sounds / "..victory.." victory / "..defeat.." defeat / "..ns.CountdownAudio.GetSharedSoundCount().." SharedMedia sounds")
@@ -51,10 +148,8 @@ SlashCmdList.DUELSREIMAGINED = function(message)
         end
         return
     end
-    if message=="hud" or message=="hud reset" or message=="hud preview" then
-        if message=="hud reset" then ns.Settings.ResetDuelHUDPosition();ns.Settings.Reset("duelHUDScale")
-        elseif message=="hud preview" then ns.DuelHUD.TogglePreview()
-        else ns.Settings.Set("duelHUDEnabled",not ns.Settings.Get("duelHUDEnabled")) end
+    if message=="hud preview" then
+        ns.DuelHUD.TogglePreview()
         return
     end
     if message=="sim" or message:match("^sim%s") then
@@ -128,9 +223,18 @@ SlashCmdList.DUELSREIMAGINED = function(message)
         print("DR | "..tostring(why or (ok and "Request submitted." or "Request unavailable.")))
         return
     end
-    if message=="diagnostics" then
-        ns.DiagnosticsUI.Open()
-        return
+    return false
+end
+SLASH_DUELSREIMAGINED1="/duels"
+SlashCmdList.DUELSREIMAGINED=function(message)
+    message=(type(message)=="string" and message or ""):lower():gsub("^%s+",""):gsub("%s+$",""):gsub("%s+"," ")
+    local entry=commands[message]
+    if entry then
+        if entry.available and not entry.available() then
+            Tell("This command is unavailable on your client.");return
+        end
+        entry.action();return
     end
-    ns.Window.Toggle()
+    -- Legacy handlers return nil on a recognized command and false otherwise.
+    if Development(message)==false then Tell("Unknown command. Type /duels help for available commands.") end
 end
