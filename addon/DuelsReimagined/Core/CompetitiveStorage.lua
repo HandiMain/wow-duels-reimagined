@@ -89,6 +89,15 @@ local function OpenPeerEvidence(client,raw,population)
     return ns.LeaderboardSync.OpenSeasonPeer(client,raw.epoch,{version=1,scope="PEER",client=client,
         rule=ns.CompetitiveRules.ID,ledger=ledger.Save(),clocks=raw.clocks,population=population},population)
 end
+-- Only called on validated account roots. v4 counts are checked by the
+-- segmented ledger decoder; older compact envelopes have flat entries.
+local function PeerEvidenceCount(raw)
+    if not raw then return 0 end
+    if raw.version==4 then return raw.ledger.count end
+    local n=0
+    for _ in pairs(raw.ledger.entries) do n=n+1 end
+    return n
+end
 local function SavePeerEvidence(client,node,population,version)
     if not node or node.GetScope()~="PEER" or node.GetPopulation()~=population then return nil end
     -- Explicit writes to a scoped population use v4. Validated reads of older
@@ -449,9 +458,7 @@ local function Build(read,write,client,identity,scope,privateFixture)
         if scope~="LOCAL" then return nil,"wrong_scope" end
         local a,c,k,why=Pair();if not a then return nil,why end
         local ap,cp=a.clients[k] or {},c.clients[k] or {}
-        local n=0
-        local evidence=ScopedEvidence(ap,CurrentPopulation(k))
-        for _ in pairs(evidence and evidence.ledger.entries or {}) do n=n+1 end
+        local n=PeerEvidenceCount(ScopedEvidence(ap,CurrentPopulation(k)))
         local function Cap(used,limit)
             return {used=used,limit=limit,state=used>=limit and "full" or used>=limit*.9 and "near_capacity" or "available"}
         end
@@ -485,9 +492,9 @@ local function Build(read,write,client,identity,scope,privateFixture)
         local me=ns.Group.ReadCompetitiveIdentity and ns.Group.ReadCompetitiveIdentity("player")
         if me and me.guid==c.owner then identities[c.owner]=me end
         local view=BuildCompetitiveView(k,c.owner,personal,replay,asOf,identities,"PEER")
-        local ledger=ns.MatchLedger.OpenCompactPeer(k,raw.ledger)
-        return {view=view,replay=replay,epoch=raw.epoch,population=key,identities=identities,evidence=ledger.Snapshot(),
-            clocks=raw.clocks}
+        local evidence,clocks=node.ReadEvidence()
+        return {view=view,replay=replay,epoch=raw.epoch,population=key,identities=identities,evidence=evidence,
+            clocks=clocks}
     end
     -- Private fixture transaction: reopen from validated data every time;
     -- write only canonical record sources after successful edit. No live path.
@@ -917,6 +924,19 @@ function P.RunPopulationSelfTest(emit)
             local exact=assert(OpenPeerEvidence(client,segmented,one))
             assert(Equal(exact.Save(),x.Save()) and Equal(exact.ReplaySeasonPeer({epoch=epoch,asOf=epoch+6}),before))
             assert(Equal(exact.DeltaSummary(),x.DeltaSummary()) and Equal(exact.Export("segment"),x.Export("segment")))
+            -- Both live read paths use these format-independent projections.
+            -- v3/v4 have no persisted clocks and v4 has no flat entries.
+            assert(PeerEvidenceCount(nil)==0 and PeerEvidenceCount(part.peerEvidence)==1)
+            for _,rawEvidence in ipairs({old,packed,segmented}) do
+                local node=assert(OpenPeerEvidence(client,rawEvidence,one))
+                local evidence,clocks=node.ReadEvidence()
+                assert(PeerEvidenceCount(rawEvidence)==2 and #evidence.matched==1 and #evidence.disputed==1)
+                assert(Equal(clocks,x.Save().clocks))
+                assert(Equal(evidence,assert(ns.MatchLedger.OpenPeer(client,x.Save().ledger)).Snapshot()))
+                evidence.matched[1].winner="changed";clocks[disputed.id][1][1]=0
+                local freshEvidence,freshClocks=node.ReadEvidence()
+                assert(freshEvidence.matched[1].winner~="changed" and Equal(freshClocks,x.Save().clocks))
+            end
             assert(not OpenPeerEvidence(client,segmented,two))
             local malformed=assert(SavePeerEvidence(client,reopened,one))
             malformed.ledger.count=3;assert(not OpenPeerEvidence(client,malformed,one))

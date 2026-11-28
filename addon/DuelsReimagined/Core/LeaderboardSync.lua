@@ -182,6 +182,8 @@ local function Open(client,saved,epoch,scope,population)
         return Merge({ledger=l.Save(),clocks=clocks})
     end
     function D.Save() local saved=Copy(data);saved.ledger=ledger.Save();return saved end
+    -- Detached canonical evidence projection, independent of disk encoding.
+    function D.ReadEvidence() return ledger.Snapshot(),Copy(data.clocks) end
     function D.MergeSaved(saved)
         local clean=Validate(client,saved,scope,population)
         if not clean then return false,"invalid_evidence" end

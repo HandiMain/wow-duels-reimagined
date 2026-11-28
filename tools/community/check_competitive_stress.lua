@@ -77,6 +77,21 @@ local function Measure(fn)
     collectgarbage("collect");local start=os.clock();local value=fn()
     return value,(os.clock()-start)*1000
 end
+-- Offline CPU/retained Lua heap measurement. Not a peak-heap or in-game
+-- frame-time guarantee. GC is excluded from timed intervals.
+local function Profile(label,fn)
+    collectgarbage("collect")
+    local before=collectgarbage("count")
+    local start=os.clock()
+    local value=fn()
+    local ms=(os.clock()-start)*1000
+    local uncollected=collectgarbage("count")
+    collectgarbage("collect")
+    local retained=collectgarbage("count")
+    print(string.format("CAPACITY PROFILE | %s | CPU %.2f ms | net heap before GC %+.1f KiB | net retained heap %+.1f KiB",
+        label,ms,uncollected-before,retained-before))
+    return value
+end
 local epoch=100000
 local limit=ns.MatchLedger.GetCapacity()
 assert(limit==8192 and ns.PersonalHistory.GetCapacity()==8192 and ns.LeaderboardSync.GetPageLimit()==512)
@@ -112,12 +127,32 @@ for _,client in ipairs({"forever","retail"}) do
         end
         for i=1,limit do assert(peer.Insert(Claim(i))) end
         assert(peer.Insert(Claim(1,true)))
-        local disk=peer.SaveSegmented()
+        local disk=Profile(client.." / "..limit.." peer IDs / segmented encode",function()return peer.SaveSegmented() end)
         assert(disk.count==limit)
-        local reopen=assert(ns.MatchLedger.OpenSegmentedPeer(client,disk))
+        local reopen=Profile(client.." / "..limit.." peer IDs / segmented reopen",function()
+            return assert(ns.MatchLedger.OpenSegmentedPeer(client,disk))
+        end)
         assert(Equal(peer.SaveCompact(),reopen.SaveCompact()))
         local ok,why=reopen.Insert(Claim(limit+1));assert(not ok and why=="capacity")
         assert(Equal(disk,reopen.SaveSegmented()))
+        local node=Profile(client.." / "..limit.." peer IDs / scoped node reopen",function()
+            return assert(ns.LeaderboardSync.OpenCompactSeasonPeer(client,epoch,disk,population,true))
+        end)
+        local evidence=Profile(client.." / "..limit.." peer IDs / evidence view",function()
+            local rows,clocks=node.ReadEvidence()
+            return {rows=rows,clocks=clocks}
+        end)
+        assert(#evidence.rows.matched==limit-1 and #evidence.rows.disputed==1 and evidence.clocks[Claim(1).id])
+        local summary=Profile(client.." / "..limit.." peer IDs / cold delta summary",function()return assert(node.DeltaSummary()) end)
+        local warm=Profile(client.." / "..limit.." peer IDs / warm delta summary",function()return assert(node.DeltaSummary()) end)
+        assert(Equal(summary,warm))
+        local opts={epoch=epoch,asOf=epoch+limit*4000}
+        local replay=Profile(client.." / "..limit.." peer IDs / seasonal replay",function()return assert(node.ReplaySeasonPeer(opts)) end)
+        assert(replay.knownMatched==limit-1 and replay.disputed==1)
+        -- Correct an old retained match even at capacity.
+        local old=Claim(2,true);assert(node.Observe(old,old.time1,old.time2))
+        local corrected=Profile(client.." / "..limit.." peer IDs / late correction replay",function()return assert(node.ReplaySeasonPeer(opts)) end)
+        assert(corrected.knownMatched==limit-2 and corrected.disputed==2)
         print(string.format("%s: %d scoped PEER fixture IDs, exact segmented reopen and full-capacity rejection PASS",client,limit))
     end
     local asOf=epoch+limit*4000
@@ -268,12 +303,18 @@ for _,client in ipairs({"forever","retail"}) do
         local reopened=assert(ns.PersonalHistory.OpenLocal(client,owner,packed))
         assert(Equal(plain,reopened.Save()) and Equal(localHistory.Snapshot(),reopened.Snapshot()))
         assert(Size(packed)<Size(plain))
-        local paged=reopened.SavePaged()
+        local paged=Profile(client.." / "..personal.." local observations / paged encode",function()return reopened.SavePaged() end)
         local pageSize=ns.PersonalHistory.GetPageSize()
         assert(paged.count==personal and #paged.pages==math.ceil(personal/pageSize))
-        local fromPages=assert(ns.PersonalHistory.OpenLocal(client,owner,paged))
+        local fromPages=Profile(client.." / "..personal.." local observations / paged reopen",function()
+            return assert(ns.PersonalHistory.OpenLocal(client,owner,paged))
+        end)
         assert(Equal(plain,fromPages.Save()) and Equal(localHistory.Snapshot(),fromPages.Snapshot()))
-        local snap=fromPages.Snapshot()
+        local snap=Profile(client.." / "..personal.." local observations / full statistics",function()return fromPages.Snapshot() end)
+        local last=Profile(client.." / "..personal.." local observations / last page",function()
+            return assert(fromPages.ReadLocalPage(#paged.pages))
+        end)
+        assert(#last.history==personal-(#paged.pages-1)*pageSize)
         local seen=0
         for p=1,#paged.pages do
             local page=assert(fromPages.ReadLocalPage(p))
