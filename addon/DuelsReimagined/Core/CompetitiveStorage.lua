@@ -98,19 +98,25 @@ local function PeerEvidenceCount(raw)
     for _ in pairs(raw.ledger.entries) do n=n+1 end
     return n
 end
-local function SavePeerEvidence(client,node,population,version)
+local function SavePeerEvidence(client,node,population,version,validated)
     if not node or node.GetScope()~="PEER" or node.GetPopulation()~=population then return nil end
     -- Explicit writes to a scoped population use v4. Validated reads of older
     -- envelopes retain their encoding, including unrelated population data.
     version=version or (population and 4 or 1)
     if version~=(population and 2 or 1) and not (population and (version==3 or version==4)) then return nil end
-    local data=node.Save()
-    local ledger=ns.MatchLedger.OpenPeer(client,data.ledger)
-    if not ledger then return nil end
-    local out={version=version,scope="PEER",epoch=node.GetSeasonEpoch(),
-        ledger=version==4 and ledger.SaveSegmented() or ledger.SaveCompact(),population=population}
-    if version==1 or version==2 then out.clocks=data.clocks end
-    return out
+    local packed,clocks
+    if validated then
+        -- Only Root supplies this flag, immediately after successful Open.
+        packed,clocks=node.SaveDiskEvidence(version==4,version<=2)
+    else
+        local data=node.Save()
+        local ledger=ns.MatchLedger.OpenPeer(client,data.ledger)
+        if not ledger then return nil end
+        packed=version==4 and ledger.SaveSegmented() or ledger.SaveCompact()
+        if version<=2 then clocks=data.clocks end
+    end
+    if not packed then return nil end
+    return {version=version,scope="PEER",epoch=node.GetSeasonEpoch(),ledger=packed,population=population,clocks=clocks}
 end
 -- Private character commitment journal; the tournament domain validates its shape.
 local function TournamentJournal(client,owner,raw,private,validator)
@@ -199,7 +205,7 @@ local function Root(raw,kind,owner,scope,validator)
         if scope=="LOCAL" and not legacy and kind=="account" and v.peerEvidence~=nil then
             local node=OpenPeerEvidence(k,v.peerEvidence)
             if not node then return nil end
-            part.peerEvidence=SavePeerEvidence(k,node)
+            part.peerEvidence=SavePeerEvidence(k,node,nil,1,true)
             if not part.peerEvidence then return nil end
         end
         if scope=="LOCAL" and not legacy and kind=="account" and v.peerPopulations~=nil then
@@ -208,7 +214,7 @@ local function Root(raw,kind,owner,scope,validator)
             for key,rawEvidence in pairs(v.peerPopulations) do
                 local node=OpenPeerEvidence(k,rawEvidence,key)
                 if not node then return nil end
-                part.peerPopulations[key]=SavePeerEvidence(k,node,key,rawEvidence.version)
+                part.peerPopulations[key]=SavePeerEvidence(k,node,key,rawEvidence.version,true)
                 if not part.peerPopulations[key] then return nil end
             end
         end
@@ -233,11 +239,20 @@ local function Root(raw,kind,owner,scope,validator)
     end
     return clean
 end
--- Injected storage access for isolated tests. Never cache SavedVariables tables.
+-- Exact comparison against a validated, detached tree. Recursion follows
+-- only the bounded canonical tree, never arbitrary untrusted nesting.
+local function SameEvidence(a,b)
+    if type(a)~=type(b) then return false end
+    if type(a)~="table" then return a==b end
+    for k,v in pairs(a) do if not SameEvidence(v,b[k]) then return false end end
+    for k in pairs(b) do if a[k]==nil then return false end end
+    return true
+end
+-- Injected storage access for isolated tests. Never retain SavedVariables aliases.
 local BuildCompetitiveView
 -- Project only the existing, append-only personal history. The session
 -- boundary is a character-local row index, never a second match database.
-local function SessionStats(history,start,replay)
+local function SessionStats(history,start,replay,evidence)
     if type(history)~="table" or history.scope~="LOCAL" or type(history.history)~="table"
         or not Count(start) or start>#history.history then return nil end
     local out={scope="LOCAL",state="ready",total=0,wins=0,losses=0,unknown=0}
@@ -248,15 +263,22 @@ local function SessionStats(history,start,replay)
         if row.outcome=="won" or row.outcome=="they_fled" then out.wins=out.wins+1
         elseif row.outcome=="lost" or row.outcome=="fled" then out.losses=out.losses+1
         else out.unknown=out.unknown+1 end
-        if row.matchID then ids[row.matchID]=true end
+        if row.matchID and type(row.statement)=="string" then ids[row.matchID]=row.statement end
     end
     if out.wins+out.losses>0 then out.winRate=out.wins/(out.wins+out.losses) end
     -- Only locally linked, peer-confirmed, rating-bearing replay entries.
     -- No subtraction of snapshots across seasons or unrelated sync changes.
-    if type(replay)=="table" and replay.scope=="PEER" and replay.client==history.client then
+    if type(replay)=="table" and replay.scope=="PEER" and replay.client==history.client
+        and type(evidence)=="table" and evidence.scope=="PEER" and evidence.client==history.client then
+        local matched={}
+        for _,record in ipairs(evidence.matched or {}) do
+            local own=record.player1==history.character and record.statement1 or
+                record.player2==history.character and record.statement2
+            if own and ids[record.id]==own then matched[record.id]=true end
+        end
         local seen={}
         for _,row in ipairs(replay.changes or {}) do
-            if ids[row.id] and not seen[row.id] and type(row.weight)=="number" and row.weight>0 then
+            if matched[row.id] and not seen[row.id] and type(row.weight)=="number" and row.weight>0 then
                 local delta=row.winner==history.character and row.gain or row.loser==history.character and -row.loss
                 if type(delta)=="number" then out.rating=(out.rating or 0)+delta;seen[row.id]=true end
             end
@@ -272,15 +294,32 @@ local function Build(read,write,client,identity,scope,privateFixture)
         if not archiveValidator then archiveValidator=ns.TournamentRecovery.NewJournalValidator() end
         return archiveValidator(...)
     end
-    function D.MarkLoaded() loaded=true end
-    local function Pair()
-        if not loaded then return nil,nil,nil,"not_loaded" end
-        local k=client();if not Client(k) then return nil,nil,nil,"unsupported_client" end
-        local owner=identity();if not Guid(owner) then return nil,nil,nil,"identity_unavailable" end
+    -- One detached read-only validation memo per storage owner. Exact
+    -- equality detects even in-place edits; no hash, TTL or reference-only
+    -- trust. Transactions and explicit diagnostics always validate afresh.
+    local readMemo
+    function D.MarkLoaded() loaded=true;readMemo=nil end
+    local function Pair(readOnly)
+        if not loaded then readMemo=nil;return nil,nil,nil,"not_loaded" end
+        local k=client();if not Client(k) then readMemo=nil;return nil,nil,nil,"unsupported_client" end
+        local owner=identity();if not Guid(owner) then readMemo=nil;return nil,nil,nil,"identity_unavailable" end
         local a,c=read()
+        local prepared=type(a)=="table" and a.version==VERSION and type(c)=="table" and c.version==VERSION
+        local memo=readOnly and scope=="LOCAL" and readMemo
+        if memo and memo.owner==owner and memo.client==k
+            and ((memo.emptyA and a==nil) or (not memo.emptyA and SameEvidence(memo.account,a)))
+            and ((memo.emptyC and c==nil) or (not memo.emptyC and SameEvidence(memo.character,c))) then
+            return memo.account,memo.character,k,nil,prepared
+        end
+        readMemo=nil
         local aa,cc=Root(a,"account",nil,scope),Root(c,"character",owner,scope,ValidateArchive)
         if not aa or not cc then return nil,nil,nil,"invalid_or_unsupported_storage" end
-        return aa,cc,k,nil,type(a)=="table" and a.version==VERSION and type(c)=="table" and c.version==VERSION
+        -- Noncanonical/legacy input is still readable when Root accepts it,
+        -- but is never memoized as an exact match for another input.
+        if readOnly and scope=="LOCAL" and (a==nil or SameEvidence(aa,a)) and (c==nil or SameEvidence(cc,c)) then
+            readMemo={owner=owner,client=k,account=aa,character=cc,emptyA=a==nil,emptyC=c==nil}
+        end
+        return aa,cc,k,nil,prepared
     end
     local function CurrentPopulation(k)
         local s=ns.CompetitiveScope and ns.CompetitiveScope.GetCurrent()
@@ -359,7 +398,7 @@ local function Build(read,write,client,identity,scope,privateFixture)
     -- rating, simulated record, or account competitive data is imported.
     function D.ReadLocalHistory()
         if scope~="LOCAL" then return nil,"wrong_scope" end
-        local a,c,k,why=Pair();if not a then return nil,why end
+        local a,c,k,why=Pair(true);if not a then return nil,why end
         local cp=c.clients[k] or {probe=0,runCounter=0}
         local h=ns.PersonalHistory.OpenLocal(k,c.owner,cp.localHistory)
         if not h then return nil,"invalid_history" end
@@ -378,13 +417,13 @@ local function Build(read,write,client,identity,scope,privateFixture)
     end
     function D.ReadSessionStats(asOf)
         if scope~="LOCAL" or not LOCAL_RECORDING_ENABLED then return {scope="LOCAL",state="disabled"} end
-        local a,c,k=Pair()
+        local a,c,k=Pair(true)
         local cp=c and c.clients[k]
         if not cp or cp.sessionStartIndex==nil then return {scope="LOCAL",state="unavailable"} end
         local history=ns.PersonalHistory.OpenLocal(k,c.owner,cp.localHistory)
         if not history then return {scope="LOCAL",state="unavailable"} end
         local peer=P.PeerEpoch() and asOf and D.ReadPeerView(asOf)
-        return SessionStats(history.Snapshot(),cp.sessionStartIndex,peer and peer.replay)
+        return SessionStats(history.Snapshot(),cp.sessionStartIndex,peer and peer.replay,peer and peer.evidence)
             or {scope="LOCAL",state="unavailable"}
     end
     function D.BeginLocalRun()
@@ -424,13 +463,6 @@ local function Build(read,write,client,identity,scope,privateFixture)
         if raw then return OpenPeerEvidence(k,raw,key) end
         return ns.LeaderboardSync.OpenSeasonPeer(k,epoch,nil,key)
     end
-    local function SameEvidence(a,b)
-        if type(a)~=type(b) then return false end
-        if type(a)~="table" then return a==b end
-        for k,v in pairs(a) do if not SameEvidence(v,b[k]) then return false end end
-        for k in pairs(b) do if a[k]==nil then return false end end
-        return true
-    end
     function D.CommitPeerNode(node)
         local epoch=P.PeerEpoch()
         if scope~="LOCAL" or not epoch then return false,"disabled" end
@@ -456,7 +488,7 @@ local function Build(read,write,client,identity,scope,privateFixture)
     end
     function D.ReadLocalCapacity()
         if scope~="LOCAL" then return nil,"wrong_scope" end
-        local a,c,k,why=Pair();if not a then return nil,why end
+        local a,c,k,why=Pair(true);if not a then return nil,why end
         local ap,cp=a.clients[k] or {},c.clients[k] or {}
         local n=PeerEvidenceCount(ScopedEvidence(ap,CurrentPopulation(k)))
         local function Cap(used,limit)
@@ -468,7 +500,7 @@ local function Build(read,write,client,identity,scope,privateFixture)
     function D.ReadPeerView(asOf)
         if scope~="LOCAL" then return nil,"wrong_scope" end
         if not ns.CompetitiveScope or not ns.CompetitiveScope.RankedReady() then return nil,"population_migration_required" end
-        local a,c,k,why=Pair();if not a then return nil,why end
+        local a,c,k,why=Pair(true);if not a then return nil,why end
         local key=CurrentPopulation(k)
         if not key then return nil,"population_unavailable" end
         local raw=ScopedEvidence(a.clients[k],key)
@@ -954,6 +986,13 @@ function P.RunPopulationSelfTest(emit)
                 assert(PeerEvidenceCount(rawEvidence)==2 and #evidence.matched==1 and #evidence.disputed==1)
                 assert(Equal(clocks,x.Save().clocks))
                 assert(Equal(evidence,assert(ns.MatchLedger.OpenPeer(client,x.Save().ledger)).Snapshot()))
+                local direct=assert(SavePeerEvidence(client,node,one,rawEvidence.version,true))
+                assert(Equal(direct,rawEvidence))
+                local disk,clockCopy=node.SaveDiskEvidence(rawEvidence.version==4,true)
+                clockCopy[disputed.id][1][1]=0
+                local bucket=rawEvidence.version==4 and disk.segments[ns.MatchLedger.SegmentForID(disputed.id)] or disk.entries
+                bucket[disputed.id][1]="corrupt"
+                assert(Equal(node.Save(),x.Save()))
                 evidence.matched[1].winner="changed";clocks[disputed.id][1][1]=0
                 local freshEvidence,freshClocks=node.ReadEvidence()
                 assert(freshEvidence.matched[1].winner~="changed" and Equal(freshClocks,x.Save().clocks))
@@ -1050,9 +1089,17 @@ function P.RunPopulationSelfTest(emit)
 end
 
 function P.RunSessionSelfTest()
-    local h={scope="LOCAL",client="retail",character="Player-1-AAA",history={{outcome="won"},{outcome="lost",matchID="a"},{outcome="they_fled"},{outcome="unknown"},{outcome="won",matchID="b"}}}
+    local h={scope="LOCAL",client="retail",character="Player-1-AAA",history={{outcome="won"},{outcome="lost",matchID="a",statement="own-a"},{outcome="they_fled"},{outcome="unknown"},{outcome="won",matchID="b",statement="own-b"}}}
     local replay={scope="PEER",client="retail",changes={{id="a",weight=1,loser=h.character,loss=15},{id="b",weight=1,winner=h.character,gain=30},{id="b",weight=1,winner=h.character,gain=30},{id="unlinked",weight=1,winner=h.character,gain=99}}}
-    local v=assert(SessionStats(h,1,replay));assert(v.total==4 and v.wins==2 and v.losses==1 and v.unknown==1 and math.abs(v.winRate-2/3)<.001 and v.rating==15)
+    local evidence={scope="PEER",client="retail",matched={{id="a",player1=h.character,statement1="own-a"},
+        {id="b",player2=h.character,statement2="own-b"},{id="unlinked",player1=h.character,statement1="other"}}}
+    local v=assert(SessionStats(h,1,replay,evidence));assert(v.total==4 and v.wins==2 and v.losses==1 and v.unknown==1 and math.abs(v.winRate-2/3)<.001 and v.rating==15)
+    assert(SessionStats(h,1,replay).rating==nil)
+    evidence.matched[2].statement2="foreign";assert(SessionStats(h,1,replay,evidence).rating==-15)
+    evidence.matched[1].statement1="foreign";assert(SessionStats(h,1,replay,evidence).rating==nil)
+    evidence.matched[1].statement1="own-a";evidence.matched[2].statement2="own-b"
+    evidence.client="forever";assert(SessionStats(h,1,replay,evidence).rating==nil)
+    evidence.client="retail"
     v=assert(SessionStats(h,5));assert(v.total==0 and v.winRate==nil and v.rating==nil)
     assert(not SessionStats(h,6));replay.scope="SIMULATED";assert(SessionStats(h,1,replay).rating==nil)
     h.scope="SIMULATED";assert(not SessionStats(h,0));assert(P.ReadSessionStats().state=="disabled" and not P.StartSession(true))
@@ -1076,6 +1123,15 @@ function P.RunSessionSelfTest()
             local snap=assert(d.ReadLocalHistory())
             assert(snap.overall.total==2 and SessionStats(snap,1).losses==1)
             assert(d.ReadLocalCapacity().history.used==2 and writes==0)
+            -- Cached read projections cannot escape as mutable aliases.
+            snap.history[1].outcome="lost";snap.overall.wins=0
+            local cap=d.ReadLocalCapacity();cap.history.used=0
+            assert(d.ReadLocalHistory().overall.wins==1 and d.ReadLocalCapacity().history.used==2 and writes==0)
+            -- A changed root with identical table identity must not be trusted.
+            local part0=c.clients[client];part0.runCounter=0
+            assert(not d.ReadLocalHistory() and not d.ReadLocalCapacity() and writes==0)
+            part0.runCounter=2
+            assert(d.ReadLocalHistory().overall.total==2 and d.ReadLocalCapacity().history.used==2)
             assert(d.Probe() and writes==1)
             local part=c.clients[client]
             assert(part.localHistory.version==raw.version and part.sessionStartIndex==1 and part.runCounter==2)

@@ -179,6 +179,14 @@ local function BuildNode(client,epoch,scope,population,data,ledger)
     function D.Save() local saved=Copy(data);saved.ledger=ledger.Save();return saved end
     -- Detached canonical evidence projection, independent of disk encoding.
     function D.ReadEvidence() return ledger.Snapshot(),Copy(data.clocks) end
+    -- Detached disk export of an already validated node. Storage may use
+    -- this only after opening the saved envelope itself; external proposals
+    -- still go through the full commit validation path.
+    function D.SaveDiskEvidence(segmented,includeClocks)
+        if scope~="PEER" then return nil,"wrong_scope" end
+        local packed=segmented and ledger.SaveSegmented() or ledger.SaveCompact()
+        return packed,includeClocks and Copy(data.clocks) or nil
+    end
     function D.MergeSaved(saved)
         local clean=Validate(client,saved,scope,population)
         if not clean then return false,"invalid_evidence" end
