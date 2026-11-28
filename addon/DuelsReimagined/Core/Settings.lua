@@ -204,6 +204,29 @@ function Settings.SetCharacterTitle(id)
     return true
 end
 
+-- Ordered cosmetic IDs, never achievement progress or a SavedVariables alias.
+function Settings.GetCharacterShowcase()
+    if not characterPreferencesLoaded then return nil,"Showcase preferences unavailable." end
+    local db=_G.DuelsReimaginedCharacterPreferences
+    if db==nil then return {} end
+    if type(db)~="table" or not ns.AchievementShowcase then return nil,"Showcase preferences unavailable." end
+    if db.showcase==nil then return {} end
+    local clean=ns.AchievementShowcase.Validate(db.showcase)
+    if not clean then return nil,"Showcase preferences unavailable." end
+    return clean
+end
+function Settings.SetCharacterShowcase(ids)
+    if not characterPreferencesLoaded or not ns.AchievementShowcase then return false end
+    local clean=ns.AchievementShowcase.Validate(ids)
+    if not clean then return false end
+    local db=_G.DuelsReimaginedCharacterPreferences
+    if db~=nil and type(db)~="table" then return false end
+    if not db and #clean==0 then return true end
+    if not db then db={};_G.DuelsReimaginedCharacterPreferences=db end
+    db.showcase=#clean>0 and clean or nil
+    return true
+end
+
 -- Patch Notes is account-wide presentation state, not a real addon version.
 -- The stable content ID is stored alongside other preferences, by this owner.
 -- One bounded account-wide acknowledgement. Preview never calls this.

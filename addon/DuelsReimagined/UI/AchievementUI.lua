@@ -128,6 +128,7 @@ local pointsPlaque=Crop(pointsPanel,"ARTWORK",1,0,784,384,126);pointsPlaque:SetA
 local pointsTitle=Label(pointsPanel,"Achievement Points",13,C.pale,"CENTER")
 local points=Label(pointsPanel,"0",29,C.pale,"CENTER")
 local status=Label(page,"",11,C.muted)
+local showcaseCount=Label(page,"Showcase: 0 / 3",12,C.gold,"RIGHT")
 local left=Panel(page);local categoryTitle=Label(left,"All Achievements",18,C.pale)
 local categoryEmblem=Icon(left)
 local list=CreateFrame("Frame",nil,page);if list.SetClipsChildren then list:SetClipsChildren(true) end
@@ -135,6 +136,7 @@ local empty=Label(list,"No achievements in this category",15,C.muted,"CENTER");e
 local tabs,filters,rows={}, {}, {}
 local category="All";local offset,visible,total=0,1,0
 local data,shown=false,false
+local showcaseModel
 local Render
 local function Select(cat)
     category=cat;offset=0;Render()
@@ -159,6 +161,10 @@ local function Row()
     f.medallion=Crop(f,"ARTWORK",1,768,274,128,92)
     f.points=Label(f,"",21,C.pale,"CENTER");f.pointsLabel=Label(f,"Points",11,C.text,"CENTER")
     f.state=Label(f,"",12,C.pale,"CENTER");f.when=Label(f,"",11,C.muted,"CENTER")
+    f.pin=ns.AchievementShowcaseUI.CreatePin(f,function()
+        Render()
+        if ns.CompetitiveUI and ns.CompetitiveUI.RefreshPlayerShowcase then ns.CompetitiveUI.RefreshPlayerShowcase() end
+    end)
     f:EnableMouseWheel(true);f:SetScript("OnMouseWheel",function(_,d)U.SetPageScroll(nil,offset-(d>0 and 1 or -1))end)
     f:Hide();return f
 end
@@ -209,11 +215,13 @@ local function Paint(f,r,w,h)
     f.state:SetTextColor(unpack(r.earned and C.pale or C.muted))
     local dateFn=date or (os and os.date)
     f.when:SetText(r.earned and (r.earnedAt and dateFn and dateFn("!%b %d, %Y",r.earnedAt) or "Date unavailable") or "")
+    Place(f.pin,f,w-37,h-36,30,28);f.pin.Paint(r,showcaseModel)
 end
 Render=function()
     if not shown or not data or not page:IsVisible() then return end
     local w,h=page:GetWidth(),page:GetHeight()
     if w<10 or h<10 then return end
+    showcaseModel=ns.AchievementShowcase.Model(data)
     local narrow=w<700;local heroW=narrow and 55 or 68
     Place(hero,page,0,2,heroW,heroW*80/112)
     Place(title,page,heroW+8,0,math.max(90,w*.48-heroW),34)
@@ -225,7 +233,9 @@ Render=function()
     Place(pointsTitle,pointsPanel,pw*.16,ph*.295,pw*.68,ph*.23)
     Place(points,pointsPanel,pw*.30,ph*.575,pw*.40,ph*.32)
     points:SetText(tostring(data.points))
-    Place(status,page,0,57,w,16)
+    Place(status,page,0,57,w-145,16)
+    Place(showcaseCount,page,w-140,57,140,16)
+    showcaseCount:SetText("Showcase: "..#showcaseModel.saved.." / 3")
     status:SetText(data.scope=="SIMULATED" and "SOLO TEST - SIMULATED" or data.storageReason and "Local history unavailable" or data.recordingDisabled and "Local recording disabled - achievements unavailable" or "Duel achievements - local records")
     if data.tournamentTest then
         status:SetText((data.tournamentScope=="SIMULATED" and "LOCAL TEST" or "PRIVATE NETWORK TEST").." - Tournament progress does not award achievement points")
@@ -287,13 +297,13 @@ end
 page:SetScript("OnSizeChanged",Render)
 page:SetScript("OnShow",function()if shown then U.Refresh()end end)
 page:HookScript("OnHide",function()
-    data=nil
+    data=nil;showcaseModel=nil
     for _,b in ipairs(tabs) do b.ResetMotion() end
     for _,b in ipairs(filters) do b.ResetMotion() end
 end)
 
 if ns.DiagnosticAudit then ns.DiagnosticAudit.RegisterUIRoot("Achievements",page) end
-return {Show=ShowPage,Refresh=RefreshPage,GetPageScroll=GetPageScroll,SetPageScroll=SetPageScroll}
+return {Show=ShowPage,Refresh=RefreshPage,Render=Render,GetPageScroll=GetPageScroll,SetPageScroll=SetPageScroll}
 end
 -- Art and notification evaluation remain available even before the page exists.
 function U.GetPageScroll()return view and view.GetPageScroll() or 0 end
@@ -302,6 +312,7 @@ function U.Refresh()
     if ns.Notifications and ns.Notifications.CheckAchievements then ns.Notifications.CheckAchievements() end
     if view then view.Refresh() end
 end
+function U.RefreshShowcase() if view then view.Render() end end
 function U.Show(on)
     if on==true and not view then view=BuildPage() end
     if view then view.Show(on) end

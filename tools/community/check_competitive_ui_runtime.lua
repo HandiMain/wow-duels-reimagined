@@ -122,8 +122,10 @@ assert(P.Command("start") and P.IsActive())
 assert(P.Get().personal.total==0)
 assert(loadfile(base.."Core/Achievements.lua"))("DuelsReimagined",ns)
 assert(loadfile(base.."Core/DuelistTitles.lua"))("DuelsReimagined",ns)
+assert(loadfile(base.."Core/AchievementShowcase.lua"))("DuelsReimagined",ns)
 assert(loadfile(base.."UI/PlayerShowcase.lua"))("DuelsReimagined",ns)
 assert(loadfile(base.."UI/DuelistTitleUI.lua"))("DuelsReimagined",ns)
+assert(loadfile(base.."UI/AchievementShowcaseUI.lua"))("DuelsReimagined",ns)
 assert(loadfile(base.."UI/CompetitiveUI.lua"))("DuelsReimagined",ns)
 local U=ns.CompetitiveUI
 local count=#frames
@@ -171,6 +173,7 @@ assert(HasText("Placement Matches") and HasText("0 / 5 completed"))
 assert(P.Get().storageReason and HasText("Local history unavailable"))
 assert(P.Get().current==0 and #P.Get().matches==0)
 assert(U.OpenMyProfile() and U.IsPlayerCardOpen() and HasText("Duelist Profile"))
+assert(HasText("Empty") and HasText("Achievement Showcase"))
 U.Refresh();assert(U.IsPlayerCardOpen());U.ClosePlayerCard()
 assert(not U.IsPlayerCardOpen())
 assert(U.OpenMyTitles() and HasText("0 / 40") and HasText("The Challenger") and HasText("Locked"))
@@ -206,6 +209,7 @@ local frameCount=#frames
 assert(frameCount>beforeAchievements,"first open constructs the view")
 assert(HasText("Achievements") and HasText("The Beginning") and HasText("SOLO TEST - SIMULATED"))
 assert(HasText("Unlocks title: The Challenger"))
+assert(HasText("Showcase: 0 / 3"))
 assert(not HasText("Completed"))
 assert(P.Command("win"))
 assert(HasText("Completed") and HasText("1 / 1"))
@@ -250,3 +254,44 @@ assert(reminder==true and #frames==patchAllocations)
 patchNS.PatchNotes.Show(nil);patchNS.PatchNotes.SetPageScroll("v0-1-2",50);patchNS.PatchNotes.RefreshReminder()
 assert(patchNS.PatchNotes.GetPageScroll("v0-1-2")==0 and #frames==patchAllocations)
 print("Deferred Patch Notes: PASS (unread reminder and hidden navigation allocate no view)")
+
+-- Real editor callbacks with isolated character choice and achievement data.
+-- These are injected local-shaped fixtures, not a live duel or a real unlock.
+local choices={"begin","first","double"}
+ns.Settings={GetCharacterShowcase=function()
+    local copy={};for i,id in ipairs(choices) do copy[i]=id end;return copy
+end,SetCharacterShowcase=function(ids)
+    choices={};for i,id in ipairs(ids) do choices[i]=id end;return true
+end}
+local awarded=ns.Achievements.Evaluate({scope="LOCAL",recordingDisabled=false,matches={
+    {id="one",kind="standard",outcome="won",time=1790000000},
+    {id="two",kind="standard",outcome="won",time=1790000001}
+}})
+local changed,cancelled=0,0
+local editor=ns.AchievementShowcaseUI.Create(main,{
+    edit=noop,customize=noop,browse=noop,
+    changed=function()changed=changed+1 end,cancel=function()cancelled=cancelled+1 end,
+})
+editor:SetSize(720,330);editor:Show()
+editor.Paint(ns.AchievementShowcase.Model(awarded),true,true,"LOCAL")
+assert(HasText("The Beginning") and HasText("First Blood") and HasText("Double Trouble"))
+local function Click(label)
+    for _,f in ipairs(frames) do
+        if f.text==label and f:IsVisible() and f.parent and f.parent.scripts.OnClick then
+            f.parent.scripts.OnClick(f.parent);return true
+        end
+    end
+    return false
+end
+assert(Click(">") and choices[1]=="begin","draft changed persistence before save")
+assert(Click("Save Showcase") and choices[1]=="first" and choices[2]=="begin")
+assert(changed==1 and cancelled==1)
+editor.Paint(ns.AchievementShowcase.Model(awarded),true,true,"LOCAL")
+assert(Click("Clear All") and #choices==3)
+assert(Click("Save Showcase") and #choices==0)
+assert(changed==2 and cancelled==2)
+editor.Paint(ns.AchievementShowcase.Model(awarded),true,true,"LOCAL")
+assert(HasText("Empty"))
+editor:Hide()
+ns.Settings=nil
+print("Achievement Showcase editor: PASS (three slots, staged reorder and clear, save callbacks)")

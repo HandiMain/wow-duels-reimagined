@@ -767,25 +767,23 @@ local tournamentInfo=Text(tournamentDetails,18,C.text)
 tournamentInfo:SetWordWrap(true)
 local tournamentNotice=Text(tournamentDetails,16,C.muted)
 tournamentNotice:SetWordWrap(true)
-local profileTabs={active="Overview",buttons={},badges={}}
+local profileTabs={active="Overview",buttons={}}
 profileTabs.titleText=Text(profileHero,15,C.gold)
 profileTabs.titles=ns.DuelistTitleUI.Create(profile,function()U.Refresh()end)
 local profileAwards=Header(profile,"Achievement Showcase")
-local awardEmpty=T(profileAwards,"No achievements earned yet",12,C.muted,"CENTER")
-local customize=Action(profileAwards,"Customize Profile",function()
-    card:Hide()
-    local item=ns.Search and ns.Search.entries and ns.Search.entries["setting:profileShowModel"]
-    if item then ns.Search.Open(item) else Go("options","options") end
-end)
-profileTabs.allAwards=Action(profileAwards,"View Achievements",function()
-    card:Hide();Go("achievements","achievements")
-end)
-for i=1,3 do
-    local holder=CreateFrame("Frame",nil,profileAwards)
-    local icon=holder:CreateTexture(nil,"ARTWORK")
-    icon:SetAllPoints(holder)
-    profileTabs.badges[i]={frame=holder,icon=icon,label=Text(profileAwards,10,C.muted,"CENTER")}
-end
+profileTabs.showcasePanel=ns.AchievementShowcaseUI.Create(profileAwards,{
+    edit=function()profileTabs.active="Achievements";profile.Render()end,
+    cancel=function()profileTabs.active="Overview";profile.Render()end,
+    browse=function()card:Hide();Go("achievements","achievements")end,
+    customize=function()
+        card:Hide()
+        local item=ns.Search and ns.Search.entries and ns.Search.entries["setting:profileShowModel"]
+        if item then ns.Search.Open(item) else Go("options","options") end
+    end,
+    changed=function()
+        if ns.AchievementUI and ns.AchievementUI.RefreshShowcase then ns.AchievementUI.RefreshShowcase() end
+    end,
+})
 for _,name in ipairs({"Overview","Statistics","Career","Achievements","Titles"}) do
     local key=name
     profileTabs.buttons[#profileTabs.buttons+1]=Action(profile,key,function()
@@ -806,37 +804,15 @@ local function ProfileMode(isTournament,own)
     profileGraphPanel:SetShown(overview or career)
     seasonsPanel:SetShown(career);opponentPanel:SetShown(stats)
     profileAwards:SetShown(overview or awards)
+    if not (overview or awards) then profileTabs.showcasePanel:Hide();profileTabs.showcasePanel.Reset() end
     tournamentDetails:SetShown(isTournament)
     for i,button in ipairs(profileTabs.buttons) do button:SetShown(not isTournament and (i~=5 or own==true)) end
 end
 local function PaintProfileAwards(d,own,w,h,value)
-    local badges={}
-    if own and not d.storageReason then
-        if type(value)=="table" then
-            for _,r in ipairs(value.rows or {}) do
-                if r.earned and not r.testOnly then badges[#badges+1]=r;if #badges==3 then break end end
-            end
-        end
-    end
-    awardEmpty:SetShown(#badges==0)
-    awardEmpty:SetText(not own and "Achievements not shared" or d.storageReason and "Achievements unavailable" or "No achievements earned yet")
-    Place(awardEmpty,profileAwards,8,36,math.max(1,w-158),math.max(22,h-45))
-    customize:SetShown(own and d.scope=="LOCAL")
-    Place(customize,profileAwards,w-144,math.max(30,h-34),134,26)
-    profileTabs.allAwards:SetShown(own and profileTabs.active=="Achievements")
-    Place(profileTabs.allAwards,profileAwards,w-144,38,134,26)
-    local size=math.min(42,math.max(20,h-58))
-    for i,entry in ipairs(profileTabs.badges) do
-        local r=badges[i]
-        entry.frame:SetShown(r~=nil);entry.label:SetShown(r~=nil)
-        if r then
-            Place(entry.frame,profileAwards,17+(i-1)*76,31,size,size)
-            Place(entry.label,profileAwards,4+(i-1)*76,31+size,70,15)
-            Set(entry.label,r.title)
-            if ns.AchievementUI then ns.AchievementUI.PaintAchievementIcon(entry.icon,r.id,false,entry.frame)
-            else entry.icon:SetTexture("Interface\\Icons\\"..r.icon) end
-        end
-    end
+    local model=ns.AchievementShowcase.Model(own and (value or {scope=d.scope,storageReason="unavailable"}) or nil)
+    local f=profileTabs.showcasePanel
+    Place(f,profileAwards,0,0,w,h);f:Show()
+    f.Paint(model,own,profileTabs.active=="Achievements",d.scope)
 end
 function profile.Render()
     ProfileMode(tournamentCard~=nil,not tournamentCard and Data()~=nil and profileId~=nil and profileId==Data().me)
@@ -920,7 +896,7 @@ function profile.Render()
     Set(profileMetrics[5].value,Streak(streak),streak and streak<0 and RED or GREEN);Set(profileMetrics[6].value,Streak(stat.bestStreak))
     local lowerH=math.max(122,math.min(177,h*.27))
     local graphY=overview and statY+70 or statY
-    local awardH=100
+    local awardH=118
     local graphH=math.max(100,h-graphY-(overview and awardH or lowerH)-10)
     Place(profileGraphPanel,profile,x,graphY,w,graphH)
     profileGraphTitle:SetText(d.current>0 and "Rating Progression — Season "..profileSeason or "Rating Progression")
@@ -974,6 +950,7 @@ OpenProfile=function(id)
     tournamentCard=nil
     profileTabs.active="Overview"
     profileTabs.titles.Reset()
+    profileTabs.showcasePanel.Reset()
     profileId=id
     profileSeason=active=="standings" and boardSeason or active=="overview" and preview.current or profileSeason
     profileChoice.SetChoice(profileSeason)
@@ -1000,7 +977,7 @@ end
 function U.CloseTournamentPlayerCard()
     if tournamentCard then card:Hide();tournamentCard=nil end
 end
-card:HookScript("OnHide",function()tournamentCard=nil;showcase.Stop() end)
+card:HookScript("OnHide",function()tournamentCard=nil;showcase.Stop();profileTabs.showcasePanel.Reset() end)
 profile:SetScript("OnSizeChanged",function(self)if card:IsShown() and (preview or tournamentCard) then self.Render()end end)
 -- Private history: display local observations, join only confirmed replay IDs.
 local history=Page("history","Match History","Your dueling journey, one match at a time.",-71)
