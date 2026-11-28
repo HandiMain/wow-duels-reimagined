@@ -166,7 +166,9 @@ local function Root(raw,kind,owner,scope,validator)
         if scope=="LOCAL" and not legacy and kind=="character" and v.localHistory~=nil then
             local history=ns.PersonalHistory.OpenLocal(k,owner,v.localHistory)
             if not history then return nil end
-            part.localHistory=history.Save()
+            -- Keep the original encoding during ordinary validation; only
+            -- an explicit new observation writes the compact representation.
+            part.localHistory=v.localHistory.version==2 and history.SaveCompact() or history.Save()
             for _,src in ipairs(part.localHistory.observations) do
                 local n=tonumber(src.run:match("^run%-(%d+)$"))
                 if not Count(n) or n==0 or n>part.runCounter or src.run~="run-"..n then return nil end
@@ -386,7 +388,7 @@ local function Build(read,write,client,identity,scope,privateFixture)
         if not h then return false,"invalid_history" end
         local ok,reason=h.Observe(run,r,agreement)
         if not ok then return false,reason end
-        cp.localHistory=h.Save()
+        cp.localHistory=h.SaveCompact()
         local clean=Root(c,"character",c.owner,scope,ValidateArchive)
         if not clean then return false,"invalid_history" end
         write(a,clean);return true
@@ -953,6 +955,35 @@ function P.RunSessionSelfTest()
     v=assert(SessionStats(h,5));assert(v.total==0 and v.winRate==nil and v.rating==nil)
     assert(not SessionStats(h,6));replay.scope="SIMULATED";assert(SessionStats(h,1,replay).rating==nil)
     h.scope="SIMULATED";assert(not SessionStats(h,0));assert(P.ReadSessionStats().state=="disabled" and not P.StartSession(true))
+    -- Both encodings must preserve run counters and the exact session row
+    -- boundary, including through a storage-owner write while gates are off.
+    for _,client in ipairs({"forever","retail"}) do
+        local me="Player-1-AAA"
+        local hist=assert(ns.PersonalHistory.OpenLocal(client,me))
+        local function R(n,out)
+            return {scope="LOCAL",client=client,id=n,kind="standard",opponent={guid="Player-2-BBB",display="Rival"},
+                acceptedAt=1,endedAt=2,outcome=out,endType="knockout",reason="matching_result_and_finish",
+                outcomeObserved=true,finishObserved=true,resultObserved=true,conflict=false,rankEligible=false}
+        end
+        assert(hist.Observe("run-1",R(1,"won")));assert(hist.Observe("run-2",R(1,"lost")))
+        for _,raw in ipairs({hist.Save(),hist.SaveCompact()}) do
+            local a,c,writes=nil,{version=VERSION,kind="character",owner=me,scope="LOCAL",clients={
+                [client]={probe=0,runCounter=2,sessionStartIndex=1,localHistory=raw}}},0
+            local d=Build(function()return a,c end,function(x,y)a=x;c=y;writes=writes+1 end,
+                function()return client end,function()return me end)
+            d.MarkLoaded()
+            local snap=assert(d.ReadLocalHistory())
+            assert(snap.overall.total==2 and SessionStats(snap,1).losses==1)
+            assert(d.ReadLocalCapacity().history.used==2 and writes==0)
+            assert(d.Probe() and writes==1)
+            local part=c.clients[client]
+            assert(part.localHistory.version==raw.version and part.sessionStartIndex==1 and part.runCounter==2)
+            assert(d.ReadLocalHistory().overall.wins==1)
+            assert(not d.RecordLocalObservation("run-2",R(2,"won")) and writes==1)
+            part.runCounter=1;assert(d.Snapshot().state=="unavailable" and not d.Probe() and writes==1)
+            part.runCounter=2;part.sessionStartIndex=3;assert(d.Snapshot().state=="unavailable" and writes==1)
+        end
+    end
     return true
 end
 function P.RunTournamentTestStorageSelfTest()

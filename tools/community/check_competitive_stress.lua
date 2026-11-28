@@ -231,6 +231,24 @@ for _,client in ipairs({"forever","retail"}) do
         for k,x in pairs(v) do n=n+Size(k)+Size(x)+4 end
         return n
     end
+    -- Local history is independent of the shared evidence budget. Exercise
+    -- exact compact local history roundtrip at the full character limit.
+    do
+        local localHistory=assert(ns.PersonalHistory.OpenLocal(client,owner))
+        for i=1,personal do
+            local r=Observation(i);r.scope="LOCAL";r.observedAt=epoch+i
+            r.opponent.display="Rival"
+            assert(localHistory.Observe("run-1",r))
+        end
+        local plain,packed=localHistory.Save(),localHistory.SaveCompact()
+        local reopened=assert(ns.PersonalHistory.OpenLocal(client,owner,packed))
+        assert(Equal(plain,reopened.Save()) and Equal(localHistory.Snapshot(),reopened.Snapshot()))
+        assert(Size(packed)<Size(plain))
+        local extra=Observation(personal+1);extra.scope="LOCAL"
+        local ok,why=reopened.Observe("run-1",extra);assert(not ok and why=="capacity")
+        print(string.format("%s: local history estimated serialized payload %d -> %d bytes; %d observations exact roundtrip PASS",
+            client,Size(plain),Size(packed),personal))
+    end
     local expandedBytes=Size(roots.clients[client].ledger)
     assert(OpenStorage().CompactEvidence() and writes==3)
     local compactBytes=Size(roots.clients[client].ledger)

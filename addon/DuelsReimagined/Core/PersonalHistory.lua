@@ -144,6 +144,19 @@ local function Build(client,me,ledger,cap,scope)
     function D.Save()
         return {version=1,scope=scope,client=client,character=me,observations=Copy(sources)}
     end
+    -- Lossless local disk encoding only; canonical sources and append order
+    -- remain owned by this history. A candidate session reconstructs only
+    -- the exact fixed agreement fields, never a remote result.
+    function D.SaveCompact()
+        if scope~="LOCAL" then return nil,"wrong_scope" end
+        local out={version=2,scope=scope,client=client,character=me,observations={}}
+        for i,src in ipairs(sources) do
+            local r=Copy(src.result)
+            r.scope=nil;r.client=nil;r.rankEligible=nil
+            out.observations[i]={run=src.run,result=r,session=src.agreement and src.agreement.session or nil}
+        end
+        return out
+    end
     function D.Snapshot()
         local matched,disputed={},{}
         if scope=="SIMULATED" then
@@ -210,7 +223,35 @@ end
 -- Local observations may carry their own PEER candidate statement, never a
 -- fixture or independently supplied ranking result.
 function P.OpenLocal(client,me,stored,cap)
-    return Open(client,me,nil,stored,cap,"LOCAL")
+    if type(stored)~="table" or stored.version~=2 then
+        return Open(client,me,nil,stored,cap,"LOCAL")
+    end
+    if stored.scope~="LOCAL" or stored.client~=client or stored.character~=me or type(stored.observations)~="table" then return nil,"schema" end
+    local d,why=Open(client,me,nil,nil,cap,"LOCAL")
+    if not d then return nil,why end
+    local n=0
+    for k in pairs(stored.observations) do
+        n=n+1;if not Cycle(k) or k>(cap or LIMIT) or n>(cap or LIMIT) then return nil,"invalid_observations" end
+    end
+    for i=1,n do
+        local src=stored.observations[i]
+        if type(src)~="table" or type(src.result)~="table" then return nil,"invalid_observation" end
+        -- Shallow reconstruction only; the canonical validator owns nested
+        -- metadata. No recursively copying an untrusted saved table.
+        local r={scope="LOCAL",client=client,rankEligible=false}
+        for k,v in pairs(src.result) do
+            if r[k]~=nil then return nil,"noncanonical_history" end
+            r[k]=v
+        end
+        local agreement
+        if src.session~=nil then
+            if type(src.session)~="string" then return nil,"invalid_observation" end
+            agreement={scope="PEER",state="candidate",candidate=true,rankEligible=false,session=src.session}
+        end
+        if not d.Observe(src.run,r,agreement) then return nil,"invalid_observation" end
+    end
+    if not EqualSaved(d.SaveCompact(),stored) then return nil,"noncanonical_history" end
+    return d
 end
 function P.RunSelfTest(emit)
     emit=type(emit)=="function" and emit or function()end
@@ -297,6 +338,36 @@ function P.RunSelfTest(emit)
         Case(client.." copy isolation and capacity",function()
             local d=Fixture(1);local r=R(1,"won",b);d.Observe("run",r);r.outcome="lost";local s=d.Snapshot();s.history[1].outcome="lost";s.overall.wins=0
             assert(not d.Observe("run",R(2,"lost",b)));assert(d.Snapshot().overall.wins==1 and d.Snapshot().history[1].outcome=="won")
+            assert(not d.SaveCompact())
+            local localHistory=assert(P.OpenLocal(client,a,nil,3))
+            local r1=R(1,"won",b);r1.scope="LOCAL";r1.observedAt=1000
+            r1.opponent.display="Rival";r1.opponent.metadata={scope="LOCAL",guid=b,name="Rival",fullName="Rival-Realm",realm="Realm",class="MAGE",faction="Alliance"}
+            local ag=Agreement(1);ag.scope="PEER"
+            assert(localHistory.Observe("run-1",r1,ag))
+            local r2=R(2,"fled",b);r2.scope="LOCAL";r2.duelMode="practice";r2.rankReason="practice_selected"
+            assert(localHistory.Observe("run-1",r2))
+            local r3=R(1,"won");r3.scope="LOCAL";r3.finishObserved=false;r3.endReason="finish_not_observed"
+            assert(localHistory.Observe("run-2",r3))
+            local plain,packed=localHistory.Save(),localHistory.SaveCompact()
+            assert(packed.version==2 and packed.observations[1].session==ag.session and not packed.observations[1].result.scope)
+            assert(plain.observations[1].agreement and plain.observations[1].result.opponent.metadata)
+            local reopened=assert(P.OpenLocal(client,a,packed,3))
+            assert(EqualSaved(plain,reopened.Save()) and EqualSaved(localHistory.Snapshot(),reopened.Snapshot()))
+            local before=reopened.Snapshot()
+            assert(before.overall.total==3 and before.overall.wins==1 and before.overall.losses==1 and before.overall.unknown==1)
+            assert(before.categories.pending.total==1 and before.history[1].statement and before.history[1].class=="MAGE")
+            assert(before.history[1].realm==(client=="retail" and "Realm" or nil))
+            local ok,why=reopened.Observe("run-1",r1,ag);assert(not ok and why=="duplicate")
+            ok,why=reopened.Observe("run-3",r1,ag);assert(not ok and why=="duplicate_session")
+            ok,why=reopened.Observe("run-3",r2);assert(not ok and why=="capacity")
+            assert(not P.OpenLocal(client,c,packed) and not P.OpenLocal(client,a,packed,2))
+            assert(not P.OpenSimulated(client,a,assert(ns.MatchLedger.OpenSimulated(client)),packed))
+            packed.observations[1].result.scope="LOCAL";assert(not P.OpenLocal(client,a,packed))
+            packed=reopened.SaveCompact();packed.observations[2].session=ag.session;assert(not P.OpenLocal(client,a,packed))
+            packed=reopened.SaveCompact();packed.observations[2]=nil;assert(not P.OpenLocal(client,a,packed))
+            packed=reopened.SaveCompact();packed.observations[1].result.extra=true;assert(not P.OpenLocal(client,a,packed))
+            packed=reopened.SaveCompact();packed.observations[1].result.opponent.metadata.extra=true;assert(not P.OpenLocal(client,a,packed))
+            assert(EqualSaved(plain,reopened.Save()))
         end)
     end
     Case("live history remains disabled",function()
