@@ -620,7 +620,9 @@ function Style.MenuButton(button,key,caption,opts)
             label:SetSize(tw,th);label:SetPoint("TOP",button,"TOP",0,-h*.565)
             Style.ConstrainText(label,tw,th,8)
         else
-            local ih=math.max(1,math.min(20,h*.76,w*.30/aspect))
+            -- Keep the compact icon from stealing the label's minimum
+            -- readable width when footer destinations share a smaller budget.
+            local ih=math.max(1,math.min(20,h*.76,w*.20/aspect))
             icon:SetSize(ih*aspect,ih)
             icon:SetPoint("LEFT",button,"LEFT",8,0)
             local inset=8+ih*aspect+5

@@ -72,7 +72,8 @@ local function CheckButton(key,title,primary,danger)
     local texCount=#b.textures
     b:SetSize(primary and 142 or 94,primary and 57 or 30)
     assert(#b.textures==texCount and #b.labels==1)
-    assert(v.label:GetUnboundedStringWidth()<=v.label.width and v.label.size<=v.label.height)
+    assert(v.label:GetUnboundedStringWidth()<=v.label.width and v.label.size<=v.label.height,
+        key.." label exceeds resized bounds: "..v.label:GetUnboundedStringWidth().."/"..v.label.width)
     return b,v
 end
 local buttons={}
