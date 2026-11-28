@@ -924,6 +924,27 @@ function P.RunPopulationSelfTest(emit)
             local exact=assert(OpenPeerEvidence(client,segmented,one))
             assert(Equal(exact.Save(),x.Save()) and Equal(exact.ReplaySeasonPeer({epoch=epoch,asOf=epoch+6}),before))
             assert(Equal(exact.DeltaSummary(),x.DeltaSummary()) and Equal(exact.Export("segment"),x.Export("segment")))
+            -- Both compact loaders and the old flat entry point must own
+            -- detached records, not retain mutable input or share node state.
+            for _,version in ipairs({3,4}) do
+                local input=assert(SavePeerEvidence(client,x,one,version))
+                local a1=assert(OpenPeerEvidence(client,input,one))
+                local a2=assert(OpenPeerEvidence(client,input,one))
+                local entry=version==4 and input.ledger.segments[ns.MatchLedger.SegmentForID(disputed.id)][disputed.id] or input.ledger.entries[disputed.id]
+                entry[1]="corrupt"
+                assert(not OpenPeerEvidence(client,input,one))
+                assert(Equal(a1.Save(),x.Save()) and Equal(a2.Save(),x.Save()))
+                Add(a1,one,7)
+                assert(not Equal(a1.Save(),a2.Save()) and Equal(a2.Save(),x.Save()))
+                local foreign=assert(SavePeerEvidence(client,y,two,version))
+                foreign.population=one
+                assert(not OpenPeerEvidence(client,foreign,one))
+            end
+            local flat=x.Save()
+            local flatNode=assert(ns.LeaderboardSync.OpenSeasonPeer(client,epoch,flat,one))
+            flat.ledger.entries[disputed.id][1].winner="corrupt"
+            flat.clocks[disputed.id][1][1]=0
+            assert(Equal(flatNode.Save(),x.Save()) and not ns.LeaderboardSync.OpenSeasonPeer(client,epoch,flat,one))
             -- Both live read paths use these format-independent projections.
             -- v3/v4 have no persisted clocks and v4 has no flat entries.
             assert(PeerEvidenceCount(nil)==0 and PeerEvidenceCount(part.peerEvidence)==1)

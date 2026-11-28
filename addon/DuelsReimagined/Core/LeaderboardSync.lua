@@ -88,6 +88,14 @@ local function PeerClocks(variants)
     for _,r in ipairs(variants) do out=MergeClocks(out,{{r.time1,r.time2}}) end
     return out
 end
+local function PopulationMatches(client,population,variants)
+    if population then
+        for _,r in ipairs(variants) do
+            if not ns.CompetitiveScope.SessionMatches(population,client,r.session) then return false end
+        end
+    end
+    return true
+end
 local function Validate(client,saved,scope,population)
     if type(saved)~="table" or saved.version~=VERSION or saved.scope~=scope or saved.client~=client
         or saved.rule~=RULE or type(saved.clocks)~="table" or type(saved.ledger)~="table" then return nil end
@@ -101,31 +109,18 @@ local function Validate(client,saved,scope,population)
     end
     if scope=="PEER" then
         for id,variants in pairs(clean.ledger.entries) do
-            if population then
-                for _,r in ipairs(variants) do if not ns.CompetitiveScope.SessionMatches(population,client,r.session) then return nil end end
-            end
+            if not PopulationMatches(client,population,variants) then return nil end
             if not Equal(clean.clocks[id],PeerClocks(variants)) then return nil end
         end
     end
     if not Equal(clean,saved) then return nil end
-    return clean
+    return clean,ledger
 end
-local function Open(client,saved,epoch,scope,population)
-    scope=scope or "SIMULATED"
-    local open=scope=="PEER" and ns.MatchLedger.OpenPeer or ns.MatchLedger.OpenSimulated
-    if client~="forever" and client~="retail" then return nil,"client" end
-    if epoch~=nil and not ns.SeasonRules.Schedule(epoch,epoch) then return nil,"invalid_schedule" end
-    if population~=nil and (scope~="PEER" or not ns.CompetitiveScope or not ns.CompetitiveScope.Code(population,client)) then return nil,"population" end
-    local data
-    if saved==nil then
-        data={version=VERSION,scope=scope,client=client,rule=RULE,
-            ledger=assert(open(client)).Save(),clocks={},population=population}
-    else data=Validate(client,saved,scope,population) end
-    if not data then return nil,"invalid_store" end
-    -- The ledger owns canonical records. Only incoming evidence is validated
-    -- during a merge; the existing ledger is opened once per isolated node.
-    local ledger=assert(open(client,data.ledger))
+-- Private constructor: only the validated flat/compact entry points below
+-- may supply a ledger. No public "trusted" argument or raw record bypass.
+local function BuildNode(client,epoch,scope,population,data,ledger)
     data.ledger=nil
+    local open=scope=="PEER" and ns.MatchLedger.OpenPeer or ns.MatchLedger.OpenSimulated
     local D={}
     local sortedIDs,deltaCache
     local revision=1
@@ -385,6 +380,20 @@ local function Open(client,saved,epoch,scope,population)
     end
     return D
 end
+local function Open(client,saved,epoch,scope,population)
+    scope=scope or "SIMULATED"
+    local open=scope=="PEER" and ns.MatchLedger.OpenPeer or ns.MatchLedger.OpenSimulated
+    if client~="forever" and client~="retail" then return nil,"client" end
+    if epoch~=nil and not ns.SeasonRules.Schedule(epoch,epoch) then return nil,"invalid_schedule" end
+    if population~=nil and (scope~="PEER" or not ns.CompetitiveScope or not ns.CompetitiveScope.Code(population,client)) then return nil,"population" end
+    local data,ledger
+    if saved==nil then
+        data={version=VERSION,scope=scope,client=client,rule=RULE,clocks={},population=population}
+        ledger=assert(open(client))
+    else data,ledger=Validate(client,saved,scope,population) end
+    if not data or not ledger then return nil,"invalid_store" end
+    return BuildNode(client,epoch,scope,population,data,ledger)
+end
 function P.OpenSimulated(client,saved) return Open(client,saved,nil,"SIMULATED") end
 function P.OpenSeasonSimulated(client,epoch,saved)
     if epoch==nil then return nil,"invalid_schedule" end
@@ -403,11 +412,17 @@ function P.OpenCompactSeasonPeer(client,epoch,compact,population,segmented)
     local open=segmented==true and ns.MatchLedger.OpenSegmentedPeer or ns.MatchLedger.OpenCompactPeer
     local ledger=open(client,compact)
     if not ledger then return nil,"invalid_compact" end
-    local saved=ledger.Save()
+    -- The compact decoder already validated every canonical record and
+    -- dispute ordering. Derive clocks and check every variant's population
+    -- before publishing the node, without exporting and reopening the ledger.
     local clocks={}
-    for id,variants in pairs(saved.entries) do clocks[id]=PeerClocks(variants) end
-    return P.OpenSeasonPeer(client,epoch,{version=VERSION,scope="PEER",client=client,rule=RULE,
-        ledger=saved,clocks=clocks,population=population},population)
+    for _,id in ipairs(ledger.ListIDs()) do
+        local variants=ledger.ReadVariants(id)
+        if not PopulationMatches(client,population,variants) then return nil,"invalid_store" end
+        clocks[id]=PeerClocks(variants)
+    end
+    local data={version=VERSION,scope="PEER",client=client,rule=RULE,clocks=clocks,population=population}
+    return BuildNode(client,epoch,"PEER",population,data,ledger)
 end
 function P.GetSnapshot() return {scope="LOCAL",state="disabled",rankEligible=false,version=VERSION} end
 function P.GetDiagnosticResources() return {pending=0,subscriptions=0,timers=0} end
