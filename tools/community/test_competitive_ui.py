@@ -54,7 +54,8 @@ class CompetitiveUI(unittest.TestCase):
         self.assertIn('rules.PLACEMENT_CREDIT',ui)
         self.assertIn('rules.MIN_RIVALS',ui)
         self.assertNotIn('Voidreign',p)
-        self.assertIn('function U.LowerRim(parent)',ui)
+        self.assertNotIn('function U.LowerRim(parent)',ui)
+        self.assertIn('Style.MenuButton(button, section.key, section.label, {primary=isPrimary})',read("UI/Navigation.lua"))
 
     def test_duel_mode_isolated_and_explained(self):
         ui=read("UI/CompetitiveUI.lua")

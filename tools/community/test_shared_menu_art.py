@@ -12,7 +12,7 @@ class SharedMenuArt(unittest.TestCase):
     def test_exact_extracted_rgba_assets(self):
         for path,size,sha in (
             ("Media/Skin/DRMenuPlates.png",(256,256),"cbafb33fb278c83f0f2f61772005e6a486684606"),
-            ("Media/Icons/DRMenuEmblems.png",(512,128),"f476a95bf65c440be92383af34815dbebc51f8b8"),
+            ("Media/Icons/DRMenuEmblems.png",(512,128),"d7a203ea7e66d82d38de78738a5d28f51486e263"),
         ):
             data=(A/path).read_bytes()
             self.assertEqual(data[:8],b"\x89PNG\r\n\x1a\n")

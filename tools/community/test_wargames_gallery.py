@@ -147,7 +147,7 @@ class ArenaGalleryTests(unittest.TestCase):
         self.assertIn('local favorites = Action("Favorites",108,"dark")',picker)
         self.assertIn('all.plate:SetStyle(not onlyFavorite and "gold" or "dark")',picker)
         self.assertIn('favorites.plate:SetStyle(onlyFavorite and "gold" or "dark")',picker)
-        self.assertIn('local close = Style.Action(footer, "Close", "footer")',window)
+        self.assertIn('Style.MenuButton(close,"close","Close",{danger=true})',window)
         self.assertIn('Style.Plate(button, "hall", { corner=9 })',style)
         self.assertLess(toc.index("UI\\Header.lua"),toc.index("UI\\WarGamesArenaPicker.lua"))
         self.assertNotIn('Action("X",23)',picker)

@@ -53,13 +53,14 @@ class UtilityRailTests(unittest.TestCase):
                                        "UI/Style.lua", "UI/Header.lua"))
         for token in ('local selected = Style.FeedbackOverlay(button',
                       'local hover = Style.FeedbackOverlay(button',
-                      'Motion.Fade(hover, active and 0.26 or',
-                      'ns.Widgets.PressFeedback(button, hover, {',
+                      'Style.MenuButton(button, section.key, section.label, {primary=isPrimary})',
                       'patchPulse:SetLooping("BOUNCE")',
                       'ns.Search.Register("page:" .. section.key',
                       'SetPatchUnread = function(unread)',
                       'SelectKey = function(sectionKey, pageKey)'):
             self.assertIn(token, n)
+        self.assertIn('ns.Motion.Fade(hover,selected:GetAlpha()>0 and .24 or .34', st)
+        self.assertIn('ns.Widgets.PressFeedback(button, hover, {', st)
         self.assertIn('entry.region:SetVertexColor(unpack(value))', st)
         self.assertIn('Window.body:Hide()', h)
         self.assertIn('Window.rail:Hide()', h)

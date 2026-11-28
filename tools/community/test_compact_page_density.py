@@ -34,8 +34,7 @@ class CompactPageDensityTests(unittest.TestCase):
         n = src("UI/Navigation.lua")
         for marker in (
             "button:SetSize(112, 30)",
-            "icon:SetSize(isPrimary and 48 or 20",
-            'Style.ConstrainButtonLabel(button, label, 34, 6, 9)',
+            'Style.MenuButton(button, section.key, section.label, {primary=isPrimary})',
             "sub:SetSize(174, 35)",
             "item.label:SetTextColor(unpack(active and C.tabText or C.text))",
             'Window.nav:SetScript("OnSizeChanged", FitSubTabs)',
