@@ -134,9 +134,8 @@ local function Open(client,saved,epoch,scope,population)
         if added then sortedIDs=nil end
         if deltaCache then
             local group=Group(id)
-            if added then
-                local ids=deltaCache.groups[group];ids[#ids+1]=id
-            end
+            -- A changed segment invalidates its checksum and unfinished
+            -- detached ID snapshot, including clock-only corrections.
             deltaCache.dirty[group]=true;deltaCache.partial[group]=nil
         end
     end
@@ -217,33 +216,24 @@ local function Open(client,saved,epoch,scope,population)
         for i=1,total do pages[i]=Page(token,i,ids,total) end
         return pages
     end
-    -- Prepare derived comparison work cooperatively. A mutation invalidates
-    -- only the affected group, including any unfinished hash of that group.
+    -- The ledger owns segment membership: no duplicate global ID index.
     local function InitDelta()
         if not deltaCache then
-            local groups,info={},{}
-            for i=1,GROUPS do groups[i]={};info[i]={count=0,a=1,b=1} end
-            deltaCache={groups=groups,info=info,dirty={},partial={},seed=IDs(),nextID=1}
+            local info,dirty={},{}
+            for i=1,GROUPS do info[i]={count=0,a=1,b=1};dirty[i]=true end
+            deltaCache={info=info,dirty=dirty,partial={}}
         end
         return deltaCache
     end
-    local function Partition(d,budget)
-        local used=0
-        while d.seed and d.nextID<=#d.seed and used<budget do
-            local id=d.seed[d.nextID];local g=Group(id);local ids=d.groups[g]
-            ids[#ids+1]=id;d.dirty[g]=true;d.nextID=d.nextID+1;used=used+1
-        end
-        if d.seed and d.nextID>#d.seed then d.seed=nil;d.nextID=nil end
-        work.indexed=work.indexed+used
-        return used
-    end
     local function Refresh(d,g,budget)
         if not d.dirty[g] or budget==0 then return 0 end
-        local ids=d.groups[g]
         local p=d.partial[g]
         if not p then
-            table.sort(ids);p={nextID=1,row={count=#ids,a=1,b=1}};d.partial[g]=p
+            local ids=assert(ledger.ListSegmentIDs(g))
+            work.indexed=work.indexed+#ids -- IDs copied/sorted, not hash budget
+            p={ids=ids,nextID=1,row={count=#ids,a=1,b=1}};d.partial[g]=p
         end
+        local ids=p.ids
         local row=p.row;local used=0
         while p.nextID<=#ids and used<budget do
             local id=ids[p.nextID]
@@ -262,30 +252,28 @@ local function Open(client,saved,epoch,scope,population)
         end
         work.records=work.records+used
         if p.nextID>#ids then
-            d.info[g]=row;d.dirty[g]=nil;d.partial[g]=nil;work.groups=work.groups+1
+            d.info[g]=row;d.dirty[g]=nil;d.partial[g]=nil
+            if row.count>0 then work.groups=work.groups+1 end
         end
         return used
     end
     local function Delta(group)
         local d=InitDelta()
-        Partition(d,LIMIT)
         if group then Refresh(d,group,LIMIT)
         else for g=1,GROUPS do Refresh(d,g,LIMIT) end end
         return d
     end
-    -- Explicit fixture work budget, NOT a time guarantee. Initial sorted ID
-    -- extraction and per-group sorting are still synchronous. No timer.
+    -- Bound records hashed per call, NOT elapsed time. Each newly visited
+    -- segment's detached ID list is still copied/sorted synchronously.
     function D.PrepareDelta(budget)
         if not epoch or not Int(budget,1,64) then return nil,"invalid_budget" end
         local d=InitDelta()
-        local used=Partition(d,budget)
-        if not d.seed then
-            for g=1,GROUPS do
-                if used>=budget then break end
-                used=used+Refresh(d,g,budget-used)
-            end
+        local used=0
+        for g=1,GROUPS do
+            if used>=budget then break end
+            used=used+Refresh(d,g,budget-used)
         end
-        return not d.seed and next(d.dirty)==nil,used
+        return next(d.dirty)==nil,used
     end
     function D.GetDeltaWork() return Copy(work) end
     local function Context()
@@ -332,7 +320,8 @@ local function Open(client,saved,epoch,scope,population)
         if not Equal(expected,d.info[group]) then return nil,"stale_group" end
         local total=math.ceil(expected.count/PAGE)
         if not Int(index,1,total) then return nil,"page" end
-        return Page(token,index,d.groups[group],total)
+        -- Only the requested segment; no interleaving between check and copy.
+        return Page(token,index,assert(ledger.ListSegmentIDs(group)),total)
     end
     -- Sender and request token are injected by a simulation, not authenticated
     -- WoW events. Accept only bounded pages; validate all before a merge.
@@ -732,6 +721,12 @@ function P.RunDeltaCacheSelfTest(emit,checkpoint)
         Case(client.." targeted exports and rejected pages preserve unaffected cache",function()
             local x=Node();local summary=x.DeltaSummary()
             local g=Group(Record(1).id)
+            local cold=Node()
+            assert(Equal(cold.ExportDeltaPage("cache",g,summary.groups[g],1),
+                x.ExportDeltaPage("cache",g,summary.groups[g],1)))
+            local cw=cold.GetDeltaWork()
+            assert(cw.groups==1 and cw.indexed==summary.groups[g].count and cw.records==summary.groups[g].count)
+            assert(Equal(cold.DeltaSummary(),summary))
             local other
             for i=2,32 do local k=Group(Record(i).id);if k~=g then other=i;break end end
             assert(other)
@@ -785,7 +780,7 @@ function P.RunPreparationSelfTest(emit)
                 local before=x.GetDeltaWork()
                 local ready,used=x.PrepareDelta(budget)
                 local after=x.GetDeltaWork()
-                assert(type(ready)=="boolean" and used<=budget and used==after.indexed-before.indexed+after.records-before.records)
+                assert(type(ready)=="boolean" and used<=budget and used==after.records-before.records)
                 if ready then return end
                 assert(used>0)
             end
@@ -800,19 +795,34 @@ function P.RunPreparationSelfTest(emit)
             local ready,used=x.PrepareDelta(1);assert(ready and used==0)
         end)
         Case(client.." mutations during indexing and hashing preserve exact parity",function()
-            local x=Node(32)
+            local first=Record(1);local g=Group(first.id)
+            local same,extra,other
+            for i=2,2048 do
+                local r=Record(i)
+                if Group(r.id)==g then
+                    if not same then same=i elseif not extra then extra=i end
+                elseif not other then other=i end
+                if same and extra and other then break end
+            end
+            assert(same and extra and other)
+            local x=Node(1);assert(x.Observe(Record(same),epoch+same,epoch+same))
             local ready,used=x.PrepareDelta(1);assert(not ready and used==1)
-            assert(x.Observe(Record(33),epoch+33,epoch+33))
+            local w=x.GetDeltaWork()
+            assert(w.indexed==2 and w.records==1 and w.groups==0)
+            -- Discard a partially hashed group, including new members and clocks.
             assert(x.Observe(Record(1,true),epoch+1,epoch+1))
-            -- Finish initial indexing, then hash exactly one record.
-            for _=1,31 do assert(select(2,x.PrepareDelta(1))==1) end
-            assert(select(2,x.PrepareDelta(1))==1)
-            assert(x.Observe(Record(1),epoch+2,epoch+2))
-            assert(x.Observe(Record(34),epoch+34,epoch+34))
-            Finish(x,3)
+            assert(x.Observe(Record(extra),epoch+extra,epoch+extra))
+            assert(x.Observe(Record(other),epoch+other,epoch+other))
+            assert(x.Observe(Record(same),epoch+same+1,epoch+same+1))
+            Finish(x,1)
             local fresh=assert(Open(client,x.Save(),epoch))
             assert(Equal(x.DeltaSummary(),fresh.DeltaSummary()))
-            assert(x.GetDeltaWork().indexed==32)
+            assert(x.GetDeltaWork().records==5 and x.GetDeltaWork().indexed==6)
+            -- Mutate a completed group after preparation has returned.
+            assert(x.Observe(Record(1),epoch+2,epoch+2))
+            Finish(x,1)
+            fresh=assert(Open(client,x.Save(),epoch))
+            assert(Equal(x.DeltaSummary(),fresh.DeltaSummary()))
         end)
         Case(client.." evidence revision changes only after accepted canonical mutation",function()
             local x=Node(1);local r=x.GetEvidenceRevision()

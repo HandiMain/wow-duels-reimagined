@@ -157,12 +157,15 @@ for _,client in ipairs({"forever","retail"}) do
             if ready then break end
             assert(used>0 and calls<=1024)
         end
-        assert(work==2*expected)
+        -- The old separate per-ID repartition pass is no longer needed.
+        assert(work==expected)
+        local counters=node.GetDeltaWork()
+        assert(counters.records==expected and counters.indexed==expected)
         return calls
     end
     local sourceCalls=Prepare(source,limit)
     local behindCalls=Prepare(behind,limit-5)
-    print(string.format("%s: budgeted cold preparation %d/%d calls, 32 record operations max per call; PASS",client,sourceCalls,behindCalls))
+    print(string.format("%s: segment-based cold preparation %d/%d calls, 32 record hashes max per call; PASS",client,sourceCalls,behindCalls))
     local plan=Transfer(assert(q.BeginSummary(a,t)),"summary_complete")
     assert(plan.different>=1 and plan.different<=5)
     local cold=behind.GetDeltaWork();assert(cold.records==limit-5)
