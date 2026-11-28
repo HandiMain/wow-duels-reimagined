@@ -35,7 +35,7 @@ function methods:ClearModel() self.unit=nil end
 function methods:SetFacing(v) self.facing=v end
 function methods:SetPortraitZoom(v) self.zoom=v end
 local function Frame(parent,kind)
-    local f=setmetatable({parent=parent,shown=true,scripts={},events={},kind=kind},{__index=function(_,k)return methods[k] or noop end})
+    local f=setmetatable({parent=parent,shown=true,scripts={},events={},kind=kind},{__index=function(_,k)return methods[k] or (type(k)=="string" and k:match("^[A-Z]") and noop or nil) end})
     frames[#frames+1]=f
     if kind=="PlayerModel" then models[#models+1]=f end
     return f
