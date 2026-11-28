@@ -36,12 +36,12 @@ local sections = {
           title = "War Games: Host / Spectate",
           subtitle = "Organize a private arena match as a spectator." },
     } },
-    { key = "addonstatus", label = "Addon Status", icon = "Community", pages = {
+    { key = "addonstatus", label = "Addon Status", icon = "Community", footerWidths = {112,136}, pages = {
         { key = "status", label = "Addon Status", addonStatus = true,
           title = "Addon Status",
           subtitle = "See which party or raid members are using Duels Reimagined." },
     } },
-    { key = "community", label = "Community", icon = "Community", pages = {
+    { key = "community", label = "Community", icon = "Community", footerWidths = {102,110}, pages = {
         { key = "community", label = "The Duelist's Circle", community = true,
           title = "The Duelist's Circle", subtitle = "The people shaping Duels Reimagined." },
         { key = "contributors", label = "Contributors", community = true,
@@ -53,8 +53,8 @@ local sections = {
         { key = "special-thanks", label = "Special Thanks", community = true,
           title = "Special Thanks", subtitle = "People we appreciate." },
     } },
-    { key = "patchnotes", label = "Patch Notes", icon = "PatchNotes", pages = {} },
-    { key = "options", label = "Options", icon = "Options", pages = {
+    { key = "patchnotes", label = "Patch Notes", icon = "PatchNotes", footerWidths = {98,124}, pages = {} },
+    { key = "options", label = "Options", icon = "Options", footerWidths = {82,104}, pages = {
         { key = "options", label = "Appearance", title = "Appearance",
           subtitle = "Make the interface your own." },
         { key = "interface", label = "Interface", title = "Interface",
@@ -223,8 +223,6 @@ local function Select(sectionIndex, pageIndex, noMotion, repaintOnly, isBack)
         else
             FadeSelection(item, on)
         end
-        item.bar:SetColorTexture(unpack(item.primary and C.gold or C.goldDim))
-        item.bar:SetShown(on)
         item.label:SetTextColor(unpack(on and C.tabText or C.tabMuted))
         -- Keep the Hall's blue/red faction accents intact.
         if item.icon.SetVertexColor then item.icon:SetVertexColor(1, 1, 1, 1) end
@@ -292,134 +290,11 @@ for index, section in ipairs(sections) do
         button:SetPoint("TOP", Window.rail, "TOP", 0, -31)
     else
         button:SetSize(112, 30)
-        utilityButtons[#utilityButtons + 1] = button
+        utilityButtons[#utilityButtons + 1] = {button=button, widths=section.footerWidths or {90,120}}
     end
 
-    -- Unlike the discarded procedurally painted plaque, this image is
-    -- extracted from the actual approved artwork. The button frame remains
-    -- responsible for mouse, selection, tooltip and navigation behavior.
-    if section.key == "hall" then
-        -- Exact Hall plaque is the only paint owner. Never paint a second
-        -- rim, bevel, glow or live icon beneath or above its baked artwork.
-        local artwork = Style.PlateImage(button, "hall", "ARTWORK", 2)
-        artwork:SetAllPoints(button)
-        -- Visible gilded hover using the SAME approved plaque artwork:
-        -- an additive highlight, not a replacement frame or new border.
-        -- It is separate from the existing press/selection owner.
-        local hallGlow = Style.PlateImage(button, "hall", "OVERLAY", 6)
-        hallGlow:SetAllPoints(button)
-        hallGlow:SetBlendMode("ADD")
-        hallGlow:SetVertexColor(1, 0.78, 0.48)
-        hallGlow:SetAlpha(0)
-        button.hallGlow = hallGlow
-        button:HookScript("OnHide", function()
-            Motion.Stop(hallGlow, 0)
-        end)
-    elseif section.key == "leaderboard" or section.key == "matchhistory" then
-        local artwork = ns.CompetitiveUI.Plaque(button,section.key,"ARTWORK",2)
-        local glow = ns.CompetitiveUI.Plaque(button,section.key,"OVERLAY",6)
-        artwork:SetAllPoints(button)
-        glow:SetAllPoints(button)
-        glow:SetBlendMode("ADD");glow:SetVertexColor(1,0.78,0.48);glow:SetAlpha(0)
-        button.hallGlow=glow
-        button:HookScript("OnHide",function() Motion.Stop(glow,0) end)
-    elseif section.key == "achievements" then
-        local artwork=ns.AchievementUI.Plaque(button,"ARTWORK",2)
-        local glow=ns.AchievementUI.Plaque(button,"OVERLAY",6)
-        artwork:SetAllPoints(button);glow:SetAllPoints(button)
-        glow:SetBlendMode("ADD");glow:SetVertexColor(1,.78,.48);glow:SetAlpha(0)
-        button.hallGlow=glow
-        button:HookScript("OnHide",function() Motion.Stop(glow,0) end)
-    elseif section.key == "tournaments" then
-        -- One finished plaque, extracted from the approved tournament hub.
-        -- The texture is padded to a power-of-two; sample only the artwork.
-        local path = "Interface\\AddOns\\DuelsReimagined\\Media\\Skin\\DuelTournamentPlate.png"
-        local artwork = button:CreateTexture(nil, "ARTWORK", nil, 2)
-        artwork:SetTexture(path)
-        artwork:SetTexCoord(0,192/256,0,78/128)
-        artwork:SetAllPoints(button)
-        Chrome.Sharp(artwork)
-        local glow = button:CreateTexture(nil, "OVERLAY", nil, 6)
-        glow:SetTexture(path)
-        glow:SetTexCoord(0,192/256,0,78/128)
-        glow:SetAllPoints(button)
-        Chrome.Sharp(glow)
-        glow:SetBlendMode("ADD")
-        glow:SetVertexColor(1,0.78,0.48)
-        glow:SetAlpha(0)
-        button.hallGlow=glow
-        button:HookScript("OnHide",function() Motion.Stop(glow,0) end)
-    elseif section.key == "wargames" then
-        -- The approved Coliseum War Games plate keeps its own arena emblem,
-        -- gold lettering with a safe lower inset, and Hall-matched framing.
-        -- This finished artwork is the sole paint owner: no duplicate label.
-        local path = "Interface\\AddOns\\DuelsReimagined\\Media\\Skin\\DuelWarGamesPlate.png"
-        local artwork = button:CreateTexture(nil, "ARTWORK", nil, 2)
-        artwork:SetTexture(path)
-        -- Retain the original artwork; repair only its clipped lower edge.
-        -- Never stack a second full rim on top of the approved art.
-        artwork:SetAllPoints(button)
-        Chrome.Sharp(artwork)
-        ns.CompetitiveUI.LowerRim(button)
-        local glow = button:CreateTexture(nil, "OVERLAY", nil, 6)
-        glow:SetTexture(path)
-        Chrome.Sharp(glow)
-        glow:SetAllPoints(button)
-        glow:SetBlendMode("ADD")
-        glow:SetVertexColor(1, 0.78, 0.48)
-        glow:SetAlpha(0)
-        button.hallGlow = glow
-        button:HookScript("OnHide", function() Motion.Stop(glow, 0) end)
-    else
-        -- Reusable live destinations/utility shortcuts have one plate.
-        Style.Plate(button, "dark", { corner=9 })
-    end
-    local selected, hover = AddOverlay(button, isPrimary)
-    local bar = button:CreateTexture(nil, "OVERLAY")
-    bar:SetColorTexture(unpack(C.gold))
-    if isPrimary then
-        bar:SetPoint("BOTTOMLEFT", button, "BOTTOMLEFT", 3, 0)
-        bar:SetPoint("BOTTOMRIGHT", button, "BOTTOMRIGHT", -3, 0)
-        bar:SetHeight(3)
-        bar:SetAlpha(0)  -- gold rim already exists in the actual image
-    else
-        bar:SetPoint("TOPLEFT", button, "TOPLEFT", 1, -12)
-        bar:SetPoint("BOTTOMLEFT", button, "BOTTOMLEFT", 1, 12)
-        bar:SetWidth(2)
-    end
-
-    -- All navigation glyphs use the same untinted icon atlas. This removes
-    -- Patch Notes' individually colored Lua strokes and preserves the four
-    -- original icon meanings while theme skins remain on the buttons.
-    local icon = Chrome.Icon(button, section.icon)
-    icon:SetSize(isPrimary and 48 or 20, isPrimary and 48 or 20)
-    local label = Style.Text(button,
-        isPrimary and string.upper(section.label) or section.label,
-        (section.key == "wargames" or section.key == "tournaments") and 20 or (isPrimary and 23 or 12),
-        C.tabMuted, nil, isPrimary and "display" or nil)
-    if isPrimary then
-        icon:SetPoint("TOP", button, "TOP", 0, -4)
-        label:SetPoint("BOTTOM", button, "BOTTOM", 0, 6)
-        label:SetJustifyH("CENTER")
-        -- Both primary plaques are finished images. Never draw extra
-        -- Blizzard font strings or small icons over the fixed artwork.
-        if isPrimary then
-            icon:Hide()
-            label:Hide()
-        end
-    else
-        icon:SetPoint("LEFT", button, "LEFT", 9, 0)
-        if section.key == "addonstatus" then
-            -- The approved group-check meaning using our existing icon art.
-            -- A small gold status jewel distinguishes it from Community.
-            local jewel = Style.Fill(button, C.gold, "OVERLAY")
-            jewel:ClearAllPoints()
-            jewel:SetSize(6, 6)
-            jewel:SetPoint("BOTTOMRIGHT", icon, "BOTTOMRIGHT", -1, 1)
-        end
-        Style.ConstrainButtonLabel(button, label, 34, 6, 9)
-        label:SetJustifyH("LEFT")
-    end
+    local visual=Style.MenuButton(button, section.key, section.label, {primary=isPrimary})
+    local selected,hover,icon,label=visual.selected,visual.hover,visual.icon,visual.label
 
     if section.key == "patchnotes" then
         -- Preserve the unread animation, not the old mismatched bitmap.
@@ -450,26 +325,6 @@ for index, section in ipairs(sections) do
     end
 
     button:SetScript("OnClick", function() Select(index, 1) end)
-    button:SetScript("OnEnter", function()
-        -- Hover is visible even on the currently selected destination.
-        -- Less glow on active buttons keeps the persistent selection clear.
-        local active = currentSection == index
-        Motion.Fade(hover, active and 0.26 or
-            (isPrimary and 0.34 or 0.40), Motion.Duration("quick"))
-        if button.hallGlow then
-            Motion.Fade(button.hallGlow, 0.30, Motion.Duration("quick"))
-        end
-    end)
-    button:SetScript("OnLeave", function()
-        Motion.Fade(hover, 0, Motion.Duration("gentle"))
-        if button.hallGlow then
-            Motion.Fade(button.hallGlow, 0, Motion.Duration("gentle"))
-        end
-    end)
-    ns.Widgets.PressFeedback(button, hover, {
-        corner=isPrimary and 13 or 9,
-        hoverAlpha=0.24, clickAlpha=isPrimary and 0.39 or 0.50,
-    })
     local unavailable = section.key == "wargames" and
         not ns.Client.IsRetail()
     ns.Tooltips.Bind(button, { title = section.label,
@@ -490,8 +345,8 @@ for index, section in ipairs(sections) do
 
     local item = {
         button = button, primary = isPrimary,
-        activeAlpha = isPrimary and 0.15 or 0.33,
-        selected = selected, hover = hover, bar = bar, icon = icon, label = label,
+        activeAlpha = isPrimary and 0.32 or 0.25,
+        selected = selected, hover = hover, icon = icon, label = label,
     }
     railButtons[index] = item
     if isPrimary then item.key=section.key;primaryButtons[#primaryButtons + 1] = item end
@@ -609,12 +464,21 @@ end)
 local function FitUtilityButtons()
     local ratio = math.max(0, math.min(1,
         (Window.frame:GetWidth() - 1050) / 190))
-    local minWidths = { 112, 102, 98, 82 }
-    local maxWidths = { 136, 110, 124, 104 }
     local gap = 5 + 3 * ratio
+    -- Reserve the established footer footprint; adding a destination does
+    -- not push Reset/Reload or Close out of the window. Widths are data.
+    local budget=409+89*ratio
+    local preferred,total={},0
+    for i,entry in ipairs(utilityButtons) do
+        local widths=entry.widths
+        preferred[i]=widths[1]+(widths[2]-widths[1])*ratio
+        total=total+preferred[i]
+    end
+    local factor=math.min(1,math.max(1,budget-gap*math.max(0,#utilityButtons-1))/math.max(1,total))
     local offset = 0
-    for i, item in ipairs(utilityButtons) do
-        local width = minWidths[i] + (maxWidths[i] - minWidths[i]) * ratio
+    for i,entry in ipairs(utilityButtons) do
+        local item=entry.button
+        local width=preferred[i]*factor
         item:SetWidth(width)
         item:ClearAllPoints()
         item:SetPoint("LEFT", Window.utility, "LEFT", offset, 0)

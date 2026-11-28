@@ -24,7 +24,7 @@ class VisualOwnerTests(unittest.TestCase):
         nav=lua("UI/Navigation.lua")
         options=lua("UI/Options.lua")
         header=lua("UI/Header.lua")
-        self.assertIn('Style.PlateImage(button, "hall", "ARTWORK", 2)',nav)
+        self.assertIn('Style.MenuButton(button, section.key, section.label, {primary=isPrimary})',nav)
         self.assertIn('Style.Plate(sub, "dark", { corner=10 })',nav)
         self.assertNotIn('Style.Skin(sub, C.nav',nav)
         self.assertNotIn('Style.Skin(button, C.button',nav)

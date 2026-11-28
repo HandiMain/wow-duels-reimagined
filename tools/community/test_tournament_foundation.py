@@ -25,13 +25,10 @@ class TournamentFoundation(unittest.TestCase):
         self.assertIn('local TOURNAMENT_TEST_ENABLED=false',read("Core/CompetitiveStorage.lua"))
     def test_tournament_plaque_has_single_art_owner(self):
         n=read("UI/Navigation.lua")
-        plaque=n.split('elseif section.key == "tournaments" then',1)[1].split('elseif section.key == "wargames" then',1)[0]
-        self.assertIn("DuelTournamentPlate.png",plaque)
-        self.assertIn('artwork:SetAllPoints(button)',plaque)
-        self.assertIn('glow:SetAllPoints(button)',plaque)
-        self.assertNotIn('Style.Plate(button',plaque)
-        self.assertNotIn('PaintEmblem',plaque)
-        self.assertTrue((A/"Media/Skin/DuelTournamentPlate.png").is_file())
+        self.assertIn('Style.MenuButton(button, section.key, section.label, {primary=isPrimary})',n)
+        self.assertIn('tournaments={135,67,114,46}',read("UI/Style.lua"))
+        self.assertNotIn('DuelTournamentPlate.png',n)
+        self.assertFalse((A/"Media/Skin/DuelTournamentPlate.png").exists())
         self.assertNotIn('FitEmblem',n)
     def test_storage_lifecycle_expected_count(self):
         d=read("Core/Diagnostics.lua")

@@ -70,7 +70,7 @@ class DuelHallArtworkTests(unittest.TestCase):
                       'function group:SetStyle(newKind)',
                       'DuelHallButton.tga','DuelAtlas.png'):
             self.assertIn(token,style)
-        self.assertIn('Style.PlateImage(button, "hall", "ARTWORK", 2)',nav)
+        self.assertIn('Style.MenuButton(button, section.key, section.label, {primary=isPrimary})',nav)
         self.assertNotIn('DuelHallLaurel.tga',nav)
         self.assertIn('DuelTabIcons.tga',nav)
         self.assertIn('item.plate:SetStyle(active and "gold" or "dark")',nav)

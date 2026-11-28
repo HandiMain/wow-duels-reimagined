@@ -17,7 +17,7 @@ class PremiumPolishTests(unittest.TestCase):
         w, n = get("UI/Window.lua"), get("UI/Navigation.lua")
         self.assertIn('utility:SetSize(360, 36)', w)
         self.assertIn('button:SetSize(112, 30)', n)
-        self.assertIn('icon:SetSize(isPrimary and 48 or 20', n)
+        self.assertIn('Style.MenuButton(button, section.key, section.label, {primary=isPrimary})', n)
         self.assertIn('Window.utility = utility', w)
         self.assertIn('local primaryKeys = { hall = true, leaderboard = true, matchhistory = true, achievements = true, tournaments = true, wargames = true }', n)
         self.assertNotIn('button:SetSize(90, 90)', n)

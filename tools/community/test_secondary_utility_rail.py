@@ -36,8 +36,8 @@ class UtilityRailTests(unittest.TestCase):
         self.assertIn('item.button:SetPoint("TOP",self,"TOP",0,-top)', n)
         self.assertIn('item:SetPoint("LEFT", Window.utility, "LEFT",', n)
         self.assertNotIn('button:SetSize(90, 90)', n)
-        self.assertIn('local icon = Chrome.Icon(button, section.icon)', n)
-        self.assertIn('Style.ConstrainButtonLabel(button, label, 34, 6, 9)', n)
+        self.assertIn('Style.MenuButton(button, section.key, section.label, {primary=isPrimary})', n)
+        self.assertIn('Style.MenuButton(button, section.key, section.label, {primary=isPrimary})', n)
 
     def test_native_appearance_interface_tabs_do_not_enter_gameplay_rail(self):
         n = read("UI/Navigation.lua")

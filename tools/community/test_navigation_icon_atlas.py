@@ -33,7 +33,7 @@ class NavigationIconAtlasTests(unittest.TestCase):
             self.assertIn(name + " " * (11 - len(name)) + "= " + coords, chrome)
         self.assertIn("tex:SetTexCoord(unpack(uv))", chrome)
         self.assertIn("tex:SetVertexColor(1, 1, 1, 1)", chrome)
-        self.assertIn('local icon = Chrome.Icon(button, section.icon)', nav)
+        self.assertIn('Style.MenuButton(button, section.key, section.label, {primary=isPrimary})', nav)
         self.assertNotIn("Style.TintedImage(icon", nav)
         self.assertNotIn("local parchment = Style.Fill(icon", nav)
 
@@ -43,19 +43,22 @@ class NavigationIconAtlasTests(unittest.TestCase):
             "button:SetSize(HALL_BUTTON_WIDTH, HALL_BUTTON_HEIGHT)",
             "local HALL_BUTTON_WIDTH, HALL_BUTTON_HEIGHT = 166, 68",
             "button:SetSize(112, 30)",
-            "icon:SetSize(isPrimary and 48 or 20",
-            'icon:SetPoint("TOP", button, "TOP", 0, -4)',
-            'label:SetPoint("BOTTOM", button, "BOTTOM", 0, 6)',
-            'Style.ConstrainButtonLabel(button, label, 34, 6, 9)',
+            'Style.MenuButton(button, section.key, section.label, {primary=isPrimary})',
             "local function FitTabs(self, width)",
             "FitSubTabs = function(self, width)",
             "FadeSelection(item, on)",
             'patchPulse:SetLooping("BOUNCE")',
             'button:SetScript("OnClick", function() Select(index, 1) end)',
-            "ns.Widgets.PressFeedback(button, hover, {",
             'ns.Search.Register("page:" .. section.key',
         ):
             self.assertIn(token, nav)
+        style = source("UI/Style.lua")
+        for token in ("local MENU_PLATES=", "local MENU_EMBLEMS=", "function Style.MenuButton(",
+                      'icon:SetPoint("TOP",button,"TOP",0,-h*.055)',
+                      'label:SetPoint("TOP",button,"TOP",0,-h*.565)',
+                      "Style.ConstrainText(label,tw,th,8)",
+                      "ns.Widgets.PressFeedback(button, hover, {"):
+            self.assertIn(token, style)
 
 
 if __name__ == "__main__":

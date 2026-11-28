@@ -535,6 +535,121 @@ function Style.ConstrainButtonLabel(button, label, left, right, minimum, refitOn
     return Anchor
 end
 
+-- Approved bronze navigation artwork, separated into one reusable plate
+-- atlas and independent emblems. No baked lettering or per-destination plate.
+local MENU_PLATES="Interface\\AddOns\\DuelsReimagined\\Media\\Skin\\DRMenuPlates.png"
+local MENU_EMBLEMS="Interface\\AddOns\\DuelsReimagined\\Media\\Icons\\DRMenuEmblems.png"
+local menuPlates={sidebar={2,2,202,84},footer={2,90,164,39},close={2,133,132,39}}
+local menuEmblems={
+    hall={7,3,114,42},leaderboard={135,3,114,42},matchhistory={263,3,114,42},
+    achievements={7,67,114,47},tournaments={135,67,114,46},wargames={263,67,114,47},
+    addonstatus={390,3,34,27},community={430,3,35,27},patchnotes={470,3,35,27},
+    options={390,43,33,27},close={430,43,35,27},
+}
+local function MenuTexture(button,path,layer,level)
+    local t=button:CreateTexture(nil,layer,nil,level)
+    t:SetTexture(path)
+    if ns.Chrome then ns.Chrome.Sharp(t) end
+    return t
+end
+local function MenuUV(t,x,y,w,h,aw,ah)
+    t:SetTexCoord(x/aw,(x+w)/aw,y/ah,(y+h)/ah)
+end
+local function MenuPlate(button,kind,level,glow)
+    local spec=menuPlates[kind]
+    local x,y,w,h=unpack(spec)
+    local textures={}
+    local function Tile(tx,tw)
+        local t=MenuTexture(button,MENU_PLATES,"ARTWORK",level)
+        MenuUV(t,tx,y,tw,h,256,256)
+        if glow then t:SetBlendMode("ADD");t:SetVertexColor(1,.82,.59) end
+        textures[#textures+1]=t
+        return t
+    end
+    if kind=="sidebar" then
+        Tile(x,w):SetAllPoints(button)
+    else
+        -- Stretch only the center strip; compact footer bevels never deform
+        -- when the label's width changes or more destinations are added.
+        local cap=12
+        local left,center,right=Tile(x,cap),Tile(x+cap,w-2*cap),Tile(x+w-cap,cap)
+        left:SetPoint("TOPLEFT",button,"TOPLEFT");left:SetPoint("BOTTOMLEFT",button,"BOTTOMLEFT");left:SetWidth(10)
+        right:SetPoint("TOPRIGHT",button,"TOPRIGHT");right:SetPoint("BOTTOMRIGHT",button,"BOTTOMRIGHT");right:SetWidth(10)
+        center:SetPoint("TOPLEFT",left,"TOPRIGHT");center:SetPoint("BOTTOMRIGHT",right,"BOTTOMLEFT")
+    end
+    local group={alpha=glow and 0 or 1}
+    function group:SetAlpha(value)
+        self.alpha=math.max(0,math.min(1,value or 0))
+        for _,t in ipairs(textures) do t:SetAlpha(self.alpha) end
+    end
+    function group:GetAlpha() return self.alpha end
+    group:SetAlpha(group.alpha)
+    return group
+end
+-- One shared renderer for every main sidebar/footer destination and Close.
+-- Future destinations specify a label and an atlas key, or supply an
+-- independent transparent emblem (opts.emblemTexture / emblemAspect).
+-- Navigation, page availability and clicks stay with their existing owners.
+function Style.MenuButton(button,key,caption,opts)
+    opts=opts or {}
+    local primary=opts.primary==true
+    local kind=primary and "sidebar" or opts.danger and "close" or "footer"
+    local base=MenuPlate(button,kind,-2,false)
+    local selected=MenuPlate(button,kind,-1,true)
+    local hover=MenuPlate(button,kind,0,true)
+    local spec=menuEmblems[key]
+    local icon=MenuTexture(button,opts.emblemTexture or (spec and MENU_EMBLEMS or "Interface\\Icons\\INV_Misc_QuestionMark"),"ARTWORK",3)
+    local aspect=opts.emblemAspect or 1
+    if spec and not opts.emblemTexture then
+        MenuUV(icon,spec[1],spec[2],spec[3],spec[4],512,128)
+        aspect=spec[3]/spec[4]
+    end
+    local label=Style.Text(button,primary and string.upper(caption) or caption,primary and 17 or opts.danger and 14 or 12,
+        primary and C.tabMuted or C.footerText,true)
+    label:SetJustifyH(primary and "CENTER" or "LEFT")
+    label:SetWordWrap(false)
+    local function Layout()
+        local w,h=button:GetWidth(),button:GetHeight()
+        if not ReadableNumber(w) or not ReadableNumber(h) or w<=0 or h<=0 then return end
+        icon:ClearAllPoints();label:ClearAllPoints()
+        if primary then
+            local ih=math.max(1,math.min(h*.52,w*.57/aspect))
+            icon:SetSize(ih*aspect,ih)
+            icon:SetPoint("TOP",button,"TOP",0,-h*.055)
+            local tw,th=math.max(1,w-12),math.max(1,h*.29)
+            label:SetSize(tw,th);label:SetPoint("TOP",button,"TOP",0,-h*.565)
+            Style.ConstrainText(label,tw,th,8)
+        else
+            local ih=math.max(1,math.min(20,h*.76,w*.30/aspect))
+            icon:SetSize(ih*aspect,ih)
+            icon:SetPoint("LEFT",button,"LEFT",8,0)
+            local inset=8+ih*aspect+5
+            local tw,th=math.max(1,w-inset-6),math.max(1,h-8)
+            label:SetPoint("LEFT",button,"LEFT",inset,0);label:SetSize(tw,th)
+            Style.ConstrainText(label,tw,th,8)
+        end
+    end
+    button:HookScript("OnSizeChanged",Layout)
+    button:RegisterForClicks("LeftButtonUp")
+    Layout()
+    button:HookScript("OnEnter",function(self)
+        if self:IsEnabled() then
+            ns.Motion.Fade(hover,selected:GetAlpha()>0 and .24 or .34,ns.Motion.Duration("quick"))
+        end
+    end)
+    button:HookScript("OnLeave",function()
+        ns.Motion.Fade(hover,0,ns.Motion.Duration("gentle"))
+    end)
+    -- Same event-driven press owner as every other interactive control.
+    -- The transient sheen uses this exact artwork, not a second border.
+    ns.Widgets.PressFeedback(button, hover, {
+        hoverAlpha=.24,clickAlpha=.38,
+        flashFactory=function() return MenuPlate(button,kind,1,true) end,
+    })
+    button.label,button.icon=label,icon
+    return {base=base,selected=selected,hover=hover,icon=icon,label=label}
+end
+
 -- Interactive buttons own native text/callbacks; only the decorative relief
 -- uses nine-sliced art, never image-based labels or hit targets.
 -- Optional fixed-brand palette keeps a specific action independent of theme

@@ -130,23 +130,17 @@ class WarGamesTests(unittest.TestCase):
 
     def test_same_sized_primary_skin_reuses_existing_art(self):
         nav=src("UI/Navigation.lua")
+        style=src("UI/Style.lua")
         self.assertIn("HALL_BUTTON_WIDTH, HALL_BUTTON_HEIGHT = 166, 68",nav)
         self.assertIn('button:SetSize(HALL_BUTTON_WIDTH, HALL_BUTTON_HEIGHT)',nav)
-        self.assertIn('Style.PlateImage(button, "hall", "ARTWORK", 2)',nav)
-        self.assertIn('DuelWarGamesPlate.png',nav)
-        self.assertIn('button.hallGlow = glow',nav)
-        self.assertNotIn('Style.Plate(button, "hall", { corner=14',nav)
-        self.assertIn('local icon = Chrome.Icon(button, section.icon)',nav)
-        self.assertIn('if isPrimary then',nav)
-        self.assertIn('icon:Hide()',nav)
-        self.assertIn('label:Hide()',nav)
-        self.assertNotIn('label:SetTextColor(unpack(C.pale))',nav)
-        self.assertNotIn('jewel:SetPoint("CENTER", icon',nav)
-        self.assertIn('if section.key == "hall" then',nav)
-        self.assertIn('elseif section.key == "wargames" then',nav)
-        self.assertNotIn("WarGamesPlaque.png",nav)
+        self.assertIn('Style.MenuButton(button, section.key, section.label, {primary=isPrimary})',nav)
+        self.assertIn('wargames={263,67,114,47}',style)
+        self.assertNotIn('DuelWarGamesPlate.png',nav)
+        self.assertNotIn('label:Hide()',nav)
+        self.assertNotIn('icon:Hide()',nav)
         self.assertFalse((ADDON/"Media/Artwork/WarGamesPlaque.png").exists())
-        self.assertTrue((ADDON/"Media/Skin/DuelWarGamesPlate.png").is_file())
+        self.assertFalse((ADDON/"Media/Skin/DuelWarGamesPlate.png").is_file())
+        self.assertTrue((ADDON/"Media/Icons/DRMenuEmblems.png").is_file())
 
     def test_no_overlapping_cards_and_no_duplicate_divider(self):
         ui=src("UI/WarGames.lua")
@@ -209,12 +203,12 @@ class WarGamesTests(unittest.TestCase):
             [sys.executable, str(ROOT/"tools/community/generate_wargames_plate.py"), "--check"],
             cwd=ROOT, capture_output=True, text=True, check=False)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-        self.assertIn("Coliseum War Games plaque matches approved artwork: PASS", result.stdout)
+        self.assertIn("Archived Coliseum War Games artwork: PASS", result.stdout)
         source = ROOT/"tools/community/artwork/WarGamesColiseumPlate.png"
         plate = ADDON/"Media/Skin/DuelWarGamesPlate.png"
         self.assertTrue(source.is_file())
-        self.assertEqual(source.read_bytes(), plate.read_bytes())
-        data = plate.read_bytes()
+        self.assertFalse(plate.exists())
+        data = source.read_bytes()
         self.assertEqual(data[:8], b"\x89PNG\r\n\x1a\n")
         self.assertEqual(struct.unpack_from(">IIBB", data, 16), (256, 128, 8, 6))
         self.assertEqual(

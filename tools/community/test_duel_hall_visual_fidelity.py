@@ -28,7 +28,7 @@ class VisualFidelityTests(unittest.TestCase):
         n = lua("UI/Navigation.lua")
         self.assertIn('local HALL_BUTTON_WIDTH, HALL_BUTTON_HEIGHT = 166, 68', n)
         self.assertIn('button:SetSize(HALL_BUTTON_WIDTH, HALL_BUTTON_HEIGHT)', n)
-        self.assertIn('Style.PlateImage(button, "hall", "ARTWORK", 2)', n)
+        self.assertIn('Style.MenuButton(button, section.key, section.label, {primary=isPrimary})', n)
         self.assertNotIn('DuelHallLaurel.tga', n)
         self.assertIn('railDivider:SetPoint("TOP",self,"TOP",0,-top+gap-3)', n)
         self.assertIn('Window.rail:SetScript("OnSizeChanged", FitTabs)', n)

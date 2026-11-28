@@ -76,7 +76,6 @@ local function Crop(p,layer,sub,x,y,w,h)
     local t=p:CreateTexture(nil,layer,nil,sub);ns.Chrome.Sharp(t)
     Sample(t,x,y,w,h);return t
 end
-function U.Plaque(p,layer,sub)return Crop(p,layer,sub,768,0,256,108) end
 local function Label(p,txt,size,color,align)
     local f=S.Text(p,txt,size,color);f:SetJustifyH(align or "LEFT");f:SetJustifyV("MIDDLE");f:SetWordWrap(false);return f
 end

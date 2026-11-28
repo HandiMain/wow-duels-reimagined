@@ -34,13 +34,13 @@ class AddonStatusUIContracts(unittest.TestCase):
 
     def test_responsive_footer_avoids_crowding(self):
         nav, foot = read("UI/Navigation.lua"), read("UI/Footer.lua")
-        self.assertIn('local minWidths = { 112, 102, 98, 82 }', nav)
-        self.assertIn('local maxWidths = { 136, 110, 124, 104 }', nav)
+        self.assertIn('footerWidths = {112,136}', nav)
+        self.assertIn('local budget=409+89*ratio', nav)
         self.assertIn('Window.utility:SetWidth(offset)', nav)
         self.assertIn('local function FitFooter()', foot)
         self.assertIn('frame:HookScript("OnSizeChanged", FitFooter)', foot)
         self.assertIn('reload:SetWidth(85 + 25 * ratio)', foot)
-        self.assertIn('Style.ConstrainButtonLabel(button, label, 34, 6, 9)', nav)
+        self.assertIn('Style.MenuButton(button, section.key, section.label, {primary=isPrimary})', nav)
 
     def test_custom_page_excludes_hall_art_and_uses_live_status(self):
         win, page = read("UI/Window.lua"), read("UI/AddonStatus.lua")

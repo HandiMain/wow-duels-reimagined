@@ -194,7 +194,8 @@ function Widgets.PressFeedback(button, hover, opts)
     function flash:SetAlpha(v)
         self.alpha=math.max(0,math.min(1,v or 0))
         if not painted and self.alpha>0 then
-            painted=Style.SkinMask(button,C.gold,"shine","OVERLAY",-1,opts.corner or 9,opts.inset or 2)
+            painted=opts.flashFactory and opts.flashFactory() or
+                Style.SkinMask(button,C.gold,"shine","OVERLAY",-1,opts.corner or 9,opts.inset or 2)
         end
         if painted then painted:SetAlpha(self.alpha) end
     end

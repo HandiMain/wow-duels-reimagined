@@ -567,8 +567,9 @@ function Window.SetSizingEnabled(on)
     grip:SetShown(on and true or false)
     resizeArt:SetShown(on and true or false)
 end
-local close = Style.Action(footer, "Close", "footer")
+local close = CreateFrame("Button", nil, footer)
 close:SetSize(105, 30)
+Style.MenuButton(close,"close","Close",{danger=true})
 -- Centered vertically, with safe padding from the actual interior boundary.
 -- The ornamental border corner stays clear of the working Close button.
 close:SetPoint("RIGHT", footer, "RIGHT", -64, 0)

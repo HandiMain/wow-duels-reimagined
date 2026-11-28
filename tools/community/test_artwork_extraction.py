@@ -60,15 +60,14 @@ class ArtworkExtractionTests(unittest.TestCase):
     def test_hall_texture_has_own_interactive_button(self):
         nav = lua("UI/Navigation.lua")
         for key in (
-            'if section.key == "hall" then',
-            'Style.PlateImage(button, "hall", "ARTWORK", 2)',
-            'icon:Hide()',
-            'label:Hide()',
+            'Style.MenuButton(button, section.key, section.label, {primary=isPrimary})',
             'button:SetScript("OnClick", function() Select(index, 1) end)',
             'ns.Search.Register("page:" .. section.key',
         ):
             self.assertIn(key, nav)
         self.assertNotIn('DuelHallLaurel.tga', nav)
+        self.assertNotIn('label:Hide()', nav)
+        self.assertNotIn('icon:Hide()', nav)
 
     def test_dynamic_settings_card_and_other_buttons_not_baked(self):
         options = lua("UI/Options.lua")

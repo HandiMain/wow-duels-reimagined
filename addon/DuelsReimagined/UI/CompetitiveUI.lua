@@ -12,22 +12,6 @@ local function Atlas(parent,layer,sub)
     local t=parent:CreateTexture(nil,layer or "ARTWORK",nil,sub or 1)
     t:SetTexture(ATLAS);ns.Chrome.Sharp(t);return t
 end
-function U.Plaque(parent,key,layer,sub)
-    local t=Atlas(parent,layer,sub)
-    local slot=key=="leaderboard" and 0 or key=="matchhistory" and 1 or 2
-    t:SetTexCoord(slot/4,(slot+1)/4,0.5,240/256)
-    return t
-end
--- Only the missing bottom strip of the approved rim, never a second
--- complete border over the War Games art.
-function U.LowerRim(parent)
-    local t=Atlas(parent,"ARTWORK",3)
-    t:SetTexCoord(.5,.75,232/256,240/256)
-    t:SetPoint("BOTTOMLEFT",parent,"BOTTOMLEFT",0,0)
-    t:SetPoint("BOTTOMRIGHT",parent,"BOTTOMRIGHT",0,0)
-    t:SetHeight(6)
-    return t
-end
 local function Place(f,parent,x,y,w,h)
     f:ClearAllPoints();f:SetPoint("TOPLEFT",parent,"TOPLEFT",x,-y)
     f:SetSize(math.max(1,w),math.max(1,h))
