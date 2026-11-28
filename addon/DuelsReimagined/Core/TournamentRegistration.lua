@@ -462,10 +462,7 @@ local function WireClient(scope,cache,clock,resolve,store)
     function D.Query(owner) return Begin(owner,"Q") end
     local function ArchiveFull()
         if not store or not store.privateArchive then return false end
-        local n=0;for _ in pairs(journal.participantCompleted or {}) do n=n+1 end
-        for _ in pairs(journal.archiveReceipts or {}) do n=n+1 end
-        local _,limit=ns.TournamentRecovery.ArchiveLimits(true)
-        return n>=limit
+        return ns.TournamentRecovery.ArchiveUsage(journal,true).participantAvailable==0
     end
     D.ArchiveFull=ArchiveFull
     function D.Join(owner,id)
@@ -1042,12 +1039,9 @@ local function DurableHost(s,h,clock,resolve,store)
         journal=saved;return true
     end
     function D.PublicationLimit()
-        local completed,cancelled=0,0
-        for _ in pairs(journal.completed or {}) do completed=completed+1 end
-        for _ in pairs(journal.cancelled or {}) do cancelled=cancelled+1 end
-        local hostLimit,_,cancelLimit=ns.TournamentRecovery.ArchiveLimits(store.privateArchive==true)
-        if completed>=hostLimit then return "Organizer history is full. Existing results are preserved." end
-        if cancelled>=cancelLimit then return "Organizer cancellation history is full. Existing records are preserved." end
+        local usage=ns.TournamentRecovery.ArchiveUsage(journal,store.privateArchive==true)
+        if usage.hosted>=usage.hostLimit then return "Organizer history is full. Existing results are preserved." end
+        if usage.cancelled>=usage.cancelLimit then return "Organizer cancellation history is full. Existing records are preserved." end
     end
     function D.Publish(d)
         if not Fresh() or journal.commitment or D.PublicationLimit() then return nil end
@@ -3454,7 +3448,27 @@ function R.RunPrivateNetworkSelfTest(emit,checkpoint)
                 assert(validate(client,actors[name].guid,journal,true).participantCompleted[ad.id].champion==winner)
                 local tampered=Copy(journal);tampered.participantCompleted[ad.id].champion=actors.host.guid
                 assert(not validate(client,actors[name].guid,tampered,true))
-                assert(validate(client,actors[name].guid,journal,true));Step()
+                assert(validate(client,actors[name].guid,journal,true))
+                -- A real fixture result at the shared receipt/result budget.
+                -- Replacing its receipt must remain possible at capacity.
+                local boundary=Copy(journal)
+                local _,limit=ns.TournamentRecovery.ArchiveLimits(true)
+                boundary.archiveReceipts=boundary.archiveReceipts or {}
+                for i=1,limit-1 do
+                    local other=actors.host.guid..":1700000000:"..i
+                    boundary.archiveReceipts[other]={owner=actors.host.guid,population=P.Key(s),revision=2}
+                end
+                local full=assert(validate(client,actors[name].guid,boundary,true))
+                assert(ns.TournamentRecovery.ArchiveUsage(full,true).participantAvailable==0)
+                local pending=Copy(full);pending.participantCompleted[ad.id]=nil
+                pending.archiveReceipts[ad.id]={owner=ad.owner,population=P.Key(s),revision=journal.participantCompleted[ad.id].revision}
+                assert(validate(client,actors[name].guid,pending,true))
+                full.revision=pending.revision+1
+                assert(ns.TournamentRecovery.Transition(pending,full,"archive_save",true))
+                assert(ns.TournamentRecovery.ArchiveUsage(pending,true).participantUsed==limit)
+                assert(ns.TournamentRecovery.ArchiveUsage(full,true).participantUsed==limit)
+                -- Original journal was never modified by the boundary fixture.
+                assert(ns.TournamentRecovery.ArchiveUsage(journal,true).participantUsed==1);Step()
             end
             -- The shared validator accepts only the marked, complete LOCAL result.
             local ctx={scope="PRIVATE_TEST",client=client,me=winner,peer=actors.two.guid,cycle=1,

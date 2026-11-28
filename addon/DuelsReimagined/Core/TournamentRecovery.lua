@@ -11,6 +11,22 @@ function R.ArchiveLimits(private)
     if private==true then return 64,256,512 end
     return 16,64,128
 end
+-- One capacity projection for validated journals, admission and transitions.
+-- A participant commitment reserves a slot until either its terminal receipt
+-- or its full result is retained. A receipt-to-result upgrade costs no slot.
+function R.ArchiveUsage(journal,private)
+    local hostLimit,participantLimit,cancelLimit=R.ArchiveLimits(private)
+    local function Count(t) local n=0;for _ in pairs(t or {}) do n=n+1 end;return n end
+    local results,receipts=journal.participantCompleted or {},journal.archiveReceipts or {}
+    local lock=journal.commitment
+    local reserved=private==true and lock and lock.role=="participant"
+        and not results[lock.id] and not receipts[lock.id] and 1 or 0
+    local used=Count(results)+Count(receipts)
+    return {hosted=Count(journal.completed),hostLimit=hostLimit,
+        cancelled=Count(journal.cancelled),cancelLimit=cancelLimit,
+        participantUsed=used,participantReserved=reserved,participantLimit=participantLimit,
+        participantAvailable=math.max(0,participantLimit-used-reserved)}
+end
 local function Copy(v)
     if type(v)~="table" then return v end
     local out={};for k,x in pairs(v) do out[k]=Copy(x) end;return out
@@ -376,8 +392,34 @@ function R.RunArchiveCapacitySelfTest()
         local copy=assert(validate(client,owner,raw,true))
         copy.archiveReceipts[other..":1700000000:1"].revision=99
         assert(validate(client,owner,raw,true).archiveReceipts[other..":1700000000:1"].revision==2)
+        local u=R.ArchiveUsage(copy,true)
+        assert(u.participantUsed==participant and u.participantReserved==0 and u.participantAvailable==0)
         raw.archiveReceipts[other..":1700000000:"..(participant+1)]={owner=other,population=population,revision=2}
         assert(not validate(client,owner,raw,true))
+        raw.archiveReceipts[other..":1700000000:"..(participant+1)]=nil
+        local event=other..":1700000000:"..participant
+        raw.archiveReceipts[event]=nil
+        local before=assert(validate(client,owner,raw,true))
+        assert(R.ArchiveUsage(before,true).participantAvailable==1)
+        local pending=Copy(before);pending.revision=1;pending.sequence=1
+        pending.commitment={role="participant",owner=other,id=event,population=population,status="pending"}
+        pending.pending={op="J",sequence=1}
+        assert(validate(client,owner,pending,true) and R.Transition(before,pending,"begin",true))
+        local reserved=R.ArchiveUsage(pending,true)
+        assert(reserved.participantUsed==participant-1 and reserved.participantReserved==1 and reserved.participantAvailable==0)
+        local checked=Copy(pending);checked.revision=2;checked.commitment.status="checked";checked.pending=nil
+        assert(validate(client,owner,checked,true))
+        local request=Copy(checked);request.revision=3;request.sequence=2;request.pending={op="S",sequence=2}
+        local terminal=Copy(request);terminal.revision=4;terminal.commitment=nil;terminal.pending=nil
+        terminal.archiveReceipts[event]={owner=other,population=population,revision=2}
+        assert(validate(client,owner,request,true) and validate(client,owner,terminal,true))
+        assert(R.Transition(request,terminal,"archive_terminal",true))
+        local filled=R.ArchiveUsage(terminal,true)
+        assert(filled.participantUsed==participant and filled.participantReserved==0 and filled.participantAvailable==0)
+        local rejected=Copy(terminal);rejected.revision=5;rejected.sequence=3
+        rejected.commitment={role="participant",owner=other,id=other..":1700000001:1",population=population,status="pending"}
+        rejected.pending={op="J",sequence=3}
+        assert(not R.Transition(terminal,rejected,"begin",true))
         raw.archiveReceipts=nil;raw.cancelled={}
         for i=1,cancel do raw.cancelled[owner..":1700000000:"..i]={population=population,revision=2} end
         assert(validate(client,owner,raw,true) and not R.Validate(client,owner,raw,false))
@@ -398,6 +440,11 @@ function R.Transition(old,new,action,private)
     local beforeReceipts,afterReceipts=old.archiveReceipts or {},new.archiveReceipts or {}
     if action=="archive_terminal" or action=="archive_query" or action=="archive_save" then
         if private~=true then return false end
+        local u,v=R.ArchiveUsage(old,true),R.ArchiveUsage(new,true)
+        -- These actions can only fulfill an existing reservation, never
+        -- consume a new one. Legacy individually valid over-budget journals
+        -- stay readable and may reconcile without increasing their usage.
+        if v.participantUsed+v.participantReserved>u.participantUsed+u.participantReserved then return false end
         local ignore={revision=true,participantCompleted=true,archiveReceipts=true}
         if action=="archive_terminal" then
             ignore.commitment=true;ignore.pending=true;ignore.privateSeat=true
@@ -529,11 +576,8 @@ function R.Transition(old,new,action,private)
         if after then return false end
     elseif not Equal(before,after) then return false end
     if action=="host_open" then
-        local n=0;for _ in pairs(expected) do n=n+1 end
-        local hostLimit,_,cancelLimit=R.ArchiveLimits(private)
-        if n>=cancelLimit then return false end
-        local completed=0;for _ in pairs(finished) do completed=completed+1 end
-        if completed>=hostLimit then return false end
+        local usage=R.ArchiveUsage({completed=finished,cancelled=expected},private)
+        if usage.cancelled>=usage.cancelLimit or usage.hosted>=usage.hostLimit then return false end
         return not old.commitment and not old.pending and not new.pending and new.commitment
             and new.commitment.role=="host" and y and y.host.ad.state=="open" and y.host.ad.revision==1
             and y.host.ad.count==0 and next(y.receipts)==nil and new.sequence==old.sequence+1
@@ -564,9 +608,7 @@ function R.Transition(old,new,action,private)
         if old.pending or not new.pending or new.sequence~=old.sequence+1 then return false end
         if new.pending.op=="J" then
             if private==true then
-                local _,limit=R.ArchiveLimits(true)
-                local n=0;for _ in pairs(beforeResults) do n=n+1 end;for _ in pairs(beforeReceipts) do n=n+1 end
-                if n>=limit then return false end
+                if R.ArchiveUsage(old,true).participantAvailable==0 then return false end
             end
             return not a and b and b.role=="participant" and b.status=="pending"
         end
