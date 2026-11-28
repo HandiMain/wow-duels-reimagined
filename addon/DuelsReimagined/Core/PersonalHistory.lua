@@ -3,7 +3,8 @@ local _,ns=...
 local P={}
 ns.PersonalHistory=P
 -- Separate character observation capacity; not a shared community ledger.
-local LIMIT=8192
+local LIMIT,PAGE=8192,128
+function P.GetPageSize() return PAGE end
 function P.GetCapacity() return LIMIT end
 function P.GetSnapshot() return {scope="LOCAL",state="disabled",rankEligible=false} end
 function P.GetDiagnosticResources() return {pending=0,subscriptions=0,timers=0} end
@@ -147,13 +148,45 @@ local function Build(client,me,ledger,cap,scope)
     -- Lossless local disk encoding only; canonical sources and append order
     -- remain owned by this history. A candidate session reconstructs only
     -- the exact fixed agreement fields, never a remote result.
+    local function CompactSource(src)
+        local r=Copy(src.result)
+        r.scope=nil;r.client=nil;r.rankEligible=nil
+        return {run=src.run,result=r,session=src.agreement and src.agreement.session or nil}
+    end
     function D.SaveCompact()
         if scope~="LOCAL" then return nil,"wrong_scope" end
         local out={version=2,scope=scope,client=client,character=me,observations={}}
+        for i,src in ipairs(sources) do out.observations[i]=CompactSource(src) end
+        return out
+    end
+    -- Fixed append-order pages, not timestamp partitions: late/unknown
+    -- clocks and session row boundaries must never reorder observations.
+    function D.SavePaged()
+        if scope~="LOCAL" then return nil,"wrong_scope" end
+        local out={version=3,scope=scope,client=client,character=me,count=#sources,pages={}}
         for i,src in ipairs(sources) do
-            local r=Copy(src.result)
-            r.scope=nil;r.client=nil;r.rankEligible=nil
-            out.observations[i]={run=src.run,result=r,session=src.agreement and src.agreement.session or nil}
+            local p=math.floor((i-1)/PAGE)+1
+            if not out.pages[p] then out.pages[p]={} end
+            local page=out.pages[p];page[#page+1]=CompactSource(src)
+        end
+        return out
+    end
+    function D.GetCount() return #sources end
+    function D.GetRunAt(i)
+        local src=Cycle(i) and sources[i] or nil
+        return src and src.run or nil
+    end
+    -- Detached local observation rows from one already validated history.
+    -- Candidate status here is local/pending, not a peer settlement claim.
+    function D.ReadLocalPage(index)
+        if scope~="LOCAL" then return nil,"wrong_scope" end
+        local total=math.ceil(#rows/PAGE)
+        if not Cycle(index) or index>math.max(1,total) then return nil,"page" end
+        local out={scope=scope,client=client,character=me,index=index,total=total,count=#rows,history={}}
+        for i=(index-1)*PAGE+1,math.min(index*PAGE,#rows) do
+            local r=Copy(rows[i])
+            r.category=r.matchID and "pending" or r.duelMode=="practice" and "practice" or "unranked"
+            out.history[#out.history+1]=r
         end
         return out
     end
@@ -222,35 +255,59 @@ function P.OpenSimulated(client,me,ledger,stored,cap)
 end
 -- Local observations may carry their own PEER candidate statement, never a
 -- fixture or independently supplied ranking result.
+local function ArrayCount(raw,max)
+    if type(raw)~="table" then return nil end
+    local n=0
+    for k in pairs(raw) do
+        n=n+1;if not Cycle(k) or k>max or n>max then return nil end
+    end
+    for i=1,n do if raw[i]==nil then return nil end end
+    return n
+end
+local function ObserveCompact(d,src,client)
+    if type(src)~="table" or type(src.result)~="table" then return false end
+    local r={scope="LOCAL",client=client,rankEligible=false}
+    for k,v in pairs(src.result) do
+        if r[k]~=nil then return false end
+        r[k]=v
+    end
+    local agreement
+    if src.session~=nil then
+        if type(src.session)~="string" then return false end
+        agreement={scope="PEER",state="candidate",candidate=true,rankEligible=false,session=src.session}
+    end
+    return d.Observe(src.run,r,agreement)
+end
 function P.OpenLocal(client,me,stored,cap)
-    if type(stored)~="table" or stored.version~=2 then
+    if type(stored)~="table" or (stored.version~=2 and stored.version~=3) then
         return Open(client,me,nil,stored,cap,"LOCAL")
     end
-    if stored.scope~="LOCAL" or stored.client~=client or stored.character~=me or type(stored.observations)~="table" then return nil,"schema" end
+    if stored.scope~="LOCAL" or stored.client~=client or stored.character~=me then return nil,"schema" end
     local d,why=Open(client,me,nil,nil,cap,"LOCAL")
     if not d then return nil,why end
-    local n=0
-    for k in pairs(stored.observations) do
-        n=n+1;if not Cycle(k) or k>(cap or LIMIT) or n>(cap or LIMIT) then return nil,"invalid_observations" end
-    end
-    for i=1,n do
-        local src=stored.observations[i]
-        if type(src)~="table" or type(src.result)~="table" then return nil,"invalid_observation" end
-        -- Shallow reconstruction only; the canonical validator owns nested
-        -- metadata. No recursively copying an untrusted saved table.
-        local r={scope="LOCAL",client=client,rankEligible=false}
-        for k,v in pairs(src.result) do
-            if r[k]~=nil then return nil,"noncanonical_history" end
-            r[k]=v
+    cap=cap or LIMIT
+    if stored.version==2 then
+        local n=ArrayCount(stored.observations,cap)
+        if not n then return nil,"invalid_observations" end
+        for i=1,n do
+            if not ObserveCompact(d,stored.observations[i],client) then return nil,"invalid_observation" end
         end
-        local agreement
-        if src.session~=nil then
-            if type(src.session)~="string" then return nil,"invalid_observation" end
-            agreement={scope="PEER",state="candidate",candidate=true,rankEligible=false,session=src.session}
+        if not EqualSaved(d.SaveCompact(),stored) then return nil,"noncanonical_history" end
+    else
+        local count=stored.count
+        if type(count)~="number" or count<0 or count>cap or count~=math.floor(count) then return nil,"invalid_count" end
+        local pages=ArrayCount(stored.pages,math.ceil(cap/PAGE))
+        if not pages or pages~=math.ceil(count/PAGE) then return nil,"invalid_pages" end
+        for p=1,pages do
+            local page=stored.pages[p]
+            local n=ArrayCount(page,PAGE)
+            if n~=math.min(PAGE,count-(p-1)*PAGE) then return nil,"invalid_page" end
+            for i=1,n do
+                if not ObserveCompact(d,page[i],client) then return nil,"invalid_observation" end
+            end
         end
-        if not d.Observe(src.run,r,agreement) then return nil,"invalid_observation" end
+        if not EqualSaved(d.SavePaged(),stored) then return nil,"noncanonical_history" end
     end
-    if not EqualSaved(d.SaveCompact(),stored) then return nil,"noncanonical_history" end
     return d
 end
 function P.RunSelfTest(emit)
@@ -368,6 +425,36 @@ function P.RunSelfTest(emit)
             packed=reopened.SaveCompact();packed.observations[1].result.extra=true;assert(not P.OpenLocal(client,a,packed))
             packed=reopened.SaveCompact();packed.observations[1].result.opponent.metadata.extra=true;assert(not P.OpenLocal(client,a,packed))
             assert(EqualSaved(plain,reopened.Save()))
+            local paged=reopened.SavePaged()
+            local p=assert(P.OpenLocal(client,a,paged,3))
+            assert(EqualSaved(plain,p.Save()) and EqualSaved(before,p.Snapshot()))
+            assert(EqualSaved(p.ReadLocalPage(1).history,before.history) and not p.ReadLocalPage(2))
+            assert(p.GetCount()==3 and p.GetRunAt(3)=="run-2" and not p.GetRunAt(4))
+            assert(not P.OpenLocal(client,c,paged) and not P.OpenLocal(client,a,paged,2))
+            assert(not P.OpenSimulated(client,a,assert(ns.MatchLedger.OpenSimulated(client)),paged))
+            paged.count=4;assert(not P.OpenLocal(client,a,paged))
+            paged=p.SavePaged();paged.pages[2]={};assert(not P.OpenLocal(client,a,paged))
+            paged=p.SavePaged();paged.pages[1][2]=nil;assert(not P.OpenLocal(client,a,paged))
+            paged=p.SavePaged();paged.pages[1][1].extra=true;assert(not P.OpenLocal(client,a,paged))
+            paged=p.SavePaged();paged.pages[1][1].result.scope="LOCAL";assert(not P.OpenLocal(client,a,paged))
+            local empty=assert(P.OpenLocal(client,a))
+            assert(empty.SavePaged().count==0 and #empty.SavePaged().pages==0)
+            assert(assert(P.OpenLocal(client,a,empty.SavePaged())).ReadLocalPage(1).total==0)
+            -- A winning streak and a session can cross page boundaries.
+            local many=assert(P.OpenLocal(client,a,nil,PAGE+1))
+            for i=1,PAGE+1 do
+                local x=R(i,"won",b);x.scope="LOCAL"
+                assert(many.Observe(i==PAGE+1 and "run-2" or "run-1",x))
+            end
+            local full=many.SavePaged()
+            assert(#full.pages==2 and #full.pages[1]==PAGE and #full.pages[2]==1)
+            local reopenedMany=assert(P.OpenLocal(client,a,full,PAGE+1))
+            assert(EqualSaved(many.Snapshot(),reopenedMany.Snapshot()))
+            assert(reopenedMany.Snapshot().overall.bestStreak==PAGE+1)
+            local tail=assert(reopenedMany.ReadLocalPage(2))
+            assert(#tail.history==1 and tail.history[1].run=="run-2")
+            tail.history[1].outcome="lost";assert(reopenedMany.ReadLocalPage(2).history[1].outcome=="won")
+            full.pages[2][1]=full.pages[1][1];assert(not P.OpenLocal(client,a,full))
         end)
     end
     Case("live history remains disabled",function()

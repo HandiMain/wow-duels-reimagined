@@ -107,6 +107,11 @@ local function TournamentJournal(client,owner,raw,private,validator)
     local r=ns.TournamentRecovery
     return r and (validator or r.Validate)(client,owner,raw,private)
 end
+-- Only called on roots already validated by PersonalHistory.OpenLocal.
+local function LocalHistoryCount(raw)
+    if not raw then return 0 end
+    return raw.version==3 and raw.count or #raw.observations
+end
 local function Root(raw,kind,owner,scope,validator)
     local clean={version=VERSION,kind=kind,owner=owner,scope=scope,clients={}}
     if raw==nil then return clean end
@@ -168,14 +173,17 @@ local function Root(raw,kind,owner,scope,validator)
             if not history then return nil end
             -- Keep the original encoding during ordinary validation; only
             -- an explicit new observation writes the compact representation.
-            part.localHistory=v.localHistory.version==2 and history.SaveCompact() or history.Save()
-            for _,src in ipairs(part.localHistory.observations) do
-                local n=tonumber(src.run:match("^run%-(%d+)$"))
-                if not Count(n) or n==0 or n>part.runCounter or src.run~="run-"..n then return nil end
+            if v.localHistory.version==3 then part.localHistory=history.SavePaged()
+            elseif v.localHistory.version==2 then part.localHistory=history.SaveCompact()
+            else part.localHistory=history.Save() end
+            for i=1,history.GetCount() do
+                local run=history.GetRunAt(i)
+                local n=tonumber(run:match("^run%-(%d+)$"))
+                if not Count(n) or n==0 or n>part.runCounter or run~="run-"..n then return nil end
             end
         end
         if scope=="LOCAL" and not legacy and kind=="character" and v.sessionStartIndex~=nil then
-            if not Count(v.sessionStartIndex) or v.sessionStartIndex>(part.localHistory and #part.localHistory.observations or 0) then return nil end
+            if not Count(v.sessionStartIndex) or v.sessionStartIndex>LocalHistoryCount(part.localHistory) then return nil end
             part.sessionStartIndex=v.sessionStartIndex
         end
         if scope=="LOCAL" and not legacy and kind=="account" and v.peerEvidence~=nil then
@@ -352,7 +360,7 @@ local function Build(read,write,client,identity,scope,privateFixture)
         local a,c,k,why=Pair();if not a then return false,why end
         local cp=c.clients[k] or {probe=0,runCounter=0}
         if cp.sessionStartIndex~=nil and not reset then return true end
-        cp.sessionStartIndex=cp.localHistory and #cp.localHistory.observations or 0
+        cp.sessionStartIndex=LocalHistoryCount(cp.localHistory)
         c.clients[k]=cp
         local clean=Root(c,"character",c.owner,scope,ValidateArchive)
         if not clean then return false,"invalid_history" end
@@ -388,7 +396,7 @@ local function Build(read,write,client,identity,scope,privateFixture)
         if not h then return false,"invalid_history" end
         local ok,reason=h.Observe(run,r,agreement)
         if not ok then return false,reason end
-        cp.localHistory=h.SaveCompact()
+        cp.localHistory=h.SavePaged()
         local clean=Root(c,"character",c.owner,scope,ValidateArchive)
         if not clean then return false,"invalid_history" end
         write(a,clean);return true
@@ -446,7 +454,7 @@ local function Build(read,write,client,identity,scope,privateFixture)
         local function Cap(used,limit)
             return {used=used,limit=limit,state=used>=limit and "full" or used>=limit*.9 and "near_capacity" or "available"}
         end
-        return {scope="LOCAL",policy="preserve_exact_evidence",history=Cap(cp.localHistory and #cp.localHistory.observations or 0,ns.PersonalHistory.GetCapacity()),
+        return {scope="LOCAL",policy="preserve_exact_evidence",history=Cap(LocalHistoryCount(cp.localHistory),ns.PersonalHistory.GetCapacity()),
             ledger=Cap(n,ns.MatchLedger.GetCapacity())}
     end
     function D.ReadPeerView(asOf)
@@ -966,7 +974,7 @@ function P.RunSessionSelfTest()
                 outcomeObserved=true,finishObserved=true,resultObserved=true,conflict=false,rankEligible=false}
         end
         assert(hist.Observe("run-1",R(1,"won")));assert(hist.Observe("run-2",R(1,"lost")))
-        for _,raw in ipairs({hist.Save(),hist.SaveCompact()}) do
+        for _,raw in ipairs({hist.Save(),hist.SaveCompact(),hist.SavePaged()}) do
             local a,c,writes=nil,{version=VERSION,kind="character",owner=me,scope="LOCAL",clients={
                 [client]={probe=0,runCounter=2,sessionStartIndex=1,localHistory=raw}}},0
             local d=Build(function()return a,c end,function(x,y)a=x;c=y;writes=writes+1 end,
