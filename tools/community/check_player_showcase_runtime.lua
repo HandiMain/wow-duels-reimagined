@@ -20,6 +20,7 @@ function methods:GetHeight()return 470 end
 function methods:SetSize(w,h)self.width,self.height=w,h end
 function methods:SetAtlas(name)self.atlas=name;self.texture=nil end
 function methods:SetTexture(t)self.texture=t;self.atlas=nil end
+function methods:GetTexture() if self.texture and self.texture~="missing" then return self.texture end end
 function methods:SetAlpha(a) self.alpha=a end
 function methods:GetAlpha() return rawget(self,"alpha") or 1 end
 function methods:GetFrameLevel() return self.level or 1 end
@@ -125,4 +126,18 @@ assert(#models==1 and pane:GetParent()==preview and HasTexture("scene.png") and 
 pane.Reparent(root);pane.Paint("Player-1-ME","LOCAL",identity)
 assert(#models==1 and crest:IsVisible())
 pane:Hide()
-print("Duelist character display: PASS (scope, unit identity, model fallback, input and hidden lifecycle)")
+local image=Frame(root,"texture")
+local oldAtlas=C_Texture
+C_Texture={GetAtlasInfo=function(name)
+    if name=="spec-thumbnail-priest-shadow" then return {width=128,height=256,leftTexCoord=.25,rightTexCoord=.5,topTexCoord=.1,bottomTexCoord=.9} end
+end}
+assert(P.PaintBackdrop(image,{atlas="spec-thumbnail-priest-shadow"},"Alliance",200,300)=="native")
+assert(image.atlas=="spec-thumbnail-priest-shadow" and image.uv[1]>=.25 and image.uv[2]<=.5 and image.uv[3]>=.1 and image.uv[4]<=.9)
+assert(P.PaintBackdrop(image,{atlas="not-present",native={"missing","real-art"}},"Alliance",200,300)=="native" and image.texture=="real-art")
+assert(P.PaintBackdrop(image,{native={"missing"},icon="real-icon"},"Alliance",200,300)=="alternate" and image.texture=="real-icon")
+assert(P.PaintBackdropMark(image,{figure="real-figure"},"Alliance",true)==1.5 and image.texture=="real-figure")
+assert(P.FactionForArt({faction="Horde"},"Alliance")=="Horde")
+assert(P.FactionForArt({id="faction"},"Alliance")=="Alliance")
+assert(not P.PaintBackdropMark(image,{figure="missing"},"Alliance",true) and not image:IsVisible())
+C_Texture=oldAtlas
+print("Duelist character display: PASS (scope, unit identity, native artwork, fallback, input and hidden lifecycle)")

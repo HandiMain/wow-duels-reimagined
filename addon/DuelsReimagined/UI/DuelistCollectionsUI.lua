@@ -15,14 +15,14 @@ local function Button(p,label,fn)
     local b=S.Action(p,label,"footer",{fill=C.nav,hover=C.selected,edge=C.goldDim,light=C.goldDim,dark=C.window,text=C.text,tooltip=false})
     b:SetScript("OnClick",fn);return b
 end
-function U.Create(parent,callbacks)
+function U.Create(parent,callbacks,owner)
     local f=CreateFrame("Frame",nil,parent)
     local title=Text(f,"Duelist Collections",22,C.pale)
     local subtitle=Text(f,"Earn cosmetic rewards through dueling.",12,C.muted)
     local count=Text(f,"",15,C.gold,"RIGHT")
     local categories,filters,tiles={},{},{}
     local model,identity,playerId,scope
-    local kind,filter,offset,visible,total="background","All",0,6,0
+    local kind,filter,group,offset,visible,total="background","All","All",0,6,0
     local selected,render
     local list=CreateFrame("Frame",nil,f)
     if list.SetClipsChildren then list:SetClipsChildren(true) end
@@ -44,13 +44,20 @@ function U.Create(parent,callbacks)
         local k,label=pair[1],pair[2]
         categories[#categories+1]={key=k,label=label,button=Button(f,label,function()
             if k=="title" then callbacks.titles();return end
-            kind=k;filter="All";offset=0;selected=nil;render()
+            kind=k;filter="All";group="All";offset=0;selected=nil;W.CloseChoices();render()
         end)}
     end
     for _,key in ipairs({"All","Collected","Locked"}) do
         local k=key
-        filters[#filters+1]={key=k,button=Button(f,key,function()filter=k;offset=0;render()end)}
+        filters[#filters+1]={key=k,button=Button(f,key,function()filter=k;selected=nil;offset=0;render()end)}
     end
+    local groupControl,groupLabel=W.ChoiceControl(f,180,{fontSize=12})
+    groupControl:SetScript("OnClick",function()
+        if not model or kind~="background" then return end
+        W.OpenChoices(groupControl,K.Groups(model),group,function(key)
+            group=key;selected=nil;offset=0;render()
+        end,owner or parent)
+    end)
     local equip=Button(details,"Equip",function()
         if not selected or not model then return end
         local r=model.byKind[kind][selected]
@@ -97,22 +104,36 @@ function U.Create(parent,callbacks)
             item.button:SetAlpha(item.key==filter and 1 or .72)
             Place(item.button,f,(i-1)*(left/3+1),86,left/3-4,25)
         end
-        local listH=math.max(1,h-144)
-        Place(list,f,0,116,left,listH)
-        local filtered={}
+        local grouped=kind=="background"
+        groupControl:SetShown(grouped)
+        if grouped then
+            local choices=K.Groups(model)
+            local label
+            for _,choice in ipairs(choices) do if choice.key==group then label=choice.label;break end end
+            if not label then group="All";label="All backgrounds";selected=nil;offset=0 end
+            groupLabel:SetText(label)
+            Place(groupControl,f,0,116,left-4,25)
+        end
+        local listY=grouped and 146 or 116
+        local listH=math.max(1,h-listY-28)
+        Place(list,f,0,listY,left,listH)
+        local filtered,matching={},{}
         for _,r in ipairs(model.rows) do
-            if r.kind==kind and (filter=="All" or (filter=="Collected" and r.earned) or (filter=="Locked" and not r.earned)) then filtered[#filtered+1]=r end
+            if r.kind==kind and (not grouped or K.InGroup(r,group)) and
+                (filter=="All" or (filter=="Collected" and r.earned) or (filter=="Locked" and not r.earned)) then
+                filtered[#filtered+1]=r;matching[r.id]=r
+            end
         end
         total=#filtered
         local tw=math.max(1,(left-24)/2)
         local th=math.max(80,math.min(108,math.floor(listH/3)-5))
         visible=math.max(2,math.min(#tiles,math.floor(listH/(th+5))*2))
         offset=math.max(0,math.min(math.floor(offset or 0),math.max(0,total-visible)))
-        if not selected or not model.byKind[kind][selected] then
-            selected=model.equipped[kind]
+        if not selected or not matching[selected] then
+            local first=matching[model.equipped[kind]] or filtered[1]
+            selected=first and first.id or nil
         end
-        local chosen=model.byKind[kind][selected]
-        if not chosen then chosen=filtered[1] end
+        local chosen=selected and matching[selected]
         for i,tile in ipairs(tiles) do
             local r=i<=visible and filtered[offset+i] or nil
             tile.item=r;tile:SetShown(r~=nil)
@@ -125,13 +146,12 @@ function U.Create(parent,callbacks)
                 local bg=r.kind=="background" and r or K.Art("background",model.equipped.background)
                 P.PaintBackdrop(tile.art,bg,faction,tw-18,th-37)
                 P.PaintBorder(tile.trim,r.kind=="border" and r or nil)
-                tile.crest:Hide()
-                if bg and bg.id=="faction" then
-                    local aspect=P.PaintFactionCrest(tile.crest,faction)
-                    local ch=math.max(1,th-40)
+                local aspect=P.PaintBackdropMark(tile.crest,bg,faction,true)
+                if aspect then
+                    local ch=math.max(1,math.min(th-40,(tw-18)/aspect))
                     Place(tile.crest,tile.picture,(tw-8-ch*aspect)/2,4,ch*aspect,ch)
-                    tile.crest:SetAlpha(.6)
                 end
+                tile.crest:SetDesaturated(not r.earned)
                 tile.art:SetDesaturated(not r.earned)
                 tile.art:SetAlpha(r.earned and 1 or .67)
                 Place(tile.label,tile,3,th-22,tw-6,19)
@@ -150,7 +170,8 @@ function U.Create(parent,callbacks)
         Place(preview,details,8,20,right-16,previewH-16)
         local appearance={background=K.Art("background",model.equipped.background),border=K.Art("border",model.equipped.border)}
         if chosen then appearance[kind]=chosen end
-        callbacks.preview(preview,playerId,scope,identity,appearance)
+        local mode=callbacks.preview(preview,playerId,scope,identity,appearance)
+        previewLabel:SetText(mode=="alternate" and "PREVIEW - alternate native artwork" or "PREVIEW")
         Place(name,details,6,previewH+7,right-12,24);name:SetText(chosen and chosen.name or "Select a collectible")
         Place(requirement,details,6,previewH+32,right-12,36);requirement:SetText(chosen and chosen.requirement or "")
         Place(state,details,6,previewH+68,right-12,16)
@@ -165,8 +186,8 @@ function U.Create(parent,callbacks)
         notice:SetText(scope=="SIMULATED" and "Preview only - test rewards do not unlock cosmetics." or not model.editable and "Collection preferences unavailable." or "Select any collectible to preview it.")
         render()
     end
-    function f.Reset()model=nil;identity=nil;playerId=nil;selected=nil;kind="background";filter="All";offset=0 end
+    function f.Reset()model=nil;identity=nil;playerId=nil;selected=nil;kind="background";filter="All";group="All";offset=0 end
     f:SetScript("OnSizeChanged",render)
-    f:SetScript("OnHide",function()model=nil;identity=nil;playerId=nil end)
+    f:SetScript("OnHide",function()model=nil;identity=nil;playerId=nil;W.CloseChoices()end)
     f:Hide();return f
 end

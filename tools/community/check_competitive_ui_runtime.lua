@@ -183,8 +183,8 @@ assert(not U.IsPlayerCardOpen())
 assert(U.OpenMyTitles() and HasText("0 / 40") and HasText("The Challenger") and HasText("Locked"))
 assert(HasText("Complete your first duel."))
 U.ClosePlayerCard();assert(not U.IsPlayerCardOpen())
-assert(U.OpenMyCollections() and HasText("Duelist Collections") and HasText("Collected: 3 / 54"))
-assert(HasText("Classic Bronze") and HasText("Faction Pride"))
+assert(U.OpenMyCollections() and HasText("Duelist Collections") and HasText("Collected: 45 / 106"))
+assert(HasText("Classic Bronze") and HasText("Faction Pride (Auto)"))
 U.ClosePlayerCard();assert(not U.IsPlayerCardOpen())
 assert(P.Command("start"))
 for i=1,5 do assert(P.Command("win")) end
@@ -316,13 +316,23 @@ local gallery=ns.DuelistCollectionsUI.Create(main,{
 })
 gallery:SetSize(748,475);gallery:Show()
 gallery.Paint(Cx.Model({scope="LOCAL",recordingDisabled=true}),"Player-1-LOCAL",{faction="Alliance"})
-assert(HasText("Collected: 3 / 54") and previewed.background.id=="faction")
-assert(Click("Blood and Steel") and previewed.background.id=="blood")
+assert(HasText("Collected: 45 / 106") and previewed.background.id=="faction")
+assert(Click("Locked") and Click("Blackrock Depths") and previewed.background.id=="blood")
 assert(not cosmetic.background,"preview persisted a locked cosmetic")
 assert(Click("Equip") and not cosmetic.background and not refreshes)
-assert(Click("Classic Bronze") and previewed.background.id=="bronze")
+assert(Click("All") and Click("Classic Bronze") and previewed.background.id=="bronze")
 assert(Click("Equip") and cosmetic.background=="bronze" and refreshes==1)
 gallery.Paint(Cx.Model({scope="LOCAL",recordingDisabled=true}),"Player-1-LOCAL",{faction="Alliance"})
 assert(Click("Remove") and not cosmetic.background and refreshes==2)
+local oldChoices=ns.Widgets.OpenChoices
+ns.Widgets.OpenChoices=function(_,choices,_,choose)
+    local found=false
+    for _,entry in ipairs(choices) do if entry.key=="Priest" then found=true end end
+    assert(found);choose("Priest")
+end
+assert(Click("All backgrounds") and HasText("Priest"))
+assert(HasText("Discipline Priest") and HasText("Holy Priest") and HasText("Shadow Priest") and not HasText("Classic Bronze"))
+assert(Click("Shadow Priest") and previewed.background.spec==258 and not cosmetic.background)
+ns.Widgets.OpenChoices=oldChoices
 gallery:Hide();ns.Settings=nil
-print("Duelist Collections gallery: PASS (locked preview, explicit equip and remove)")
+print("Duelist Collections gallery: PASS (class groups, locked preview, explicit equip and remove)")

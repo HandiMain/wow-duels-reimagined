@@ -775,9 +775,9 @@ profileTabs.collections=ns.DuelistCollectionsUI.Create(profile,{
     changed=function()U.Refresh()end,
     preview=function(host,id,scope,info,appearance)
         showcase.Reparent(host);showcase:ClearAllPoints();showcase:SetAllPoints(host)
-        showcase:Show();showcase.Paint(id,scope,info,appearance)
+        showcase:Show();return showcase.Paint(id,scope,info,appearance)
     end,
-})
+},card)
 local profileAwards=Header(profile,"Achievement Showcase")
 profileTabs.showcasePanel=ns.AchievementShowcaseUI.Create(profileAwards,{
     edit=function()profileTabs.active="Achievements";profile.Render()end,

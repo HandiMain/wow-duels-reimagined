@@ -196,11 +196,11 @@ local function Paint(f,r,w,h)
     f.reward:SetShown(reward~=nil)
     f.reward:SetText(reward and ("Unlocks title: "..reward) or "")
     f.reward:SetTextColor(unpack(r.earned and not r.testOnly and data.scope=="LOCAL" and C.gold or C.muted))
-    Place(f.reward,f,x,h-(cosmetic and 62 or 42),textW,18)
+    Place(f.reward,f,x,h-(cosmetic and 76 or 42),textW,18)
     f.cosmetic:SetShown(cosmetic~=nil)
     f.cosmetic:SetText(cosmetic and ("Unlocks "..cosmetic) or "")
     f.cosmetic:SetTextColor(unpack(r.earned and not r.testOnly and data.scope=="LOCAL" and C.gold or C.muted))
-    Place(f.cosmetic,f,x,h-43,textW,20)
+    Place(f.cosmetic,f,x,h-56,textW,32)
     Place(f.track,f,x,h-23,textW,16)
     local progress=r.progress/r.target
     Place(f.fill,f.track,3,3,math.max(1,(textW-6)*progress),10)
@@ -273,7 +273,7 @@ Render=function()
     Place(list,page,lw+10,contentY,listW,math.max(1,h-contentY))
     local selected={}
     for _,r in ipairs(data.rows) do if category=="All" or r.category==category then selected[#selected+1]=r end end
-    local rowH=math.max(124,math.min(134,math.floor((h-contentY)/3)-5))
+    local rowH=math.max(138,math.min(148,math.floor((h-contentY)/3)-5))
     visible=math.max(1,math.min(MAX_VISIBLE_ROWS,math.floor((h-contentY)/(rowH+5))))
     for i=#rows+1,visible do rows[i]=Row() end
     total=#selected;offset=math.max(0,math.min(offset,math.max(0,total-visible)))
