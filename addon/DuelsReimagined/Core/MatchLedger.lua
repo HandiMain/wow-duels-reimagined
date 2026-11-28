@@ -129,16 +129,27 @@ local function Open(client,stored,cap,scope)
         end
         return out
     end
-    -- Explicit compact disk representation only. Wire and saved formats
-    -- are unchanged; segments are private to the canonical runtime owner.
+    -- One compact statement encoder for the flat and segmented disk formats.
+    local function CompactRow(variants)
+        local row={}
+        for _,r in ipairs(variants) do row[#row+1]=r.statement1;row[#row+1]=r.statement2 end
+        return row
+    end
     function D.SaveCompact()
         local out={version=2,scope=scope,client=client,entries={}}
         for _,bucket in pairs(segments) do
-            for id,variants in pairs(bucket) do
-                local row={}
-                for _,r in ipairs(variants) do row[#row+1]=r.statement1;row[#row+1]=r.statement2 end
-                out.entries[id]=row
-            end
+            for id,variants in pairs(bucket) do out.entries[id]=CompactRow(variants) end
+        end
+        return out
+    end
+    -- Scoped PEER disk adapter only. Stable match IDs, not claimed season
+    -- times, select segments; a late correction cannot move an ID.
+    function D.SaveSegmented()
+        if scope~="PEER" then return nil,"wrong_scope" end
+        local out={version=3,scope=scope,client=client,count=count,segments={}}
+        for g,bucket in pairs(segments) do
+            local dest={};out.segments[g]=dest
+            for id,variants in pairs(bucket) do dest[id]=CompactRow(variants) end
         end
         return out
     end
@@ -202,6 +213,30 @@ local function OpenCompact(client,stored,scope)
 end
 function P.OpenCompactSimulated(client,stored) return OpenCompact(client,stored,"SIMULATED") end
 function P.OpenCompactPeer(client,stored) return OpenCompact(client,stored,"PEER") end
+function P.OpenSegmentedPeer(client,stored)
+    if type(stored)~="table" or stored.version~=3 or stored.scope~="PEER" or stored.client~=client
+        or type(stored.segments)~="table" or type(stored.count)~="number"
+        or stored.count<0 or stored.count>LIMIT or stored.count~=math.floor(stored.count) then return nil,"invalid_segments" end
+    for k in pairs(stored) do
+        if k~="version" and k~="scope" and k~="client" and k~="count" and k~="segments" then return nil,"invalid_segments" end
+    end
+    -- Flatten only references to rows, never copy untrusted nested data.
+    -- The existing compact decoder validates all statements and ordering.
+    local flat={version=2,scope="PEER",client=client,entries={}}
+    local count=0
+    for g,bucket in pairs(stored.segments) do
+        if type(g)~="number" or g<1 or g>SEGMENTS or g~=math.floor(g)
+            or type(bucket)~="table" or next(bucket)==nil then return nil,"invalid_segment" end
+        for id,row in pairs(bucket) do
+            count=count+1
+            if count>stored.count or P.SegmentForID(id)~=g or flat.entries[id]~=nil
+                or type(row)~="table" then return nil,"invalid_segment" end
+            flat.entries[id]=row
+        end
+    end
+    if count~=stored.count then return nil,"invalid_count" end
+    return OpenCompact(client,flat,"PEER")
+end
 function P.RunSelfTest(emit)
     emit=type(emit)=="function" and emit or function() end
     local passed,failed=0,0

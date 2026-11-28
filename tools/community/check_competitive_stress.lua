@@ -96,6 +96,30 @@ for _,client in ipairs({"forever","retail"}) do
     for i=1,limit do local r=Record(client,i);assert(sourceLedger.Insert(r));local t=epoch+i*4000;clocks[r.id]={{t,t}} end
     local saved={version=1,scope="SIMULATED",client=client,rule=ns.CompetitiveRules.ID,ledger=sourceLedger.Save(),clocks=clocks}
     local source=assert(ns.LeaderboardSync.OpenSeasonSimulated(client,epoch,saved))
+    -- Exercise the exact segmented PEER disk adapter at the existing cap.
+    -- These are synthetic claims only, never actual peer observations.
+    do
+        local peer=assert(ns.MatchLedger.OpenPeer(client))
+        local a,b="Player-1-AAA","Player-2-BBB"
+        local population=assert(ns.CompetitiveScope.Key({client=client,region="EU",ruleset=client=="retail" and "retail" or "pvp",faction="Alliance"}))
+        local prefix=assert(ns.CompetitiveScope.TokenPrefix(population,client))
+        local function Claim(i,reverse)
+            local session=prefix.."a-"..i..":"..prefix.."b-"..i
+            local t=epoch+i*4000
+            return assert(ns.ResultConfirmation.DecodePeerStatements(client,
+                table.concat({"2",client,session,a,b,reverse and "lost" or "won",i,t},"|"),
+                table.concat({"2",client,session,b,a,reverse and "won" or "lost",i,t},"|")))
+        end
+        for i=1,limit do assert(peer.Insert(Claim(i))) end
+        assert(peer.Insert(Claim(1,true)))
+        local disk=peer.SaveSegmented()
+        assert(disk.count==limit)
+        local reopen=assert(ns.MatchLedger.OpenSegmentedPeer(client,disk))
+        assert(Equal(peer.SaveCompact(),reopen.SaveCompact()))
+        local ok,why=reopen.Insert(Claim(limit+1));assert(not ok and why=="capacity")
+        assert(Equal(disk,reopen.SaveSegmented()))
+        print(string.format("%s: %d scoped PEER fixture IDs, exact segmented reopen and full-capacity rejection PASS",client,limit))
+    end
     local asOf=epoch+limit*4000
     local opts={epoch=epoch,asOf=asOf}
     local replay,replayMS=Measure(function()return assert(source.ReplaySeasonSimulated(opts))end)

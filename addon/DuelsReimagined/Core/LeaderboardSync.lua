@@ -395,10 +395,11 @@ end
 -- Scoped compact disk evidence has no separate clock table: the exact
 -- original peer statements already include both timestamps. Use the same
 -- canonical clock derivation as merge/validation, never an inferred clock.
-function P.OpenCompactSeasonPeer(client,epoch,compact,population)
+function P.OpenCompactSeasonPeer(client,epoch,compact,population,segmented)
     if not population or not ns.CompetitiveScope or not ns.CompetitiveScope.Code(population,client) then return nil,"population" end
     if not ns.SeasonRules.Schedule(epoch,epoch) then return nil,"invalid_schedule" end
-    local ledger=ns.MatchLedger.OpenCompactPeer(client,compact)
+    local open=segmented==true and ns.MatchLedger.OpenSegmentedPeer or ns.MatchLedger.OpenCompactPeer
+    local ledger=open(client,compact)
     if not ledger then return nil,"invalid_compact" end
     local saved=ledger.Save()
     local clocks={}
