@@ -227,6 +227,29 @@ function Settings.SetCharacterShowcase(ids)
     return true
 end
 
+-- Collection choices share the character cosmetic preferences owner.
+local collectionKeys={background="profileBackground",border="profileBorder"}
+function Settings.GetCharacterCosmetic(kind)
+    local key=collectionKeys[kind]
+    if not characterPreferencesLoaded or not key or not ns.DuelistCollections then return nil,false end
+    local db=_G.DuelsReimaginedCharacterPreferences
+    if db==nil then return nil,true end
+    if type(db)~="table" then return nil,false end
+    local id=db[key]
+    if id~=nil and not ns.DuelistCollections.IsKnown(kind,id) then return nil,false end
+    return id,true
+end
+function Settings.SetCharacterCosmetic(kind,id)
+    local key=collectionKeys[kind]
+    if not characterPreferencesLoaded or not key or not ns.DuelistCollections or
+        (id~=nil and not ns.DuelistCollections.IsKnown(kind,id)) then return false end
+    local db=_G.DuelsReimaginedCharacterPreferences
+    if db~=nil and type(db)~="table" then return false end
+    if not db and id==nil then return true end
+    if not db then db={};_G.DuelsReimaginedCharacterPreferences=db end
+    db[key]=id;return true
+end
+
 -- Patch Notes is account-wide presentation state, not a real addon version.
 -- The stable content ID is stored alongside other preferences, by this owner.
 -- One bounded account-wide acknowledgement. Preview never calls this.

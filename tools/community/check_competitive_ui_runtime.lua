@@ -59,6 +59,8 @@ local methods={}
 function methods:SetSize(w,h)self.w=w;self.h=h end
 function methods:SetWidth(w)self.w=w end
 function methods:SetHeight(h)self.h=h end
+function methods:GetParent()return self.parent end
+function methods:SetParent(p)self.parent=p end
 function methods:GetWidth()return self.w or 0 end
 function methods:GetHeight()return self.h or 0 end
 function methods:SetPoint(...)self.point={...};if not self.w then self.w=960 end;if not self.h then self.h=620 end end
@@ -123,9 +125,11 @@ assert(P.Get().personal.total==0)
 assert(loadfile(base.."Core/Achievements.lua"))("DuelsReimagined",ns)
 assert(loadfile(base.."Core/DuelistTitles.lua"))("DuelsReimagined",ns)
 assert(loadfile(base.."Core/AchievementShowcase.lua"))("DuelsReimagined",ns)
+assert(loadfile(base.."Core/DuelistCollections.lua"))("DuelsReimagined",ns)
 assert(loadfile(base.."UI/PlayerShowcase.lua"))("DuelsReimagined",ns)
 assert(loadfile(base.."UI/DuelistTitleUI.lua"))("DuelsReimagined",ns)
 assert(loadfile(base.."UI/AchievementShowcaseUI.lua"))("DuelsReimagined",ns)
+assert(loadfile(base.."UI/DuelistCollectionsUI.lua"))("DuelsReimagined",ns)
 assert(loadfile(base.."UI/CompetitiveUI.lua"))("DuelsReimagined",ns)
 local U=ns.CompetitiveUI
 local count=#frames
@@ -178,6 +182,9 @@ U.Refresh();assert(U.IsPlayerCardOpen());U.ClosePlayerCard()
 assert(not U.IsPlayerCardOpen())
 assert(U.OpenMyTitles() and HasText("0 / 40") and HasText("The Challenger") and HasText("Locked"))
 assert(HasText("Complete your first duel."))
+U.ClosePlayerCard();assert(not U.IsPlayerCardOpen())
+assert(U.OpenMyCollections() and HasText("Duelist Collections") and HasText("Collected: 3 / 54"))
+assert(HasText("Classic Bronze") and HasText("Faction Pride"))
 U.ClosePlayerCard();assert(not U.IsPlayerCardOpen())
 assert(P.Command("start"))
 for i=1,5 do assert(P.Command("win")) end
@@ -295,3 +302,27 @@ assert(HasText("Empty"))
 editor:Hide()
 ns.Settings=nil
 print("Achievement Showcase editor: PASS (three slots, staged reorder and clear, save callbacks)")
+
+-- Gallery selection is a read-only preview; only Equip/Remove may write.
+local Cx=ns.DuelistCollections
+local cosmetic={}
+ns.Settings={GetCharacterCosmetic=function(kind)return cosmetic[kind],true end,
+    SetCharacterCosmetic=function(kind,id)cosmetic[kind]=id;return true end,
+    Get=function()return true end}
+local previewed,refreshes
+local gallery=ns.DuelistCollectionsUI.Create(main,{
+    preview=function(_,_,_,_,appearance)previewed=appearance end,
+    changed=function()refreshes=(refreshes or 0)+1 end,titles=noop
+})
+gallery:SetSize(748,475);gallery:Show()
+gallery.Paint(Cx.Model({scope="LOCAL",recordingDisabled=true}),"Player-1-LOCAL",{faction="Alliance"})
+assert(HasText("Collected: 3 / 54") and previewed.background.id=="faction")
+assert(Click("Blood and Steel") and previewed.background.id=="blood")
+assert(not cosmetic.background,"preview persisted a locked cosmetic")
+assert(Click("Equip") and not cosmetic.background and not refreshes)
+assert(Click("Classic Bronze") and previewed.background.id=="bronze")
+assert(Click("Equip") and cosmetic.background=="bronze" and refreshes==1)
+gallery.Paint(Cx.Model({scope="LOCAL",recordingDisabled=true}),"Player-1-LOCAL",{faction="Alliance"})
+assert(Click("Remove") and not cosmetic.background and refreshes==2)
+gallery:Hide();ns.Settings=nil
+print("Duelist Collections gallery: PASS (locked preview, explicit equip and remove)")

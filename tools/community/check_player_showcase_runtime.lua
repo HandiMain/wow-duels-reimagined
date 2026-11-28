@@ -22,7 +22,11 @@ function methods:SetAtlas(name)self.atlas=name;self.texture=nil end
 function methods:SetTexture(t)self.texture=t;self.atlas=nil end
 function methods:SetAlpha(a) self.alpha=a end
 function methods:GetAlpha() return rawget(self,"alpha") or 1 end
-function methods:GetFrameLevel() return 1 end
+function methods:GetFrameLevel() return self.level or 1 end
+function methods:SetFrameLevel(v)self.level=v end
+function methods:GetParent()return self.parent end
+function methods:SetParent(p)self.parent=p end
+function methods:SetTexCoord(...)self.uv={...}end
 function methods:GetEffectiveScale() return 1 end
 function methods:SetText(t) self.text=t end
 function methods:RegisterEvent(e) self.events[e]=true end
@@ -114,5 +118,11 @@ pane:Hide()
 assert(models[1].unit==nil and not overlay.scripts.OnUpdate)
 for _,f in ipairs(frames) do assert(not next(f.events)) end
 pane:Show();pane.Paint("Player-1-ME","LOCAL",identity);assert(#models==1 and models[1].unit=="player")
+local preview=Frame(root,"Frame")
+pane.Reparent(preview)
+pane.Paint("Player-1-ME","LOCAL",identity,{background={id="blood",texture="scene.png"}})
+assert(#models==1 and pane:GetParent()==preview and HasTexture("scene.png") and not crest:IsVisible())
+pane.Reparent(root);pane.Paint("Player-1-ME","LOCAL",identity)
+assert(#models==1 and crest:IsVisible())
 pane:Hide()
 print("Duelist character display: PASS (scope, unit identity, model fallback, input and hidden lifecycle)")

@@ -38,6 +38,7 @@ Core\CompetitiveLifecycle.lua
 Core\Achievements.lua
 Core\DuelistTitles.lua
 Core\AchievementShowcase.lua
+Core\DuelistCollections.lua
 Core\TournamentState.lua
 Core\TournamentRecovery.lua
 Core\TournamentRegistration.lua
@@ -65,6 +66,7 @@ UI\CompetitivePreview.lua
 UI\PlayerShowcase.lua
 UI\DuelistTitleUI.lua
 UI\AchievementShowcaseUI.lua
+UI\DuelistCollectionsUI.lua
 UI\CompetitiveUI.lua
 UI\AchievementUI.lua
 UI\BracketView.lua

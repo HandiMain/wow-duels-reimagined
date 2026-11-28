@@ -770,6 +770,14 @@ tournamentNotice:SetWordWrap(true)
 local profileTabs={active="Overview",buttons={}}
 profileTabs.titleText=Text(profileHero,15,C.gold)
 profileTabs.titles=ns.DuelistTitleUI.Create(profile,function()U.Refresh()end)
+profileTabs.collections=ns.DuelistCollectionsUI.Create(profile,{
+    titles=function()profileTabs.active="Titles";profile.Render()end,
+    changed=function()U.Refresh()end,
+    preview=function(host,id,scope,info,appearance)
+        showcase.Reparent(host);showcase:ClearAllPoints();showcase:SetAllPoints(host)
+        showcase:Show();showcase.Paint(id,scope,info,appearance)
+    end,
+})
 local profileAwards=Header(profile,"Achievement Showcase")
 profileTabs.showcasePanel=ns.AchievementShowcaseUI.Create(profileAwards,{
     edit=function()profileTabs.active="Achievements";profile.Render()end,
@@ -784,29 +792,31 @@ profileTabs.showcasePanel=ns.AchievementShowcaseUI.Create(profileAwards,{
         if ns.AchievementUI and ns.AchievementUI.RefreshShowcase then ns.AchievementUI.RefreshShowcase() end
     end,
 })
-for _,name in ipairs({"Overview","Statistics","Career","Achievements","Titles"}) do
+for _,name in ipairs({"Overview","Statistics","Career","Achievements","Titles","Collections"}) do
     local key=name
     profileTabs.buttons[#profileTabs.buttons+1]=Action(profile,key,function()
         profileTabs.active=key;profile.Render()
     end)
 end
 local function ProfileMode(isTournament,own)
-    if not own and profileTabs.active=="Titles" then profileTabs.active="Overview" end
+    if not own and (profileTabs.active=="Titles" or profileTabs.active=="Collections") then profileTabs.active="Overview" end
     local titles=not isTournament and own and profileTabs.active=="Titles"
+    local collections=not isTournament and own and profileTabs.active=="Collections"
     local overview=not isTournament and profileTabs.active=="Overview"
     local stats=not isTournament and profileTabs.active=="Statistics"
     local career=not isTournament and profileTabs.active=="Career"
     local awards=not isTournament and profileTabs.active=="Achievements"
-    profileHero:SetShown(not isTournament and not titles)
+    profileHero:SetShown(not isTournament and not titles and not collections)
     profileTabs.titles:SetShown(not not titles)
-    showcase:SetShown(overview)
+    profileTabs.collections:SetShown(not not collections)
+    if not collections then showcase.Reparent(profile);showcase:SetShown(overview) end
     profileStats:SetShown(overview or stats)
     profileGraphPanel:SetShown(overview or career)
     seasonsPanel:SetShown(career);opponentPanel:SetShown(stats)
     profileAwards:SetShown(overview or awards)
     if not (overview or awards) then profileTabs.showcasePanel:Hide();profileTabs.showcasePanel.Reset() end
     tournamentDetails:SetShown(isTournament)
-    for i,button in ipairs(profileTabs.buttons) do button:SetShown(not isTournament and (i~=5 or own==true)) end
+    for i,button in ipairs(profileTabs.buttons) do button:SetShown(not isTournament and (i<5 or own==true)) end
 end
 local function PaintProfileAwards(d,own,w,h,value)
     local model=ns.AchievementShowcase.Model(own and (value or {scope=d.scope,storageReason="unavailable"}) or nil)
@@ -844,6 +854,7 @@ function profile.Render()
     local awards
     if own and ns.Achievements then local ok,result=pcall(ns.Achievements.Current,d);if ok then awards=result end end
     local titleModel=own and ns.DuelistTitles.Model(awards or {scope=d.scope,storageReason="unavailable"}) or nil
+    local collectionModel=own and ns.DuelistCollections.Model(awards or {scope=d.scope,storageReason="unavailable"},titleModel) or nil
     local stat=(own and d.personal or p.stats) or {}
     local known=(own and not d.storageReason) or (not own and hasProfile)
     local overview=profileTabs.active=="Overview"
@@ -852,17 +863,24 @@ function profile.Render()
     local width=w-x
     local top=86
     for i,button in ipairs(profileTabs.buttons) do
-        Place(button,profile,(i-1)*118,53,112,26)
-        button:SetAlpha(({"Overview","Statistics","Career","Achievements","Titles"})[i]==profileTabs.active and 1 or .72)
+        local step=math.min(118,w/6)
+        Place(button,profile,(i-1)*step,53,step-6,26)
+        button:SetAlpha(({"Overview","Statistics","Career","Achievements","Titles","Collections"})[i]==profileTabs.active and 1 or .72)
     end
     if profileTabs.active=="Titles" and own then
         Place(profileTabs.titles,profile,0,top,w,h-top)
         profileTabs.titles.Paint(titleModel,profileId,v)
         return
     end
+    if profileTabs.active=="Collections" and own then
+        Place(profileTabs.collections,profile,0,top,w,h-top)
+        profileTabs.collections.Paint(collectionModel,profileId,v)
+        return
+    end
     if overview then
         Place(showcase,profile,0,top,side,h-top)
-        showcase.Paint(profileId,d.scope,v)
+        local appearance=collectionModel and {background=ns.DuelistCollections.Art("background",collectionModel.equipped.background),border=ns.DuelistCollections.Art("border",collectionModel.equipped.border)}
+        showcase.Paint(profileId,d.scope,v,appearance)
     end
     local heroH=overview and 106 or 112
     Place(profileHero,profile,x,top,width,heroH)
@@ -950,6 +968,7 @@ OpenProfile=function(id)
     tournamentCard=nil
     profileTabs.active="Overview"
     profileTabs.titles.Reset()
+    profileTabs.collections.Reset()
     profileTabs.showcasePanel.Reset()
     profileId=id
     profileSeason=active=="standings" and boardSeason or active=="overview" and preview.current or profileSeason
@@ -977,7 +996,7 @@ end
 function U.CloseTournamentPlayerCard()
     if tournamentCard then card:Hide();tournamentCard=nil end
 end
-card:HookScript("OnHide",function()tournamentCard=nil;showcase.Stop();profileTabs.showcasePanel.Reset() end)
+card:HookScript("OnHide",function()tournamentCard=nil;showcase.Stop();profileTabs.showcasePanel.Reset();profileTabs.collections.Reset() end)
 profile:SetScript("OnSizeChanged",function(self)if card:IsShown() and (preview or tournamentCard) then self.Render()end end)
 -- Private history: display local observations, join only confirmed replay IDs.
 local history=Page("history","Match History","Your dueling journey, one match at a time.",-71)
@@ -1122,6 +1141,10 @@ end
 function U.OpenMyTitles()
     if not U.OpenMyProfile() then return false end
     profileTabs.active="Titles";profile.Render();return true
+end
+function U.OpenMyCollections()
+    if not U.OpenMyProfile() then return false end
+    profileTabs.active="Collections";profile.Render();return true
 end
 function U.RefreshPlayerShowcase()
     if card:IsShown() and not tournamentCard then profile.Render() end

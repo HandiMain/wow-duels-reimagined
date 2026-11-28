@@ -278,3 +278,5 @@ dofile("tools/community/check_player_showcase_runtime.lua")
 dofile("tools/community/check_duelist_titles_runtime.lua")
 
 dofile("tools/community/check_achievement_showcase_runtime.lua")
+
+dofile("tools/community/check_duelist_collections_runtime.lua")

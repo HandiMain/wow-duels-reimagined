@@ -37,9 +37,64 @@ function P.Race(id,scope)
     local race=unit and Call(UnitRace,unit)
     return type(race)=="string" and race or nil
 end
+-- The same artwork painter serves gallery thumbnails and the live panel.
+function P.PaintBackdrop(texture,art,faction,w,h)
+    if art and art.texture then
+        texture:SetTexture(art.texture)
+        texture:SetVertexColor(1,1,1,1)
+        local aspect=type(w)=="number" and type(h)=="number" and w>0 and h>0 and w/h or 1
+        local x=aspect<1 and (1-aspect)/2 or 0
+        local y=aspect>1 and (1-1/aspect)/2 or 0
+        texture:SetTexCoord(x,1-x,y,1-y)
+    else
+        local color=art and art.color or {.065,.055,.048}
+        if art and art.id=="faction" then
+            color=faction=="Horde" and {.13,.045,.035} or faction=="Alliance" and {.045,.07,.12} or {.065,.055,.048}
+        end
+        texture:SetTexCoord(0,1,0,1)
+        texture:SetColorTexture(color[1],color[2],color[3],1)
+    end
+end
+function P.PaintFactionCrest(crest,faction)
+    if faction~="Alliance" and faction~="Horde" then crest:Hide();return 1 end
+    local name="talenttree-"..string.lower(faction).."-cornerlogo"
+    local info=Call(C_Texture and C_Texture.GetAtlasInfo,name)
+    local aspect=1
+    local painted=false
+    if type(info)=="table" and Read(info.width) and Read(info.height)
+        and type(info.width)=="number" and type(info.height)=="number"
+        and info.width>0 and info.height>0 then
+        painted=Method(crest,"SetAtlas",name,false)
+        if painted then aspect=info.width/info.height end
+    end
+    if not painted then
+        crest:SetTexture("Interface\\Timer\\"..faction.."-Logo")
+        crest:SetTexCoord(0,1,0,1)
+    end
+    if faction=="Alliance" then crest:SetVertexColor(.83,.69,.43)
+    else crest:SetVertexColor(.88,.52,.40) end
+    crest:Show();return aspect
+end
+function P.CreateBorder(parent)
+    local skin=S.Skin(parent,C.body,{corner=8,edge=C.goldDim,shine=.10,shade=.10,rim=.82})
+    local inner=S.SkinMask and S.SkinMask(parent,C.goldDim,"rim","BORDER",1,7,3)
+    if inner then inner:SetAlpha(0) end
+    return {skin=skin,inner=inner}
+end
+function P.PaintBorder(border,art)
+    if not border then return end
+    local rim=border.skin and border.skin.groups and border.skin.groups[4]
+    local color=art and art.color or C.goldDim
+    if rim then for _,texture in ipairs(rim.regions) do texture:SetVertexColor(color[1],color[2],color[3],1) end end
+    if border.inner then
+        local accent=art and art.accent or color
+        for _,texture in ipairs(border.inner.regions) do texture:SetVertexColor(accent[1],accent[2],accent[3],1) end
+        border.inner:SetAlpha(art and art.id~="bronze" and .85 or 0)
+    end
+end
 function P.Create(parent)
     local panel=CreateFrame("Frame",nil,parent)
-    S.Skin(panel,C.body,{corner=8,edge=C.goldDim,shine=.10,shade=.10,rim=.65})
+    local border=P.CreateBorder(panel)
     local backdrop=panel:CreateTexture(nil,"BACKGROUND",nil,2)
     backdrop:SetPoint("TOPLEFT",panel,"TOPLEFT",6,-6);backdrop:SetPoint("BOTTOMRIGHT",panel,"BOTTOMRIGHT",-6,38)
     backdrop:SetColorTexture(.065,.055,.048,1)
@@ -59,26 +114,15 @@ function P.Create(parent)
     local function PaintCrest(faction,enabled)
         crest:Hide()
         if not enabled or (faction~="Alliance" and faction~="Horde") then return end
-        local name="talenttree-"..string.lower(faction).."-cornerlogo"
-        local info=Call(C_Texture and C_Texture.GetAtlasInfo,name)
-        crestAspect=1
-        local painted=false
-        if type(info)=="table" and Read(info.width) and Read(info.height)
-            and type(info.width)=="number" and type(info.height)=="number"
-            and info.width>0 and info.height>0 then
-            painted=Method(crest,"SetAtlas",name,false)
-            if painted then crestAspect=info.width/info.height end
-        end
-        if not painted then
-            -- Classic clients can lack the talent-tree atlas. Use the
-            -- native standalone faction logo, never UI-PVP-*.
-            crest:SetTexture("Interface\\Timer\\"..faction.."-Logo")
-            crest:SetTexCoord(0,1,0,1)
-        end
-        if faction=="Alliance" then crest:SetVertexColor(.83,.69,.43)
-        else crest:SetVertexColor(.88,.52,.40) end
-        FitCrest();crest:Show()
+        crestAspect=P.PaintFactionCrest(crest,faction)
+        FitCrest()
     end
+    local art,artFaction
+    local function FitBackdrop()
+        local w,h=panel:GetWidth(),panel:GetHeight()
+        if art and Read(w) and Read(h) and type(w)=="number" and type(h)=="number" then P.PaintBackdrop(backdrop,art,artFaction,w-12,h-44) end
+    end
+    panel:HookScript("OnSizeChanged",FitBackdrop)
     local portrait=panel:CreateTexture(nil,"ARTWORK",nil,1)
     portrait:SetSize(118,118);portrait:SetPoint("CENTER",panel,"CENTER",0,16)
     local caption=S.Text(panel,"Character display",11,C.muted)
@@ -181,15 +225,22 @@ function P.Create(parent)
     end)
     panel:SetScript("OnHide",Stop)
     function panel.Stop() Stop() end
-    function panel.Paint(id,kind,info)
+    function panel.Reparent(host)
+        if panel:GetParent()==host then return end
+        panel:SetParent(host);panel:SetFrameLevel(host:GetFrameLevel()+1)
+        if model then model:SetFrameLevel(panel:GetFrameLevel()+1) end
+        if overlay then overlay:SetFrameLevel(model:GetFrameLevel()+1) end
+    end
+    function panel.Paint(id,kind,info,appearance)
         if id~=identity or kind~=scope then Clear();unit=nil;facing=0;zoom=0 end
         identity,scope,metadata=id,kind,info
         local faction=info and info.faction
         local tint=not ns.Settings or ns.Settings.Get("profileFactionBackdrop")~=false
-        if tint and faction=="Alliance" then backdrop:SetColorTexture(.045,.07,.12,1)
-        elseif tint and faction=="Horde" then backdrop:SetColorTexture(.13,.045,.035,1)
-        else backdrop:SetColorTexture(.065,.055,.048,1) end
-        PaintCrest(faction,tint)
+        art=appearance and appearance.background or {id=tint and "faction" or "bronze"}
+        artFaction=faction
+        FitBackdrop()
+        PaintCrest(faction,art.id=="faction")
+        P.PaintBorder(border,appearance and appearance.border)
         if panel:IsVisible() then
             if kind=="LOCAL" then Register() end
             Refresh(false)

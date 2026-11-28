@@ -73,6 +73,9 @@ end)
 Register("titles","Competition","Browse your Duelist Titles.",function()
     if SafeOpen() and EnsureWindow() and not ns.CompetitiveUI.OpenMyTitles() then Tell("Your titles are unavailable right now.") end
 end)
+Register("collections","Competition","Browse your Duelist Collections.",function()
+    if SafeOpen() and EnsureWindow() and not ns.CompetitiveUI.OpenMyCollections() then Tell("Your collections are unavailable right now.") end
+end)
 Register("leaderboard","Competition","View the leaderboard.",Page("leaderboard","standings"))
 Register("history","Competition","View your match history.",Page("matchhistory","history"))
 Register("achievements","Competition","View your achievements.",Page("achievements","achievements"))
