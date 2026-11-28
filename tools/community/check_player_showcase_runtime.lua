@@ -10,13 +10,21 @@ function methods:Hide()
     local was=self.shown;self.shown=false
     if was and self.scripts.OnHide then self.scripts.OnHide(self) end
 end
-function methods:IsVisible() return self.shown and (not self.parent or self.parent:IsVisible()) end
+function methods:IsVisible() local parent=rawget(self,"parent");return self.shown and (not parent or parent:IsVisible()) end
+function methods:HookScript(key,fn)
+    local old=self.scripts[key]
+    self.scripts[key]=function(...) if old then old(...) end;fn(...) end
+end
+function methods:GetWidth()return 240 end
+function methods:GetHeight()return 470 end
+function methods:SetSize(w,h)self.width,self.height=w,h end
+function methods:SetAtlas(name)self.atlas=name;self.texture=nil end
+function methods:SetTexture(t)self.texture=t;self.atlas=nil end
 function methods:SetAlpha(a) self.alpha=a end
-function methods:GetAlpha() return self.alpha or 1 end
+function methods:GetAlpha() return rawget(self,"alpha") or 1 end
 function methods:GetFrameLevel() return 1 end
 function methods:GetEffectiveScale() return 1 end
 function methods:SetText(t) self.text=t end
-function methods:SetTexture(t) self.texture=t end
 function methods:RegisterEvent(e) self.events[e]=true end
 function methods:UnregisterAllEvents() self.events={} end
 function methods:SetUnit(unit)
@@ -51,6 +59,17 @@ local P=ns.PlayerShowcase
 local pane=P.Create(root)
 assert(#models==0)
 local identity={class="WARRIOR",faction="Alliance"}
+local function Crest()
+    for _,f in ipairs(frames) do
+        if f.kind=="texture" and f:GetAlpha()==.14 then return f end
+    end
+end
+local crest=Crest()
+assert(crest and not crest:IsVisible())
+C_Texture={GetAtlasInfo=function(name)
+    if name=="talenttree-alliance-cornerlogo" then return {width=82,height=92}
+    elseif name=="talenttree-horde-cornerlogo" then return {width=88,height=101} end
+end}
 local function Event(e,unit)
     for _,f in ipairs(frames) do
         if f.events[e] and f.scripts.OnEvent then f.scripts.OnEvent(f,e,unit) end
@@ -61,6 +80,17 @@ local function HasTexture(t)
 end
 pane:Show();pane.Paint("Player-1-ME","SIMULATED",identity)
 assert(#models==0 and HasTexture("Interface\\Icons\\ClassIcon_WARRIOR"))
+assert(crest:IsVisible() and crest.atlas=="talenttree-alliance-cornerlogo" and crest.width>190 and crest.height>crest.width)
+pane.Paint("Player-1-ME","SIMULATED",{class="WARRIOR",faction="Horde"})
+assert(crest.atlas=="talenttree-horde-cornerlogo")
+tint=false;pane.Paint("Player-1-ME","SIMULATED",identity);assert(not crest:IsVisible())
+tint=true;C_Texture=nil
+pane.Paint("Player-1-ME","SIMULATED",identity)
+assert(crest:IsVisible() and crest.texture=="Interface\\Timer\\Alliance-Logo")
+pane.Paint("Player-1-ME","SIMULATED",{class="WARRIOR",faction="Horde"})
+assert(crest.texture=="Interface\\Timer\\Horde-Logo")
+pane.Paint("Player-1-ME","SIMULATED",{class="WARRIOR",faction="Neutral"})
+assert(not crest:IsVisible())
 pane.Paint("Player-1-ME","LOCAL",identity)
 assert(#models==1 and models[1].unit=="player" and models[1]:GetAlpha()==1)
 assert(P.Race("Player-1-ME","LOCAL")=="Human" and not P.Race("Player-1-ME","SIMULATED"))

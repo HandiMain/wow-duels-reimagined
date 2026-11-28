@@ -35,8 +35,42 @@ function P.Create(parent)
     local backdrop=panel:CreateTexture(nil,"BACKGROUND",nil,2)
     backdrop:SetPoint("TOPLEFT",panel,"TOPLEFT",6,-6);backdrop:SetPoint("BOTTOMRIGHT",panel,"BOTTOMRIGHT",-6,38)
     backdrop:SetColorTexture(.065,.055,.048,1)
+    -- Native faction heraldry, not the battleground/portrait badge.
     local crest=panel:CreateTexture(nil,"ARTWORK",nil,0)
-    crest:SetSize(112,112);crest:SetPoint("TOP",panel,"TOP",0,-28);crest:SetAlpha(.14)
+    local crestAspect=1
+    local function FitCrest()
+        local w,h=panel:GetWidth(),panel:GetHeight()
+        if not Read(w) or not Read(h) or type(w)~="number" or type(h)~="number" or w<=0 or h<=0 then return end
+        local width=math.min(w*.86,math.max(1,h-64)*crestAspect)
+        crest:SetSize(width,width/crestAspect)
+        crest:ClearAllPoints()
+        crest:SetPoint("TOP",panel,"TOP",0,-math.max(20,h*.12))
+    end
+    panel:HookScript("OnSizeChanged",FitCrest)
+    crest:SetAlpha(.14);crest:Hide()
+    local function PaintCrest(faction,enabled)
+        crest:Hide()
+        if not enabled or (faction~="Alliance" and faction~="Horde") then return end
+        local name="talenttree-"..string.lower(faction).."-cornerlogo"
+        local info=Call(C_Texture and C_Texture.GetAtlasInfo,name)
+        crestAspect=1
+        local painted=false
+        if type(info)=="table" and Read(info.width) and Read(info.height)
+            and type(info.width)=="number" and type(info.height)=="number"
+            and info.width>0 and info.height>0 then
+            painted=Method(crest,"SetAtlas",name,false)
+            if painted then crestAspect=info.width/info.height end
+        end
+        if not painted then
+            -- Classic clients can lack the talent-tree atlas. Use the
+            -- native standalone faction logo, never UI-PVP-*.
+            crest:SetTexture("Interface\\Timer\\"..faction.."-Logo")
+            crest:SetTexCoord(0,1,0,1)
+        end
+        if faction=="Alliance" then crest:SetVertexColor(.83,.69,.43)
+        else crest:SetVertexColor(.88,.52,.40) end
+        FitCrest();crest:Show()
+    end
     local portrait=panel:CreateTexture(nil,"ARTWORK",nil,1)
     portrait:SetSize(118,118);portrait:SetPoint("CENTER",panel,"CENTER",0,16)
     local caption=S.Text(panel,"Character display",11,C.muted)
@@ -152,8 +186,7 @@ function P.Create(parent)
         if tint and faction=="Alliance" then backdrop:SetColorTexture(.045,.07,.12,1)
         elseif tint and faction=="Horde" then backdrop:SetColorTexture(.13,.045,.035,1)
         else backdrop:SetColorTexture(.065,.055,.048,1) end
-        crest:SetShown(tint and (faction=="Alliance" or faction=="Horde"))
-        if faction=="Alliance" or faction=="Horde" then crest:SetTexture("Interface\\TargetingFrame\\UI-PVP-"..faction) end
+        PaintCrest(faction,tint)
         if panel:IsVisible() then
             if kind=="LOCAL" then Register() end
             Refresh(false)
