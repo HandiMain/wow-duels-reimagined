@@ -1,0 +1,88 @@
+-- Execute the actual character display owner with mocked WoW APIs.
+local ns={}
+local frames,models={},{}
+local noop=function()end
+local methods={}
+function methods:SetScript(key,fn) self.scripts[key]=fn end
+function methods:SetShown(on) if on then self:Show() else self:Hide() end end
+function methods:Show() self.shown=true end
+function methods:Hide()
+    local was=self.shown;self.shown=false
+    if was and self.scripts.OnHide then self.scripts.OnHide(self) end
+end
+function methods:IsVisible() return self.shown and (not self.parent or self.parent:IsVisible()) end
+function methods:SetAlpha(a) self.alpha=a end
+function methods:GetAlpha() return self.alpha or 1 end
+function methods:GetFrameLevel() return 1 end
+function methods:GetEffectiveScale() return 1 end
+function methods:SetText(t) self.text=t end
+function methods:SetTexture(t) self.texture=t end
+function methods:RegisterEvent(e) self.events[e]=true end
+function methods:UnregisterAllEvents() self.events={} end
+function methods:SetUnit(unit)
+    self.unit=unit
+    if self.scripts.OnModelLoaded then self.scripts.OnModelLoaded(self) end
+end
+function methods:ClearModel() self.unit=nil end
+function methods:SetFacing(v) self.facing=v end
+function methods:SetPortraitZoom(v) self.zoom=v end
+local function Frame(parent,kind)
+    local f=setmetatable({parent=parent,shown=true,scripts={},events={},kind=kind},{__index=function(_,k)return methods[k] or noop end})
+    frames[#frames+1]=f
+    if kind=="PlayerModel" then models[#models+1]=f end
+    return f
+end
+function methods:CreateTexture()return Frame(self,"texture")end
+CreateFrame=function(kind,_,parent)return Frame(parent,kind)end
+local root=Frame(nil,"Frame")
+ns.Style={color={body={},goldDim={},muted={}},Skin=noop,Text=function(parent,text)local f=Frame(parent,"text");f:SetText(text);return f end}
+local mode,tint=true,true
+ns.Settings={Get=function(key)if key=="profileShowModel" then return mode elseif key=="profileFactionBackdrop" then return tint end end}
+local combat,target,mouse,x=false,"Player-1-RIVAL",true,10
+InCombatLockdown=function()return combat end
+UnitGUID=function(unit)if unit=="player" then return "Player-1-ME" elseif unit=="target" then return target end end
+UnitIsPlayer=function(unit)return UnitGUID(unit)~=nil end
+UnitRace=function()return "Human" end
+SetPortraitTexture=function(t,unit)t.texture="portrait:"..unit end
+GetCursorPosition=function()return x,0 end
+IsMouseButtonDown=function()return mouse end
+assert(loadfile("addon/DuelsReimagined/UI/PlayerShowcase.lua"))("DuelsReimagined",ns)
+local P=ns.PlayerShowcase
+local pane=P.Create(root)
+assert(#models==0)
+local identity={class="WARRIOR",faction="Alliance"}
+local function Event(e,unit)
+    for _,f in ipairs(frames) do
+        if f.events[e] and f.scripts.OnEvent then f.scripts.OnEvent(f,e,unit) end
+    end
+end
+local function HasTexture(t)
+    for _,f in ipairs(frames) do if f.texture==t and f:IsVisible() then return true end end
+end
+pane:Show();pane.Paint("Player-1-ME","SIMULATED",identity)
+assert(#models==0 and HasTexture("Interface\\Icons\\ClassIcon_WARRIOR"))
+pane.Paint("Player-1-ME","LOCAL",identity)
+assert(#models==1 and models[1].unit=="player" and models[1]:GetAlpha()==1)
+assert(P.Race("Player-1-ME","LOCAL")=="Human" and not P.Race("Player-1-ME","SIMULATED"))
+local overlay
+for _,f in ipairs(frames) do if f.scripts.OnMouseWheel then overlay=f end end
+assert(overlay and overlay:IsVisible())
+overlay.scripts.OnMouseDown(overlay,"LeftButton");assert(overlay.scripts.OnUpdate)
+x=50;overlay.scripts.OnUpdate();assert(models[1].facing>0)
+overlay.scripts.OnMouseWheel(overlay,4);assert(models[1].zoom==.4)
+mouse=false;overlay.scripts.OnUpdate();assert(not overlay.scripts.OnUpdate)
+mode=false;pane.Paint("Player-1-ME","LOCAL",identity)
+assert(models[1].unit==nil and HasTexture("portrait:player"))
+mode=true;pane.Paint("Player-1-RIVAL","LOCAL",identity)
+assert(models[1].unit=="target")
+target="Player-1-OTHER";Event("PLAYER_TARGET_CHANGED")
+assert(models[1].unit==nil and HasTexture("Interface\\Icons\\ClassIcon_WARRIOR"))
+target="Player-1-RIVAL";Event("PLAYER_TARGET_CHANGED");assert(models[1].unit=="target")
+combat=true;Event("PLAYER_REGEN_DISABLED");assert(models[1].unit==nil)
+combat=false;Event("PLAYER_REGEN_ENABLED");assert(models[1].unit=="target")
+pane:Hide()
+assert(models[1].unit==nil and not overlay.scripts.OnUpdate)
+for _,f in ipairs(frames) do assert(not next(f.events)) end
+pane:Show();pane.Paint("Player-1-ME","LOCAL",identity);assert(#models==1 and models[1].unit=="player")
+pane:Hide()
+print("Duelist character display: PASS (scope, unit identity, model fallback, input and hidden lifecycle)")

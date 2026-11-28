@@ -67,6 +67,9 @@ Register("diagnostics","General","Open diagnostics.",function()
     if SafeOpen() then ns.DiagnosticsUI.Open() end
 end)
 Register("hall","Competition","Open the Hall.",Page("hall","overview"))
+Register("profile","Competition","Open your Duelist Profile.",function()
+    if SafeOpen() and EnsureWindow() and not ns.CompetitiveUI.OpenMyProfile() then Tell("Your profile is unavailable right now.") end
+end)
 Register("leaderboard","Competition","View the leaderboard.",Page("leaderboard","standings"))
 Register("history","Competition","View your match history.",Page("matchhistory","history"))
 Register("achievements","Competition","View your achievements.",Page("achievements","achievements"))

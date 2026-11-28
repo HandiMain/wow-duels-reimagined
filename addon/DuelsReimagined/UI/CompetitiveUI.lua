@@ -381,6 +381,7 @@ end
 -- Hall: rank/season hero, activity and leaderboard previews, progression.
 local hall=Page("overview","Welcome to the Hall","Your dueling journey starts here.",-71)
 local hallRule=ns.Chrome.Divider(hall,300,12)
+local myProfileLink=Action(hall,"My Profile",function() U.OpenMyProfile() end)
 local hero=Panel(hall);local emblem=Rank(hero,120,true)
 local rankText=Text(hero,24,C.pale);local ratingCaption=T(hero,"Rating",13,C.muted)
 local rating=Text(hero,28,C.pale)
@@ -538,6 +539,7 @@ function hall.Render()
     local graphH=math.max(145,math.min(198,h*.32))
     local middleH=math.max(85,h-middleTop-graphH-10)
     Place(hallRule,hall,0,50,w,12)
+    Place(myProfileLink,hall,w-176,30,100,21)
     Place(hero,hall,0,bodyTop,w,heroH)
     local left=w*.445;local icon=math.min(heroH-14,124)
     Place(emblem,hero,10,(heroH-icon)/2,icon,icon)
@@ -681,7 +683,7 @@ card:SetToplevel(true);card:SetClampedToScreen(true);card:SetMovable(true);card:
 card:Hide()
 S.Skin(card,C.window,{corner=11,edge=C.goldDim,shine=.10,shade=.10})
 S.Plate(card,"shellCopper",{corner=20,layer="ARTWORK",sublevel=1})
-local profile=Page("profile","Player Profile","Competitive overview and performance.",-35,card)
+local profile=Page("profile","Duelist Profile","Your character and dueling career.",-35,card)
 local drag=CreateFrame("Frame",nil,card)
 drag:SetPoint("TOPLEFT",card,"TOPLEFT",12,-8);drag:SetPoint("TOPRIGHT",card,"TOPRIGHT",-46,-8);drag:SetHeight(48)
 drag:SetFrameLevel(profile:GetFrameLevel()+6)
@@ -726,6 +728,7 @@ function U.ClosePlayerCard()card:Hide()end
 function U.IsPlayerCardOpen()return card:IsShown()end
 local profileSeason=3
 local tournamentCard
+local showcase=ns.PlayerShowcase.Create(profile)
 local profileHero=Panel(profile)
 local profileEmblem=Rank(profileHero,106,true)
 local profileName=Text(profileHero,25,C.pale)
@@ -733,12 +736,12 @@ local profileIdentity=Text(profileHero,14,C.text)
 local profileRealm=Text(profileHero,12,C.muted)
 local profileRank=Text(profileHero,22,C.pale,"CENTER")
 local profileRankCaption=Text(profileHero,12,C.muted,"CENTER")
-local profileStand=Metrics(profileHero,{"Standing","Rating"})
 local profileChoice=Choice(profileHero,Seasons(),3,function(v)profileSeason=v;profile.Render()end,card)
 local profileStats=Panel(profile)
 local profileMetrics=Metrics(profileStats,{"Wins","Losses","Win Rate","Peak Rating","Current Streak","Best Streak"})
 local profileGraphPanel,profileGraphTitle=Header(profile,"Rating Progression")
 local profileGraph=Graph(profileGraphPanel)
+local profileGraphMetrics=Metrics(profileGraphPanel,{"Peak Rating","This Season"})
 local seasonsPanel=Header(profile,"Season History")
 local opponentPanel=Header(profile,"Competitive Opponents","Hall")
 local seasonRows,opponentRows={},{}
@@ -764,10 +767,72 @@ local tournamentInfo=Text(tournamentDetails,18,C.text)
 tournamentInfo:SetWordWrap(true)
 local tournamentNotice=Text(tournamentDetails,16,C.muted)
 tournamentNotice:SetWordWrap(true)
+local profileTabs={active="Overview",buttons={},badges={}}
+local profileAwards=Header(profile,"Achievement Showcase")
+local awardEmpty=T(profileAwards,"No achievements earned yet",12,C.muted,"CENTER")
+local customize=Action(profileAwards,"Customize Profile",function()
+    card:Hide()
+    local item=ns.Search and ns.Search.entries and ns.Search.entries["setting:profileShowModel"]
+    if item then ns.Search.Open(item) else Go("options","options") end
+end)
+profileTabs.allAwards=Action(profileAwards,"View Achievements",function()
+    card:Hide();Go("achievements","achievements")
+end)
+for i=1,3 do
+    local holder=CreateFrame("Frame",nil,profileAwards)
+    local icon=holder:CreateTexture(nil,"ARTWORK")
+    icon:SetAllPoints(holder)
+    profileTabs.badges[i]={frame=holder,icon=icon,label=Text(profileAwards,10,C.muted,"CENTER")}
+end
+for _,name in ipairs({"Overview","Statistics","Career","Achievements"}) do
+    local key=name
+    profileTabs.buttons[#profileTabs.buttons+1]=Action(profile,key,function()
+        profileTabs.active=key;profile.Render()
+    end)
+end
 local function ProfileMode(isTournament)
-    profileHero:SetShown(not isTournament);profileStats:SetShown(not isTournament)
-    profileGraphPanel:SetShown(not isTournament);seasonsPanel:SetShown(not isTournament)
-    opponentPanel:SetShown(not isTournament);tournamentDetails:SetShown(isTournament)
+    local overview=not isTournament and profileTabs.active=="Overview"
+    local stats=not isTournament and profileTabs.active=="Statistics"
+    local career=not isTournament and profileTabs.active=="Career"
+    local awards=not isTournament and profileTabs.active=="Achievements"
+    profileHero:SetShown(not isTournament)
+    showcase:SetShown(overview)
+    profileStats:SetShown(overview or stats)
+    profileGraphPanel:SetShown(overview or career)
+    seasonsPanel:SetShown(career);opponentPanel:SetShown(stats)
+    profileAwards:SetShown(overview or awards)
+    tournamentDetails:SetShown(isTournament)
+    for _,button in ipairs(profileTabs.buttons) do button:SetShown(not isTournament) end
+end
+local function PaintProfileAwards(d,own,w,h)
+    local badges={}
+    if own and ns.Achievements and not d.storageReason then
+        local ok,value=pcall(ns.Achievements.Evaluate,d)
+        if ok and type(value)=="table" then
+            for _,r in ipairs(value.rows or {}) do
+                if r.earned and not r.testOnly then badges[#badges+1]=r;if #badges==3 then break end end
+            end
+        end
+    end
+    awardEmpty:SetShown(#badges==0)
+    awardEmpty:SetText(not own and "Achievements not shared" or d.storageReason and "Achievements unavailable" or "No achievements earned yet")
+    Place(awardEmpty,profileAwards,8,36,math.max(1,w-158),math.max(22,h-45))
+    customize:SetShown(own and d.scope=="LOCAL")
+    Place(customize,profileAwards,w-144,math.max(30,h-34),134,26)
+    profileTabs.allAwards:SetShown(own and profileTabs.active=="Achievements")
+    Place(profileTabs.allAwards,profileAwards,w-144,38,134,26)
+    local size=math.min(42,math.max(20,h-58))
+    for i,entry in ipairs(profileTabs.badges) do
+        local r=badges[i]
+        entry.frame:SetShown(r~=nil);entry.label:SetShown(r~=nil)
+        if r then
+            Place(entry.frame,profileAwards,17+(i-1)*76,31,size,size)
+            Place(entry.label,profileAwards,4+(i-1)*76,31+size,70,15)
+            Set(entry.label,r.title)
+            if ns.AchievementUI then ns.AchievementUI.PaintAchievementIcon(entry.icon,r.id,false,entry.frame)
+            else entry.icon:SetTexture("Interface\\Icons\\"..r.icon) end
+        end
+    end
 end
 function profile.Render()
     ProfileMode(tournamentCard~=nil)
@@ -786,33 +851,79 @@ function profile.Render()
     local d=Data();if not d then return end
     profile.dataCaption:SetText(d.scope=="SIMULATED" and "LOCAL TEST" or "Local data")
     local w,h=profile:GetWidth(),profile:GetHeight()
-    local p=d.view.Profile(profileId or d.me,profileSeason)
+    local own=profileId~=nil and profileId==d.me
+    local p=d.current>0 and d.view.Profile(profileId,profileSeason) or nil
+    local hasProfile=p~=nil
     if not p then p={id=profileId,stats={},seasons={}} end
-    local v=p.identity;local stat=p.stats
-    local heroH=math.max(102,math.min(128,h*.215))
-    Place(profileHero,profile,0,58,w,heroH)
-    local icon=heroH-12;Place(profileEmblem,profileHero,12,6,icon,icon);profileEmblem.Paint(p.rank)
-    local left=icon+25
-    Place(profileName,profileHero,left,8,w*.45-left,35);Set(profileName,v and v.name or p.id or "Unknown player")
-    Place(profileIdentity,profileHero,left,48,w*.45-left,20);Set(profileIdentity,v and ((v.class or "Unknown class").."  •  "..(v.faction or "Unknown faction")) or "Identity unavailable")
-    Place(profileRealm,profileHero,left,71,w*.45-left,18);Set(profileRealm,v and (v.realm or v.fullName) or "—")
-    local rankW=w*.22;Place(profileRank,profileHero,w*.46,39,rankW,29);Set(profileRank,p.rank and p.rank.label or "Unranked")
+    local v=p.identity
+    if own and d.scope=="LOCAL" and ns.Group.ReadCompetitiveIdentity then
+        local identity=ns.Group.ReadCompetitiveIdentity("player")
+        if identity and identity.guid==d.me then v=identity end
+    end
+    v=v or (d.identities and d.identities[profileId])
+    local stat=(own and d.personal or p.stats) or {}
+    local known=(own and not d.storageReason) or (not own and hasProfile)
+    local overview=profileTabs.active=="Overview"
+    local side=overview and math.floor(w*.32) or 0
+    local x=overview and side+12 or 0
+    local width=w-x
+    local top=86
+    for i,button in ipairs(profileTabs.buttons) do
+        Place(button,profile,(i-1)*118,53,112,26)
+        button:SetAlpha(({"Overview","Statistics","Career","Achievements"})[i]==profileTabs.active and 1 or .72)
+    end
+    if overview then
+        Place(showcase,profile,0,top,side,h-top)
+        showcase.Paint(profileId,d.scope,v)
+    end
+    local heroH=overview and 106 or 112
+    Place(profileHero,profile,x,top,width,heroH)
+    w=width
+    local icon=overview and 58 or 72
+    Place(profileEmblem,profileHero,w-icon-14,6,icon,icon);profileEmblem.Paint(p.rank)
+    local left=12
+    local identityWidth=w-math.min(150,w*.28)-20
+    Place(profileName,profileHero,left,8,identityWidth,32);Set(profileName,v and (d.scope=="LOCAL" and not v.realm and v.fullName or v.name) or "Unknown player")
+    local race=ns.PlayerShowcase.Race(profileId,d.scope)
+    Place(profileIdentity,profileHero,left,42,identityWidth,20);Set(profileIdentity,v and ((race and race.." " or "")..(v.class or "Unknown class").."  •  "..(v.faction or "Unknown faction")) or "Identity unavailable")
+    Place(profileRealm,profileHero,left,65,identityWidth,18);Set(profileRealm,v and v.realm or "—")
+    local rankW=math.min(150,w*.28);Place(profileRank,profileHero,w-rankW-6,64,rankW,22);Set(profileRank,p.rank and p.rank.label or "Unranked")
     local placement=Placement(d,p,profileSeason)
     if placement then Set(profileRank,"Placement "..CreditText(placement)) end
-    Place(profileRankCaption,profileHero,w*.46,69,rankW,18)
-    Set(profileRankCaption,placement and (placement.rivals.." / "..placement.required.." rivals") or ("Season "..profileSeason))
-    FitMetrics(profileStand,profileHero,w*.69,42,w*.30,heroH-45)
-    Set(profileStand[1].value,p.position and "#"..p.position or "—");Set(profileStand[2].value,Number(p.rating))
-    Place(profileChoice,profileHero,w-122,7,112,28)
-    local statY=58+heroH+10;Place(profileStats,profile,0,statY,w,62);FitMetrics(profileMetrics,profileStats,0,2,w,58)
-    Set(profileMetrics[1].value,stat.wins or 0,GREEN);Set(profileMetrics[2].value,stat.losses or 0,RED)
-    Set(profileMetrics[3].value,Rate(stat.winRate),GREEN);Set(profileMetrics[4].value,Number(p.peakRating))
-    Set(profileMetrics[5].value,Streak(stat.currentStreak),stat.currentStreak and stat.currentStreak<0 and RED or GREEN);Set(profileMetrics[6].value,Streak(stat.bestStreak))
-    local lowerH=math.max(122,math.min(177,h*.27));local graphY=statY+72;local graphH=math.max(100,h-graphY-lowerH-10)
-    Place(profileGraphPanel,profile,0,graphY,w,graphH);profileGraphTitle:SetText("Rating Progression — Season "..profileSeason)
-    Place(profileGraph,profileGraphPanel,12,41,w-24,graphH-47);profileGraph.Paint(Points(profileId or d.me,profileSeason))
-    local lowerY=h-lowerH;local sw=(w-12)*.54;local ow=w-sw-12
-    Place(seasonsPanel,profile,0,lowerY,sw,lowerH);Place(opponentPanel,profile,sw+12,lowerY,ow,lowerH)
+    Place(profileRankCaption,profileHero,w-rankW-6,86,rankW,16)
+    Set(profileRankCaption,p.rating and (Number(p.rating)..(p.position and "  •  #"..p.position or "")) or placement and (placement.rivals.." / "..placement.required.." rivals") or "No active rating")
+    profileChoice:SetShown(profileTabs.active=="Career" and d.current>0)
+    Place(profileChoice,profileHero,12,85,112,24)
+    local statY=top+heroH+8
+    Place(profileStats,profile,x,statY,w,62)
+    for i,metric in ipairs(profileMetrics) do metric:SetShown(not overview or i<=3) end
+    if overview then FitMetrics({profileMetrics[1],profileMetrics[2],profileMetrics[3]},profileStats,0,2,w,58)
+    else FitMetrics(profileMetrics,profileStats,0,2,w,58) end
+    Set(profileMetrics[1].value,known and (stat.wins or 0) or nil,GREEN);Set(profileMetrics[2].value,known and (stat.losses or 0) or nil,RED)
+    Set(profileMetrics[3].value,Rate(stat.winRate),C.text);Set(profileMetrics[4].value,Number(p.peakRating))
+    local streak=stat.signedStreak or stat.currentStreak
+    Set(profileMetrics[5].value,Streak(streak),streak and streak<0 and RED or GREEN);Set(profileMetrics[6].value,Streak(stat.bestStreak))
+    local lowerH=math.max(122,math.min(177,h*.27))
+    local graphY=overview and statY+70 or statY
+    local awardH=100
+    local graphH=math.max(100,h-graphY-(overview and awardH or lowerH)-10)
+    Place(profileGraphPanel,profile,x,graphY,w,graphH)
+    profileGraphTitle:SetText(d.current>0 and "Rating Progression — Season "..profileSeason or "Rating Progression")
+    local graphSide=overview and 110 or 0
+    Place(profileGraph,profileGraphPanel,12,41,w-24-graphSide,graphH-47)
+    for i,metric in ipairs(profileGraphMetrics) do
+        metric:SetShown(overview);metric.line:Hide()
+        Place(metric,profileGraphPanel,w-110,40+(i-1)*math.max(56,(graphH-45)/2),102,56)
+    end
+    Set(profileGraphMetrics[1].value,Number(p.peakRating));Set(profileGraphMetrics[2].value,Number(p.rating))
+    if overview or profileTabs.active=="Career" then profileGraph.Paint(d.current>0 and Points(profileId,profileSeason) or {}) end
+    if overview or profileTabs.active=="Achievements" then
+        local ay=overview and h-awardH or statY
+        local ah=overview and awardH or h-ay
+        Place(profileAwards,profile,x,ay,w,ah);PaintProfileAwards(d,own,w,ah)
+    end
+    local lowerY=h-lowerH;local sw=w;local ow=w
+    Place(seasonsPanel,profile,0,lowerY,sw,lowerH);Place(opponentPanel,profile,0,statY+72,ow,math.max(lowerH,h-statY-72))
     local widths={.24,.20,.20,.18,.18};local x=10
     for i,t in ipairs(seasonHead) do Place(t,seasonsPanel,x,37,(sw-20)*widths[i],17);x=x+(sw-20)*widths[i] end
     for i,t in ipairs(oppHead) do local xs={10,ow*.57,ow*.78};local ws={ow*.52,ow*.21,ow*.21};Place(t,opponentPanel,xs[i],37,ws[i],17) end
@@ -841,11 +952,12 @@ function profile.Render()
     end
 end
 OpenProfile=function(id)
-    if not preview or not id or preview.current==0 then return end
-    if not preview.view.ProfileSummary(id,preview.current) and
-        not preview.view.ProfileSummary(id,boardSeason) then return end
+    if not preview or not id then return false end
+    if id~=preview.me and (preview.current==0 or (not preview.view.ProfileSummary(id,preview.current) and
+        not preview.view.ProfileSummary(id,boardSeason))) then return false end
     W.CloseChoices()
     tournamentCard=nil
+    profileTabs.active="Overview"
     profileId=id
     profileSeason=active=="standings" and boardSeason or active=="overview" and preview.current or profileSeason
     profileChoice.SetChoice(profileSeason)
@@ -855,6 +967,7 @@ OpenProfile=function(id)
     profile:Show()
     card:Show();card:Raise()
     profile.Render()
+    return true
 end
 U.OpenPlayerCard=OpenProfile
 function U.OpenTournamentPlayerCard(member,event,scope)
@@ -871,7 +984,7 @@ end
 function U.CloseTournamentPlayerCard()
     if tournamentCard then card:Hide();tournamentCard=nil end
 end
-card:HookScript("OnHide",function()tournamentCard=nil end)
+card:HookScript("OnHide",function()tournamentCard=nil;showcase.Stop() end)
 profile:SetScript("OnSizeChanged",function(self)if card:IsShown() and (preview or tournamentCard) then self.Render()end end)
 -- Private history: display local observations, join only confirmed replay IDs.
 local history=Page("history","Match History","Your dueling journey, one match at a time.",-71)
@@ -1009,6 +1122,13 @@ local function EnsureData(force)
     end
     return true
 end
+function U.OpenMyProfile()
+    if not EnsureData(true) or not preview.me then return false end
+    return OpenProfile(preview.me)
+end
+function U.RefreshPlayerShowcase()
+    if card:IsShown() and not tournamentCard then profile.Render() end
+end
 local function RenderActive(force)
     if not active then return end
     if not EnsureData(force) then
@@ -1062,12 +1182,13 @@ function U.Refresh()
         preview=nil
     end
     if active and pages[active]:IsVisible() then RenderActive(true)
+    elseif card:IsShown() and ns.Window.frame:IsShown() then
+        EnsureData(true)
     elseif preview then
-        if card:IsShown() then card:Hide() end
         preview=nil
     end
     if card:IsShown() and preview then
-        if preview.view.ProfileSummary(profileId,profileSeason) then profile.Render()
+        if profileId==preview.me or (preview.current>0 and preview.view.ProfileSummary(profileId,profileSeason)) then profile.Render()
         else card:Hide() end
     end
 end

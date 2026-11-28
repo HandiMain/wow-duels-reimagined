@@ -15,6 +15,7 @@ for _,id in ipairs({"page:options:options","page:addonstatus:status","page:hall:
     "page:wargames:player","page:community:community","page:patchnotes:latest",
     "setting:duelCountdownVisual","setting:notificationEnabled","setting:duelCountdownSoundPack"}) do Item(id) end
 ns.PatchNotesData={{key="latest"}}
+ns.CompetitiveUI={OpenMyProfile=function()actions[#actions+1]="profile";return true end}
 ns.DiagnosticsUI={Open=function()actions[#actions+1]="diagnostics" end}
 local enabled=true
 ns.Settings={Get=function()return enabled end,Set=function(_,value)enabled=value end,
@@ -26,7 +27,7 @@ assert(loadfile("addon/DuelsReimagined/Core/Commands.lua"))("DuelsReimagined",ns
 local run=SlashCmdList.DUELSREIMAGINED
 local function Last()return actions[#actions] end
 run(" HELP ");local help=table.concat(output,"\n")
-for _,name in ipairs({"help","options","status","diagnostics","hall","leaderboard","history","achievements","tournaments","champions","wargames","hud","hud reset","edit","countdown","notifications","sounds","community","patchnotes"}) do
+for _,name in ipairs({"help","options","status","diagnostics","hall","profile","leaderboard","history","achievements","tournaments","champions","wargames","hud","hud reset","edit","countdown","notifications","sounds","community","patchnotes"}) do
     assert(help:find("/duels "..name.."|r",1,true),name)
 end
 for _,name in ipairs({"sim","test","trace","peer","storage","sync","tournament net","sounds status","hud preview"}) do assert(not help:find("/duels "..name.."|r",1,true),name) end
@@ -37,6 +38,7 @@ retail=true
 run("  MATCHHISTORY ");assert(not shown and #actions==0 and output[#output]:find("Unknown command",1,true))
 run("  HISTORY  ");assert(shown and Last()=="page:matchhistory:history")
 run("hall");assert(shown and Last()=="page:hall:overview")
+run("profile");assert(shown and Last()=="profile")
 run("patchnotes");assert(Last()=="page:patchnotes:latest")
 run("countdown");assert(Last()=="setting:duelCountdownVisual")
 run("notifications");assert(Last()=="setting:notificationEnabled")

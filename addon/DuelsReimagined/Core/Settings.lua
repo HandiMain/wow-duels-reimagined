@@ -75,6 +75,8 @@ end
 -- Every persistent Options toggle belongs here, including future ones.
 local boolDefaults = {
     matchFont = false,
+    profileShowModel = true,
+    profileFactionBackdrop = true,
     autoPeekMoving = true,
     reduceMotion = false,
     competitiveConsent = false,
@@ -736,7 +738,10 @@ function Settings.Set(key, value)
     local db = WriteDB()
     if db[key] == value then return end
     db[key] = value
-    if key == "patchNotesReminder" then
+    if key == "profileShowModel" or key == "profileFactionBackdrop" then
+        if ns.CompetitiveUI and ns.CompetitiveUI.RefreshPlayerShowcase then ns.CompetitiveUI.RefreshPlayerShowcase() end
+        if ns.Options and ns.Options.Refresh then ns.Options.Refresh() end
+    elseif key == "patchNotesReminder" then
         if ns.PatchNotes and ns.PatchNotes.RefreshReminder then
             ns.PatchNotes.RefreshReminder()
         end

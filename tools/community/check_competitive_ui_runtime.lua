@@ -120,6 +120,7 @@ assert(not P.IsActive() and P.Get().scope=="LOCAL")
 assert(not P.Command("win"))
 assert(P.Command("start") and P.IsActive())
 assert(P.Get().personal.total==0)
+assert(loadfile(base.."UI/PlayerShowcase.lua"))("DuelsReimagined",ns)
 assert(loadfile(base.."UI/CompetitiveUI.lua"))("DuelsReimagined",ns)
 local U=ns.CompetitiveUI
 local count=#frames
@@ -166,6 +167,9 @@ assert(HasText("Placement Matches") and HasText("0 / 5 completed"))
 -- unavailable-data label instead of claiming a successfully read empty store.
 assert(P.Get().storageReason and HasText("Local history unavailable"))
 assert(P.Get().current==0 and #P.Get().matches==0)
+assert(U.OpenMyProfile() and U.IsPlayerCardOpen() and HasText("Duelist Profile"))
+U.Refresh();assert(U.IsPlayerCardOpen());U.ClosePlayerCard()
+assert(not U.IsPlayerCardOpen())
 assert(P.Command("start"))
 for i=1,5 do assert(P.Command("win")) end
 assert(next(activeTweens))

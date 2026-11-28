@@ -272,3 +272,5 @@ dofile("tools/community/check_opponent_discovery_runtime.lua")
 dofile("tools/community/check_commands_runtime.lua")
 
 dofile("tools/community/check_menu_buttons_runtime.lua")
+
+dofile("tools/community/check_player_showcase_runtime.lua")

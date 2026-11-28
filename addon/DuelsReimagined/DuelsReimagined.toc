@@ -60,6 +60,7 @@ UI\Diagnostics.lua
 UI\WarGamesArenaPicker.lua [AllowLoadGameType standard]
 UI\WarGames.lua [AllowLoadGameType standard]
 UI\CompetitivePreview.lua
+UI\PlayerShowcase.lua
 UI\CompetitiveUI.lua
 UI\AchievementUI.lua
 UI\BracketView.lua

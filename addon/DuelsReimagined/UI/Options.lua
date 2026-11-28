@@ -336,6 +336,10 @@ end
 
 local matchFontRow = AddToggle(appearanceCard, "options", "matchFont", "Match EllesmereUI font",
     "Use your selected EllesmereUI interface font.", -61, true)
+local profileModelRow=AddToggle(appearanceCard,"options","profileShowModel","Live character model",
+    "Display your character in 3D where available; otherwise show a portrait or class emblem.",-118,false)
+local profileBackdropRow=AddToggle(appearanceCard,"options","profileFactionBackdrop","Faction profile background",
+    "Use your faction colors behind the character instead of a neutral bronze background.",-170,false)
 local autoPeekRow = AddToggle(behaviorCard, "interface", "autoPeekMoving", "Automatic Peek while moving",
     "Fade the window during movement; restore it when you stop.", -64, false)
 local reduceMotionRow = AddToggle(behaviorCard, "interface", "reduceMotion", "Reduce motion",
@@ -820,6 +824,7 @@ local appearanceGroups = {
     { card = appearanceCard, entries = {
         { widget = matchFontRow },
         { widget = availability, height = 26 },
+        { widget = profileModelRow }, { widget = profileBackdropRow },
     }},
 }
 local interfaceGroups = {
