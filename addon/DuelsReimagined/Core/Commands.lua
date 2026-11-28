@@ -70,6 +70,9 @@ Register("hall","Competition","Open the Hall.",Page("hall","overview"))
 Register("profile","Competition","Open your Duelist Profile.",function()
     if SafeOpen() and EnsureWindow() and not ns.CompetitiveUI.OpenMyProfile() then Tell("Your profile is unavailable right now.") end
 end)
+Register("titles","Competition","Browse your Duelist Titles.",function()
+    if SafeOpen() and EnsureWindow() and not ns.CompetitiveUI.OpenMyTitles() then Tell("Your titles are unavailable right now.") end
+end)
 Register("leaderboard","Competition","View the leaderboard.",Page("leaderboard","standings"))
 Register("history","Competition","View your match history.",Page("matchhistory","history"))
 Register("achievements","Competition","View your achievements.",Page("achievements","achievements"))

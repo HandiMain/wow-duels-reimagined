@@ -24,6 +24,14 @@ local function UnitFor(id,scope)
         if Call(UnitGUID,unit)==id and Call(UnitIsPlayer,unit)==true then return unit end
     end
 end
+function P.PaintPortrait(texture,id,scope,info)
+    local class=info and info.class
+    texture:SetTexture(type(class)=="string" and class:match("^[A-Z]+$") and
+        "Interface\\Icons\\ClassIcon_"..class or "Interface\\Icons\\INV_Misc_QuestionMark")
+    texture:SetTexCoord(.07,.93,.07,.93)
+    local unit=UnitFor(id,scope)
+    return unit and type(SetPortraitTexture)=="function" and pcall(SetPortraitTexture,texture,unit)
+end
 function P.Race(id,scope)
     local unit=UnitFor(id,scope)
     local race=unit and Call(UnitRace,unit)
@@ -144,14 +152,9 @@ function P.Create(parent)
         local useModel=nextUnit and (not ns.Settings or ns.Settings.Get("profileShowModel")~=false)
         if nextUnit==unit and requestedModel==useModel and ready and not force then return end
         Clear();unit=nextUnit
-        local class=metadata and metadata.class
-        portrait:SetTexture(type(class)=="string" and class:match("^[A-Z]+$") and
-            "Interface\\Icons\\ClassIcon_"..class or "Interface\\Icons\\INV_Misc_QuestionMark")
-        portrait:SetTexCoord(.07,.93,.07,.93);portrait:Show()
-        caption:SetText("Character model unavailable")
-        if unit and type(SetPortraitTexture)=="function" then
-            if pcall(SetPortraitTexture,portrait,unit) then caption:SetText("Character portrait") end
-        end
+        local hasPortrait=P.PaintPortrait(portrait,identity,scope,metadata)
+        portrait:Show()
+        caption:SetText(hasPortrait and "Character portrait" or "Character model unavailable")
         if useModel and CreateModel() then
             requestedModel=useModel
             model:Show()

@@ -274,3 +274,5 @@ dofile("tools/community/check_commands_runtime.lua")
 dofile("tools/community/check_menu_buttons_runtime.lua")
 
 dofile("tools/community/check_player_showcase_runtime.lua")
+
+dofile("tools/community/check_duelist_titles_runtime.lua")

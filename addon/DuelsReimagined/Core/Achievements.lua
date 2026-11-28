@@ -69,9 +69,25 @@ for _,d in ipairs(expansion) do catalog[#catalog+1]=d end
 -- A milestone index keeps large history replays proportional to the metrics
 -- that actually change, rather than scanning the entire catalogue per duel.
 local milestones={}
+local requirements={}
 for _,d in ipairs(catalog) do
+    requirements[d[1]]=d
     local key=d[5];milestones[key]=milestones[key] or {}
     milestones[key][#milestones[key]+1]=d
+end
+function A.GetRequirement(id)
+    local d=requirements[id]
+    if d then return d[4],d[6],d[2],d[9],d[8] end
+end
+-- All local consumers share the same archive read and evaluation path.
+function A.Current(data)
+    local r=ns.TournamentRegistration
+    local rows,scope
+    if r and r.ReadPersonalArchive then
+        local p=r.PreviewSnapshot and r.PreviewSnapshot()
+        rows,scope=r.ReadPersonalArchive(p)
+    end
+    return A.Evaluate(data or ns.CompetitivePreview.Get(),rows,scope)
 end
 local ranks={Unranked=0,Aspirant=1,Contender=2,Veteran=3,Duelist=4,Master=5,Grandmaster=6}
 local function Tier(v)return ranks[v] or 0 end

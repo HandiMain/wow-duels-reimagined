@@ -1,6 +1,6 @@
 local addonName, ns = ...
 
--- Single owner for account-wide preferences. Read the SavedVariables global
+-- Single owner for account and character preferences. Read the SavedVariables global
 -- on every access: WoW may replace its table after addon files have executed.
 local Settings = {}
 ns.Settings = Settings
@@ -183,6 +183,25 @@ local function WriteDB()
         _G.DuelsReimaginedDB = db
     end
     return db
+end
+
+-- Character-owned cosmetic choices are separate from competitive evidence.
+-- No state is seeded before ADDON_LOADED; unknown selections are never equipped.
+local characterPreferencesLoaded=false
+function Settings.GetCharacterTitle()
+    local db=_G.DuelsReimaginedCharacterPreferences
+    local id=type(db)=="table" and db.equippedTitle or nil
+    if characterPreferencesLoaded and type(id)=="string" and ns.DuelistTitles and ns.DuelistTitles.IsKnown(id) then return id end
+end
+function Settings.SetCharacterTitle(id)
+    if not characterPreferencesLoaded or (id~=nil and
+        (type(id)~="string" or not ns.DuelistTitles or not ns.DuelistTitles.IsKnown(id))) then return false end
+    local db=_G.DuelsReimaginedCharacterPreferences
+    if db~=nil and type(db)~="table" then return false end
+    if id==nil and not db then return true end
+    if not db then db={};_G.DuelsReimaginedCharacterPreferences=db end
+    db.equippedTitle=id
+    return true
 end
 
 -- Patch Notes is account-wide presentation state, not a real addon version.
@@ -811,6 +830,7 @@ loader:RegisterEvent("ADDON_LOADED")
 loader:SetScript("OnEvent", function(self, _, loadedName)
     if loadedName ~= addonName then return end
     self:UnregisterEvent("ADDON_LOADED")
+    characterPreferencesLoaded=true
     -- Competitive storage owns its separate roots; this only forwards lifecycle.
     if ns.CompetitiveStorage then ns.CompetitiveStorage.MarkLoaded() end
     local db = WriteDB()

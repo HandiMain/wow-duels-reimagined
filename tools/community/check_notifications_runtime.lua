@@ -96,6 +96,7 @@ local stale=R("0.1.1","0.1.1");stale.stale=true;assert(not U.Select("0.1.0",stal
 U.Observe(R("0.1.1","0.1.1"));assert(not U.GetNotice())
 assert(loadfile(root.."Core/SeasonRules.lua"))("DuelsReimagined",ns)
 assert(loadfile(root.."Core/Achievements.lua"))("DuelsReimagined",ns)
+assert(loadfile(root.."Core/DuelistTitles.lua"))("DuelsReimagined",ns)
 assert(loadfile(root.."UI/Notifications.lua"))("DuelsReimagined",ns)
 local card,events
 for _,f in ipairs(frames) do
@@ -181,7 +182,11 @@ simulation=false
 localEnabled=true;localMatches={{id="old",kind="standard",outcome="won"}}
 N.CheckAchievements();assert(not card:IsShown(),"existing achievements must not replay")
 now=210;table.insert(localMatches,1,{id="new",kind="standard",outcome="won"});N.CheckAchievements()
-assert(card:IsShown() and N.GetDiagnosticResources().queued==0)
+assert(card:IsShown() and N.GetDiagnosticResources().queued==1)
+expiry[#expiry].fn();flush();assert(card:IsShown() and N.GetDiagnosticResources().queued==0)
+local unlocked=false
+for _,f in ipairs(frames) do if f.text=="NEW TITLE UNLOCKED" then unlocked=true end end
+assert(unlocked,"live title reward notification missing")
 hud:Hide();hud.scripts.OnHide();assert(not card:IsShown() and N.GetDiagnosticResources().queued==0)
 hud:Show();hud.scripts.OnShow();N.CheckAchievements();assert(not card:IsShown())
 now=230;assert(N.PreviewPromotion() and card:GetHeight()==218);prefs.notificationEnabled=false;N.Refresh()

@@ -152,6 +152,7 @@ end
 local function Row()
     local f=Panel(list);f.icon=Icon(f)
     f.name=Label(f,"",16,C.pale);f.desc=Label(f,"",12,C.text)
+    f.reward=Label(f,"",12,C.gold)
     f.track=Panel(f);f.fill=f.track:CreateTexture(nil,"ARTWORK",nil,2)
     f.fill:SetColorTexture(1,.73,.25,1);f.counter=Label(f.track,"",12,C.text,"CENTER")
     f.counter:SetAllPoints(f.track)
@@ -182,7 +183,12 @@ local function Paint(f,r,w,h)
     local textW=math.max(55,pX-x-10)
     f.name:SetText(r.title);f.name:SetTextColor(unpack(r.earned and C.pale or color))
     f.desc:SetText(r.description);f.desc:SetWordWrap(h>=82)
-    Place(f.name,f,x,5,textW,22);Place(f.desc,f,x,28,textW,h>=82 and 28 or 18)
+    local reward=ns.DuelistTitles and ns.DuelistTitles.Reward(r.id)
+    Place(f.name,f,x,5,textW,22);Place(f.desc,f,x,28,textW,reward and 28 or h>=82 and 28 or 18)
+    f.reward:SetShown(reward~=nil)
+    f.reward:SetText(reward and ("Unlocks title: "..reward) or "")
+    f.reward:SetTextColor(unpack(r.earned and not r.testOnly and data.scope=="LOCAL" and C.gold or C.muted))
+    Place(f.reward,f,x,h-42,textW,18)
     Place(f.track,f,x,h-23,textW,16)
     local progress=r.progress/r.target
     Place(f.fill,f.track,3,3,math.max(1,(textW-6)*progress),10)
@@ -251,7 +257,7 @@ Render=function()
     Place(list,page,lw+10,contentY,listW,math.max(1,h-contentY))
     local selected={}
     for _,r in ipairs(data.rows) do if category=="All" or r.category==category then selected[#selected+1]=r end end
-    local rowH=math.max(70,math.min(90,math.floor((h-contentY)/5)-5))
+    local rowH=math.max(100,math.min(112,math.floor((h-contentY)/4)-5))
     visible=math.max(1,math.min(MAX_VISIBLE_ROWS,math.floor((h-contentY)/(rowH+5))))
     for i=#rows+1,visible do rows[i]=Row() end
     total=#selected;offset=math.max(0,math.min(offset,math.max(0,total-visible)))
@@ -266,15 +272,7 @@ local function GetPageScroll()return offset end
 local function SetPageScroll(_,v)offset=math.max(0,math.floor(tonumber(v) or 0));Render()end
 local function RefreshPage()
     if not shown or not page:IsVisible() then data=nil;return end
-    local ok,result=pcall(function()
-        local r=ns.TournamentRegistration
-        local rows,scope
-        if r and r.ReadPersonalArchive then
-            local p=r.PreviewSnapshot and r.PreviewSnapshot()
-            rows,scope=r.ReadPersonalArchive(p)
-        end
-        return ns.Achievements.Evaluate(ns.CompetitivePreview.Get(),rows,scope)
-    end)
+    local ok,result=pcall(ns.Achievements.Current)
     if ok then data=result else
         data=ns.Achievements.Evaluate({scope="LOCAL",storageReason="unavailable"})
         if ns.Diagnostics then ns.Diagnostics.Record("Achievements","Data provider unavailable") end

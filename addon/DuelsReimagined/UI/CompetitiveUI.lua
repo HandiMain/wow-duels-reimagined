@@ -768,6 +768,8 @@ tournamentInfo:SetWordWrap(true)
 local tournamentNotice=Text(tournamentDetails,16,C.muted)
 tournamentNotice:SetWordWrap(true)
 local profileTabs={active="Overview",buttons={},badges={}}
+profileTabs.titleText=Text(profileHero,15,C.gold)
+profileTabs.titles=ns.DuelistTitleUI.Create(profile,function()U.Refresh()end)
 local profileAwards=Header(profile,"Achievement Showcase")
 local awardEmpty=T(profileAwards,"No achievements earned yet",12,C.muted,"CENTER")
 local customize=Action(profileAwards,"Customize Profile",function()
@@ -784,31 +786,33 @@ for i=1,3 do
     icon:SetAllPoints(holder)
     profileTabs.badges[i]={frame=holder,icon=icon,label=Text(profileAwards,10,C.muted,"CENTER")}
 end
-for _,name in ipairs({"Overview","Statistics","Career","Achievements"}) do
+for _,name in ipairs({"Overview","Statistics","Career","Achievements","Titles"}) do
     local key=name
     profileTabs.buttons[#profileTabs.buttons+1]=Action(profile,key,function()
         profileTabs.active=key;profile.Render()
     end)
 end
-local function ProfileMode(isTournament)
+local function ProfileMode(isTournament,own)
+    if not own and profileTabs.active=="Titles" then profileTabs.active="Overview" end
+    local titles=not isTournament and own and profileTabs.active=="Titles"
     local overview=not isTournament and profileTabs.active=="Overview"
     local stats=not isTournament and profileTabs.active=="Statistics"
     local career=not isTournament and profileTabs.active=="Career"
     local awards=not isTournament and profileTabs.active=="Achievements"
-    profileHero:SetShown(not isTournament)
+    profileHero:SetShown(not isTournament and not titles)
+    profileTabs.titles:SetShown(not not titles)
     showcase:SetShown(overview)
     profileStats:SetShown(overview or stats)
     profileGraphPanel:SetShown(overview or career)
     seasonsPanel:SetShown(career);opponentPanel:SetShown(stats)
     profileAwards:SetShown(overview or awards)
     tournamentDetails:SetShown(isTournament)
-    for _,button in ipairs(profileTabs.buttons) do button:SetShown(not isTournament) end
+    for i,button in ipairs(profileTabs.buttons) do button:SetShown(not isTournament and (i~=5 or own==true)) end
 end
-local function PaintProfileAwards(d,own,w,h)
+local function PaintProfileAwards(d,own,w,h,value)
     local badges={}
-    if own and ns.Achievements and not d.storageReason then
-        local ok,value=pcall(ns.Achievements.Evaluate,d)
-        if ok and type(value)=="table" then
+    if own and not d.storageReason then
+        if type(value)=="table" then
             for _,r in ipairs(value.rows or {}) do
                 if r.earned and not r.testOnly then badges[#badges+1]=r;if #badges==3 then break end end
             end
@@ -835,7 +839,7 @@ local function PaintProfileAwards(d,own,w,h)
     end
 end
 function profile.Render()
-    ProfileMode(tournamentCard~=nil)
+    ProfileMode(tournamentCard~=nil,not tournamentCard and Data()~=nil and profileId~=nil and profileId==Data().me)
     if tournamentCard then
         local w,h=profile:GetWidth(),profile:GetHeight()
         Place(tournamentDetails,profile,0,58,w,math.max(150,h-58))
@@ -861,6 +865,9 @@ function profile.Render()
         if identity and identity.guid==d.me then v=identity end
     end
     v=v or (d.identities and d.identities[profileId])
+    local awards
+    if own and ns.Achievements then local ok,result=pcall(ns.Achievements.Current,d);if ok then awards=result end end
+    local titleModel=own and ns.DuelistTitles.Model(awards or {scope=d.scope,storageReason="unavailable"}) or nil
     local stat=(own and d.personal or p.stats) or {}
     local known=(own and not d.storageReason) or (not own and hasProfile)
     local overview=profileTabs.active=="Overview"
@@ -870,7 +877,12 @@ function profile.Render()
     local top=86
     for i,button in ipairs(profileTabs.buttons) do
         Place(button,profile,(i-1)*118,53,112,26)
-        button:SetAlpha(({"Overview","Statistics","Career","Achievements"})[i]==profileTabs.active and 1 or .72)
+        button:SetAlpha(({"Overview","Statistics","Career","Achievements","Titles"})[i]==profileTabs.active and 1 or .72)
+    end
+    if profileTabs.active=="Titles" and own then
+        Place(profileTabs.titles,profile,0,top,w,h-top)
+        profileTabs.titles.Paint(titleModel,profileId,v)
+        return
     end
     if overview then
         Place(showcase,profile,0,top,side,h-top)
@@ -885,8 +897,11 @@ function profile.Render()
     local identityWidth=w-math.min(150,w*.28)-20
     Place(profileName,profileHero,left,8,identityWidth,32);Set(profileName,v and (d.scope=="LOCAL" and not v.realm and v.fullName or v.name) or "Unknown player")
     local race=ns.PlayerShowcase.Race(profileId,d.scope)
-    Place(profileIdentity,profileHero,left,42,identityWidth,20);Set(profileIdentity,v and ((race and race.." " or "")..(v.class or "Unknown class").."  •  "..(v.faction or "Unknown faction")) or "Identity unavailable")
-    Place(profileRealm,profileHero,left,65,identityWidth,18);Set(profileRealm,v and v.realm or "—")
+    local equipped=titleModel and titleModel.equipped and titleModel.byId[titleModel.equipped]
+    profileTabs.titleText:SetShown(not not equipped)
+    Place(profileTabs.titleText,profileHero,left,37,identityWidth,20);Set(profileTabs.titleText,equipped and equipped.name or "")
+    Place(profileIdentity,profileHero,left,equipped and 58 or 42,identityWidth,20);Set(profileIdentity,v and ((race and race.." " or "")..(v.class or "Unknown class").."  •  "..(v.faction or "Unknown faction")) or "Identity unavailable")
+    Place(profileRealm,profileHero,equipped and left+120 or left,equipped and 82 or 65,math.max(1,identityWidth-(equipped and 120 or 0)),18);Set(profileRealm,v and v.realm or "—")
     local rankW=math.min(150,w*.28);Place(profileRank,profileHero,w-rankW-6,64,rankW,22);Set(profileRank,p.rank and p.rank.label or "Unranked")
     local placement=Placement(d,p,profileSeason)
     if placement then Set(profileRank,"Placement "..CreditText(placement)) end
@@ -920,7 +935,7 @@ function profile.Render()
     if overview or profileTabs.active=="Achievements" then
         local ay=overview and h-awardH or statY
         local ah=overview and awardH or h-ay
-        Place(profileAwards,profile,x,ay,w,ah);PaintProfileAwards(d,own,w,ah)
+        Place(profileAwards,profile,x,ay,w,ah);PaintProfileAwards(d,own,w,ah,awards)
     end
     local lowerY=h-lowerH;local sw=w;local ow=w
     Place(seasonsPanel,profile,0,lowerY,sw,lowerH);Place(opponentPanel,profile,0,statY+72,ow,math.max(lowerH,h-statY-72))
@@ -958,6 +973,7 @@ OpenProfile=function(id)
     W.CloseChoices()
     tournamentCard=nil
     profileTabs.active="Overview"
+    profileTabs.titles.Reset()
     profileId=id
     profileSeason=active=="standings" and boardSeason or active=="overview" and preview.current or profileSeason
     profileChoice.SetChoice(profileSeason)
@@ -1125,6 +1141,10 @@ end
 function U.OpenMyProfile()
     if not EnsureData(true) or not preview.me then return false end
     return OpenProfile(preview.me)
+end
+function U.OpenMyTitles()
+    if not U.OpenMyProfile() then return false end
+    profileTabs.active="Titles";profile.Render();return true
 end
 function U.RefreshPlayerShowcase()
     if card:IsShown() and not tournamentCard then profile.Render() end

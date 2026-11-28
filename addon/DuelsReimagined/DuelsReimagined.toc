@@ -5,7 +5,7 @@
 ## Category: PvP
 ## OptionalDeps: EllesmereUI, LibSharedMedia-3.0, SharedMedia
 ## SavedVariables: DuelsReimaginedDB, DuelsReimaginedCompetitiveDB
-## SavedVariablesPerCharacter: DuelsReimaginedCharacterDB
+## SavedVariablesPerCharacter: DuelsReimaginedCharacterDB, DuelsReimaginedCharacterPreferences
 ## IconTexture: Interface\AddOns\DuelsReimagined\Media\Icons\DuelsDRIcon.png
 
 # Shared client detection loads before any gameplay or settings module.
@@ -36,6 +36,7 @@ Core\CompetitiveManifest.lua
 Core\CompetitiveIntegrity.lua
 Core\CompetitiveLifecycle.lua
 Core\Achievements.lua
+Core\DuelistTitles.lua
 Core\TournamentState.lua
 Core\TournamentRecovery.lua
 Core\TournamentRegistration.lua
@@ -61,6 +62,7 @@ UI\WarGamesArenaPicker.lua [AllowLoadGameType standard]
 UI\WarGames.lua [AllowLoadGameType standard]
 UI\CompetitivePreview.lua
 UI\PlayerShowcase.lua
+UI\DuelistTitleUI.lua
 UI\CompetitiveUI.lua
 UI\AchievementUI.lua
 UI\BracketView.lua

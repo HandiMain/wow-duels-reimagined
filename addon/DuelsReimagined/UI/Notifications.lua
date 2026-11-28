@@ -330,10 +330,11 @@ local function Paint(m)
         warningTitle:SetText(m.title);warningDescription:SetText(m.body)
     elseif achieved then
         Position(close,panel,WIDTH-27,32,19,19)
-        achCategory:SetText(m.testTournament and (m.privateTest and "PRIVATE TEST: Achievement" or "LOCAL TEST: Achievement") or m.preview and "PREVIEW: Achievement unlocked" or "ACHIEVEMENT UNLOCKED")
+        achCategory:SetText(m.titleUnlock and "NEW TITLE UNLOCKED" or m.testTournament and (m.privateTest and "PRIVATE TEST: Achievement" or "LOCAL TEST: Achievement") or m.preview and "PREVIEW: Achievement unlocked" or "ACHIEVEMENT UNLOCKED")
         ns.AchievementUI.PaintAchievementIcon(achIcon,m.achievement.id,false,achievement)
-        achTitle:SetText(m.achievement.title);achDescription:SetText(m.achievement.description)
-        achPoints:SetText(m.testTournament and "TEST" or "+"..m.achievement.points)
+        achTitle:SetText(m.titleUnlock or m.achievement.title)
+        achDescription:SetText(m.titleUnlock and "Available in your Duelist Profile" or m.achievement.description)
+        achPoints:SetText(m.titleUnlock and "" or m.testTournament and "TEST" or "+"..m.achievement.points)
         local rarityColors={{1,.78,.36},{.57,1,.43},{.39,.70,1},{.80,.48,1},{1,.67,.22}}
         local color=rarityColors[m.achievement.rarity] or rarityColors[1]
         achGlow:SetVertexColor(color[1],color[2],color[3],1)
@@ -487,6 +488,8 @@ function N.CheckAchievements()
                 observed[row.id]=true
                 Enqueue({id=(simulated and "sim:achievement:" or "achievement:")..row.id,
                     kind="achievement",preview=simulated,simulated=simulated,achievement=row})
+                local title=not simulated and not row.testOnly and ns.DuelistTitles and ns.DuelistTitles.Reward(row.id)
+                if title then Enqueue({id="title:"..row.id,kind="achievement",achievement=row,titleUnlock=title}) end
             end
         end
     end
